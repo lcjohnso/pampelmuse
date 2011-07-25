@@ -1,0 +1,16 @@
+~/prog/python/fitting/bin/cubefit.py src/scripts/ CubeFit
+~/prog/python/fitting/bin/init_cubefit.py src/scripts/ InitCubeFit
+
+~/prog/python/fitting/lib/fit_cube.py src/core/
+/home/kamann/prog/python/fitting/lib/fit_array.py src/core/
+/home/kamann/prog/python/misc/lib/read_config.py src/core/
+/home/kamann/prog/python/fitting/lib/create_prm.py src/core/
+
+/home/kamann/prog/python/math_tools/lib/_my_profiles.py src/functions/
+/home/kamann/prog/python/math_tools/lib/clip_sigma.py src/functions/
+/home/kamann/prog/python/fitting/lib/aperture.py src/functions/
+
+/home/kamann/prog/python/fitting/lib/ident_sources.py src/graphics/
+~/prog/python/fitting/lib/poly_replace.py src/graphics/
+
+

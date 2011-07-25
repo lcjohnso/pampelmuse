@@ -1,0 +1,238 @@
+#! /usr/bin/env python
+__version__ = 0.6  ## 2010/03/28
+
+import os, sys, time
+from fit_cube import *
+## from polyfit import PolyFit
+## from exclude_regions import ExcludeRegions
+from poly_replace import PolyReplace
+from optparse import OptionParser, OptionGroup
+from read_config import ReadConfig
+## from calc_lut import CalcLUT
+
+DEFAULTPATH = "/home/kamann/prog/python/fitting/bin/cubefit.default"
+
+
+
+cf = ReadConfig(DEFAULTPATH)
+cf.read_keys()
+
+
+## Definition of valid options
+parser = OptionParser(usage="%prog <file_root>",
+                      version="%prog " + str(__version__))
+parser.add_option("-v", "--verbose", dest="verbose", type="int",
+                  default=int(cf.call_key("VERBOSE")),
+                  help="Amount of information printed out on the screen")
+parser.add_option("-i", "--interact", dest="interact", type="int",
+                  default=int(cf.call_key("INTERACT")),
+                  help="Amount of interaction during fit(0-2)")
+parser.add_option("-n", "--ncoadd", dest="ncoadd", type="int",
+                  default=int(cf.call_key("NCOADD")),
+                  help="No of images averaged to determine PSF and positions")
+parser.add_option("-c", "--clip", dest="clip", type="float",
+                  default=cf.call_key("CLIP"),
+                  help="Threshold for bad-pixel cleaning")
+
+flxgroup = OptionGroup(parser, "Options influencing fitting of fluxes")
+flxgroup.add_option("-f", "--fixfluxes", action="store_false", dest="fixfluxes",
+                    default=True, 
+                    help="Disable fitting of fluxes of resolved sources")
+flxgroup.add_option("-s", "--fixsky", action="store_false", dest="fixsky",
+                    default=True,
+                    help="Disable fitting of sky backgropund")
+flxgroup.add_option("-u", "--fixunres", action='store_false', dest="fixunres",
+                    default=True,
+                    help="Disable fitting of unresolved component (if present)")
+
+psfgroup = OptionGroup(parser, "Properties of PSF used in fit")
+psfgroup.add_option("--psftype", dest="psftype", type="string",
+                    default=cf.call_key("PSFTYPE"),
+                    help="Analytical PSF profile used")
+psfgroup.add_option("--psfpar1", dest="psfpar1", type="float",
+                    default=cf.call_key("PSFPAR1"),
+                    help="First shape parameter of PSF profile")
+psfgroup.add_option("--psfpar2", dest="psfpar2", type="float",
+                     default=cf.call_key("PSFPAR2"),
+                     help="Second shape parameter of PSF profile")
+psfgroup.add_option("--psfpar3", dest="psfpar3", type="float",
+                    default=cf.call_key("PSFPAR3"),
+                    help="Ellipticity of PSF profile")
+psfgroup.add_option("--psfpar4", dest="psfpar4", type="float",
+                    default=cf.call_key("PSFPAR4"),
+                    help="Position angle of PSF profile")
+psfgroup.add_option("--psffit", dest="psffit", type="int",
+                    default=int(cf.call_key("PSFFIT")),
+                    help="Flag on fitted PSF parameters")
+
+posgroup = OptionGroup(parser, "Options influencing fitting of positions")
+posgroup.add_option("--posfit", dest="posfit", type="int",
+                    default=int(cf.call_key("POSFIT")),
+                    help="Flag on how source positions are fitted")
+posgroup.add_option("-V", "--varpos", action="store_true", dest="varpos",
+                    default=False,
+                    help="If individual positions are fct of wavelength")
+
+polgroup = OptionGroup(parser, "Options influencing PSF/position modeling")
+polgroup.add_option("--pdegree", dest="pdegree", type="int",
+                    default=int(cf.call_key("PDEGREE")),
+                    help="Deg. of polynomials to model wavelength dependencies")
+polgroup.add_option("-x", "--exregion", dest="exregion", type="string",
+                    default=cf.call_key("EXREGION"),
+                    help="Regions to be excluded from polynomial fits")
+polgroup.add_option("--idpos", dest="idpos", type="string",
+                    default=cf.call_key("IDPOS"),
+                    help="Sources used to model wavelength dependencies of pos")
+
+outgroup = OptionGroup(parser, "Output options")
+outgroup.add_option("-R", "--residuals", action="store_true", dest="makeres",
+                    default=False, help="Save datacube with residuals?")
+outgroup.add_option("-B", "--bestfit", action="store_true", dest="makemod",
+                    default=False, help="Save datacube with best-fit model?")
+outgroup.add_option("-M", "--mask", action="store_true", dest="makemask",
+                    default=False, help=" Save/update datacube with masked pixels?")
+
+## parser.add_option("-f", "--doftest", dest="doftest",
+##                   default=int(cf.call_key("DOFTEST")),
+##                   help="Perform Ftest on low SNR sources")
+## parser.add_option("--fsnrcut", dest="fsnrcut", type="float",
+##                   default=cf.call_key("FSNRCUT"),
+##                   help="If enabled, F test done for all sources with lower SN")
+
+parser.add_option_group(flxgroup)
+parser.add_option_group(psfgroup)
+parser.add_option_group(posgroup)
+parser.add_option_group(polgroup)
+parser.add_option_group(outgroup)
+
+
+(options, args) = parser.parse_args()
+if len(args) < 1:
+    parser.print_help()
+    sys.exit()
+else:
+    root = args[0]
+
+print options.fixfluxes, options.makemod
+if options.verbose > 0:
+    print ""
+    print "                  ***   CubeFit, version %s   ***" %str(__version__)
+    print ""
+
+    time.sleep(0.2)
+
+
+
+psf_isfitted = {1:False, 2:False, 3:False, 4:False}
+if options.psffit > 0:
+    rdof = options.psffit
+    for i in xrange(len(psf_isfitted), 0, -1):
+        if rdof >= 2**i:
+            rdof -= 2**i
+            psf_isfitted[i] = True  ## get PSF pars. for PolyFiT
+
+
+
+## Get all stars in fit
+## Get good stars for LUT (if requested) and position fits (if posvar==3)
+## allstars = []
+## indata = pyfits.getdata("%s.src.fits" %root, 1)
+## for name in indata.names:
+##     if name[:4] == 'FLUX':
+##         allstars.append(int(name[4:]))
+## if options.pstars != 'all':
+##     pstars = [int(s) for s in options.pstars.split(',')]
+## else:
+##     pstars = allstars[:]
+## weights = numpy.array([(i in pstars) for i in allstars], dtype='float32')
+## good stars have a weight of 1, others of 0
+
+
+
+
+
+if options.posfit > 0 or options.psffit > 0:
+    fitter_psf = FitCube(root, residuals=options.makeres,
+                         update_mask=options.makemask, verbose=options.verbose,
+                         interact=options.interact)
+    fitter_psf.init_psf(psf_isfitted, psftype=options.psftype,
+                        psfpar1=options.psfpar1, psfpar2=options.psfpar2,
+                        psfpar3=options.psfpar3, psfpar4=options.psfpar4)
+    fitter_psf.init_sources(options.posfit, options.fixfluxes,
+                            varpos=options.varpos)
+    allstars = fitter_psf.sorted_ind
+    fitter_psf.init_background(options.fixsky, options.fixunres)
+    fitter_psf.fit_cube(ftest=0, fsnrcut=0, ncoadd=options.ncoadd)
+    fitter_psf.write_results()
+
+
+    if options.verbose > 0:
+        print ""
+        print "   Modelling fitted PSF parameters and positions   "
+        print ""
+
+    ## check if wavelength ranges to exclude are predefined
+    if "-" in options.exregion:
+        if options.verbose > 1:
+            print " Excluded regions:"
+        regions = []
+        regs = options.exregion.split(',')
+        for reg in regs:
+            regions.append([float(reg.split('-')[0]), float(reg.split('-')[1])])
+            if options.verbose > 1:
+                print "%.1f \AA - %.1f \AA" %(regions[-1][0], regions[-1][1])
+    else:
+        regions = None
+    
+
+    cols2fit = []
+    combined = []
+
+    i = 0
+    for par, flag in psf_isfitted.iteritems():
+        if flag:
+            cols2fit.append("PSFPAR%i" %par)
+            combined.append(i)
+            i += 1
+
+    if options.posfit == 1:
+        cols2fit.extend(['PARC', 'PARD'])
+        combined.extend([i, i+1])
+        i += 2
+        
+    elif options.posfit == 2:
+        cols2fit.extend(['PARA','PARB','PARC','PARD'])
+        combined.extend([i, i+1, i+2, i+3])
+        i += 4
+
+    if options.posfit == 3:
+        cols2fit.extend(['XPOS%i'%ii for ii in allstars])
+        combined.extend(len(allstars)*[i])
+
+        cols2fit.extend(['YPOS%i'%ii for ii in allstars])
+        combined.extend(len(allstars)*[i+1])
+
+    pfit = PolyReplace(root,cols2fit, combine=combined, degree=options.pdegree,
+                       exclude=regions,interact=options.interact,
+                       verbose=options.verbose, flen=None)
+
+
+## !!!Needs to be updated!!!
+## 
+## if uselut:
+##     lut_calculator = CalcLUT(root)
+##     lut = lut_calculator(lutrad)
+## else:
+##     lut = None
+
+
+fitter_flx = FitCube(root, model=options.makemod, residuals=options.makeres,
+                     update_mask=options.makemask, verbose=options.verbose,
+                     interact=options.interact)
+fitter_flx.init_psf({1:False, 2:False, 3:False, 4:False})
+fitter_flx.init_sources(0, options.fixfluxes, varpos=(options.posfit in [0,3]))
+fitter_flx.init_background(options.fixsky, options.fixunres)
+fitter_flx.fit_cube(ftest=0, fsnrcut=0, clip=20)
+fitter_flx.write_results()
+
+
