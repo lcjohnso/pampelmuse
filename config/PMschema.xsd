@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding='ISO-8859-1'?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+targetNamespace="http://www.tobedefined.com/pampelmuse"
+xmlns="http://www.tobedefined.com/pampelmuse"
+elementFormDefault="qualified">
+
+<xs:element name="configuration">
+  <xs:complexType>
+    <xs:sequence>
+    <xs:element name="parameter" maxOccurs="unbounded" minOccurs="0">
+      <xs:complexType>
+        <xs:sequence>
+          <xs:element name="name" type="xs:string"/>
+	    <xs:choice>
+              <xs:element name="value"> <!-- type="xs:string">-->
+		<xs:complexType>
+		  <xs:simpleContent>
+		    <xs:extension base="xs:string">
+		      <xs:attribute name="dtype" type="xs:string"
+				    use="required"/>
+		    </xs:extension>
+		  </xs:simpleContent>
+		</xs:complexType>
+	      </xs:element>
+<!--              <xs:element name="string" type="xs:string"/>
+              <xs:element name="float" type="xs:decimal"/>
+              <xs:element name="integer" type="xs:int"/>
+              <xs:element name="flag" type="xs:boolean"/> -->
+	    </xs:choice>
+          <xs:element name="comment" type="xs:string" maxOccurs="unbounded"
+		      minOccurs="0"/>
+	  <xs:element name="updated" maxOccurs="unbounded"
+		      minOccurs="0">
+	    <xs:complexType>
+	      <xs:simpleContent>
+		<xs:extension base="xs:string">
+		  <xs:attribute name="timestamp" type="xs:dateTime"/>
+		</xs:extension>
+	      </xs:simpleContent>
+	    </xs:complexType>
+	  </xs:element>
+        </xs:sequence>
+<!--	<xs:attribute name="added" type="xs:date" use="required"/> -->
+	<xs:attribute name="inuse" type="xs:boolean" default="true"/>
+	<xs:attribute name="category" type="xs:string"/>
+<!--	<xs:attribute name="updated" type="xs:date"/>
+	<xs:attribute name="dtype" type="xs:string" use="required"/> -->
+      </xs:complexType>
+    </xs:element>
+    </xs:sequence>
+    <xs:attribute name="timestamp" type="xs:dateTime" use="required"/>
+  </xs:complexType>
+</xs:element>
+
+</xs:schema>

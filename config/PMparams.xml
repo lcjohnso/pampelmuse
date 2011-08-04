@@ -1,0 +1,37 @@
+<?xml version='1.0' encoding='ISO-8859-1'?>
+<?xml-stylesheet type="text/xsl" href="PMstyle.xsl"?>
+<configuration xmlns="http://www.tobedefined.com/pampelmuse" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" timestamp="2011-08-04T14:27:45Z" xsi:schemaLocation="http://www.tobedefined.com/pampelmuse PMschema.xsd">
+ <parameter inuse="1">
+  <name>FITRAD</name>
+  <value dtype="float">3.0</value>
+  <comment>The radius (in spaxels) out to which a profile is fitted</comment>
+  <updated timestamp="2011-08-04T12:00:00Z">
+    Parameter FITRAD added to configuration
+  </updated>
+ </parameter>
+ <parameter inuse="1" category="psf">
+  <name>PSFTYPE</name>
+  <value dtype="str">gaussian</value>
+  <comment>The analytical model used to model the PSF.</comment>
+  <comment>Valid options are 'moffat' or 'gaussian'.</comment>
+  <comment>A new comment</comment><updated timestamp="2011-08-04T12:00:00Z">
+    Parameter PSFTYPE added to configuration
+  </updated>
+ <updated timestamp="2011-08-04T13:06:33Z">Changed default value of parameter PSFTYPE: moffat to gaussian</updated></parameter>
+ <parameter inuse="0">
+  <name>MAKEMASK</name>
+  <value dtype="bool">True</value>
+  <comment>
+    Create datacube indicating pixels that were masked during the fit
+  </comment>
+  <updated timestamp="2011-08-04T12:00:00Z">
+    Parameter MAKEMASK added to configuration
+  </updated>
+  <updated timestamp="2011-08-04T14:17:50Z">Changed default value of parameter MAKEMASK: 1 to False</updated><updated timestamp="2011-08-04T14:17:50Z">Disabled usage of parameter MAKEMASK.</updated><updated timestamp="2011-08-04T14:19:14Z">Changed default value of parameter MAKEMASK: False to True</updated><updated timestamp="2011-08-04T14:27:45Z">Changed default value of parameter MAKEMASK: True to True</updated></parameter>
+<!--  <parameter category="psf" dtype="list" added="2011-08-01">
+   <name>PSFPARS</name>
+   <value>[2.5, 2.0, 0.0, 0.0]</value>
+   <comment>The shape parameters of the analytical PSF profile that is used. The meaning of the individual parameters for the different profiles can be found in the Documentation.</comment>
+ </parameter>
+<parameter category="pos" dtype="list" added="2011-08-04" updated="2011-08-04"><name>POSPARS</name><value>[1.0, 0.0, 0.0, 0.0]</value><comment>Parameters A,B,C,D of the coordinate transformation from input to spaxel coordinates</comment></parameter><parameter category="det" dtype="float" added="2011-08-04"><name>SNRCUT</name><value>5.0</value><comment>PampelMuse uses provided broadband magnitudes and the sigma cube to determine which stars should be fitted. Only stars with a S/N above SNRCUT are fitted.</comment></parameter> -->
+</configuration>
