@@ -1,22 +1,76 @@
-#! /usr/bin/env python
-__version__ = 0.6  ## 2010/03/28
+#!/usr/bin/python
+"""
+CUBEFIT
+=======
+The routine is used as a command-line wrapper for fit_cube.py, the core
+routine of PampelMuse.
 
-import os, sys, time
+CHANGELOG:
+----------
+2011/08/05, v0.0.0.0, Re-build routine from a previous one.
+"""
+__author__ = "Sebastian Kamann (skamann@aip.de)"
+__version__ = "0.0.0.0"
+import argparse, os, sys, time
+import pampelmuse
+import xml_interact
+
 from fit_cube import *
-## from polyfit import PolyFit
-## from exclude_regions import ExcludeRegions
 from poly_replace import PolyReplace
-from optparse import OptionParser, OptionGroup
-from read_config import ReadConfig
-## from calc_lut import CalcLUT
 
-DEFAULTPATH = "/home/kamann/prog/python/fitting/bin/cubefit.default"
+
+CONFIGPATH = os.path.expandvars("$pampelmuse_path/config/")
 
 
 
-cf = ReadConfig(DEFAULTPATH)
-cf.read_keys()
 
+
+
+
+
+parser = pampelmuse.PMsubparsers.add_parser("CUBEFIT",
+                                            help="""
+The routine is used for the actual PSF-fitting process. It must be provided
+with apropriate input data (see below). By default, all the parameter that
+have an impact on the fitting process are read from the PampelMuse
+configuration-file. However, several ways are provided to change the
+configuration on the fly. Check the option-list for details.
+""")
+
+parser.add_argument("prefix", type=str,
+                    help="""The prefix common to all FITS-files required by the
+                            fit-routine. The program will search for files
+                            named <prefix>.dat.fits, <prefix>.err.fits and
+                            <prefix>.prm.fits. Optionally, a bad-pixel mask
+                            can be used (<prefix>.msk.fits).""")
+args = pampelmuse.PMparser.parse_args()
+print args
+
+sys.exit()
+
+
+## open configuration file, update if necessary
+cfg_interface = xml_interact.ModifyConfig("{0}PMparams.xml".format(CONFIGPATH),
+                                          "{0}PMschema.xsd".format(CONFIGPATH))
+
+
+
+##  get dtypes of provided parameters (if any) and update their values 
+if updates != {}:
+    names = updates.keys()
+    for name in names:
+        old_value = cfg_interface.get_parameter(name, return_comment=False)
+
+        dtype = re.findall(r"(^<type)( ')([a-z0-9]*.[a-z0-9]*)('>)",
+                           str(type(old_value)))[0][2]
+
+        ## use transform_string-routine provided by xml_interfaces to 
+        ## get dtype of parameters right
+        success = cfg_interface.update_parameter(\
+            name, xml_interface.transform_string(updates[name], dtype))
+
+
+### Old Code
 
 ## Definition of valid options
 parser = OptionParser(usage="%prog <file_root>",

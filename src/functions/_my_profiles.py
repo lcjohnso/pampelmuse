@@ -2,6 +2,9 @@
 _MY_PROFILES
 ============
 
+NOTE: USAGE OF THIS PACKAGE IS NOW DEPRECATED. IT IS NOT MAINTAINED ANY-
+      MORE. INSTEAD, PLEASE USE my_profiles.py
+
 PURPOSE:
 --------
 Several analytical profiles are provided that can be used to fill a 2dim.
@@ -63,8 +66,10 @@ V2.3 - 2011/07/21 - Updated documentation
                      (data, (index0, index1)).
                     This second format is very convenient for creating
                     sparse matrices and saving memory (only Moffat so far)
+V2.4 - 2011/08/09 - bugfix concerning usage of sparse matrices:
+                     supersampling the central pixels caused deformed profile                         
 """
-__version__ = 2.3  ## last change: 2011/07/21
+__version__ = 2.4  ## last change: 2011/08/09
 import numpy, math
 from scipy import special, sparse
 from ima_arith import paste_area
@@ -93,7 +98,8 @@ class Moffat:
 
 
     def __init__(self, size, x_c, y_c, mag, beta, fwhm, e=0., theta=0.,
-                 osfactor=10, osradius=2, maxrad=None, return_sparse=False):
+                 osfactor=10, osradius=2, maxrad=numpy.inf,
+                 return_sparse=False):
         """
         Initialize an instance of the Moffat-class.
 
@@ -216,14 +222,13 @@ class Moffat:
             self._x_c *= self.osf
             self._y_c *= self.osf
 
-            self.x_c += 0.5*(self.osf-1.)
-            self.y_c += 0.5*(self.osf-1.)
+            self._x_c += 0.5*(self.osf-1.)
+            self._y_c += 0.5*(self.osf-1.)
 
             self.r_d *= self.osf
             self.sigma_0 /= (self.osf**2)
+            self.maxrad *= self.osf
 
-            if self.maxrad != None:
-                self.maxrad *= self.osf
             carray = numpy.fromfunction(self._draw, csize, dtype='float32')
 
             s1_size = (2*self.osr+1, (2*self.osr+1)*self.osf, self.osf)

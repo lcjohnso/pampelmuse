@@ -1,2 +1,3 @@
+import dynamic_ima_canvas
 import ident_sources
 import poly_replace
