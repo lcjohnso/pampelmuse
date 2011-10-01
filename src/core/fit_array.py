@@ -1,21 +1,24 @@
-import numpy as np
+import numpy as np,  sys
 from scipy.sparse.linalg import lsqr
 from scipy import sparse, optimize
-
-import time
 
 ##  own routines
 from my_profiles import Gaussian, Moffat
 from trans_coords import trans_coords
 
-## old requirements
-import math, os, sys, time
-from scipy import optimize, ndimage ## , special
-from copy import deepcopy
+"""
+The program contains `StarFit', the core-routine of PampelMuse. The
+routine is optimized to handle large datacubes, e.g MUSE-like data.
+For the analysis of smaller datacubes, e.g PMAS-like data,  some features
+still have to be added from older routines.
 
-## import resample1d
+v.0.0.0.0, 2011/09/30, (c). S. Kamann
+"""
+__author__ = "Sebastian Kamann (skamann@aip.de)"
+__version__ = "0.0.0.0"
 
-from clip_sigma import clip_sigma
+### some old code not used anymore
+## from clip_sigma import clip_sigma
 ## from ima_arith import paste_area
 
 ## def shift_image(data, dx, dy):
@@ -25,27 +28,54 @@ from clip_sigma import clip_sigma
 ##     return resample1d.shift_array(tmp_data, dy, axis=0, output='full')
 
 
-## All parameters that can be varied during the fit are stored in 2dim. arrays
-## that contain the current values (in row 1) and the previous values (in row 0)
-## for recovery and convergence checks
-## Last update: 2011/05/24 - updated importing of ndimage
-
 class StarFit:
-
+    """
+    `StarFit' is the core-routine of PampelMuse.  It uses a catalog of input
+    sources, created using the `INITFIT'-package to analyse a complete
+    datacube in an image-by-image manner. The fitting process itself is
+    split into to parts: 
+            (i) PSF & positions (if requested): A non-linear least squares fit
+                    is performed for individual suited sources. The results
+                    from the individual fits are combined afterwards.
+            (ii) Fluxes: A linear least-squares fit is performed for all the resolved
+                    sources simultaneously.
+    Note that the routine first analyzes a central image and than alternating
+    proceedes to the red and blue. This is done because usually the highest
+    signal is expected near the center of the observed wavelength range.
+    """
     def __init__(self, dataFits, sigmaFits, maskFits=None,
                   verbose=1):
-##                  fitrad, psfrad,
-##                  makemod=False, makeres=False, clip=5.):
+## Options to include later on: makemod=False, makeres=False, clip=5.):
+        """
+        Initialize an instance of the `StarFit'-class.
+    
+        Parameters
+        ----------
+        dataFits : pyfits HDU object
+            The data to analyze. Note that instead of the pure data, the HDU 
+            containing the data must be provided. This is necessary since the
+            routine will only load the image that is currently analyzed into memory.
+        sigmaFits : pyfits HDU object
+            The HDU containing the sigma-values of the data.
+        maskFits : pyfits HDU object, optional
+            The HDU containing the bad-pixel mask (if any)
+        verbose : integer, optional
+            The amount of output printed on the screen.
+            
+        Returns
+        -------
+            The newly created instance
+        """
 
         self.dataFits  = dataFits
         self.sigmaFits = sigmaFits
         self.maskFits  = maskFits
 
-        self.spatShape = (self.dataFits[0].header['NAXIS2'],
-                          self.dataFits[0].header['NAXIS1'])
-        self.spatPix   = self.dataFits[0].header['NAXIS1']\
-            *self.dataFits[0].header['NAXIS2']
-        self.specPix   = self.dataFits[0].header['NAXIS3']
+        self.spatShape = (self.dataFits.header['NAXIS2'],
+                          self.dataFits.header['NAXIS1'])
+        self.spatPix   = self.dataFits.header['NAXIS1']\
+            *self.dataFits.header['NAXIS2']
+        self.specPix   = self.dataFits.header['NAXIS3']
 
         if self.maskFits != None:
             self.hasMask = True
@@ -60,7 +90,29 @@ class StarFit:
 
         
     def provideSources(self, sources, spectra, coordTrans):
-
+        """
+        This method should be used to provide the instance with the necessary
+        information about the sources in the field.
+        All of those information is usually provided by the `INITFIT'-package.
+        
+        Parameters
+        ----------
+        sources : numpy record array
+            The list of sources that are used in the analysis. The array must
+            contain the fields 'id', 'x', 'y', 'mag', 'fitopt' and 'primary'.
+            The specific meaning of the individual fields is described in the
+            documentaion of `INITFIT'.
+        spectra : nd_array
+            A 2dim. array containing a spectrum for every independent component
+            defined in `sources'.
+        coordTrans : numpy record array
+            The parameters of the coordinate transformation from input to pixel
+            coordinates. The array must contain the fields `name', `value' and
+            `fit', providing the name, the initial value(s) and a fit flag for
+            every parameter.
+            Note that `value' can either contain single values or an array with
+            one value per spectral pixel.
+        """
         self.sources    = sources
         self.spectra    = spectra
         self.coordTrans = coordTrans
@@ -82,7 +134,28 @@ class StarFit:
     
     def providePSF(self, psfType, psfParameters, psfRad,
                    osFactor=6, osRadius=2):
-
+        """
+        This method should be used to provide the instance with the necessary
+        information about the PSF that is used in the fitting process.
+        
+        Parameters
+        ----------
+        psfType : string
+            The name of the  analytical  profile used to model the PSF.
+            Currently either `moffat' or `gauss' can be used.
+        psfParameters : numpy record array
+            The initial values of the PSF parameters. The array must contain
+            the fields `name', `value' and `fit', providing the name, the
+            initial value(s) and a fit flag for every parameter.
+            Note that `value' can either contain single values or an array
+            with one value per spectral pixel.
+        psfRad : float
+            The radius out to which the PSF is defined around a source
+        osFactor : integer, optional
+            The oversampling factor of the central PSF
+        osRadius : float, optional
+            The radius out to which the PSF is oversampled. 
+        """
         self.psfType = psfType
         self.psfPars = psfParameters
         self.psfRad  = psfRad
@@ -94,7 +167,7 @@ class StarFit:
             self.psfStars = np.where(self.sources['status']==3)[0]
 
         ## prepare function to generate PSF
-        if self.psfType == "gauss":
+        if self.psfType == "gauss": ## TheGaussian PSF
             self.psfMap = [np.where(self.psfPars['name']==name)[0][0] \
                                for name in ['fwhm', 'e', 'theta']]
 
@@ -104,7 +177,7 @@ class StarFit:
                                                     osfactor=osFactor,
                                                     osradius=osRadius)
 
-        elif self.psfType == "moffat":
+        elif self.psfType == "moffat": ## The Moffat PSF
             self.psfMap = [np.where(self.psfPars['name']==name)[0][0] \
                                for name in ['beta', 'fwhm', 'e', 'theta']]
 
@@ -119,7 +192,31 @@ class StarFit:
 
     def __call__(self, fitRad, returnModel=False, returnResiduals=False,
                  clip=5.):
-
+        """
+        Execute the fitting process. For each image of the datacube, the 
+        following steps are performed:
+            [1) Update the initial values]
+             2) Initialize the PSF model for the analyzed image
+             3) Create a PSF for every resolved source/component
+            [4) Fit the PSF and/or  source positions]
+             5) Fit the source fluxes
+        Steps in square brackets are optional.
+        
+        Parameters
+        ----------
+        fitRad : float
+            The radius within which the PSF is fitted to a source
+        returnModel : boolean, optional
+            Flag indicating whether an array containing the best-fit model should
+            be returned. Not implemented yet.
+        returnResdiduals : boolean, optional
+            Flag indicating whether an array containing the residuals of the fit
+            should be returned. Not implemented yet.
+        clip : float, optional
+            All pixels whose values devite by more than `clip' times SIGMA are
+            masked. SIGMA is the standard deviation of the residuals between
+            model and data.
+        """
         self.makeMod = max(returnModel, returnResiduals) ## create model array
         self.makeRes = returnResiduals                   ## and residuals?
         self.clip    = clip    ## efficiency of bad pixel masking
@@ -157,10 +254,10 @@ class StarFit:
 
             ## load data
             ## np.ndarray.flatten -> returns copy
-            self.data  = self.dataFits[0].section[self.jj].flatten()
-            self.sigma = self.sigmaFits[0].section[self.jj].flatten()
+            self.data  = self.dataFits.section[self.jj].flatten()
+            self.sigma = self.sigmaFits.section[self.jj].flatten()
             if self.hasMask:
-                self.mask = (self.maskFits[0].section[self.jj].flatten()==0)
+                self.mask = (self.maskFits.section[self.jj].flatten()==0)
             else:
                 self.mask = np.ones(self.data.shape, dtype='bool')
 
@@ -196,6 +293,7 @@ class StarFit:
 
     @property
     def model(self):
+        """Create the current best-fit model"""
         return self.A.transpose()*sparse.dia_matrix(\
                     (self.spectra[:,self.jj],[0]),
                     shape=(self.Ncmp, self.Ncmp)
@@ -203,13 +301,17 @@ class StarFit:
 
     @property
     def current(self):
+        """Determine the current residuals"""
         ## self.model.sum(axis=1) returns numpy.matrixlib.defmatrix-object
         ## `getA1' returns a flattened numpy.ndarray
         return self.data - self.model.sum(axis=1).getA1()
 
 
     def getPixCoords(self):
-            
+        """
+        Calculate the pixel coordinates from the provided input coordinates
+        and the best-fit parameters of the coordinate transformation.
+        """
         if self.sources['x'].ndim > 1:
             self.x = self.sources['x'][:,self.jj]
             self.y = self.sources['y'][:,self.jj]
@@ -225,7 +327,17 @@ class StarFit:
 
 
     def fillMatrix(self, radius):
-
+        """
+        Define the source matrix. The source matrix is a sparse matrix that
+        contains the spatial profiles of all resolved components, one per
+        column.
+        
+        Parameters
+        ----------
+        radius : float
+            The radius out to which the profile is calculated around a point
+            source.
+        """
         self.A =sparse.lil_matrix((self.Ncmp, self.spatPix))
 
         for i in xrange(self.Ncmp):
@@ -267,7 +379,13 @@ class StarFit:
 
 
     def fitPSF(self):
-
+        """
+        Perform the PSF fit. For every PSF-source, a non-linear least-squares
+        fit is performed. Depending on the respective fit-flags, either the
+        PSF-parameters and/or source coordinates are fitted.
+        The results of the individual fits are then used to update the PSF and/
+        or the coordinates of the parameter transformation.
+        """
         nPars = self.psfPars.size+3
 
         allPars = np.zeros((nPars, self.psfStars.size), dtype='float32')
@@ -331,7 +449,31 @@ class StarFit:
 
 
     def fitOnePSF(self, x0, fixedPars, fitFlags):
-
+        """
+        The optimization routine that is passed to the `fmin'-routine of the
+        `scipy.optimize'-package. During each iteration, a PSF array is created,
+        scaled and subtracted from the data. The chi^2-value is returned.
+        
+        Parameters
+        ----------
+        x0 : array_like
+            The initial guesses of the parameters that are fitted in the following
+            order: x, y, psfPar_0,.., psfPar_i, flux
+        fixedPars : array_like
+            The values of the parameters that are not fitted in the following
+            order: x, y, psfPar_0,.., psfPar_i, flux
+        fitFlags : array_like
+            A boolean flag for each parameter needed to create the PSF indicating
+            whether it is fitted. The number of True-values must be equal to the
+            size of `x0' and the number of False-values must be equal to the size
+            of `fixedPars'.
+        
+        Returns
+        -------
+        chi2 : float
+            The chi^2 value of the fit.
+        """
+        
         psfPars = np.zeros(fitFlags.shape, dtype='float64')
         psfPars[fitFlags] = x0
         psfPars[fitFlags==False] = fixedPars
@@ -353,7 +495,7 @@ class StarFit:
 
 
     def updatePars(self):
-
+        """This part is not yet finished."""
         if len(self.lastFittedImas) == 0:
             return
         else:
@@ -376,7 +518,17 @@ class StarFit:
 
 
     def vprint(self, string, vb_min):
-
+        """
+        Method used to print information on the screen.
+        
+        Parameters
+        ----------
+        string : string
+            The string to be printed.
+        vb_min : integer
+            The minimum verbosity at which the string is printed.
+        """
+    
         if self.vb >= vb_min:
             sys.stdout.write(string)
             sys.stdout.flush()

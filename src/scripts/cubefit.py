@@ -144,12 +144,12 @@ def cubefit(arguments):
             raise IOError, "No. of spectral pixels in mask-cube and prm-file "\
                 +"do not match."
     else:
-        maskFits = None
+        maskFits = [None]
 
 
     ## start fitting process:
-        fitter = StarFit(dataFits=dataFits, sigmaFits=sigmaFits,
-                         maskFits=maskFits)
+        fitter = StarFit(dataFits=dataFits[0], sigmaFits=sigmaFits[0],
+                         maskFits=maskFits[0])
 
         fitter.provideSources(sources=srcList, spectra=spcList,
                               coordTrans=posPars)
