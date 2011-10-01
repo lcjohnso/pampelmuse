@@ -1,9 +1,20 @@
-import math, numpy, os, sys
+import numpy as np
+from scipy.sparse.linalg import lsqr
+from scipy import sparse, optimize
+
+import time
+
+##  own routines
+from my_profiles import Gaussian, Moffat
+from trans_coords import trans_coords
+
+## old requirements
+import math, os, sys, time
 from scipy import optimize, ndimage ## , special
 from copy import deepcopy
 
 ## import resample1d
-from _my_profiles import Gaussian, Moffat
+
 from clip_sigma import clip_sigma
 ## from ima_arith import paste_area
 
@@ -20,136 +31,358 @@ from clip_sigma import clip_sigma
 ## Last update: 2011/05/24 - updated importing of ndimage
 
 class StarFit:
-    def __init__(self, size, mapping, psftype, psffit, fluxfit, posfit, skyfit,
-                 unresfit, lowflux_reject=False, verbose=1, makemod=False,
-                 makeres=False, clip=5., method=0, fitrad=-1, flux_cv=0.0001,
-                 sigma_cv=0.05):
-        
- 
-        self._reject = lowflux_reject
-        self.vb      = verbose ## 0-quiet, 1,2-some info, 3-lot of info
-        self.makemod = max(makemod, makeres) ## create model array
-        self.makeres = makeres               ## and residuals?
-        self.clip    = clip  ## efficiency of bad pixel masking
 
-        ###### Prepare arrays ######
-        self.size  = size
-        self.Nspat = size[0]*size[1]
+    def __init__(self, dataFits, sigmaFits, maskFits=None,
+                  verbose=1):
+##                  fitrad, psfrad,
+##                  makemod=False, makeres=False, clip=5.):
 
-        self.Nima  = 0 ## Counter for no. of processed images
+        self.dataFits  = dataFits
+        self.sigmaFits = sigmaFits
+        self.maskFits  = maskFits
 
-        self.data   = numpy.zeros(self.Nspat, dtype='float32')
-        self.sigma  = numpy.zeros(self.Nspat, dtype='float32')
-        self.inmask = numpy.ones(self.Nspat, dtype='bool')
+        self.spatShape = (self.dataFits[0].header['NAXIS2'],
+                          self.dataFits[0].header['NAXIS1'])
+        self.spatPix   = self.dataFits[0].header['NAXIS1']\
+            *self.dataFits[0].header['NAXIS2']
+        self.specPix   = self.dataFits[0].header['NAXIS3']
 
-
-        ###### Source settings ######
-        self.map  = numpy.asarray(mapping, dtype="int32")
-        self.Ntot = self.map.size       ## number of sources in total
-        self.Nrsv = (self.map>-1).sum() ## number of resolved sources
-        self.Nind = self.map.max()+1    ## number of independent res. sources
-        self.Nflx = self.Nind + 2       ## number of fitted flux components
-
-        if self.Ntot > self.Nrsv: ## check if unresolved component is included
-            self.hasunres = True
+        if self.maskFits != None:
+            self.hasMask = True
         else:
-            self.hasunres = False
+            self.hasMask = False
 
+        self.vb        = verbose ## 0-quiet, 1,2-some info, 3-lot of info
+        
+        self.Ntrack = 10 ## the changes during the `Ntrack' last fits are kept
+                         ## in memory to update the initial guesses 
+        self.lastFittedImas = []
 
         
-        ## sources will contain a normalized PSF for every source
-        self.sources = numpy.zeros((self.Nspat, self.Nflx), dtype='float32')
+    def provideSources(self, sources, spectra, coordTrans):
 
-        ###### Fluxes:
-        self.fluxfit  = fluxfit
+        self.sources    = sources
+        self.spectra    = spectra
+        self.coordTrans = coordTrans
 
-        ## spectra
-        self.fluxes   = numpy.zeros((2, self.Nflx), dtype='float32')
+        ## no. of fitted components
+        self.Ncmp = self.sources['specrow'].max()+1
 
-        self.method   = method
-        self.fitrad   = fitrad
-        self.flux_cv  = flux_cv
-        self.sigma_cv = sigma_cv
+        self.specMap = {}
+        for i in xrange(self.Ncmp):
+            self.specMap[i] = np.where(self.sources['specrow']==i)[0]
 
-        if self.method == 0:
-            self.fit_fluxes = lambda: self.fit_fluxes_smt()
-        elif self.method == 1:
-            self.fit_fluxes = lambda: self.fit_fluxes_hyb()
-        elif self.method == 2:
-            self.fit_fluxes = lambda: self.fit_fluxes_itt()
-        else:
-            raise IOError, "fit_fluxes-option must be 0,1 or 2 (received %i)" \
-                %self.method
+        self.lastFitChange = np.ones((self.Ntrack, self.Ncmp), dtype='float32')
 
-        ## broadband fluxes
-        self.bbfl = numpy.zeros((self.Ntot, ), dtype="float32")
-        self.frac = numpy.ones((self.Nrsv, ), dtype="float32")
-  
+        self.posMap = [np.where(self.coordTrans['name']==name)[0][0] \
+                           for name in ['A','B','C','D']]
 
-        ###### Positions:
-        self.posfit = posfit
+        self.posFit = self.coordTrans['fit'].any()
 
-        ## xpos, ypos - input coordinates
-        self.xpos = numpy.zeros((2, self.Ntot), dtype='float32')
-        self.ypos = numpy.zeros((2, self.Ntot), dtype='float32')
+    
+    def providePSF(self, psfType, psfParameters, psfRad,
+                   osFactor=6, osRadius=2):
 
-        ## xpix, ypix - TRUE pixel coorinates
-        self.xpix = numpy.zeros((2, self.Ntot), dtype='float32')
-        self.ypix = numpy.zeros((2, self.Ntot), dtype='float32')
+        self.psfType = psfType
+        self.psfPars = psfParameters
+        self.psfRad  = psfRad
+
+        self.psfFit = self.psfPars['fit'].any()
+
+        ## collect stars suitable for PSF determination
+        if self.psfFit or self.posFit:
+            self.psfStars = np.where(self.sources['status']==3)[0]
+
+        ## prepare function to generate PSF
+        if self.psfType == "gauss":
+            self.psfMap = [np.where(self.psfPars['name']==name)[0][0] \
+                               for name in ['fwhm', 'e', 'theta']]
+
+            self.makePSF = lambda psfPars: Gaussian(fwhm=psfPars[0],
+                                                    e=psfPars[1],
+                                                    theta=psfPars[2],
+                                                    osfactor=osFactor,
+                                                    osradius=osRadius)
+
+        elif self.psfType == "moffat":
+            self.psfMap = [np.where(self.psfPars['name']==name)[0][0] \
+                               for name in ['beta', 'fwhm', 'e', 'theta']]
+
+            self.makePSF = lambda psfPars: Moffat(beta=psfPars[0],
+                                                  fwhm=psfPars[1],
+                                                  e=psfPars[2],
+                                                  theta=psfPars[3],
+                                                  osfactor=osFactor,
+                                                  osradius=osRadius)
+        
+
+
+    def __call__(self, fitRad, returnModel=False, returnResiduals=False,
+                 clip=5.):
+
+        self.makeMod = max(returnModel, returnResiduals) ## create model array
+        self.makeRes = returnResiduals                   ## and residuals?
+        self.clip    = clip    ## efficiency of bad pixel masking
+
+        self.fitRad  = fitRad
+
+
+        self.vprint(" "*17+"_"*42+'\n', 1)
+        self.vprint(" "*17+"|Progress |Image |Current fit |Source ID |\n", 1)
+
+
+        ## the fitting process
+        for i in xrange(self.specPix):
+
+            self.jj = (self.specPix>>1) - 1 - int(i/2) + i*np.mod(i,2) \
+                + np.mod(self.specPix, 2)
+            ## jj is a counter that starts at the central spectral pixel
+            ## and proceeds simultaneoulsy to the red and blue end.
+
+            self.lastFittedImas.append(self.jj)
+            if len(self.lastFittedImas)>self.Ntrack:
+                self.lastFittedImas.remove(self.lastFittedImas[0])
+
+            self.vprint("\r"+" "*17+"|", 1)
+            self.vprint("{0:8.2f}%|".format(100.*float(i)/self.specPix), 1)
+            self.vprint("{0:6d}|".format(self.jj), 1)
+
+            ## initialize PSF:
+            psfPars  = self.psfPars['value'][self.psfMap, self.jj]
+            self.PSF = self.makePSF(psfPars)
+
+            ##  determine pixel coordinates:
+            self.getPixCoords()
+
+
+            ## load data
+            ## np.ndarray.flatten -> returns copy
+            self.data  = self.dataFits[0].section[self.jj].flatten()
+            self.sigma = self.sigmaFits[0].section[self.jj].flatten()
+            if self.hasMask:
+                self.mask = (self.maskFits[0].section[self.jj].flatten()==0)
+            else:
+                self.mask = np.ones(self.data.shape, dtype='bool')
+
+            ## create source matrix
+            self.fillMatrix(radius=self.psfRad)
+
+            ## fit PSF/positions if requested
+            if self.psfFit:
+                self.vprint(" "*9+"PSF|", 1)
+                self.fitPSF()
+
+            ## fit fluxes
+                self.vprint("\b"*12, 1)
+            self.vprint(" "*5+"Fluxes|", 1)
+
+            _A = self.A.tocsc().transpose()
+            bestfit = lsqr(_A, self.current)[0]
+            self.lastFitChange[0] = (1. + bestfit*self.spectra[:,self.jj])
+            self.spectra[:,self.jj] += bestfit
+
+
+## Only for debugging
+            import pylab
+            pylab.imshow(self.current.reshape((100,100)), cmap=pylab.cm.hot,
+                         interpolation='nearest')
+            pylab.show()
+
+            break
+#####################
+
+        self.vprint("\n"+" "*17+"|"+"_"*40+'|\n\n', 1)
+
+
+    @property
+    def model(self):
+        return self.A.transpose()*sparse.dia_matrix(\
+                    (self.spectra[:,self.jj],[0]),
+                    shape=(self.Ncmp, self.Ncmp)
+                    )
+
+    @property
+    def current(self):
+        ## self.model.sum(axis=1) returns numpy.matrixlib.defmatrix-object
+        ## `getA1' returns a flattened numpy.ndarray
+        return self.data - self.model.sum(axis=1).getA1()
+
+
+    def getPixCoords(self):
             
-
-        ###### PSF settings: ######
-        needed = {'moffat':4, 'gauss':3} 
-        self.psftype  = psftype ## either 'moffat' or 'gauss'
-        self.psffit = numpy.asarray(deepcopy(psffit)) ## boolean fit option
-                                                      ## for every PSF par.
-        if max(self.psffit) > 0:
-            self.psfvar = True ## PSF is variabel
+        if self.sources['x'].ndim > 1:
+            self.x = self.sources['x'][:,self.jj]
+            self.y = self.sources['y'][:,self.jj]
         else:
-            self.psfvar = False ## PSF is fixed
+            if self.coordTrans['value'].ndim > 1:
+                A, B, C, D = self.coordTrans['value'][self.posMap, self.jj]
+            else:
+                A, B, C, D = self.coordTrans['value'][self.posMap]
+                
+            self.x = A*self.sources['x']+B*self.sources['y']+C
+            self.y = A*self.sources['y']-B*self.sources['x']+D
 
-        if needed.has_key(psftype):
-            self.psfpars  = numpy.zeros((2, needed[psftype]))
+
+
+    def fillMatrix(self, radius):
+
+        self.A =sparse.lil_matrix((self.Ncmp, self.spatPix))
+
+        for i in xrange(self.Ncmp):
+
+            indices_i = []
+            flux_i    = []
+
+            for j in self.specMap[i]:
+
+                if self.sources['id'][j] == -1:
+                    self.A[i,:] = 1.
+                else:
+                    psf_ij = self.PSF(size=self.spatShape, x_c=self.x[j],
+                                      y_c=self.y[j], mag=0., maxrad=radius,
+                                      return_sparse=True,
+                                      as_sparse_matrix=False)
+
+
+                    indices_i.append(psf_ij[1][1] \
+                                         + self.spatShape[1]*psf_ij[1][0])
+                    flux_i.append(psf_ij[0])
+
+                    if len(indices_i) > 1:
+                        indices_i.append(np.union1d(indices_i[0], indices_i[1]))
+
+                        flux_i.append(np.zeros(indices_i[-1].shape,
+                                               dtype='float32'))
+                        flux_i[-1][np.in1d(indices_i[-1], indices_i[0])]\
+                            = flux_i[0]
+                        flux_i[-1][np.in1d(indices_i[-1], indices_i[1])]\
+                            = flux_i[1]
+
+                        for z in xrange(2):
+                            indices_i.remove(indices_i[0])
+                            flux_i.remove(flux_i[0])
+
+                    self.A[i, indices_i[-1]] = flux_i[-1] 
+
+
+
+    def fitPSF(self):
+
+        nPars = self.psfPars.size+3
+
+        allPars = np.zeros((nPars, self.psfStars.size), dtype='float32')
+
+        fitFlags = np.zeros((nPars,), dtype='bool')
+        fitFlags[:2] = self.coordTrans['fit'].any()
+        fitFlags[2:-1] = self.psfPars['fit']
+        fitFlags[-1] = True
+
+        ## create working copy of `current'-array. Required since the
+        ## definition of `current' (using an @property-method) does not
+        ## work with in-place operations like `+=' or `-='.
+        self._current = self.current.copy()
+
+        ## loop over all PSF sources; add source to residuals, fit resulting
+        ##  array and subtract source again.
+        j = 0
+        for i in self.psfStars:
+            kk = self.sources['specrow'][i]
+            self.vprint("{0:10d}|".format(int(self.sources['id'][i])), 1)
+
+            allPars[0,j]    = self.x[i]
+            allPars[1,j]    = self.y[i]
+            allPars[2:-1,j] = self.psfPars['value'][self.psfMap, self.jj]
+            allPars[-1,j]   = self.spectra[kk,self.jj]
+
+            initPSF =  np.asarray(self.A[kk,:].todense(), dtype="float32")[0]
+            self._current += initPSF*self.spectra[kk,self.jj]
+
+            allPars[fitFlags,j] = optimize.fmin(\
+                func=self.fitOnePSF,
+                x0=allPars[fitFlags,j],
+                args=(allPars[fitFlags==False,j],fitFlags),
+                disp=False)
+
+            self._current -= initPSF*self.spectra[kk,self.jj]
+            j += 1
+
+            self.vprint("\b"*11, 1)
+
+        if self.coordTrans['fit'].any(): ## update coordinate transformation
+            newCoords = np.array(zip(self.sources['id'][self.psfStars],
+                                     allPars[0], allPars[1]),
+                                 dtype=[('id', 'i4'), ('x', 'f8'), ('y', 'f8')])
+
+            newTrans = trans_coords(self.sources, newCoords)
+            for prm in newTrans.dtype.names:
+                index = np.where(self.coordTrans['name']==prm)[0][0]
+                self.coordTrans['value'][index, self.jj] = newTrans[prm][0]
+
+            self.getPixCoords()
+
+        if self.psfPars['fit'].any(): ## update PSF
+            self.psfPars['value'][self.psfMap, self.jj] \
+                = allPars[2:-1,:].mean(axis=1)
+
+            self.PSF = self.makePSF(self.psfPars['value'][self.psfMap, self.jj])
+
+        self.fillMatrix(radius=self.psfRad) ## recalculate source matrix
+
+
+
+    def fitOnePSF(self, x0, fixedPars, fitFlags):
+
+        psfPars = np.zeros(fitFlags.shape, dtype='float64')
+        psfPars[fitFlags] = x0
+        psfPars[fitFlags==False] = fixedPars
+
+        thePSF   = self.makePSF(psfPars[2:-1])
+
+        psfArray = thePSF(size=self.spatShape, x_c=psfPars[0],
+                          y_c=psfPars[1], mag=0., maxrad=self.fitRad,
+                          return_sparse=True, as_sparse_matrix=False)
+
+        usedPix  = psfArray[1][1] + self.spatShape[1]*psfArray[1][0]
+
+        err  = (self._current[usedPix] - psfPars[-1]*psfArray[0])
+        err *= self.mask[usedPix]
+
+        return ((err*err)/(self.sigma[usedPix]*self.sigma[usedPix])).sum()
+
+
+
+
+    def updatePars(self):
+
+        if len(self.lastFittedImas) == 0:
+            return
         else:
-            raise IOError, "PSF type <%s> is not supported" %psftype
-           
+            self.spectra[:,self.jj] *= self.lastFitChange.sum(axis=0)
 
-        ###### Position parameter settings ######
-        self.pospars = numpy.zeros((2,4))
-        self.pptofit = numpy.zeros((4,), dtype="bool") ## boolean fit option
-                                                       ## for every pos. par.
-        if posfit == 1:
-            self.pptofit[2:] = True
-        elif posfit == 2:
-            self.pptofit[:] = True
+            self.laftFitChange[1:,:] = self.lastFitChange[:-1,:]
 
 
-        ###### Background settings: #######
-        self.skyfit   = skyfit
-        self.unresfit = unresfit
+            LASTFIT = self.lastFittedImas[-1]
+
+            if self.coordTrans['fit'].any():
+                self.coordTrans['value'][self.coordTrans['fit'], self.jj] \
+                    = self.coordTrans['value'][self.coordTrans['fit'],LASTFIT]
 
 
-        self.vprint("_" * 68 + '\n', 1)
-        self.vprint("|Image  |Iteration  |Current fit  |Chi^2  ", 1)
-        self.vprint("|dChi^2/Chi^2  |Deleted  |\n", 1)
-
-
-        
-    def __del__(self):
-        self.vprint("\n"+"_" * 68 + '\n', 1)
+            if self.psfPars['fit'].any(): ## update PSF
+                self.psfPars['value'][self.psfPars['fit'], self.jj] \
+                    = self.psfPars['value'][self.psfPars['fit'], LASTFIT]
 
 
 
-    ## for later use: more convenient way to call function that creates PSF 
-    def PSF(self):
-        if self.psftype == 'moffat':
-            return lambda x, y, p: Moffat(self.size, x, y, 0.,
-                                          p[0], p[1], p[2], p[3]).array
-        elif self.psftype == 'gauss':
-            return lambda x, y, p: Gaussian(self.size, x, y, 0.,
-                                            p[0], p[1], p[2]).array
+    def vprint(self, string, vb_min):
+
+        if self.vb >= vb_min:
+            sys.stdout.write(string)
+            sys.stdout.flush()
 
 
+class OldData:
     
     ## update the data and sigma array (mask array only if provided)
     ## should be called for every image in a data cube
@@ -171,9 +404,9 @@ class StarFit:
     ## the fixed parameters are updated (except if self.Nima=0))
     def update_fluxes(self, fluxes, broadband=None, force=False):
         if self.Nima == 0 or force:
-            update = numpy.ones((self.Nflx,), dtype="bool")
+            update = np.ones((self.Nflx,), dtype="bool")
         else:
-            update = numpy.zeros((self.Nflx,), dtype="bool")
+            update = np.zeros((self.Nflx,), dtype="bool")
             if self.fluxfit == 0:
                 update[:-2] = True
             if self.skyfit == 0:
@@ -227,7 +460,7 @@ class StarFit:
         self.Nima     += 1
         self.psf_maker = self.PSF()
         self.chisq     = []
-        self.infit     = numpy.array([True]*self.Nflx)  ## to keep track of 
+        self.infit     = np.array([True]*self.Nflx)  ## to keep track of 
                                                         ## fitted fluxes
         self.newpsf    = True
 
@@ -265,7 +498,7 @@ class StarFit:
         self._mask(clip=self.clip, chisq_compute=True)
 
         ## Calculate noise for every source
-        self.noise = 1./numpy.sqrt(((self.sources/self.sigma[:,numpy.newaxis])**2)[self.mask].sum(axis=0))
+        self.noise = 1./np.sqrt(((self.sources/self.sigma[:,np.newaxis])**2)[self.mask].sum(axis=0))
 
         ## aperture photometry for sources with flux=0
 ##         if (self.infit==False).sum() > 0:
@@ -373,7 +606,7 @@ class StarFit:
         ## positions have changed
         if self.hasunres and self.newpsf:
 
-            self.unres_faint = numpy.zeros(self.size, dtype="float32")
+            self.unres_faint = np.zeros(self.size, dtype="float32")
 
             for i in xrange(self.Ntot):
                 if self.map[i] == -1:
@@ -408,13 +641,13 @@ class StarFit:
         
         ## calculate difference between model and data
         err = self.data - (self.fluxes[1]*self.sources).sum(axis=1)
-        err[self.inmask==0] = numpy.median(err) 
+        err[self.inmask==0] = np.median(err) 
 
         ## find bad pixels via sigma-clipping
         clip_result = clip_sigma((err/self.sigma), clip=clip)
 
         ## update mask
-        self.mask = numpy.logical_and(self.inmask, clip_result[1])
+        self.mask = np.logical_and(self.inmask, clip_result[1])
 
 ##         print "\n", self.mask.sum()
 
@@ -429,14 +662,14 @@ class StarFit:
     def fit_positions(self):
 
         if self.posfit == 3:
-            isfitted = numpy.zeros((self.Ntot,), dtype="bool")
+            isfitted = np.zeros((self.Ntot,), dtype="bool")
             for i in xrange(self.Nrsv):
                 if self.infit[self.map[i]]: isfitted[i] = True
-            fitpars = numpy.concatenate((self.xpos[1,isfitted],
+            fitpars = np.concatenate((self.xpos[1,isfitted],
                                          self.ypos[1,isfitted])) 
         else:
             fitpars  = self.pospars[1,self.pptofit]
-            isfitted = numpy.ones((self.Nrsv,), dtype='bool')
+            isfitted = np.ones((self.Nrsv,), dtype='bool')
 
         self.workcopy  = self.data.copy()
         self.workcopy -= (self.fluxes[1,-2:]*self.sources[:,-2:]).sum(axis=1)
@@ -476,7 +709,7 @@ class StarFit:
         self.workcopy  = self.data.copy()
         self.workcopy -= (self.fluxes[1,-2:]*self.sources[:,-2:]).sum(axis=1)
 
-        isfitted = numpy.ones((self.Nrsv,), dtype='bool')
+        isfitted = np.ones((self.Nrsv,), dtype='bool')
 
         results = optimize.fmin(self._fit_newpsf, fitpars,
                                 args=(True,self.xpos[1],self.ypos[1],
@@ -498,9 +731,9 @@ class StarFit:
             psfpars[self.psffit] = fitpars
         else:
             if self.posfit == 3:
-                x[isfitted] = numpy.asarray(fitpars[:isfitted.sum()],
+                x[isfitted] = np.asarray(fitpars[:isfitted.sum()],
                                             dtype="float32")
-                y[isfitted] = numpy.asarray(fitpars[isfitted.sum():],
+                y[isfitted] = np.asarray(fitpars[isfitted.sum():],
                                             dtype="float32")
             else:
                 pospars[self.pptofit] = fitpars
@@ -529,7 +762,7 @@ class StarFit:
 
         for i in xrange(self.Nind):
             if not self.infit[i]:
-                nearpix = numpy.fromfunction(self._select_pix, self.size, cid=i,
+                nearpix = np.fromfunction(self._select_pix, self.size, cid=i,
                                              r_in=r_aper)
                 flx = res[nearpix*self.mask].sum()
 
@@ -541,10 +774,10 @@ class StarFit:
     
     def _select_pix(self, x, y, sid, r_in, r_out=None):
 
-        r = numpy.sqrt((x-self.ypix[1,sid])**2 + (y-self.xpix[1,sid])**2)
+        r = np.sqrt((x-self.ypix[1,sid])**2 + (y-self.xpix[1,sid])**2)
 
         if r_out == None: return (r<=r_in)
-        else: return numpy.logical_and(r>r_in, r<=r_out)
+        else: return np.logical_and(r>r_in, r<=r_out)
 
 
 
@@ -563,7 +796,7 @@ class StarFit:
         self.workcopy -=(self.fluxes[1,self.infit==False]*self.sources[:,self.infit==False]).sum(axis=1)
 
         if self.newpsf:
-            self.noise = 1./numpy.sqrt(((self.sources/self.sigma[:,numpy.newaxis])**2).sum(axis=0))
+            self.noise = 1./np.sqrt(((self.sources/self.sigma[:,np.newaxis])**2).sum(axis=0))
             self._unres_comp()
 
         deleted = (self.infit[:-2]==False).sum()
@@ -572,10 +805,10 @@ class StarFit:
 
             self._unres_norm()
 
-            a = (self.sources/self.sigma[:,numpy.newaxis])[self.mask][:,self.infit]
+            a = (self.sources/self.sigma[:,np.newaxis])[self.mask][:,self.infit]
             b = (self.workcopy/self.sigma)[self.mask]
 
-            results = numpy.linalg.lstsq(a,b)
+            results = np.linalg.lstsq(a,b)
 
             self.fluxes[1, self.infit] = results[0]
 
@@ -601,7 +834,7 @@ class StarFit:
 
         ## update noise values if PSF/positions have changed
         if self.newpsf:
-            self.noise = 1./numpy.sqrt(((self.sources/self.sigma[:,numpy.newaxis])**2)[self.mask].sum(axis=0))
+            self.noise = 1./np.sqrt(((self.sources/self.sigma[:,np.newaxis])**2)[self.mask].sum(axis=0))
         
         insrcfit = self.infit.copy()
 
@@ -610,18 +843,18 @@ class StarFit:
         self.workcopy -=(self.fluxes[1]*self.sources).sum(axis=1)
 
         ## Create "valid pixel array" for every source 
-        fitapers = numpy.zeros(self.sources.shape, dtype="bool")
+        fitapers = np.zeros(self.sources.shape, dtype="bool")
         for i in xrange(self.Nrsv):
             j = self.map[i]
             if insrcfit[j]:
-                sel_i = numpy.fromfunction(self._select_pix,self.size,
+                sel_i = np.fromfunction(self._select_pix,self.size,
                                            sid=i, r_in=self.fitrad).reshape(-1)
-                fitapers[:,j] = numpy.logical_or(fitapers[:,j], sel_i)
+                fitapers[:,j] = np.logical_or(fitapers[:,j], sel_i)
         fitapers[:,-2] = insrcfit[-2]
         fitapers[:,-1] = insrcfit[-1]
         
         for j in xrange(self.Nind):
-            if not numpy.logical_and(self.mask, fitapers[:,j]).any():
+            if not np.logical_and(self.mask, fitapers[:,j]).any():
                 self.fluxes[:,j] = 0.
                 fitapers[:,j]    = False
                 insrcfit[j]      = False
@@ -634,12 +867,12 @@ class StarFit:
             self.fluxes[0] = self.fluxes[1]
 
             ## fitting of sources/background
-            fitpix = numpy.logical_and(self.mask, numpy.any(fitapers,axis=1))
+            fitpix = np.logical_and(self.mask, np.any(fitapers,axis=1))
 
-            A = ((self.sources*fitapers)[:,insrcfit]/self.sigma[:,numpy.newaxis])[fitpix]
+            A = ((self.sources*fitapers)[:,insrcfit]/self.sigma[:,np.newaxis])[fitpix]
             b = (self.workcopy/self.sigma)[fitpix]
             
-            results = numpy.linalg.lstsq(A,b)
+            results = np.linalg.lstsq(A,b)
             dflux   = results[0]
 
             self.fluxes[1,insrcfit] += dflux
@@ -679,7 +912,7 @@ class StarFit:
 
         ## update noise values if PSF/positions have changed
         if self.newpsf:
-            self.noise = 1./numpy.sqrt(((self.sources/self.sigma[:,numpy.newaxis])**2)[self.mask].sum(axis=0))
+            self.noise = 1./np.sqrt(((self.sources/self.sigma[:,np.newaxis])**2)[self.mask].sum(axis=0))
         
         insrcfit = self.infit.copy()
 
@@ -689,18 +922,18 @@ class StarFit:
 
 
         ## Create "valid pixel array" for every source 
-        fitapers = numpy.zeros(self.sources.shape, dtype="bool")
+        fitapers = np.zeros(self.sources.shape, dtype="bool")
         for i in xrange(self.Nrsv):
             j = self.map[i]
             if insrcfit[j]:
-                sel_i = numpy.fromfunction(self._select_pix,self.size,
+                sel_i = np.fromfunction(self._select_pix,self.size,
                                            sid=i, r_in=self.fitrad).reshape(-1)
-                fitapers[:,j] = numpy.logical_or(fitapers[:,j], sel_i)
+                fitapers[:,j] = np.logical_or(fitapers[:,j], sel_i)
         fitapers[:,-2] = insrcfit[-2]
         fitapers[:,-1] = insrcfit[-1]
         
         for j in xrange(self.Nind):
-            if not numpy.logical_and(self.mask, fitapers[:,j]).any():
+            if not np.logical_and(self.mask, fitapers[:,j]).any():
                 self.fluxes[:,j] = 0.
                 fitapers[:,j]    = False
                 insrcfit[j]      = False
@@ -711,7 +944,7 @@ class StarFit:
         self.fsorted.reverse()
 
         ## background components that are fitted:
-        bf = numpy.concatenate([numpy.zeros(self.Nind, dtype='bool'),
+        bf = np.concatenate([np.zeros(self.Nind, dtype='bool'),
                                 self.infit[-2:]])
 
         iteration = 0
@@ -721,10 +954,10 @@ class StarFit:
             self.fluxes[0] = self.fluxes[1]
 
             if bf.any() and converged == 0:
-                a = (self.sources[:,bf]/self.sigma[:,numpy.newaxis])[self.mask]
+                a = (self.sources[:,bf]/self.sigma[:,np.newaxis])[self.mask]
                 b = (self.workcopy/self.sigma)[self.mask]
 
-                results = numpy.linalg.lstsq(a,b)
+                results = np.linalg.lstsq(a,b)
 
                 self.fluxes[1,bf] += results[0]
                 self.workcopy -= (results[0]*self.sources[:,bf]).sum(axis=1)
@@ -732,13 +965,13 @@ class StarFit:
             for i in self.fsorted: ## fit the individual sources
                 if insrcfit[i]:
 
-                    fitpix = numpy.logical_and(self.mask, fitapers[:,i])
+                    fitpix = np.logical_and(self.mask, fitapers[:,i])
 
                     a = (self.sources[:,i]/self.sigma)[fitpix]
                     A = a.reshape((-1,1))
                     b = (self.workcopy/self.sigma)[fitpix]
 
-                    results = numpy.linalg.lstsq(A,b)
+                    results = np.linalg.lstsq(A,b)
                     dflux   = results[0][0]
                     
                     self.fluxes[1,i] += dflux
@@ -771,7 +1004,7 @@ class StarFit:
 ##             last -= 1
 ##             err -= fitpars[last]
 ##         if self.fluxfit > 0:
-##             err  -= (fitpars[:last, numpy.newaxis, numpy.newaxis] \
+##             err  -= (fitpars[:last, np.newaxis, np.newaxis] \
 ##                          *self.sources[self.infit]).sum(axis=0)
 ## 
 ##         err *= self.mask
@@ -791,7 +1024,7 @@ class StarFit:
 ## 
 ##         self.size  = self.data.shape
 ## 
-##         self.mask  = numpy.ones(self.size, dtype='int16')
+##         self.mask  = np.ones(self.size, dtype='int16')
 ##         if mask != None:
 ##             self.mask -= (mask>0.)
 ## 
@@ -820,8 +1053,8 @@ class StarFit:
 ## 
 ##         Nparams = {'array':1,'gauss':3, 'moffat':4}
 ## 
-##         p = numpy.asarray(params)
-##         f = numpy.asarray(tofit)
+##         p = np.asarray(params)
+##         f = np.asarray(tofit)
 ## 
 ##         self.psf = type
 ## 
@@ -835,7 +1068,7 @@ class StarFit:
 ##             self.Nppsf = Nparams[type]
 ## 
 ##             if p.shape[0] == self.Nppsf:
-##                 parpsf = numpy.zeros((2, Nparams[type]), dtype='float32')
+##                 parpsf = np.zeros((2, Nparams[type]), dtype='float32')
 ##                 parpsf[0] = params
 ##                 parpsf[1] = tofit
 ##                 self.pdict['psf'] = parpsf
@@ -876,11 +1109,11 @@ class StarFit:
 ## ##         self.y_ref = refpos[1]
 ## 
 ##         self.ns      = fluxes.shape[0]        
-##         self.sources = numpy.arange(self.ns)  ## contains all sources still in
+##         self.sources = np.arange(self.ns)  ## contains all sources still in
 ##                                               ## the fit
 ## 
-##         parpos = numpy.zeros((2, 2*self.ns+4), dtype='float32')
-##         parflx = numpy.zeros((2, self.ns), dtype='float32')
+##         parpos = np.zeros((2, 2*self.ns+4), dtype='float32')
+##         parflx = np.zeros((2, self.ns), dtype='float32')
 ## 
 ## 
 ##         if posfit == 1:
@@ -899,7 +1132,7 @@ class StarFit:
 ##         self.pdict['pos'] = parpos
 ##         self.pdict['flx'] = parflx
 ## 
-##         self.objects = numpy.zeros((self.ns,self.size[0],self.size[1]),
+##         self.objects = np.zeros((self.ns,self.size[0],self.size[1]),
 ##                                    dtype='float32')
 ## 
 ## 
@@ -910,7 +1143,7 @@ class StarFit:
 ##         If background should be fitted, set tofit=1. Value than acts as initial
 ##         guess
 ##         """
-##         parbck = numpy.zeros((2,1), dtype='float32')
+##         parbck = np.zeros((2,1), dtype='float32')
 ##         parbck[0] = value
 ##         parbck[1] = tofit
 ##         self.pdict['bck'] = parbck
@@ -921,18 +1154,18 @@ class StarFit:
 ## 
 ##         ## write all fit parameters into one array
 ##         if self.psf == 'array':
-##             self.fitparams = numpy.concatenate((self.pdict['pos'][0],
+##             self.fitparams = np.concatenate((self.pdict['pos'][0],
 ##                                                 self.pdict['flx'][0],
 ##                                                 self.pdict['bck'][0]))
-##             self.isfitted  = numpy.concatenate((self.pdict['pos'][1],
+##             self.isfitted  = np.concatenate((self.pdict['pos'][1],
 ##                                                 self.pdict['flx'][1],
 ##                                                 self.pdict['bck'][1]))
 ##         else:
-##             self.fitparams = numpy.concatenate((self.pdict['psf'][0],
+##             self.fitparams = np.concatenate((self.pdict['psf'][0],
 ##                                                 self.pdict['pos'][0],
 ##                                                 self.pdict['flx'][0],
 ##                                                 self.pdict['bck'][0]))
-##             self.isfitted  = numpy.concatenate((self.pdict['psf'][1],
+##             self.isfitted  = np.concatenate((self.pdict['psf'][1],
 ##                                                 self.pdict['pos'][1],
 ##                                                 self.pdict['flx'][1],
 ##                                                 self.pdict['bck'][1]))
@@ -957,7 +1190,7 @@ class StarFit:
 ##                 self.fitparams[self.Nppsf + 4 + 2*self.ns:-1][bad] = 0.
 ##                 self.isfitted[self.Nppsf + 4 + 2*self.ns:-1][bad] = False
 ## 
-##                 self.sources = numpy.arange(self.ns)[fluxes>0]
+##                 self.sources = np.arange(self.ns)[fluxes>0]
 ## 
 ##             self.Ndof = self.isfitted.sum()
 ## 
@@ -987,7 +1220,7 @@ class StarFit:
 ##                     stop = True
 ## 
 ##             else:
-##                 self.fitparams[self.isfitted==1] = numpy.array(result[0],
+##                 self.fitparams[self.isfitted==1] = np.array(result[0],
 ##                                                                dtype='float32')
 ##                 self.chisq = result[1]
 ## 
@@ -999,7 +1232,7 @@ class StarFit:
 ##             
 ##             self.snr  = (self.objects*self.mask).sum(axis=2).sum(axis=1)
 ##             self.snr *= self.fitparams[self.Nppsf + 4 + 2*self.ns:-1]
-##             self.snr /= numpy.sqrt(1./((self.objects/self.sigma)**2).sum(axis=2).sum(axis=1))
+##             self.snr /= np.sqrt(1./((self.objects/self.sigma)**2).sum(axis=2).sum(axis=1))
 ## 
 ##             fluxes = self.fitparams[self.Nppsf + 4 + 2*self.ns:-1]
 ##             bad    = (fluxes<0).sum()
@@ -1029,14 +1262,14 @@ class StarFit:
 ##         self.deleted = self.ns - self.sources.shape[0]
 ## 
 ##         if model or residuals:
-##             self.model = self.fitparams[-1]*numpy.ones(self.size,
+##             self.model = self.fitparams[-1]*np.ones(self.size,
 ##                                                        dtype='float32')
 ##             for i in self.sources:
 ##                 j = self.Nppsf + 4 + 2*self.ns + i
 ##                 self.model += self.fitparams[j]*self.objects[i]
 ## 
 ##                 if residuals:
-##                     self.residuals = numpy.array(self.data - self.model,
+##                     self.residuals = np.array(self.data - self.model,
 ##                                                  dtype='float32')
 ## 
 ## 
@@ -1067,7 +1300,7 @@ class StarFit:
 ## 
 ##             if self.lut != None:
 ##                 lut_size = (self.lut.shape[0]+1,self.lut.shape[1]+1)
-##                 lut_arr  = numpy.zeros(lut_size, dtype='float32')
+##                 lut_arr  = np.zeros(lut_size, dtype='float32')
 ## 
 ##                 dx = xpos - int(xpos)
 ##                 dy = ypos - int(ypos)
@@ -1121,7 +1354,7 @@ class StarFit:
 ## ## !CHANGED
 ##     def _fit_res(self, pfit):
 ## 
-##         pfit = numpy.asarray(pfit, dtype='float32')
+##         pfit = np.asarray(pfit, dtype='float32')
 ## 
 ##         self.fitparams[self.isfitted==1] = pfit
 ## 

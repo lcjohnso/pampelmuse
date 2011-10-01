@@ -8,10 +8,22 @@ parameters of the coordinate transformation.
 
 CHANGELOG
 ---------
-2011/09/06, v0.0.0.0.
+2011/09/06, v0.0.0.0
+2011/09/09, v0.0.0.1, added a proper naming scheme for the individual
+                      extensions of the created FITS-file.
+                      changed column names in `SOURCES'-table to lowercase.
+2011/09/09, v0.1.0.0, spectra of sky and unressolved component are now
+                      written into separate HDUs.
+2011/09/19, v0.1.0.1, modifed how the individual HDUs are created.
+2011/09/20, v0.1.1.1, fixed bug that containing spectra was generated with
+                      wrong shape
+2011/09/26, v0.2.0.0, instead of storing sky spectrum and `unresolved'
+                      spectrum in dedicated HDUs, they are stored in the
+                      same HDUs as the `resolved' spectra now. The sky must
+                      be included in the `sourceList'-parameter of __init__
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.0.0.0"
+__version__ = "0.2.0.0"
 import datetime, pyfits, os
 import numpy as np
 
@@ -31,7 +43,8 @@ class StoreParam:
         ----------
         sourceList : numpy_record_array
             The catalog containing the sources in the field. The structured
-            array must contain fields named 'id', 'x', 'y' and 'mag'.
+            array must contain fields named 'id', 'x', 'y' and 'mag'. The sky
+            (if any) should have ID -1.
         wlStart : float
             The wavelength of the first image of the datacube.
         wlStep : float
@@ -47,6 +60,8 @@ class StoreParam:
         self.priHDU = pyfits.PrimaryHDU()
         self.priHDU.header.update("CREATIME", self.timestamp,
                                   "Date and time this file was created")
+        self.HDUList = [self.priHDU]
+        
 
         
     def storeSourceCat(self, selectedSources):
@@ -63,7 +78,8 @@ class StoreParam:
             The catalog of all sources that should be written to the FITS-
             file. It must contain fields named 'id', 'status' and 'primary'.
             'status' should be an integer in the range [-1,3] and defines
-            how the source is used:  3 - resolved, own spectrum
+            how the source is used:  4 - sky spectrum
+                                     3 - resolved, own spectrum
                                      2 - resolved, inferred spectrum
                                      1 - resolved, but next to brighter
                                          source
@@ -94,30 +110,31 @@ class StoreParam:
         self.specrow[selectedSources['status']==0] = self.specrow.max()+1
 
         self.sourceCat = pyfits.ColDefs(\
-            [pyfits.Column(name='ID', format='J',
+            [pyfits.Column(name='id', format='J',
                            array=selectedSources['id']),
-             pyfits.Column(name='X', format='E',
+             pyfits.Column(name='x', format='E',
                            array=self.sourceList['x'][self.selector]),
-             pyfits.Column(name='Y', format='E',
+             pyfits.Column(name='y', format='E',
                            array=self.sourceList['y'][self.selector]),
-             pyfits.Column(name='MAG', format='E',
+             pyfits.Column(name='mag', format='E',
                            array=self.sourceList['mag'][self.selector]),
-             pyfits.Column(name='STATUS', format='I',
+             pyfits.Column(name='status', format='I',
                            array=selectedSources['status']),
-             pyfits.Column(name='PRIMARY', format='J',
+             pyfits.Column(name='primary', format='J',
                            array=selectedSources['primary']),
-             pyfits.Column(name='SPECROW', format='J',
+             pyfits.Column(name='specrow', format='J',
                            array=self.specrow)
              ]
             )
         
         self.sourceCatHDU = pyfits.new_table(self.sourceCat)
+        self.sourceCatHDU.header.update('EXTNAME', 'SOURCES')
+        self.HDUList.append(self.sourceCatHDU)
 
         self.includeUnres = (selectedSources['status']==0).any()
 
 
-    def  storeSourceSpec(self, inputSpectra, magZ=None, includeSky=True,
-                         spatPix=256):
+    def  storeSourceSpec(self, inputSpectra, magZ=None, spatPix=256):
         """
         create a FITS image to hold all the spectra that are used in
         the analysis.
@@ -132,10 +149,10 @@ class StoreParam:
             The magnitude zeropoint of the observation, defined here as the
             magnitude of a source  whose spectrum has a mean flux of 1. If
             none is given, it is calculated from the provided spectra.
-        includeSky : boolean, optional
-            Whether or not a sky spectrum should be included.  If True, the
-            routine searches the catalog `InputSpectra' for a source with ID
-            -1.
+##        includeSky : boolean, optional
+##            Whether or not a sky spectrum should be included.  If True, the
+##            routine searches the catalog `InputSpectra' for a source with ID
+##            -1.
         spatPix : integer, optional
             The number of spatial pixels in the datacube. This number is
             used  to scale the spectrum of the unresolved component (if
@@ -143,12 +160,12 @@ class StoreParam:
         """
 
         ## create array to hold spectra
-        Nspec=self.specrow.max()+includeSky+self.includeUnres
+        Nspec=self.specrow.max()+1
         specData = np.zeros((Nspec, inputSpectra['spectrum'].shape[1]),
                             dtype='float32')
 
         ## determine magnitude zeropoint (unless given)
-        ownSpecID = inputSpectra['id'][inputSpectra['id']>-1]
+        ownSpecID = inputSpectra['id'][inputSpectra['id']>-1] ## exclude sky
         
         ii = [np.where(inputSpectra['id']==i)[0][0] for i in ownSpecID]
 
@@ -178,7 +195,7 @@ class StoreParam:
         for i in xrange(self.selectedSources.size):
 
             ## source has own spectrum
-            if self.selectedSources['status'][i] == 3:
+            if self.selectedSources['status'][i] >= 3:
 
                 jj = np.where(inputSpectra['id']\
                                   ==self.selectedSources['id'][i])[0][0]
@@ -194,17 +211,14 @@ class StoreParam:
                 else:
                     unresFlux += 10**(-0.4*(mag_i-magZmean))
 
-        
         if self.includeUnres:
             unresFlux /= spatPix
-            specData[-(1+includeSky)] = unresFlux*meanSpectrum
+            specData[-1] = unresFlux*meanSpectrum
 
-        if includeSky:
-            skySpecPos = np.where(inputSpectra['id']==-1)[0][0]
-            specData[-1] = inputSpectra['spectrum'][skySpecPos]
+        ##  create HDUs to hold the spectra
+        self.addImaHDU(data=specData, extname='SPECTRA', crpix1=1,
+                       crval1=self.wlStart, cdelt1=self.wlStep)
             
-        self.sourceSpecHDU = pyfits.ImageHDU(specData)
-
 
 
     def storePosPars(self, pospars):
@@ -224,10 +238,17 @@ class StoreParam:
         outData[2] = pospars['C']
         outData[3] = pospars['D']
 
-        self.posParsHDU = pyfits.ImageHDU(outData)
-        self.posParsHDU.header.update('CRPIX1', 1)
-        self.posParsHDU.header.update('CRVAL1', self.wlStart)
-        self.posParsHDU.header.update('CDELT1', self.wlStep)
+        self.addImaHDU(data=outData, extname='POSPARS', crpix1=1,
+                       crval1=self.wlStart, cdelt1=self.wlStep)
+
+
+
+    def addImaHDU(self, data, **kwargs):
+
+        newHDU = pyfits.ImageHDU(data)
+        for key, value in kwargs.iteritems():
+            newHDU.header.update(str.upper(key), value)
+        self.HDUList.append(newHDU)
 
 
 
@@ -242,8 +263,7 @@ class StoreParam:
         clobber : boolean, optional
             Flag indicating whether an existing file will be overwritten.
         """
-        outHDU = pyfits.HDUList([self.priHDU, self.sourceCatHDU, 
-                                 self.sourceSpecHDU, self.posParsHDU])
+        outHDU = pyfits.HDUList(self.HDUList)
         
         if clobber:
             if os.path.exists(filename):  os.remove(filename)

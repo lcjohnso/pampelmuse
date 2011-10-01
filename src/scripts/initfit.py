@@ -9,10 +9,12 @@ required by the fitting routine of PampelMuse (option `CUBEFIT`).
 
 CHANGELOG:
 ----------
-2011/08/08, v0.0.0.0.
+2011/08/08, v0.0.0.0
+2011/09/26, v0.1.0.0, several change to improve connection to `cubefit'-
+                      routine, especially storage of sky spectrum.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.0.0.0"
+__version__ = "0.1.0.0"
 import pyfits, sys
 import numpy as np
 from scipy import sparse
@@ -43,6 +45,7 @@ def initfit(arguments):
     prefix   = arguments.prefix                     ##
     cfpfile  = arguments.sourcelist                 ##
     cfpcols  = arguments.config["CFPCOLS"]          ##
+    globsky  = True
     aperrad  = arguments.config["APERRAD"]          ##
     apernois = arguments.config["APERNOIS"]         ##
     reslim   = arguments.config["RESLIM"]           ##
@@ -56,35 +59,38 @@ def initfit(arguments):
 
     print " => Reading input data...",
     ## get results from crowded-field photometry
-    cfpResults = np.genfromtxt(cfpfile, 
-                               usecols=cfpcols,
-                               dtype=[('id','i8'), ('x','f8'),
-                                      ('y','f8'), ('mag','f8')
-                                      ]
-                               )
-    ids  = cfpResults['id']
-    xpos = cfpResults['x']
-    xpos -= xpos.min()
-    ypos = cfpResults['y']
-    ypos -= ypos.min()
-    mag  = cfpResults['mag']
+    cfpResults = np.copy(np.genfromtxt(cfpfile, 
+                                       usecols=cfpcols,
+                                       dtype=[('id','i8'), ('x','f8'),
+                                              ('y','f8'), ('mag','f8')
+                                              ],
+                                       )
+                         )
 
+    cfpResults['x'] -= cfpResults['x'].min()
+    cfpResults['y'] -= cfpResults['y'].min()
 
+    if globsky:
+        cfpResults.resize(cfpResults.size+1)
+        cfpResults['id'][-1] = -1
+    resSrc = cfpResults['id']>=0
 
     ## create pseudo observation from photometry results
     ## Gaussian PSF, FWHM=4.0pix, PSFRAD=15.0pix, M_0=28mag
     PSF = Gaussian(fwhm=4.0)
 
-    size = (int(ypos.max()+1), int(xpos.max()+1))
+    size = (int(cfpResults['y'].max()+1), int(cfpResults['x'].max()+1))
 
     ident_ima = np.zeros(size, dtype='float32')
-    for i in xrange(ids.size):
-        ident_ima += PSF(size=size, x_c=xpos[i], y_c=ypos[i],
-                         mag=(mag[i]-28.), maxrad=15., return_sparse=True,
+    for i in xrange(resSrc.sum()):
+        ident_ima += PSF(size=size,
+                         x_c=cfpResults['x'][i], y_c=cfpResults['y'][i],
+                         mag=(cfpResults['mag'][i]-28.),
+                         maxrad=15., return_sparse=True,
                          as_sparse_matrix=True).todense()
     ident_ima += np.random.normal(loc=0., scale=1000, size=size)
 
-    
+
     ## open FITS-files:
     dat_data, dat_head = pyfits.getdata("{0}.dat.fits".format(prefix),
                                         header=True)
@@ -107,7 +113,7 @@ def initfit(arguments):
     ## start gui, identify bright(est) stars and extract their spectra
     app  = QtGui.QApplication(sys.argv)
     identifier = IdentSources(grabIma=dat_data_ima, pickIma=ident_ima,
-                              pickData=cfpResults)
+                              pickData=cfpResults[resSrc])
     print "OK"
     identifier.show()
     app.exec_()
@@ -125,7 +131,8 @@ def initfit(arguments):
     print " => Performing aperture spectrophotometry on selected sources...",
     sys.stdout.flush()
     ## find sources suited for aperture photometry
-    selector = SelectSources(sourcelist=cfpResults, shape=dat_data.shape[1:],
+    selector = SelectSources(sourcelist=cfpResults[resSrc],
+                             shape=dat_data.shape[1:],
                              psf=PSF, pospars=[A,B,C,D])
     aperCheck = selector(criteria=['howIsolated','howCloseToEdge'],
                          rad=aperrad, magcut=reslim)
@@ -145,7 +152,7 @@ def initfit(arguments):
     aperResults = make_aper.aper_photo(rAper=aperrad, psf=PSF,
                                        calcMoments=True, thresh=3.,
                                        localBG=True)
-    
+
     print "OK\n => Determining coordinate transformation...",
     ## determine magnitude zeropoint
     meanFlux = np.zeros(aperResults[aperResults['id']>-1].shape,
@@ -155,10 +162,11 @@ def initfit(arguments):
     magZ = cfpResults['mag'][selected] + 2.5*np.log10(meanFlux)
 
     ## fine-tune coordinate transformation
-    transformation = trans_coords(cfpResults, aperResults)
+    transformation = trans_coords(cfpResults[resSrc], aperResults)
 
     print "OK\n => Selecting sources for the fitting process...",
     ## determine status of all sources in catalogue:
+    ##  4 - global sky spectrum
     ##  3 - resolved, own spectrum
     ##  2 - resolved, inferred spectrum
     ##  1 - resolved, but next to brighter source
@@ -195,6 +203,10 @@ def initfit(arguments):
                 if unresCheck['howCloseToEdge'][i] > -ewidth:
                     finalList.append((unresCheck['id'][i], 0, -1))
 
+    if globsky:
+        finalList.append((-1, 4, -1)) ## the sky spectrum
+
+
     print "OK\n => Writing results to file...",
     ## write results to file
     storage = StoreParam(sourceList=cfpResults, wlStart=wl_start,
@@ -205,10 +217,15 @@ def initfit(arguments):
                                     )
                            )
     storage.storeSourceSpec(inputSpectra=aperResults, magZ=None,
-                            includeSky=True, spatPix= dat_data_ima.size)
+                            spatPix=dat_data_ima.size)
     storage.storePosPars(transformation)
     storage.writeto('{0}.prm.fits'.format(prefix), clobber=1)
     print "OK\n\n"
+
+##     import pylab
+##     resolved = [np.where(cfpResults['id']==ID)[0][0] for ID in finalList['id']]
+##     pylab.plot((cfpResults['mag'])
+
 
     ## idea:
     ## determine A,B,C,D and mag-zeropoint directly after aperture photometry

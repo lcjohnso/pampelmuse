@@ -19,9 +19,11 @@ CHANGELOG:
                       case, an aperture correction is automatically
                       performed using the given PSF. (previously, provided
                       FWHM was used to create a Gaussian PSF)
+2011/09/19, v0.1.1.0, fixed bug that the whole sky spectrum was replaced
+                      with the latest estimate of the global background
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.1.0.0"
+__version__ = "0.1.1.0"
 import pyfits, sys
 import numpy as np
 
@@ -242,7 +244,7 @@ class AperPhoto:
 
             ##  estimate global background value.
             self.backval, self.backstd = self._estGlobalBG(data_i)
-            self.results['spectrum'][self.Nsources] = self.backval
+            self.results['spectrum'][self.Nsources,i] = self.backval
 
             for j in xrange(self.Nsources):
                 curID = self.centers['id'][j]

@@ -82,9 +82,13 @@ v0.7.2.0 - 2011/09/01 - fixed bug in class 'Gaussian': oversampling-region was
 v0.7.3.1 - 2011/09/05 - fixed 2 bugs in class 'Gaussian': calculating and
                         inserting of oversampling region was still buggy.
                         Also improved usage of provided os-region parameters.
+v0.8.0.0 - 2011/09/09 - changed how shape parameters are deduced from input
+                        in classes Moffat and Gaussian to allow modification
+                        of the shape of the profile without creating a new
+                        class-instance.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.7.2.0"
+__version__ = "0.8.0.0"
 import numpy, math
 from scipy import special, sparse
 from ima_arith import paste_area
@@ -137,6 +141,7 @@ class Moffat:
             profile.
         """
         self.beta  = beta
+        self.fwhm  = fwhm 
         self.e     = e
         self.theta = theta
         self.osr   = osradius
@@ -146,11 +151,16 @@ class Moffat:
             self.osf = osfactor
 
 
-        ## effective radius
-        self.r_d  = fwhm /(2. *math.sqrt(2**(1. /beta) -1.))
+    ## effective radius
+    @property
+    def r_d(self): 
+        return  self.fwhm /(2. *math.sqrt(2**(1. /self.beta) -1.))
 
-        ## central surface brightness for mag=0 (i.e. flux=1)
-        self._sigma_0 = (beta-1.)/(math.pi*(self.r_d**2)*(1.-e))
+
+    ## central surface brightness for mag=0 (i.e. flux=1)
+    @property
+    def _sigma_0(self):
+        return (self.beta-1.)/(math.pi*(self.r_d**2)*(1.-self.e))
 
 
 
@@ -207,12 +217,11 @@ class Moffat:
         self.x_c   = x_c
         self.y_c   = y_c
         self.flux  = 10**(-0.4*mag)
-
-        self.sigma_0 = self.flux*self._sigma_0
-
         self.maxrad = maxrad
         self.sparse = return_sparse
         self.asmatrix = as_sparse_matrix
+
+        self.sigma_0 = self.flux*self._sigma_0
 
         ## select sub-array around profile center (if requested)
         if self.maxrad != None:
@@ -276,7 +285,6 @@ class Moffat:
 
             self.array = paste_area(step2, self._size, (self.osr, self.osr),
                                     (x_n, y_n), out_array=self.array)
-
 
 
         ## return requested output
@@ -604,6 +612,7 @@ class Gaussian:
             pixel within a distance <=`osradius` towards the center of the
             profile.
         """
+        self.fwhm  = fwhm
         self.e     = e
         self.theta = theta
         self.osr   = osradius
@@ -613,9 +622,16 @@ class Gaussian:
             self.osf = osfactor
 
 
-        self.std = fwhm / math.sqrt(8.*math.log(2.))
-                
-        self._sigma_0 = 1./(2.*math.pi*(self.std**2)*(1.-e))
+    ## The standard deviation
+    @property
+    def std(self):
+        return self.fwhm / math.sqrt(8.*math.log(2.))
+               
+ 
+    ## The central surface brightness for mag=0 (i.e. flux=1)
+    @property
+    def _sigma_0(self):
+        return 1./(2.*math.pi*(self.std**2)*(1.-self.e))
 
 
 

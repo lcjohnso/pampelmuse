@@ -14,7 +14,7 @@ __version__ = "0.0.0.1"
 import argparse, os, re
 import xml_interact
 from initfit import initfit
-## from cubefit import cubefit
+from cubefit import cubefit
 
 
 CONFIGPATH = os.path.expandvars("$pampelmuse_path/config/")
@@ -107,7 +107,7 @@ CFparser.add_argument("prefix", type=str,
                             named <prefix>.dat.fits, <prefix>.err.fits and
                             <prefix>.prm.fits. Optionally, a bad-pixel mask
                             can be used (<prefix>.msk.fits).""")
-## CFparser.set_defaults(func=cubefit)
+CFparser.set_defaults(func=cubefit)
 
 
 IFparser = PMsubparsers.add_parser("INITFIT",

@@ -53,9 +53,11 @@ CHANGELOG:
 2011/09/01, v0.3.2.1, fixed bug in mode 'Update': Code didn't find 'dtype'
                       -parameter, automatically set dtype to string, even if
                       'None' given
+2011/09/09, v0.3.3.1, fixed bug in function `transform_string': The routine
+                      tried to convert a list/tuple of floats to integers.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.3.2.1"
+__version__ = "0.3.3.1"
 import datetime, os, re, string, sys
 from lxml import etree
 
@@ -98,7 +100,7 @@ def transform_string(thestring, dtype, abort_on_exception=True):
         if sum([len(re.findall('\.', s)) for s in thenumbers])==0:
             thelist = [int(x) for x in thenumbers]
         else:
-            thelist = [int(x) for x in thenumbers]
+            thelist = [float(x) for x in thenumbers]
 
         if dtype == 'tuple':
             return tuple(thelist)
