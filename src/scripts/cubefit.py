@@ -26,7 +26,6 @@ def cubefit(arguments):
 
     ## List of required definitions: #######################
     prefix   = arguments.prefix                           ##
-##     flxfit   = arguments.config["FLXFIT"]                 ##
     posfit   = arguments.config["POSFIT"]                 ##
     psftype  = arguments.config["PSFTYPE"]                ##
     psfpars  = arguments.config["PSFPARS"]                ##
@@ -148,16 +147,21 @@ def cubefit(arguments):
 
 
     ## start fitting process:
-        fitter = StarFit(dataFits=dataFits[0], sigmaFits=sigmaFits[0],
-                         maskFits=maskFits[0])
+    fitter = StarFit(dataFits=dataFits[0], sigmaFits=sigmaFits[0],
+                     maskFits=maskFits[0])
 
-        fitter.provideSources(sources=srcList, spectra=spcList,
-                              coordTrans=posPars)
+    fitter.provideSources(sources=srcList, spectra=spcList,
+                          coordTrans=posPars)
 
-        fitter.providePSF(psfType=psftype, psfParameters=psfPars,
-                          psfRad=10)
+    fitter.providePSF(psfType=psftype, psfParameters=psfPars,
+                      psfRad=10)
         
-        fitter(fitRad=3)
+    fitter(fitRad=3)
+
+## Only for debugging ########
+##     import sys
+##     sys.exit
+##############################
 
     ## collect fitting results
     prmFile  = pyfits.open("{0}.prm.fits".format(prefix), mode='update')

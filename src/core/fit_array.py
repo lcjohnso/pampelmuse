@@ -37,14 +37,14 @@ class StarFit:
             (i) PSF & positions (if requested): A non-linear least squares fit
                     is performed for individual suited sources. The results
                     from the individual fits are combined afterwards.
-            (ii) Fluxes: A linear least-squares fit is performed for all the resolved
-                    sources simultaneously.
+            (ii) Fluxes: A linear least-squares fit is performed for all the
+                    resolved sources simultaneously.
     Note that the routine first analyzes a central image and than alternating
     proceedes to the red and blue. This is done because usually the highest
     signal is expected near the center of the observed wavelength range.
     """
     def __init__(self, dataFits, sigmaFits, maskFits=None,
-                  verbose=1):
+                  verbose=1, Ntrack=10):
 ## Options to include later on: makemod=False, makeres=False, clip=5.):
         """
         Initialize an instance of the `StarFit'-class.
@@ -54,14 +54,22 @@ class StarFit:
         dataFits : pyfits HDU object
             The data to analyze. Note that instead of the pure data, the HDU 
             containing the data must be provided. This is necessary since the
-            routine will only load the image that is currently analyzed into memory.
+            routine will only load the image that is currently analyzed into
+            memory.
         sigmaFits : pyfits HDU object
             The HDU containing the sigma-values of the data.
         maskFits : pyfits HDU object, optional
             The HDU containing the bad-pixel mask (if any)
         verbose : integer, optional
             The amount of output printed on the screen.
-            
+        Ntrack :  integer, optional
+            In case the PSF and/or the source positions are fitted, the 
+            routine will update the initial guesses of the fitted 
+            parameters prior to fitting an image. It uses the results from
+            the fits to the `Ntrack' neighboring images  for this purpose.
+            If you do not want this behavior, set `Ntrack' to zero.
+
+
         Returns
         -------
             The newly created instance
@@ -84,8 +92,7 @@ class StarFit:
 
         self.vb        = verbose ## 0-quiet, 1,2-some info, 3-lot of info
         
-        self.Ntrack = 10 ## the changes during the `Ntrack' last fits are kept
-                         ## in memory to update the initial guesses 
+        self.Ntrack         = Ntrack
         self.lastFittedImas = []
 
         
@@ -207,11 +214,11 @@ class StarFit:
         fitRad : float
             The radius within which the PSF is fitted to a source
         returnModel : boolean, optional
-            Flag indicating whether an array containing the best-fit model should
-            be returned. Not implemented yet.
-        returnResdiduals : boolean, optional
-            Flag indicating whether an array containing the residuals of the fit
+            Flag indicating whether an array containing the best-fit model
             should be returned. Not implemented yet.
+        returnResdiduals : boolean, optional
+            Flag indicating whether an array containing the residuals of the
+            fit should be returned. Not implemented yet.
         clip : float, optional
             All pixels whose values devite by more than `clip' times SIGMA are
             masked. SIGMA is the standard deviation of the residuals between
@@ -235,10 +242,6 @@ class StarFit:
                 + np.mod(self.specPix, 2)
             ## jj is a counter that starts at the central spectral pixel
             ## and proceeds simultaneoulsy to the red and blue end.
-
-            self.lastFittedImas.append(self.jj)
-            if len(self.lastFittedImas)>self.Ntrack:
-                self.lastFittedImas.remove(self.lastFittedImas[0])
 
             self.vprint("\r"+" "*17+"|", 1)
             self.vprint("{0:8.2f}%|".format(100.*float(i)/self.specPix), 1)
@@ -267,6 +270,12 @@ class StarFit:
             ## fit PSF/positions if requested
             if self.psfFit:
                 self.vprint(" "*9+"PSF|", 1)
+
+                ## initial it of fluxes
+                _A = self.A.tocsc().transpose()
+                self.spectra[:,self.jj] += lsqr(_A, self.current)[0]
+                
+                self.updatePars()
                 self.fitPSF()
 
             ## fit fluxes
@@ -274,18 +283,21 @@ class StarFit:
             self.vprint(" "*5+"Fluxes|", 1)
 
             _A = self.A.tocsc().transpose()
-            bestfit = lsqr(_A, self.current)[0]
-            self.lastFitChange[0] = (1. + bestfit*self.spectra[:,self.jj])
-            self.spectra[:,self.jj] += bestfit
+            self.spectra[:,self.jj] += lsqr(_A, self.current)[0]
 
+
+            self.lastFittedImas.append(self.jj)
+            if len(self.lastFittedImas)>2*self.Ntrack:
+                self.lastFittedImas.remove(self.lastFittedImas[0])
 
 ## Only for debugging
-            import pylab
-            pylab.imshow(self.current.reshape((100,100)), cmap=pylab.cm.hot,
-                         interpolation='nearest')
-            pylab.show()
-
-            break
+##             if i == 30:
+##                 import pylab
+##                 pylab.imshow(self.current.reshape((100,100)), cmap=pylab.cm.hot,
+##                              interpolation='nearest')
+##                 pylab.show()
+##                 
+##                 break
 #####################
 
         self.vprint("\n"+" "*17+"|"+"_"*40+'|\n\n', 1)
@@ -457,16 +469,16 @@ class StarFit:
         Parameters
         ----------
         x0 : array_like
-            The initial guesses of the parameters that are fitted in the following
-            order: x, y, psfPar_0,.., psfPar_i, flux
+            The initial guesses of the parameters that are fitted in the
+            following order: x, y, psfPar_0,.., psfPar_i, flux
         fixedPars : array_like
             The values of the parameters that are not fitted in the following
             order: x, y, psfPar_0,.., psfPar_i, flux
         fitFlags : array_like
-            A boolean flag for each parameter needed to create the PSF indicating
-            whether it is fitted. The number of True-values must be equal to the
-            size of `x0' and the number of False-values must be equal to the size
-            of `fixedPars'.
+            A boolean flag for each parameter needed to create the PSF
+            indicating whether it is fitted. The number of True-values must be
+            equal to the size of `x0' and the number of False-values must be
+            equal to the size of `fixedPars'.
         
         Returns
         -------
@@ -495,25 +507,38 @@ class StarFit:
 
 
     def updatePars(self):
-        """This part is not yet finished."""
-        if len(self.lastFittedImas) == 0:
+        """
+        Method is used to update the initial guesses of the parameters o
+        the PSF and the coordiate transformation prior to a PSF fit.
+        The new initial guesses are determined by calculating the mean
+        of the results of the `Ntrack'/2 nearest images that have been
+        fitted so far.
+        """
+        if self.Ntrack == 0:
+            ##  no updating requested
             return
+
+        if len(self.lastFittedImas) < 2:
+            ## nothing to update yet
+            return
+        elif len(self.lastFittedImas) < self.Ntrack:
+            ## use all images that have been fitted so far
+            LASTFITS = self.lastFittedImas
         else:
-            self.spectra[:,self.jj] *= self.lastFitChange.sum(axis=0)
+            ## get every second of the recently fitted images
+            LASTFITS = [self.lastFittedImas[i] for i in xrange(\
+                    1, len(self.lastFittedImas), 2)]
 
-            self.laftFitChange[1:,:] = self.lastFitChange[:-1,:]
-
-
-            LASTFIT = self.lastFittedImas[-1]
-
-            if self.coordTrans['fit'].any():
-                self.coordTrans['value'][self.coordTrans['fit'], self.jj] \
-                    = self.coordTrans['value'][self.coordTrans['fit'],LASTFIT]
+        if self.coordTrans['fit'].any():
+            self.coordTrans['value'][self.coordTrans['fit'], self.jj] \
+                = self.coordTrans['value'][self.coordTrans['fit']][:,LASTFITS]\
+                .mean(axis=-1)
 
 
-            if self.psfPars['fit'].any(): ## update PSF
-                self.psfPars['value'][self.psfPars['fit'], self.jj] \
-                    = self.psfPars['value'][self.psfPars['fit'], LASTFIT]
+        if self.psfPars['fit'].any(): ## update PSF
+            self.psfPars['value'][self.psfPars['fit'], self.jj] \
+                = self.psfPars['value'][self.psfPars['fit']][:,LASTFITS]\
+                .mean(axis=-1)
 
 
 
