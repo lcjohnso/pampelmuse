@@ -377,6 +377,7 @@ class PolyReplace:
             self.fig.canvas.mpl_disconnect(self.br)
             self.fig.canvas.mpl_disconnect(self.kp)
 
+
         if self.verbose > 0:
             pylab.close()
 

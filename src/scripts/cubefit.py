@@ -27,9 +27,9 @@ def cubefit(arguments):
     ## List of required definitions: #######################
     prefix   = arguments.prefix                           ##
     posfit   = arguments.config["POSFIT"]                 ##
-    psftype  = arguments.config["PSFTYPE"]                ##
-    psfpars  = arguments.config["PSFPARS"]                ##
-    psffit   = arguments.config["PSFFIT"]                 ##
+    psfType  = arguments.config["PSFTYPE"]                ##
+    psfInit  = arguments.config["PSFPARS"]                ##
+    psfFit   = arguments.config["PSFFIT"]                 ##
     dobackup = False
     ########################################################
 
@@ -52,7 +52,21 @@ def cubefit(arguments):
     spcList = prmFile['SPECTRA'].data
     
 
+    ## check if polynomial fits to PSF and/or positional parameters exist
+    polyfits = {}
+    if "POLYFITS" in extNames:
+        for i in xrange(prmFile['POLYFITS'].data.size):
+            hdu = prmFile['POLYFITS'].data.field('hdu')[i]
+            row = prmFile['POLYFITS'].data.field('row')[i]
+            polyfits['{0}{1}'.format(hdu, row)] = \
+                prmFile['POLYFITS'].data.field('fit')[i]
+            
+
     ## Collect information about coordinate transformation    
+    ## Required parameters for the coordinate transformation ######
+    requiredPars = ['A','B','C','D']                             ##
+    ###############################################################
+
     isfitted = np.array(4*[False])
     if posfit in [1,2]: isfitted[2:] = True
     if posfit == 2:     isfitted[:2] = True
@@ -60,14 +74,18 @@ def cubefit(arguments):
     if 'POSPARS' in extNames: ## check if HDU exists
         valueShape = (prmFile['POSPARS'].header['NAXIS1'],)
 
-        posPars = np.array([('A', prmFile['POSPARS'].data[0], isfitted[0]),
-                            ('B', prmFile['POSPARS'].data[1], isfitted[1]),
-                            ('C', prmFile['POSPARS'].data[2], isfitted[2]),
-                            ('D', prmFile['POSPARS'].data[3], isfitted[3])],
-                           dtype=[('name', 'a1'),
-                                  ('value', 'f8', valueShape),
+        posPars = np.zeros(len(requiredPars),
+                           dtype=[('name', 'a1'), ('value', 'f8', valueShape),
                                   ('fit', 'b1')]
                            )
+        posPars['name'] = requiredPars
+        posPars['fit']  = isfitted
+        for i in xrange(len(requiredPars)):
+            if "POSPARS{0}".format(i) in polyfits:
+                posPars['value'][i] = np.polyval(\
+                    polyfits["POSPARS{0}".format(i)], np.arange(valueShape[0]))
+            else:
+                posPars['value'][i] = prmFile['POSPARS'].data[i]
 
     else: ## otherwise, assume "identity" transformation
         if posfit in [1,2]: valueShape=(Ndsp,)
@@ -85,42 +103,50 @@ def cubefit(arguments):
     psfProfiles = {'gauss':('fwhm', 'e', 'theta'),                 ##
                    'moffat':('beta', 'fwhm', 'e', 'theta')}        ##
     #################################################################
-    thePSF = psfProfiles[psftype]
+    reqPars = psfProfiles[psfType]
 
     ## check which PSF parameters should be fitted
-    isfitted = np.zeros((len(thePSF),), dtype='bool')
+    isfitted = np.zeros((len(reqPars),), dtype='bool')
     expTwo   = 2**np.arange(1, isfitted.size+1)
     for i in np.arange(isfitted.size+1,0,-1):
-        if psffit >= (expTwo[isfitted].sum()+2**i):
+        if psfFit >= (expTwo[isfitted].sum()+2**i):
             isfitted[i-1] = True
 
+    psfPars = np.zeros(len(reqPars), dtype=[('name', 'a10'),
+                                            ('value', 'f8', (Ndsp,)),
+                                            ('fit', 'b1')])
+    psfPars['fit'] = isfitted
+
+
     if "PSFPARS" in extNames: ##  check if HDU exists
+
+        ## Perform validation of provided data
         if prmFile['PSFPARS'].header['NAXIS1'] != Ndsp:
             raise IOError, "Invalid shape of data in HDU 'PSFPARS'"
 
         Npars = prmFile['PSFPARS'].header['NAXIS2']
 
-        params = []
-        for i in xrange(Npars):
-            params.append((prmFile['PSFPARS'].header["PSFPAR{0}".format(i+1)],
-                           prmFile['PSFPARS'].data[i],
-                           isfitted[i]))
-        psfPars = np.array(params, dtype=[('name', 'a10'),
-                                          ('value', 'f8', (Ndsp,)),
-                                          ('fit', 'b1')])
-
-        for requiredPar in thePSF: ## check if provided PSF information valid
-            if not requiredPar in psfPars['name']:
+        providedPars = [prmFile['PSFPARS'].header["PSFPAR{0}".format(i+1)]\
+                            for i in xrange(Npars)]
+        for requiredPar in reqPars:
+            if not requiredPar in providedPars:
                 raise IOError, "Cannot find parameter `{0}'".format(\
                     requiredPar) +" required for PSF of type `{0}'".format(\
-                    psftype)
+                    psfType)
+
+        for i in xrange(Npars):
+            psfPars['name'][i]\
+                = prmFile['PSFPARS'].header["PSFPAR{0}".format(i+1)]
+
+            if "PSFPARS{0}".format(i) in polyfits:
+                psfPars['value'][i] = np.polyval(\
+                    polyfits["PSFPARS{0}".format(i)], np.arange(Ndsp))
+            else:
+                psfPars['value'][i] = prmFile['PSFPARS'].data[i]
 
     else: ## otherwise, use information from configuration file
-        psfPars  = np.array([(thePSF[i], psfpars[i], isfitted[i]) \
-                                 for i in xrange(len(thePSF))],
-                            dtype=[('name', 'a8'),
-                                   ('value', 'f8', (Ndsp,)),
-                                   ('fit', 'b1')])
+        psfPars['name'] = reqPars
+        psfPars['value'] = np.asarray(psfInit)[:,np.newaxis]
 
     prmFile.close() ## finished reading source catalog.
 
@@ -153,7 +179,7 @@ def cubefit(arguments):
     fitter.provideSources(sources=srcList, spectra=spcList,
                           coordTrans=posPars)
 
-    fitter.providePSF(psfType=psftype, psfParameters=psfPars,
+    fitter.providePSF(psfType=psfType, psfParameters=psfPars,
                       psfRad=10)
         
     fitter(fitRad=3)

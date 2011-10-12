@@ -280,7 +280,7 @@ class StarFit:
 
             ## fit fluxes
                 self.vprint("\b"*12, 1)
-            self.vprint(" "*5+"Fluxes|", 1)
+            self.vprint(" "*6+"Fluxes|", 1)
 
             _A = self.A.tocsc().transpose()
             self.spectra[:,self.jj] += lsqr(_A, self.current)[0]
@@ -291,7 +291,7 @@ class StarFit:
                 self.lastFittedImas.remove(self.lastFittedImas[0])
 
 ## Only for debugging
-##             if i == 30:
+##             if i == 3:
 ##                 import pylab
 ##                 pylab.imshow(self.current.reshape((100,100)), cmap=pylab.cm.hot,
 ##                              interpolation='nearest')
