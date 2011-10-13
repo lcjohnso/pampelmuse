@@ -8,15 +8,16 @@ keywords and their values after PampelMuse was started.
 
 CHANGELOG
 ---------
-2011/09/08, v0.0.0.0
+2011/09/08+, v0.0.0.0
+2011/10/13, v0.0.1.0, updated how PampelMuse-packages are imported
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.0.0.0"
+__version__ = "0.0.1.0"
 import numpy as np
 import os, pyfits
 
-## own packages
-from fit_array import StarFit
+## required PampelMuse-packages
+from pampelmuse.core.fit_array import StarFit
 
 def cubefit(arguments):
 

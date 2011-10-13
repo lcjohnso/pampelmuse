@@ -1,6 +1,8 @@
 import numpy as np, pyfits, sys
 from PyQt4 import QtCore, QtGui
-from dynamic_plot_canvas import DynamicPlotCanvas
+
+##  required PampelMuse-packages
+from pampelmuse.graphics.dynamic_plot_canvas import DynamicPlotCanvas
 
 __author__  = "Sebastian Kamann (skamann@aip.de)"
 __version__ = "0.0.0.0"

@@ -86,12 +86,15 @@ v0.8.0.0 - 2011/09/09 - changed how shape parameters are deduced from input
                         in classes Moffat and Gaussian to allow modification
                         of the shape of the profile without creating a new
                         class-instance.
+v0.8.0.1, 2011/10/13 - changed how required PampelMuse-packages are imported
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.8.0.0"
+__version__ = "0.8.0.1"
 import numpy, math
 from scipy import special, sparse
-from ima_arith import paste_area
+
+## required PampelMuse-packages
+from pampelmuse.functions.ima_arith import paste_area
 
 
 

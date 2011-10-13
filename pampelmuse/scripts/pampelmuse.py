@@ -8,14 +8,22 @@ and some tools to change the configuration of PampelMuse.
 CHANGELOG
 ---------
 v0.0.0.1 -2011/09/06 - added logo
+v0.1.0.0 -2011/10/13 - modified how the PampelMuse-scripts are imported
+                       to reflect new package-structure.
+                     - first experimental "release"
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.0.0.1"
+__version__ = "0.1.0.0"
+
 import argparse, os, re
-import xml_interact
-from initfit import initfit
-from cubefit import cubefit
-from polyfit import polyfit
+
+## required PampelMuse-packages
+from pampelmuse.config import xml_interact
+
+## the PampelMuse-scripts
+from pampelmuse.scripts.initfit import initfit
+from pampelmuse.scripts.cubefit import cubefit
+from pampelmuse.scripts.polyfit import polyfit
 
 
 CONFIGPATH = os.path.expandvars("$pampelmuse_path/config/")

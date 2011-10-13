@@ -1,21 +1,23 @@
-import numpy as np,  sys
-from scipy.sparse.linalg import lsqr
-from scipy import sparse, optimize
-
-##  own routines
-from my_profiles import Gaussian, Moffat
-from trans_coords import trans_coords
-
 """
 The program contains `StarFit', the core-routine of PampelMuse. The
 routine is optimized to handle large datacubes, e.g MUSE-like data.
 For the analysis of smaller datacubes, e.g PMAS-like data,  some features
 still have to be added from older routines.
 
-v.0.0.0.0, 2011/09/30, (c). S. Kamann
+v0.0.0.0, 2011/09/30, (c). S. Kamann
+v0.0.0.1, 2011/10/13, changed how required PampelMuse-packages are imported
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.0.0.0"
+__version__ = "0.0.0.1"
+
+import numpy as np,  sys
+from scipy.sparse.linalg import lsqr
+from scipy import sparse, optimize
+
+##  required PampelMuse-routines
+from pampelmuse.core.my_profiles import Gaussian, Moffat
+from pampelmuse.functions.trans_coords import trans_coords
+
 
 ### some old code not used anymore
 ## from clip_sigma import clip_sigma

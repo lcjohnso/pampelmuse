@@ -12,21 +12,23 @@ CHANGELOG:
 2011/08/08, v0.0.0.0
 2011/09/26, v0.1.0.0, several change to improve connection to `cubefit'-
                       routine, especially storage of sky spectrum.
+2011/10/13, v0.1.1.0, updated importing of PampelMuse-packages
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.1.0.0"
+__version__ = "0.1.1.0"
 import pyfits, sys
 import numpy as np
 from scipy import sparse
 from PyQt4 import QtGui
 
-## own packages
-from ident_sources import IdentSources
-from aperture import AperPhoto
-from trans_coords import trans_coords
-from select_sources import SelectSources
-from store_param import StoreParam 
-from my_profiles import Gaussian
+## required PampelMuse routines
+from pampelmuse.graphics.ident_sources import IdentSources
+from pampelmuse.core.aperture import AperPhoto
+from pampelmuse.functions.trans_coords import trans_coords
+from pampelmuse.core.select_sources import SelectSources
+from pampelmuse.core.store_param import StoreParam 
+from pampelmuse.core.my_profiles import Gaussian
+
 
 def initfit(arguments):
 

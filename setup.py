@@ -1,11 +1,15 @@
 from distutils.core import setup
 
 setup(name='PampelMuse',
-      version='0.0',
+      version='0.1.0',
       author='Sebastian Kamann',
       author_email='skamann@aip.de',
-      package_dir={'PampelMuse': 'src'},
-      packages=['PampelMuse','PampelMuse.core', 'PampelMuse.functions',
-                'PampelMuse.graphics', 'PampelMuse.config'],
-      scripts=['src/scripts/CubeFit', 'src/scripts/InitCubeFit']
+      package_dir={},
+      packages=['pampelmuse', 'pampelmuse.core', 'pampelmuse.config',
+                'pampelmuse.functions', 'pampelmuse.graphics',
+                'pampelmuse.scripts'],
+      scripts=['scripts/pampelmuse']
+      data_files=[('config', ['config/PMparams.xml', 'config/PMschema.xsd',
+                              'config/PMstyle.xsl']
+                   )]
       )
