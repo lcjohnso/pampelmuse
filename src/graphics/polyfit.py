@@ -2,6 +2,8 @@ import numpy as np, pyfits, sys
 from PyQt4 import QtCore, QtGui
 from dynamic_plot_canvas import DynamicPlotCanvas
 
+__author__  = "Sebastian Kamann (skamann@aip.de)"
+__version__ = "0.0.0.0"
 
 
 class PolyFit(QtGui.QMainWindow):
@@ -394,12 +396,34 @@ class PolyFit(QtGui.QMainWindow):
         QtGui.QMainWindow.close(self)
 
 
-def main():
+
+def polyfit(arguments):
+
+    print ""
+    print 21* " "+"***  PolyFit, version {0}  ***".format(__version__)+21*" "
+    print ""
+
+    ## List of required definitions: #######################
+    prefix   = arguments.prefix                           ##
+    ########################################################
+
     app  = QtGui.QApplication(sys.argv)
-    fitter = PolyFit(fitsFile="TESTR150N000B000U000.000.prm.fits")
+    fitter = PolyFit(fitsFile="{0}.prm.fits".format(prefix))
     fitter.show()
     app.exec_()
- ##    print identifier.getResults()
+
+
+
+def main(filename):
+
+    print ""
+    print 21* " "+"***  PolyFit, version {0}  ***".format(__version__)+21*" "
+    print ""
+
+    app  = QtGui.QApplication(sys.argv)
+    fitter = PolyFit(fitsFile=filename)
+    fitter.show()
+    app.exec_()
 
 if __name__ == "__main__":
     main()

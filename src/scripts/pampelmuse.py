@@ -15,6 +15,7 @@ import argparse, os, re
 import xml_interact
 from initfit import initfit
 from cubefit import cubefit
+from polyfit import polyfit
 
 
 CONFIGPATH = os.path.expandvars("$pampelmuse_path/config/")
@@ -67,6 +68,21 @@ to serve  as an analysis tool for the MUSE-IFU. Yet, PampelMuse is designed
 in a generic way and should be able to analyze data coming from similar IFUs
 as well.
 """)
+PMparser.add_argument("prefix", type=str,
+                      help="""
+                            The prefix common to all FITS-files required by
+                            PampelMuse. The naming of the files should be
+                            according to the following scheme:
+                            * <prefix>.dat.fits - the datacube,
+                              required by routines INITFIT and CUBEFIT
+                            * <prefix>.err.fits - the sigma-cube,
+                              required by routines INITFIT and CUBEFIT
+                            * <prefix>.msk.fits - a bad-pixel mask (optional),
+                              used by routine CUBEFIT if provided
+                            * <prefix>.prm.fits - the parameter file of the fit,
+                              provided by INITFIT, required by CUBEFIT and
+                              POLYFIT
+                            """)
 
 ## Note: 'fromfile' and 'fromline' share the same dest 'parameter'. However,
 ##       since they are in a 'mutually exclusive group' and their 'default'
@@ -100,13 +116,6 @@ parameter that have an impact on the fitting process are read from the
 PampelMuse configuration-file. However, several ways are provided to change
 the configuration on the fly. Check the option-list for details.
 """)
-
-CFparser.add_argument("prefix", type=str,
-                    help="""The prefix common to all FITS-files required by the
-                            fit-routine. The program will search for files
-                            named <prefix>.dat.fits, <prefix>.err.fits and
-                            <prefix>.prm.fits. Optionally, a bad-pixel mask
-                            can be used (<prefix>.msk.fits).""")
 CFparser.set_defaults(func=cubefit)
 
 
@@ -120,14 +129,6 @@ b) Aperture spectrophotometry of the previously identified sources.
 c) Generation of an input catalogue containing intitial guessse of the
    spectra and the positions of the stars.
 """)
-IFparser.add_argument("prefix", type=str,
-                      help="""
-                            The prefix common to all FITS-files required by the
-                            routine. The program will search for files
-                            named <prefix>.dat.fits, <prefix>.err.fits and
-                            optionally a bad-pixel mask (<prefix>.msk.fits).
-                            The output will be stored under <prefix>.prm.fits.
-                            """)
 IFparser.add_argument("sourcelist", type=argparse.FileType('r'),
                       help="""
                             ASCII-file containing the results from crowded-
@@ -137,7 +138,17 @@ IFparser.add_argument("sourcelist", type=argparse.FileType('r'),
                             <ID>  <XPOS>  <YPOS>  <MAG> ... (per line)""")
 IFparser.set_defaults(func=initfit)
 
-args = PMparser.parse_args()
+
+PFparser = PMsubparsers.add_parser("POLYFIT",
+                                   help="""
+Calling this routine will display a GUI that allows for a visual inspection
+of the fit-results (in the <prefix>.prm.fits-file). The GUI can also be used
+to fit polynomials to the parameters of the PSF and/or source transformation
+with. The results of the fitting process are stored in the <prefix>.prm.fits-
+file. If the modified file is fed to the CUBEFIT-routine, PampelMuse will
+use the polynomial fits. 
+""")
+PFparser.set_defaults(func=polyfit)
 
 
 print """
@@ -145,6 +156,9 @@ print """
            (::;;)   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   (::;;)
             `;:'    (c) {1:32}    `;:'
 """.format(__version__, __author__)
+
+
+args = PMparser.parse_args()
 
 
 ## open configuration file, update if necessary
