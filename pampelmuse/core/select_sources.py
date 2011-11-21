@@ -92,12 +92,12 @@ class SelectSources:
         results :  numpy_record_array
             For every source above `magcut', the results of the calculation
             are returned as a structured array containing a field with the
-            source IDs and depending on `criteria':
-
-            'howIsolated', 'howCloseToEdge', 'whatSNR', 'brightNeighbor',
-            'howFarFromBright'
-
-            'brightNeighbor' contains the ID of the nearest brighter source
+            source IDs and depending on `criteria' one or more of the
+            following fields:
+                'howIsolated', 'howCloseToEdge', 'whatSNR', 'brightNeighbor',
+                'howFarFromBright'
+            Note that 'brightNeighbor' contains the ID of the nearest brighter
+            source
         """
 
         results = []

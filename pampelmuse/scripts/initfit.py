@@ -13,10 +13,14 @@ CHANGELOG:
 2011/09/26, v0.1.0.0, several change to improve connection to `cubefit'-
                       routine, especially storage of sky spectrum.
 2011/10/13, v0.1.1.0, updated importing of PampelMuse-packages
+2011/10/27, v0.1.2.0, modified source selection:
+                      i) no sources are selected with distance >fitrad to FoV
+                      ii) all stars above RESLIM in FoV are selected, merged
+                          with nearby sources if SNR below SNRCUT.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.1.1.0"
-import pyfits, sys
+__version__ = "0.1.2.0"
+import pyfits, sys, logging
 import numpy as np
 from scipy import sparse
 from PyQt4 import QtGui
@@ -28,6 +32,18 @@ from pampelmuse.functions.trans_coords import trans_coords
 from pampelmuse.core.select_sources import SelectSources
 from pampelmuse.core.store_param import StoreParam 
 from pampelmuse.core.my_profiles import Gaussian
+
+
+## class defines the exception that is raised when the parameters
+## in the PampelMuse-configuration are such that they do not allow
+## for a proper analysis of the provided input
+class ConfigurationError(EnvironmentError):
+    def __init__(self, value):
+        self.value = value
+    def __str__(self):
+        return repr(self.value)
+
+
 
 
 def initfit(arguments):
@@ -47,12 +63,13 @@ def initfit(arguments):
     prefix   = arguments.prefix                     ##
     cfpfile  = arguments.sourcelist                 ##
     cfpcols  = arguments.config["CFPCOLS"]          ##
-    globsky  = True
+    globsky  = False ## True
     aperrad  = arguments.config["APERRAD"]          ##
     apernois = arguments.config["APERNOIS"]         ##
     reslim   = arguments.config["RESLIM"]           ##
     snrcut   = arguments.config["SNRCUT"]           ##
     binrad   = arguments.config["BINRAD"]           ##
+    fitrad   = arguments.config["FITRAD"]           ##
     useunres = arguments.config["USEUNRES"]         ##
     unreslim = arguments.config["UNRESLIM"]         ##
     ewidth   = arguments.config["EWIDTH"]           ##
@@ -60,6 +77,7 @@ def initfit(arguments):
 
 
     print " => Reading input data...",
+    sys.stdout.flush()
     ## get results from crowded-field photometry
     cfpResults = np.copy(np.genfromtxt(cfpfile, 
                                        usecols=cfpcols,
@@ -75,22 +93,34 @@ def initfit(arguments):
     if globsky:
         cfpResults.resize(cfpResults.size+1)
         cfpResults['id'][-1] = -1
-    resSrc = cfpResults['id']>=0
+
+    if useunres:
+        resSrc = (cfpResults['mag']<unreslim)&(cfpResults['id']>=0)
+    else:
+        resSrc = (cfpResults['mag']<reslim)&(cfpResults['id']>=0)
+
 
     ## create pseudo observation from photometry results
-    ## Gaussian PSF, FWHM=4.0pix, PSFRAD=15.0pix, M_0=28mag
+    ## Gaussian PSF, FWHM=4.0pix, PSFRAD=15.0pix
+    ## The zeropoint is such that a source with magnitude `reslim' will
+    ## have a flux of 1000 counts and a peak-S/N of roughly 10 
     PSF = Gaussian(fwhm=4.0)
 
     size = (int(cfpResults['y'].max()+1), int(cfpResults['x'].max()+1))
 
+    MZERO = reslim + 7.5
+
     ident_ima = np.zeros(size, dtype='float32')
     for i in xrange(resSrc.sum()):
         ident_ima += PSF(size=size,
-                         x_c=cfpResults['x'][i], y_c=cfpResults['y'][i],
-                         mag=(cfpResults['mag'][i]-28.),
+                         x_c=cfpResults['x'][resSrc][i],
+                         y_c=cfpResults['y'][resSrc][i],
+                         mag=(cfpResults['mag'][resSrc][i]-MZERO),
                          maxrad=15., return_sparse=True,
                          as_sparse_matrix=True).todense()
-    ident_ima += np.random.normal(loc=0., scale=1000, size=size)
+
+    ident_ima += np.random.normal(loc=0., scale=10, size=size)
+
 
 
     ## open FITS-files:
@@ -133,13 +163,27 @@ def initfit(arguments):
     print " => Performing aperture spectrophotometry on selected sources...",
     sys.stdout.flush()
     ## find sources suited for aperture photometry
+    ## must fulfil following criteria:
+    ## (1) at least 3 magnitudes brighter than provided resolution limit
+    ##      (parameter `RESLIM')
+    ## (2) at a distance of of at least 1 pixel from the edge of the FoV 
+    ## (3) isolation criterium (relative contribution from neighboring
+    ##      sources smaller than value of `APERNOIS'-parameter)
     selector = SelectSources(sourcelist=cfpResults[resSrc],
                              shape=dat_data.shape[1:],
                              psf=PSF, pospars=[A,B,C,D])
     aperCheck = selector(criteria=['howIsolated','howCloseToEdge'],
-                         rad=aperrad, magcut=reslim)
+                         rad=aperrad, magcut=reslim-3)
     aperIDs   = aperCheck['id'][(aperCheck['howIsolated']<apernois)\
-                                    &(aperCheck['howCloseToEdge']>0)]
+                                    &(aperCheck['howCloseToEdge']>1)]
+    if len(aperIDs) == 0:
+        raise ConfigurationError,\
+            "No sources suited for aperture spectrophotometry found"
+    elif len(aperIDs) < 4:
+        print ""
+        logging.warning(\
+            "Found only {0} source(s) suited for aperture spectrophotometry"\
+                .format(len(aperIDs)))
 
     ## carry out aperture photometry
     selected = [np.where(cfpResults['id']==i)[0][0] for i in aperIDs]
@@ -155,7 +199,7 @@ def initfit(arguments):
                                        calcMoments=True, thresh=3.,
                                        localBG=True)
 
-    print "OK\n => Determining coordinate transformation...",
+    print "OK"
     ## determine magnitude zeropoint
     meanFlux = np.zeros(aperResults[aperResults['id']>-1].shape,
                         dtype='float32')
@@ -164,9 +208,16 @@ def initfit(arguments):
     magZ = cfpResults['mag'][selected] + 2.5*np.log10(meanFlux)
 
     ## fine-tune coordinate transformation
-    transformation = trans_coords(cfpResults[resSrc], aperResults)
+    if aperResults.size > 3:
+        print " => Determining coordinate transformation...",
+        transformation = trans_coords(cfpResults[resSrc], aperResults)
+        print "OK"
+    else:
+        transformation = np.ones((dat_head['NAXIS3'],),  dtype=pospars.dtype)
+        for name in transformation.dtype.names:
+            transformation[name] *= pospars[name][0]
 
-    print "OK\n => Selecting sources for the fitting process...",
+    print " => Selecting sources for the fitting process...",
     ## determine status of all sources in catalogue:
     ##  4 - global sky spectrum
     ##  3 - resolved, own spectrum
@@ -174,26 +225,47 @@ def initfit(arguments):
     ##  1 - resolved, but next to brighter source
     ##  0 - unresolved
     ## -1 - excluded
-    resCheck = selector(criteria=['whatSNR', 'howFarFromBright'],
+    resCheck = selector(criteria=['whatSNR', 'howFarFromBright',
+                                  'howCloseToEdge'],
                         magcut=reslim, magZ=magZ.mean(), sigma=err_data_ima)
 
     finalList = []
 
+    outList = open('list.dat', 'w')
+
     for i in xrange(resCheck.size):
+        
+        if resCheck['howCloseToEdge'][i] > 2:
+            j = np.where(cfpResults['id']==resCheck['id'][i])[0][0]
+            outList.write("{0}  {1}  {2}  {3}\n".format(\
+                    resCheck['id'][i], cfpResults['mag'][j],
+                    resCheck['whatSNR'][i], resCheck['howFarFromBright'][i]))
+
         listEntry = [resCheck['id'][i]]
         primary   = resCheck['id'][i]
-        status    = -1
+        status    = 1
 
         if resCheck['whatSNR'][i] > snrcut:
-            status += 2
             if resCheck['howFarFromBright'][i] < binrad*fwhm:
                 primary = resCheck['brightNeighbor'][i]
             else:
                 status += 1
                 if resCheck['id'][i] in aperResults['id']:
                     status +=1
-            listEntry.extend([status, primary])
-            finalList.append(tuple(listEntry))
+            if resCheck['howCloseToEdge'][i] < -fitrad:
+                continue
+        else:
+            if resCheck['howFarFromBright'][i] < 2*binrad*fwhm:
+                primary = resCheck['brightNeighbor'][i]
+            else:
+                status += 1
+            if resCheck['howCloseToEdge'][i] < 0:
+                continue
+
+        listEntry.extend([status, primary])
+        finalList.append(tuple(listEntry))
+        
+    outList.close()
 
     if useunres:
         resIDs = [finalList[i][0] for i in xrange(len(finalList))]
@@ -224,14 +296,6 @@ def initfit(arguments):
     storage.writeto('{0}.prm.fits'.format(prefix), clobber=1)
     print "OK\n\n"
 
-##     import pylab
-##     resolved = [np.where(cfpResults['id']==ID)[0][0] for ID in finalList['id']]
-##     pylab.plot((cfpResults['mag'])
-
-
-    ## idea:
-    ## determine A,B,C,D and mag-zeropoint directly after aperture photometry
-    ## has been performed -> parameters POSVARS (tuple), PVFIXED (boolean)
 
 
 

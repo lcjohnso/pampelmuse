@@ -93,7 +93,7 @@ class GrabCanvas(DynamicImaCanvas):
         x_init = int(round(event.xdata))
         y_init = int(round(event.ydata))
 
-        rad = 3
+        rad = 2
         Y, X = np.indices((2*rad+1,2*rad+1), dtype='int32')
         Y += (y_init-rad)
         X += (x_init-rad)

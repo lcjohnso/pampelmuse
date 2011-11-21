@@ -21,9 +21,11 @@ CHANGELOG
                       spectrum in dedicated HDUs, they are stored in the
                       same HDUs as the `resolved' spectra now. The sky must
                       be included in the `sourceList'-parameter of __init__
+2011/10/27, v0.2.1.0, fixed bug that code crashed if no unresolved component
+                      was included
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.2.0.0"
+__version__ = "0.2.1.0"
 import datetime, pyfits, os
 import numpy as np
 
@@ -92,6 +94,14 @@ class StoreParam:
         """
         self.selectedSources = selectedSources
 
+        ## make sure no source with status=1 has dependent primary component
+        for i in xrange(self.selectedSources.size):
+            if self.selectedSources['status'][i] == 1:
+                j = np.where(self.selectedSources['id']\
+                                 ==self.selectedSources['primary'][i])[0][0]
+                self.selectedSources['primary'][i]\
+                    = self.selectedSources['primary'][j]
+
         ## match sources in the two lists
         self.selector = [np.where(self.sourceList['id']==i)[0][0] \
                              for i in selectedSources['id']]
@@ -107,7 +117,8 @@ class StoreParam:
         ## assign an existing row to each dependent source
         self.specrow[selectedSources['status']==1] = self.specrow[priCompPos]
         ## assign common row to all unresolved sources
-        self.specrow[selectedSources['status']==0] = self.specrow.max()+1
+        if (selectedSources['status']==0).any():
+            self.specrow[selectedSources['status']==0] = self.specrow.max()+1
 
         self.sourceCat = pyfits.ColDefs(\
             [pyfits.Column(name='id', format='J',

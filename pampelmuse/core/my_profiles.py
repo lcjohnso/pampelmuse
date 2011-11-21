@@ -87,9 +87,11 @@ v0.8.0.0 - 2011/09/09 - changed how shape parameters are deduced from input
                         of the shape of the profile without creating a new
                         class-instance.
 v0.8.0.1, 2011/10/13 - changed how required PampelMuse-packages are imported
+v0.8.0.2, 2011/11/11 - updated calculation and inserting of oversampling region
+                       for Moffat profile
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.8.0.1"
+__version__ = "0.8.0.2"
 import numpy, math
 from scipy import special, sparse
 
@@ -269,7 +271,7 @@ class Moffat:
             self.r_d *= self.osf
             self.sigma_0 /= (self.osf**2)
 
-            self.maxrad *= self.osf
+            self.maxrad = (self.osr+numpy.sqrt(0.5))*self.osf
 
             ## calculate profile
             carray = numpy.fromfunction(self._draw, csize, dtype='float32')
@@ -278,7 +280,7 @@ class Moffat:
             self.r_d /= self.osf
             self.sigma_0 *= (self.osf**2)
 
-            self.maxrad /= self.osf
+            self.maxrad = maxrad
 
             ## resample and insert
             s1_size = (2*self.osr+1, (2*self.osr+1)*self.osf, self.osf)
@@ -286,8 +288,17 @@ class Moffat:
             step1 = numpy.sum(numpy.reshape(carray, s1_size, 'C'), axis=2)
             step2 = numpy.sum(numpy.reshape(step1, s2_size, 'F'), axis=2)
 
-            self.array = paste_area(step2, self._size, (self.osr, self.osr),
-                                    (x_n, y_n), out_array=self.array)
+            Y, X = numpy.indices(step2.shape)
+            SEL = (numpy.sqrt((X-self._x_c)**2 + (Y-self._y_c)**2) <= self.osr)\
+                &((X-self.osr+x_n)>=0)&((X-self.osr+x_n)<self._size[1])\
+                &((Y-self.osr+y_n)>=0)&((Y-self.osr+y_n)<self._size[0])
+
+            if SEL.any():
+                self.array[Y[SEL]+y_n-self.osr, X[SEL]+x_n-self.osr] \
+                    = step2[Y[SEL], X[SEL]]
+
+##             self.array = paste_area(step2, self._size, (self.osr, self.osr),
+##                                     (x_n, y_n), out_array=self.array)
 
 
         ## return requested output

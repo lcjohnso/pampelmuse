@@ -14,18 +14,29 @@ class DynamicImaCanvas(FigureCanvas):
         self.axes = self.fig.add_axes((0.05,0.05,0.9,0.9))
 ##         self.axes.hold(False)
 
+        self.image = None
+
         FigureCanvas.__init__(self, self.fig)
         self.setParent(parent)
 
 
-    def addImage(self, image, cmap=matplotlib.pyplot.cm.gray_r):
+    def addImage(self, image, cmap=matplotlib.pyplot.cm.gray_r,
+                 interpolation='nearest'):
+
+        if self.image == None:
+            self.imagePlot = self.axes.imshow(image, cmap=cmap,
+                                              interpolation=interpolation)
+        else:
+            self.imagePlot.set_data(image)
 
         self.image = image
-        self.imagePlot = self.axes.imshow(image, cmap=cmap)
+
         
         self.axes.set_autoscale_on(False)
         self.axes.set_xticks([])
         self.axes.set_yticks([])
+
+        self.draw()
 
 
     def changeCuts(self, newcuts):

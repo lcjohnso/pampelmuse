@@ -10,11 +10,14 @@ CHANGELOG
 ---------
 2011/09/08+, v0.0.0.0
 2011/10/13, v0.0.1.0, updated how PampelMuse-packages are imported
+2011/10/27, v0.1.0.0, added possibility to abort stop fit with or
+                      without saving current results
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.0.1.0"
-import numpy as np
-import os, pyfits
+__version__ = "0.1.0.0"
+import os, sys
+import numpy as np, pyfits
+from PyQt4 import QtCore, QtGui
 
 ## required PampelMuse-packages
 from pampelmuse.core.fit_array import StarFit
@@ -27,11 +30,14 @@ def cubefit(arguments):
 
     ## List of required definitions: #######################
     prefix   = arguments.prefix                           ##
+    fitRad   = arguments.config["FITRAD"]                 ##
+    psfRad   = arguments.config["PSFRAD"]                 ##
     posfit   = arguments.config["POSFIT"]                 ##
     psfType  = arguments.config["PSFTYPE"]                ##
     psfInit  = arguments.config["PSFPARS"]                ##
     psfFit   = arguments.config["PSFFIT"]                 ##
     dobackup = False
+    smallIFU = False ## True
     ########################################################
 
 
@@ -43,6 +49,14 @@ def cubefit(arguments):
     Ndsp = prmFile['SPECTRA'].header['NAXIS1'] ## no of spectral pixels
     Nspc = prmFile['SPECTRA'].header['NAXIS2'] ## no of resolved components
 
+    ## Check for previous PampelMuse-results
+    try:
+        lastFitIndex = prmFile[0].header['PMFITIND']
+        if lastFitIndex == Ndsp:
+            lastFitIndex = None
+    except KeyError:
+        lastFitIndex = None
+
 
     ## CREATE ARRAYS THAT CONTAIN PARAMETERS USED IN THE FIT
     ## Collect information about sources
@@ -52,6 +66,12 @@ def cubefit(arguments):
     ## collect the  spectra
     spcList = prmFile['SPECTRA'].data
     
+    ## check if uncertainties associated with spectra are available:
+    if "SIGMASPC" in extNames:
+        spcSigmaList = prmFile['SIGMASPC'].data
+    else:
+        spcSigmaList = None
+
 
     ## check if polynomial fits to PSF and/or positional parameters exist
     polyfits = {}
@@ -61,7 +81,6 @@ def cubefit(arguments):
             row = prmFile['POLYFITS'].data.field('row')[i]
             polyfits['{0}{1}'.format(hdu, row)] = \
                 prmFile['POLYFITS'].data.field('fit')[i]
-            
 
     ## Collect information about coordinate transformation    
     ## Required parameters for the coordinate transformation ######
@@ -152,7 +171,6 @@ def cubefit(arguments):
     prmFile.close() ## finished reading source catalog.
 
 
-
     ## open datacubes & check consistency
     dataFits = pyfits.open('{0}.dat.fits'.format(prefix))
     if dataFits[0].header['NAXIS3'] != Ndsp:
@@ -174,25 +192,37 @@ def cubefit(arguments):
 
 
     ## start fitting process:
+    app  = QtGui.QApplication(sys.argv)
+
     fitter = StarFit(dataFits=dataFits[0], sigmaFits=sigmaFits[0],
                      maskFits=maskFits[0])
 
     fitter.provideSources(sources=srcList, spectra=spcList,
-                          coordTrans=posPars)
+                          coordTrans=posPars, specSigma=spcSigmaList)
 
     fitter.providePSF(psfType=psfType, psfParameters=psfPars,
-                      psfRad=10)
+                      psfRad=psfRad)
         
-    fitter(fitRad=3)
+    fitter(fitRad=fitRad, lastFitIndex=lastFitIndex, asSmallIFU=smallIFU)
+
+    app.exec_()
 
 ## Only for debugging ########
 ##     import sys
 ##     sys.exit
 ##############################
+    if not fitter.save:
+        sys.exit()
+        
+    print " => Saving results...",
 
     ## collect fitting results
     prmFile  = pyfits.open("{0}.prm.fits".format(prefix), mode='update')
     extNames = [prmFile[i].name for i in xrange(len(prmFile))]
+
+    ## save status of fit process in header of primary HDU
+    prmFile[0].header.update('PMFITIND', fitter.i,
+                             "Status of PampelMuse fitting")
 
     ## store spectra
     crval1 = prmFile['SPECTRA'].header['CRVAL1'] 
@@ -213,6 +243,25 @@ def cubefit(arguments):
         prmFile.remove(prmFile['SPECTRA'])
     prmFile.insert(2, newSpecHDU)
 
+    
+    ## store uncertainties associated with spectra
+    newSigmaHDU = pyfits.ImageHDU(fitter.specSigma) 
+    newSigmaHDU.header.update('EXTNAME', 'SIGMASPC')
+    newSigmaHDU.header.update('CRPIX1', crpix1)
+    newSigmaHDU.header.update('CRVAL1', crval1)
+    newSigmaHDU.header.update('CDELT1', cdelt1)
+
+    if dobackup:
+        if 'INSIGMASPC' in extNames:
+            prmFile.remove(prmFile['INPOSPARS'])
+        if 'SIGMASPC' in extNames:
+                prmFile['POSPARS'].header.update('EXTNAME', 'INPOSPARS')
+    else:
+        if 'SIGMASPC' in extNames:
+            prmFile.remove(prmFile['SIGMASPC'])
+    prmFile.insert(3, newSigmaHDU)
+
+
     ## store coordinate transformation (only if it has been fitted)
     if fitter.coordTrans['fit'].any():
         newPosHDU = pyfits.ImageHDU(fitter.coordTrans['value'])
@@ -228,7 +277,7 @@ def cubefit(arguments):
         else:
             if 'POSPARS' in extNames:
                 prmFile.remove(prmFile['POSPARS'])
-        prmFile.insert(3, newPosHDU)
+        prmFile.insert(4, newPosHDU)
 
 
     ## store PSF (only if it as been fitted)
@@ -251,6 +300,8 @@ def cubefit(arguments):
         else:
             if 'PSFPARS' in extNames:
                 prmFile.remove(prmFile['PSFPARS'])
-        prmFile.insert((3+('POSPARS' in extNames)), newPSFHDU)
+        prmFile.insert((4+('POSPARS' in extNames)), newPSFHDU)
 
     prmFile.close()
+
+    print "OK\n"

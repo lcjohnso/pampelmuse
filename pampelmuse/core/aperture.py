@@ -236,7 +236,7 @@ class AperPhoto:
             ##  if mask provided, interpolate masked values
             if self.mask != None and self.mask[i].any():
                 mask_i = (self.mask[i] == False)
-                data_i = griddata(Y[mask_i], X[mask_i],cself.data[i][mask_i], 
+                data_i = griddata(Y[mask_i], X[mask_i], self.data[i][mask_i], 
                                   Y, X)
             else:
                 data_i = self.data[i].copy()

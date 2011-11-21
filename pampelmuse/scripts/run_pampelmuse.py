@@ -36,7 +36,7 @@ class GetValuesFromLine(argparse.Action):
     """
     def __call__(self, parser, namespace, values, option_string=None):
         outdict = {}
-        for _val in values[0].split(','):
+        for _val in values[0].split('-'):
             val = re.sub(r'\s', '', _val) ## remove whitespace chars.
             if len(val.split("=")) != 2:
                 raise IOError, "Bad parameter definition in line: {0}"\
