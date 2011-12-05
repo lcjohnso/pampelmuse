@@ -12,9 +12,22 @@ CHANGELOG:
                       must be provided when a new instance is created.
                       (previously, provided FWHM was used to create a
                       Gaussian PSF)
+2011/11/29, v0.1.0.1, when an instance is initialized, a `collapsed' image
+                      of the datacube must be provided, ideally created by
+                      convolving the cube with the filter-curve of the pass-
+                      band of the provided magnitude. This image is then used
+                      to perform a photometric calibration of the data.
+                      The S/N is now only determined inside the FITRAD to avoid
+                      selecting sources far outside the FoV.
+2011/12/05, v0.1.1.1, using a string's format-property with numpy integers or
+                      floats seems to cause problems sometimes. Therefore the
+                      return-value of the `howIsolated'-method is now
+                      explicitely converted to a float.
+                      
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.1.0.0"
+__version__ = "0.1.1.1"
+import logging
 import numpy as np
 ## import my_profiles
 
@@ -37,7 +50,7 @@ class SelectSources:
                               brighter source is calculated. It is returned
                               together with the ID of the bright source.
     """
-    def __init__(self, sourcelist, shape, psf, pospars=[1.,0.,0.,0.]):
+    def __init__(self, sourcelist, bbImage, psf, pospars=[1.,0.,0.,0.]):
         """
         Initialize an instance of the `SelectSources'-class
 
@@ -64,11 +77,23 @@ class SelectSources:
         self.y   = A*self.sourcelist['y'] - B*self.sourcelist['x'] + D
         self.mag = self.sourcelist['mag']
 
+        self.shape = bbImage.shape
+
+        ## perform photometric calibration
+        logging.info("Performing photmetric calibration of data.")
+        sumFlux = bbImage.sum()
+        expFlux = 0.
+        for i in xrange(self.sourcelist.size):
+            if self.x[i]>0 and self.x[i]<self.shape[1]:
+                if self.y[i]>0 and self.y[i]<self.shape[0]:
+                    expFlux += 10**(-0.4*self.mag[i])
+        self.mZ = -2.5*np.log10(expFlux/sumFlux)
+        logging.info("   Estimated photometric zeropoint: {0:.2f}".format(\
+                self.mZ))
+
         self.sorted = self.sourcelist['mag'].argsort()
 
         self.PSF   = psf
-        self.shape = shape
-
 
 
     def __call__(self, criteria, magcut=99.9, **kwargs):
@@ -103,8 +128,15 @@ class SelectSources:
         results = []
         dtype   = [('id', 'i8')]
 
+        logging.info("Determining following properties for sources with m<{0}:"\
+                         .format(magcut))
+        logging.info("   {0}".format(', '.join(criteria)))
+
         j = 0
+
         for self.I in self.sorted:
+
+            logging.debug("Source {0}:".format(self.sourcelist['id'][self.I]))
 
             results_j = [self.sourcelist['id'][self.I]]
 
@@ -112,29 +144,36 @@ class SelectSources:
             if 'howIsolated' in criteria:
                 results_j.append(self.howIsolated(**kwargs))
                 if j == 0: dtype.append(('howIsolated', 'f8'))
+                logging.debug("   howIsolated: {0:.3f}".format(results_j[-1]))
 
             if 'howCloseToEdge' in criteria:
                 results_j.append(self.howCloseToEdge())
                 if j == 0: dtype.append(('howCloseToEdge', 'f8'))
+                logging.debug("   howCloseToEdge: {0:.1f}pixel".format(\
+                        results_j[-1]))
 
             if 'whatSNR' in criteria:
                 results_j.append(self.whatSNR(**kwargs))
                 if j == 0: dtype.append(('whatSNR', 'f8'))
+                logging.debug("   whatSNR: {0:.2f}".format(results_j[-1]))
 
             if 'howFarFromBright' in criteria:
                 bright_neighbor, dst = self.howFarFromBright()
 
                 results_j.append(bright_neighbor)
                 if j == 0: dtype.append(('brightNeighbor', 'i8'))
+                logging.debug("   brightNeighbor: {0}".format(results_j[-1]))
 
                 results_j.append(dst)
+                if j == 0: dtype.append(('howFarFromBright', 'f8'))
+                logging.debug("   howFarFromBright: {0:.2f}pixel".format(\
+                        results_j[-1]))
 
                 ## correct SNR if next brighter source within distance  of
                 ## 0.75*FWHM
                 if dst < 0.75*self.PSF.fwhm and 'whatSNR' in criteria:
                     results_j[-3] *= dst/(0.75*self.PSF.fwhm)
 
-                if j == 0: dtype.append(('howFarFromBright', 'f8'))
 
             results.append(tuple(results_j))
             j += 1
@@ -146,15 +185,18 @@ class SelectSources:
 
 
 
-    def howIsolated(self, rad, **kwargs):
+    def howIsolated(self, rad, maglim=99., **kwargs):
         """
-        Check how much flux nearby sources contribute relative to the
-        flux of the source.
+        Check how much flux bright nearby sources contribute relative to
+        the flux of the source.
 
         Parameters
         ----------
         rad : float
             The radius within which the calculation is carried out
+        maglim : float, optional
+            Magnitude of faintest neighbor whose contribution is
+            considered.
 
         Returns
         -------
@@ -167,6 +209,9 @@ class SelectSources:
         nearby = (abs(self.x-self.x[self.I])<2*rad)\
             &(abs(self.y-self.y[self.I])<2*rad)
         nearby[self.I] = False
+
+        ## only consider sources brighter maglim:
+        nearby[self.mag>maglim] = False
 
         ## define array for calculation
         tmpData = np.zeros((2*rad+1,2*rad+1), dtype='float32')
@@ -184,8 +229,7 @@ class SelectSources:
         frac = tmpData[validPix].sum()
         frac /= self.PSF(size=tmpData.shape,
                          x_c=rad, y_c=rad, mag=0)[validPix].sum()
-        
-        return frac
+        return float(frac)
 
 
 
@@ -206,14 +250,12 @@ class SelectSources:
     
 
 
-    def whatSNR(self, magZ, sigma, **kwargs):
+    def whatSNR(self, sigma, psfrad, **kwargs):
         """
         Estimate S/N of the source
 
         Parameters
         ----------
-        magZ : float
-            The magnitude zeropoint of the observation
         sigma : nd_array
             The sigma-array of the observation. Must be of same shape as
             considered FoV (i.e no datacube).
@@ -225,11 +267,11 @@ class SelectSources:
         """
 
         psf = self.PSF(size=self.shape, x_c=self.x[self.I], y_c=self.y[self.I],
-                       mag=0., maxrad=2*self.PSF.fwhm, return_sparse=True,
+                       mag=0., maxrad=psfrad, return_sparse=True,
                        as_sparse_matrix=True)
 
         ## get flux
-        flx = 10**(-0.4*(self.mag[self.I]-magZ))
+        flx = 10**(-0.4*(self.mag[self.I]-self.mZ))
 
         ## PSF array must be converted to a numpy array before calculation
         return flx*np.sqrt(((np.asarray(psf.todense())/sigma)**2).sum())

@@ -11,11 +11,12 @@ v0.0.0.1 -2011/09/06 - added logo
 v0.1.0.0 -2011/10/13 - modified how the PampelMuse-scripts are imported
                        to reflect new package-structure.
                      - first experimental "release"
+v0.1.0.1 -2011/11/29 - included logging-option
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.1.0.0"
+__version__ = "0.1.0.1"
 
-import argparse, os, re
+import argparse, logging, os, re
 
 ## required PampelMuse-packages
 from pampelmuse.config import xml_interact
@@ -137,7 +138,7 @@ b) Aperture spectrophotometry of the previously identified sources.
 c) Generation of an input catalogue containing intitial guessse of the
    spectra and the positions of the stars.
 """)
-IFparser.add_argument("sourcelist", type=argparse.FileType('r'),
+IFparser.add_argument("sourcelist", type=str,
                       help="""
                             ASCII-file containing the results from crowded-
                             field  photometry. Lines starting with '#' are
@@ -189,4 +190,13 @@ if "parameter" in args:
             name, xml_interact.transform_string(args.parameter[name], dtype))
 
 args.config = cfg_interface.get_all()  ## read configuration
+
+## set up logging:
+LOGLEVELS   = {0:logging.CRITICAL,
+               1:logging.ERROR,
+               2:logging.WARNING,
+               3:logging.INFO,
+               4:logging.DEBUG}
+logging.basicConfig(level=LOGLEVELS[args.config["VERBOSE"]])
+    
 args.func(args)  ## execute the connected function

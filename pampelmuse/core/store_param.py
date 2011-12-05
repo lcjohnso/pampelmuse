@@ -22,11 +22,19 @@ CHANGELOG
                       same HDUs as the `resolved' spectra now. The sky must
                       be included in the `sourceList'-parameter of __init__
 2011/10/27, v0.2.1.0, fixed bug that code crashed if no unresolved component
-                      was included
+                      was included.
+2011/11/29, v0.2.1.1, removed option to perform photometric calibration. The
+                      magnitude zeropoint must now be provided. Also, the 
+                      spectra of sources without aperture spectrophotometry
+                      are no longer infered using other spectra but are set
+                      to a constant value.
+                      Logging is included.
+2012/12/05, v0.2.1.2, added a `method to store an image HDU containing the
+                      PSF parameters as a function of wavelength.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.2.1.0"
-import datetime, pyfits, os
+__version__ = "0.2.1.2"
+import datetime, logging, pyfits, os
 import numpy as np
 
 
@@ -37,7 +45,7 @@ class StoreParam:
     the input for the PampelMuse-FITCUBE routine. It is usually called by
     the INITFIT-routine.
     """
-    def __init__(self, sourceList, wlStart, wlStep):
+    def __init__(self, sourceList, wlStart, wlStep, specPix):
         """
         Initialize an instance of the `StoreParam'-class.
 
@@ -55,10 +63,12 @@ class StoreParam:
         self.sourceList = sourceList
         self.wlStart    = wlStart
         self.wlStep     = wlStep
+        self.specPix    = specPix
 
         self.ut        = datetime.datetime.utcnow()
         self.timestamp = self.ut.strftime("%Y-%m-%dT%H:%M:%SZ")
 
+        logging.info("Creating primary HDU.")
         self.priHDU = pyfits.PrimaryHDU()
         self.priHDU.header.update("CREATIME", self.timestamp,
                                   "Date and time this file was created")
@@ -94,6 +104,7 @@ class StoreParam:
         """
         self.selectedSources = selectedSources
 
+        logging.info("Creating catalog of all sources to be included in fit.")
         ## make sure no source with status=1 has dependent primary component
         for i in xrange(self.selectedSources.size):
             if self.selectedSources['status'][i] == 1:
@@ -145,7 +156,7 @@ class StoreParam:
         self.includeUnres = (selectedSources['status']==0).any()
 
 
-    def  storeSourceSpec(self, inputSpectra, magZ=None, spatPix=256):
+    def  storeSourceSpec(self, inputSpectra, magZ, spatPix=256):
         """
         create a FITS image to hold all the spectra that are used in
         the analysis.
@@ -158,8 +169,8 @@ class StoreParam:
             fields named 'id' and 'spectrum'.
         magZ : float, optional
             The magnitude zeropoint of the observation, defined here as the
-            magnitude of a source  whose spectrum has a mean flux of 1. If
-            none is given, it is calculated from the provided spectra.
+            magnitude of a source whose spectrum has a mean flux of 1.
+##             If  none is given, it is calculated from the provided spectra.
 ##        includeSky : boolean, optional
 ##            Whether or not a sky spectrum should be included.  If True, the
 ##            routine searches the catalog `InputSpectra' for a source with ID
@@ -169,44 +180,51 @@ class StoreParam:
             used  to scale the spectrum of the unresolved component (if
             it exists)
         """
+        
+        logging.info("Creating Image HDU that will contain spectra.")
 
         ## create array to hold spectra
         Nspec=self.specrow.max()+1
-        specData = np.zeros((Nspec, inputSpectra['spectrum'].shape[1]),
-                            dtype='float32')
+        specData = np.zeros((Nspec, self.specPix), dtype='float32')
 
-        ## determine magnitude zeropoint (unless given)
-        ownSpecID = inputSpectra['id'][inputSpectra['id']>-1] ## exclude sky
-        
-        ii = [np.where(inputSpectra['id']==i)[0][0] for i in ownSpecID]
+##         ## determine magnitude zeropoint (unless given)
+##         ownSpecID = inputSpectra['id'][inputSpectra['id']>-1] ## exclude sky
+##         
+##         ii = [np.where(inputSpectra['id']==i)[0][0] for i in ownSpecID]
+## 
+##         if not magZ:
+## 
+##             jj =[np.where(self.sourceList['id']==i)[0][0] for i in ownSpecID]
+## 
+##             meanFlux = np.mean(inputSpectra['spectrum'][ii,:], axis=1)
+##             selMags  = self.sourceList['mag'][jj]
+## 
+##             magZ = selMags + 2.5*np.log10(meanFlux)
+##             magZmean = magZ.mean()
+##         else:
+##             magZmean = magZ
 
-        if not magZ:
-
-            jj = [np.where(self.sourceList['id']==i)[0][0] for i in ownSpecID]
-
-            meanFlux = np.mean(inputSpectra['spectrum'][ii,:], axis=1)
-            selMags  = self.sourceList['mag'][jj]
-
-            magZ = selMags + 2.5*np.log10(meanFlux)
-            magZmean = magZ.mean()
-        else:
-            magZmean = magZ
-
-        self.priHDU.header.update("MAGZ", magZmean,
+        self.priHDU.header.update("MAGZ", magZ,
                                   "Estimated magnitude zeropoint")
 
-        ##  calculate mean of provided source spectra
-        meanSpectrum = inputSpectra['spectrum'][ii].mean(axis=0)
-        meanSpectrum /= meanSpectrum.mean()
+##         ## calculate mean of provided source spectra
+##         meanSpectrum = inputSpectra['spectrum'][ii].mean(axis=0)
+##         meanSpectrum /= meanSpectrum.mean()
 
         if self.includeUnres:
             unresFlux = 0.
 
         ## loop over all sources and fill array 
         for i in xrange(self.selectedSources.size):
-
+            
             ## source has own spectrum
             if self.selectedSources['status'][i] >= 3:
+
+                if not self.selectedSources['id'][i] in inputSpectra['id']:
+                    continue
+
+                logging.debug("   Source #{0} has spectrum.".format(\
+                        self.selectedSources['id'][i]))
 
                 jj = np.where(inputSpectra['id']\
                                   ==self.selectedSources['id'][i])[0][0]
@@ -214,17 +232,25 @@ class StoreParam:
             
             ## spectrum must be inferred
             elif self.selectedSources['status'][i] >= 0:
+
                 mag_i = self.sourceList['mag'][self.selector][i]
-                meanFlux = 10**(-0.4*(mag_i-magZmean))
+                meanFlux = 10**(-0.4*(mag_i-magZ))
 
                 if self.selectedSources['status'][i] in [1,2]:
-                    specData[self.specrow[i]] += meanFlux*meanSpectrum
+                    logging.debug("   Source #{0} has no spectrum.".format(\
+                            self.selectedSources['id'][i]))
+
+                    specData[self.specrow[i]] += meanFlux ## *meanSpectrum
                 else:
-                    unresFlux += 10**(-0.4*(mag_i-magZmean))
+                    logging.debug("   Source #{0} in unresolved comp.".format(\
+                            self.selectedSources['id'][i]))
+
+                    unresFlux += 10**(-0.4*(mag_i-magZ))
+
 
         if self.includeUnres:
             unresFlux /= spatPix
-            specData[-1] = unresFlux*meanSpectrum
+            specData[-1] = unresFlux ## *meanSpectrum
 
         ##  create HDUs to hold the spectra
         self.addImaHDU(data=specData, extname='SPECTRA', crpix1=1,
@@ -243,6 +269,9 @@ class StoreParam:
             The structured array must contain 4 fields (named 'A', 'B', 'C',
             'D') with the parameters of the transformation.
         """
+
+        logging.info("Creating Image HDU to store paramaters of coord. trans.")
+
         outData = np.zeros((4,pospars.size), dtype='float32')
         outData[0] = pospars['A']
         outData[1] = pospars['B']
@@ -254,6 +283,38 @@ class StoreParam:
 
 
 
+    def storePSF(self, psfType, psfPars):
+        """
+        Create a FITS-image that contains the parameters of the point-spread
+        function(as a function of wavelength).
+
+        Parameters
+        ----------
+        psfType : string
+            The analytical model used to model the PSF.
+        psfPars :  numpy_record_array
+            For each PSF parameter, the structured array must contain one
+            field with the parameters name. Note that no validation of the
+            input is performed at this point. It is up to the user to provide
+            a valid set of input parameters for a certain PSF type.
+        """
+
+        logging.info("Creating Image HDU to store paramaters of PSF.")
+        
+        nPars = len(psfPars.dtype.names)
+
+        psfArgs = {"psfType":psfType}
+
+        outData = np.zeros((nPars, psfPars.size), dtype='float32')
+        for i in xrange(nPars):
+            outData[i] = psfPars[psfPars.dtype.names[i]]
+            psfArgs["psfPar{0}".format(i+1)] = psfPars.dtype.names[i]
+
+        self.addImaHDU(data=outData, extname='PSFPARS', crpix1=1,
+                       crval1=self.wlStart, cdelt1=self.wlStep, **psfArgs)
+
+
+        
     def addImaHDU(self, data, **kwargs):
 
         newHDU = pyfits.ImageHDU(data)
@@ -274,9 +335,13 @@ class StoreParam:
         clobber : boolean, optional
             Flag indicating whether an existing file will be overwritten.
         """
+        
+        logging.info("Saving results in `{0}'".format(filename))
+
         outHDU = pyfits.HDUList(self.HDUList)
         
         if clobber:
+            logging.info("Existing file has been overwritten.")
             if os.path.exists(filename):  os.remove(filename)
         outHDU.writeto(filename)
         

@@ -29,7 +29,7 @@ class FittingGui(QtGui.QMainWindow):
         self.PAUSED  = False
         self.ABORTED = False
 
-        self.setWindowTitle("PampelMuse CUBEFIT")
+        self.setWindowTitle("PampelMuse - Fitting process")
 
         self.imageLabel  = QtGui.QWidget()
         self.dataCanvas = DynamicImaCanvas(self.imageLabel)

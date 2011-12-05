@@ -36,8 +36,8 @@ def cubefit(arguments):
     psfType  = arguments.config["PSFTYPE"]                ##
     psfInit  = arguments.config["PSFPARS"]                ##
     psfFit   = arguments.config["PSFFIT"]                 ##
-    dobackup = False
-    smallIFU = False ## True
+    dobackup = True
+    smallIFU = arguments.config["SMALLIFU"]               ##
     ########################################################
 
 
@@ -203,7 +203,8 @@ def cubefit(arguments):
     fitter.providePSF(psfType=psfType, psfParameters=psfPars,
                       psfRad=psfRad)
         
-    fitter(fitRad=fitRad, lastFitIndex=lastFitIndex, asSmallIFU=smallIFU)
+    fitter(fitRad=fitRad, lastFitIndex=lastFitIndex, asSmallIFU=smallIFU,
+           returnResiduals=1)
 
     app.exec_()
 

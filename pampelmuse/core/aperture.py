@@ -21,11 +21,13 @@ CHANGELOG:
                       FWHM was used to create a Gaussian PSF)
 2011/09/19, v0.1.1.0, fixed bug that the whole sky spectrum was replaced
                       with the latest estimate of the global background
+2011/12/02, v0.1.1.1, included logging-module
+2011/12/05, v0.1.2.1, bugfixed logging
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.1.1.0"
-import pyfits, sys
-import numpy as np
+__version__ = "0.1.2.1"
+import logging, sys
+import numpy as np, pyfits
 
 ## from my_profiles import Gaussian
 from matplotlib.mlab import griddata
@@ -101,10 +103,14 @@ class SelectAnnulus:
         minDst = dst.min(axis=0)
 
         if r_max != 0:
-            return (minDst>=r_min)&(minDst<=r_max)
+            outArray = (minDst>=r_min)&(minDst<=r_max)
         else:
-            return (minDst>=r_min)
+            outArray = (minDst>=r_min)
 
+        if not outArray.any():
+            logging.warn("Annulus does not contain any pixels.")
+
+        return outArray
 
 
     def _calc(self, y, x):
@@ -148,15 +154,19 @@ class AperPhoto:
             pixels set to True in `mask` are replaced using 2dim. linear
             interpolation before aperture photometry is performed.
         """
+        logging.info("Starting aperture photometry, validating input.")
+
         self.centers = centers
         for name in ['id', 'x', 'y']: ## check if input is valid
             if not name in self.centers.dtype.names:
                 raise IOError, "No field named '{0}'".format(name)\
-                    +" was found in 'centers'-array"
-        
+                    +" was found in `centers'-array"
+
         self.mask    = mask
 
         self.Nsources = self.centers.size
+        logging.info("Found {0} valid sources.".format(self.Nsources))
+
         if len(data.shape) == 3:
             self.data    = data
             self.Nimages = self.data.shape[0]
@@ -164,7 +174,9 @@ class AperPhoto:
             self.data    = data.reshape((1,data.shape[0], data.shape[1]))
             self.Nimages = 1
         self.spatpix = self.data.shape[1:]
-        
+        logging.info("Input data is {0}D, containing {1} spectral pixels."\
+                         .format(2+(self.Nimages>1),  self.Nimages))
+
         ## prepare record array that will contains output.
         self.results = np.zeros(self.Nsources+1,
                                 dtype=[('id', 'i8'),
@@ -222,6 +234,17 @@ class AperPhoto:
         self.rAper  = rAper
         self.thresh  = thresh
         self.calcMom = calcMoments
+        logging.info("Aperture photometry - starting calulation with:")
+        logging.info("   Aperture radius (rAper) = {0:.1f}pixel".format(rAper))
+        logging.info("   Pixel threshold (thresh) = {0}sigma".format(thresh))
+        logging.info("   Moment calculation? - {0}".format(calcMoments))
+        logging.info("   Local background calculation? - {0}".format(localBG))
+
+        if psf != None:
+            logging.info("   Using PSF of type `{0}' for aperture correction."\
+                             .format(psf.__class__.__name__))
+        else:
+            logging.info("   No aperture correction applied.")
 
         if self.mask != None or self.calcMom:
             Y, X = np.indices(self.spatpix)
@@ -232,31 +255,43 @@ class AperPhoto:
         self.annuSelect = SelectAnnulus(self.spatpix, self.centers)
 
         for i in xrange(self.Nimages):
+            logging.debug("Analysing image #{0} (of {1})".format(\
+                    i+1, self.Nimages))
 
             ##  if mask provided, interpolate masked values
             if self.mask != None and self.mask[i].any():
+                logging.debug("   Implementing mask.")
                 mask_i = (self.mask[i] == False)
                 data_i = griddata(Y[mask_i], X[mask_i], self.data[i][mask_i], 
                                   Y, X)
             else:
+                logging.debug("   No masked values found.")
                 data_i = self.data[i].copy()
 
 
             ##  estimate global background value.
+            logging.debug("   Determining global background")
             self.backval, self.backstd = self._estGlobalBG(data_i)
             self.results['spectrum'][self.Nsources,i] = self.backval
+            logging.debug("   Value={0:.3f}/pixel".format(self.backval))
 
             for j in xrange(self.Nsources):
                 curID = self.centers['id'][j]
+                logging.debug("   Source #{0}/{1} (ID={2}):".format(\
+                        j, self.Nsources, curID))
 
                 ## estimate local background (if requested)
-                if localBG:                    
+                if localBG:
                     backval_ji,backstd_ji = self._estLocalBG(data_i,curID=curID)
+                    logging.debug("      Background: {0}/pixel (local)".format(\
+                            backval_ji))
 
                 ## otherwise use global background
                 else:
                     backval_ji,backstd_ji = self.backval,self.backstd
- 
+                    logging.debug("      Background: {0}/pixel (glob.)".format(\
+                            backval_ji)) 
+
                 ## Get array for calculations
                 selPix_ji  = self.annuSelect(ids=curID, r_min=0,
                                              r_max=self.rAper)
@@ -265,22 +300,24 @@ class AperPhoto:
                 ## Moment calculation:
                 if self.calcMom:
                     aboveCut = (selData_ji>(self.thresh*backstd_ji))
-
-                    if aboveCut.sum() > 3:                        
+                                  
+                    if aboveCut.sum() > 3:
+                        logging.debug("      Moments:")
                         moments = self._measureMoments(selData_ji[aboveCut],
                                                        X=X[selPix_ji][aboveCut],
                                                        Y=Y[selPix_ji][aboveCut])
-                        self.results['x'][j,i]  = moments[0]
-                        self.results['y'][j,i]  = moments[1]
-                        self.results['x2'][j,i] = moments[2]
-                        self.results['y2'][j,i] = moments[3]
-                        self.results['xy'][j,i] = moments[4]
+                        k = 0
+                        for moment in ['x', 'y', 'x2', 'y2', 'xy']:
+                            self.results[moment][j,i]  = moments[k]
+                            logging.debug("       {0}={1}".format(moment,
+                                                                  moments[k]))
+                            k += 1
                     else:
+                        logging.error("Too few pixels (>3) to calculate "+\
+                                          "moments.")
                         self.results['x'][j][i] = self.centers['x'][j]
                         self.results['y'][j][i] = self.centers['y'][j]
 
-##                         raise ValueError, "Cannot process source with ID"\
-##                             +" {0} because it has negative flux".format(curID)
                 else:
                     self.results['x'][j][i] = self.centers['x'][j]
                     self.results['y'][j][i] = self.centers['y'][j]
@@ -300,6 +337,8 @@ class AperPhoto:
                     corr = 1.
 
                 self.results['spectrum'][j][i] = selData_ji.sum()/corr
+                logging.debug("Flux: {0}counts".format(\
+                        self.results['spectrum'][j][i]))
 
         return self.results
  
@@ -325,6 +364,9 @@ class AperPhoto:
         backData = data[backPix]
         backData.sort()
         
+        if backData.size < 20:
+            logging.warn("Using < 20 pixels to estimate global background.")
+
         return self.__clipSigma(backData)
 
 
@@ -350,9 +392,11 @@ class AperPhoto:
             The mode and the sigma of the background pixel
             distribution.
         """
-        backPix = self.annuSelect(ids=curID, r_min=self.rAper,
-                                  r_max=self.rAper+5)
+        backPix = self.annuSelect(ids=curID, r_min=2*self.rAper,
+                                  r_max=4*self.rAper)
         backData = data[backPix]
+        if backData.size < 10:
+            logging.warn("Using < 10 pixels to estimate local background.")
         backData.sort()
         
         return self.__clipSigma(backData)
@@ -397,6 +441,9 @@ class AperPhoto:
 	            
             valid = np.logical_and(data>(median-thresh*sigma),
                                    data<(median+thresh*sigma))
+
+            if valid.sum() < 5:
+                logging.warn("Sigma-clipping left <5 vlid pixels.")
 	
             data = data[valid]
             i += 1
@@ -421,6 +468,9 @@ class AperPhoto:
         data : ndarray
             The 2dim. data array
         """
+
+        if data.size < 5:
+            logging.warn("Less than 5 pixels are used for moment calculation.")
 
         total = float(data.sum())
         x  = (X*data).sum()/total

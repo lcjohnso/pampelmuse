@@ -18,14 +18,21 @@ D' = -(A*D+B*C)/(A*A+B*B)
 CHANGELOG
 ---------
 2011/09/06, v0.0.0.0
+2011/11/29, v0.0.0.1, added logging
+2011/12/05, v0.0.1.2, add `quiet'-option to supress logging (used when
+                      calling `trans_coords' during the PSF-fit of
+                      `fit_array').
+                      supplying a numpy integer as an argument to the `format'
+                      property of a string seemed to cause problems.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.0.0.0"
+__version__ = "0.0.1.2"
+import logging
 import numpy as np
 
 
 
-def trans_coords(incoords, outcoords):
+def trans_coords(incoords, outcoords, quiet=False):
     """
     Perform transformation from input- to output-coordinates using linear
     least-squares.
@@ -70,9 +77,14 @@ def trans_coords(incoords, outcoords):
     
 
     m = len(inSel) ## No of matching sources provided
+    if not quiet:
+        logging.info("Determining coordinate transformation using {0} sources."\
+                         .format(m))
     if m<4:
+        logging.error("Number of sources <4!")
         raise IOError, "Need at least 4 coordinate pairs to determine"\
             +" transformation, found only {0}".format(m)
+
 
     M = 2*m
     N = 4
@@ -87,14 +99,17 @@ def trans_coords(incoords, outcoords):
 
     b = np.ones((M,), dtype='float32')
 
-    results = [] ## prepare output
-    dtype   = [('A', 'f8'), ('B', 'f8'), ('C', 'f8'), ('D', 'f8')]
+    tmpResult = [] ## prepare output
+    dtype     = [('A', 'f8'), ('B', 'f8'), ('C', 'f8'), ('D', 'f8')]
     
     if outcoords['x'].ndim == 1:
         b[:m] = outcoords['x'][outSel]
         b[m:] = outcoords['y'][outSel]
         
-        results.append(tuple(np.linalg.lstsq(A, b)[0]))
+        tmpResult.append(tuple(np.linalg.lstsq(A, b)[0]))
+
+        if not quiet:
+            logging.info("Determined coordinate transformation for 1 image.")
 
     else:
         for i in xrange(outcoords['x'].shape[1]):
@@ -102,6 +117,29 @@ def trans_coords(incoords, outcoords):
             b[:m] = outcoords['x'][outSel,i]
             b[m:] = outcoords['y'][outSel,i]
 
-            results.append(tuple(np.linalg.lstsq(A, b)[0]))
+            tmpResult.append(tuple(np.linalg.lstsq(A, b)[0]))
 
-    return np.array(results, dtype=dtype)
+        if not quiet:
+            logging.info("Determined coordinate transformation for {0} images."\
+                             .format(outcoords['x'].shape[1]))
+
+    result = np.array(tmpResult, dtype=dtype)
+
+    if not quiet:
+        logging.info("Best-fit parameters:")
+        for name in result.dtype.names:
+            logging.info("   {0} = {1:8.3f}".format(name, result[name].mean()))
+
+        logging.info("Offsets of individual sources:")
+        logging.info("       ID     dx     dy")
+        for i in xrange(m):
+            J = inSel[i]
+            K = outSel[i]
+            x_off = np.mean(outcoords['x'][K] - result['A']*incoords['x'][J]\
+                                - result['B']*incoords['y'][J] - result['C'])
+            y_off = np.mean(outcoords['y'][K] - result['A']*incoords['y'][J]\
+                                + result['B']*incoords['x'][J] - result['D'])
+            logging.info("   {0:6d}  {1:+5.2f}  {2:+5.2f}".format(\
+                    int(incoords['id'][J]), x_off, y_off))
+
+    return result

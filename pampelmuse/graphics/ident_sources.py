@@ -12,14 +12,14 @@ class PickCanvas(DynamicImaCanvas):
 ##     def selectBright(self, maxmag):
 ##         self.allData['x'][self.allData['mag']>maxmag] = np.ma.masked
 ##         self.allDataPlot.set_xdata(self.allData['x'])
-## Does not work like this - Method to update date of scatterplot?     
+## Does not work like this - Method to update data of scatterplot?     
 
-    def pickPoint(self):
+    def startPicking(self):
         self.unpick=False
         self.cidPick = self.fig.canvas.mpl_connect('pick_event', self._picker)
 
     
-    def unpickPoint(self):
+    def startUnpicking(self):
         self.unpick=True
         self.cidPick = self.fig.canvas.mpl_connect('pick_event', self._picker)
 
@@ -29,58 +29,56 @@ class PickCanvas(DynamicImaCanvas):
         if len(event.ind) != 1:
             return
 
-        self.INDEXPICK = event.ind[0]
-        i = self.INDEXPICK
+        i = event.ind[0]
 
-        if not self.INDEXPICK in self.pickData:
+        if not i in self.pickData:
             if not self.unpick:
-                self.pickData.append(self.INDEXPICK)
-                self.facecolors[self.INDEXPICK] = self.edgecolor
-            else:
-                return
+                self.edgecolors[:] = self.basecolor
+                self.edgecolors[i] = 1-self.basecolor
+                self.emit(QtCore.SIGNAL("pickedSource"), event.ind[0])
 
         else:
             if self.unpick:
-                SELINDEX = self.pickData.index(self.INDEXPICK)
-                self.pickData.remove(self.INDEXPICK)
-                self.facecolors[self.INDEXPICK] = 'none'
-            else:
-                return
+                self.emit(QtCore.SIGNAL("unpickedSource"), event.ind[0])
             
+        self.allDataPlot.set_edgecolors(self.edgecolors)
+        self.draw()
 
+
+    def plotPicked(self):
+        
+        self.edgecolors[:] = self.basecolor
+        self.facecolors = self.allData.size*['none']
+        for i in self.pickData:
+            self.facecolors[i] = self.basecolor
+        
+        self.allDataPlot.set_edgecolors(self.edgecolors)
         self.allDataPlot.set_facecolors(self.facecolors)
         self.draw()
+
+        
+    def stopPicking(self):
+
+        self.edgecolors[:] = self.basecolor
+        self.allDataPlot.set_edgecolors(self.edgecolors)
+        self.draw()
+
         self.fig.canvas.mpl_disconnect(self.cidPick)
  
-        self.emit(QtCore.SIGNAL("newString"),
-                  " ID={0} @({1:.2f},{2:.2f})"\
-                      .format(self.allIDs[i], self.allData['x'][i],
-                              self.allData['y'][i]))
 
-        if not self.unpick:
-            self.emit(QtCore.SIGNAL("pickSuccess"))
-        else:
-            self.emit(QtCore.SIGNAL("unpickSuccess"), SELINDEX)
+    def stopUnpicking(self):
+        
+        self.fig.canvas.mpl_disconnect(self.cidPick)
 
 
 
 
 class GrabCanvas(DynamicImaCanvas):
 
-    def grabPoint(self):
+    def startGrabbing(self):
+
         self.cidGrab = self.fig.canvas.mpl_connect('button_press_event',
                                                    self._grabber)
-
-
-    def ungrabPoint(self, index):
-        del self.grabXData[index]
-        del self.grabYData[index]
-        del self.grabXFWHM[index]
-        del self.grabYFWHM[index]
-
-        self.grabDataPlot.set_data(self.grabXData, self.grabYData)
-        self.draw()
-        self.emit(QtCore.SIGNAL("ungrabSuccess"))
 
 
     def _grabber(self, event):
@@ -90,67 +88,79 @@ class GrabCanvas(DynamicImaCanvas):
 
         ## use position of mouse click as initial guess, calculate first
         ## order moments and use them as source positions
-        x_init = int(round(event.xdata))
-        y_init = int(round(event.ydata))
 
-        rad = 2
-        Y, X = np.indices((2*rad+1,2*rad+1), dtype='int32')
-        Y += (y_init-rad)
-        X += (x_init-rad)
+        if self.calcMoments:
+            rad = 2
 
-        _valid = (X>=0)&(X<self.image.shape[1])&(Y>=0)&(Y<self.image.shape[0])
+            x_init = int(round(event.xdata))
+            y_init = int(round(event.ydata))
 
-        tmpIma  = self.image[Y[_valid],X[_valid]]
-        tmpIma -= tmpIma.min()
+            Y, X = np.indices((2*rad+1,2*rad+1), dtype='int32')
+            Y += (y_init-rad)
+            X += (x_init-rad)
 
-        total = float(tmpIma.sum())
-        x  = (X[_valid]*tmpIma).sum()/total
-        y  = (Y[_valid]*tmpIma).sum()/total
+            _valid = (X>=0)&(X<self.image.shape[1])&(Y>=0)\
+                &(Y<self.image.shape[0])
 
-        x2 = (X[_valid]*X[_valid]*tmpIma).sum()/total - x**2
-        y2 = (Y[_valid]*Y[_valid]*tmpIma).sum()/total - y**2        
-        xy = (X[_valid]*Y[_valid]*tmpIma).sum()/total - x*y
+            tmpIma  = self.image[Y[_valid],X[_valid]]
+            tmpIma -= tmpIma.min()
+
+            total = float(tmpIma.sum())
+            x  = (X[_valid]*tmpIma).sum()/total
+            y  = (Y[_valid]*tmpIma).sum()/total
+
+            x2 = (X[_valid]*X[_valid]*tmpIma).sum()/total - x**2
+            y2 = (Y[_valid]*Y[_valid]*tmpIma).sum()/total - y**2        
+            xy = (X[_valid]*Y[_valid]*tmpIma).sum()/total - x*y
+
+        else:
+            x = event.xdata
+            y = event.ydata
+
+            x2 = 0
+            y2 = 0
+            xy = 0
+
+        fwhmx = 2.355*np.sqrt(x2)
+        fwhmy = 2.355*np.sqrt(y2)
+
+        self.curGrabPlot.set_data([x], [y])
+        self.draw()
+
+        self.emit(QtCore.SIGNAL("grabbedCoords"), (x, y, fwhmx, fwhmy))
 
 
-        self.grabXData.append(x)
-        self.grabYData.append(y)
-        self.grabXFWHM.append(2.355*np.sqrt(x2))
-        self.grabYFWHM.append(2.355*np.sqrt(y2))
+    def plotGrabbed(self):
 
+        self.curGrabPlot.set_data([], [])
         self.grabDataPlot.set_data(self.grabXData, self.grabYData)
         self.draw()
 
+        
+    def stopGrabbing(self):
+
         self.fig.canvas.mpl_disconnect(self.cidGrab)
-        self.emit(QtCore.SIGNAL("newString"),
-                  "  ==> @({0:.2f},{1:.2f})".format(event.xdata, event.ydata))
-        self.emit(QtCore.SIGNAL("grabSuccess"))
 
 
 
 ## Create the GUI
 
+CUTLEVELS = ["100%", "99.9%", "99.5%", "99%", "98%", "95%", "user"]
+
 class IdentSources(QtGui.QMainWindow):
 
-    def __init__(self, pickIma, grabIma, pickData):
+    def __init__(self, pickIma, grabIma, pickData, parent=None):
 
-        QtGui.QMainWindow.__init__(self)
+        super(IdentSources, self).__init__(parent)
         
-        self.resize(800,800)
-        self.setWindowTitle('Identify sources')
 
-        self._addMenu()
+        self.setWindowTitle('PampelMuse - Source identification')
 
-        self.frame = QtGui.QWidget(self) ##  will be the central widget 
-        vbox = QtGui.QVBoxLayout(self.frame)
+        self.pickData = pickData
 
-
-        txtWidget = QtGui.QWidget() ## Widget containing the history text
-        self.txtBrowser = QtGui.QTextBrowser()
-        txtFrame  = QtGui.QHBoxLayout(txtWidget) 
-        txtFrame.addWidget(self.txtBrowser)
-
-
-        imaWidget = QtGui.QWidget(self.frame) ## widget containing the images
+        ## Plot image data into central widget
+        imaWidget = QtGui.QWidget()
+        imaWidget.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
         
         self.leftIma  = PickCanvas(imaWidget)
         self.leftIma.addImage(pickIma)
@@ -160,176 +170,196 @@ class IdentSources(QtGui.QMainWindow):
         self.rightIma.addImage(grabIma)
         self.rightIma.grabCoords(marker='x', mew=1.6, mec='r', ls='None', ms=15)
 
-
         imaFrame = QtGui.QHBoxLayout(imaWidget)
         imaFrame.addWidget(self.leftIma)
         imaFrame.addWidget(self.rightIma)
 
 
-        cutsWidget = QtGui.QWidget(self.frame)  ## widget containing the cuts
-
-        validCuts = QtGui.QDoubleValidator()
-        validCuts.setRange(0.0, 100.0, decimals=1)
+        self.setCentralWidget(imaWidget)
 
 
-        lcutWidget = QtGui.QWidget(cutsWidget)  ## left cuts
-        lcutVal  = QtGui.QLabel('Cut level:')
-        lcutEdit = QtGui.QLineEdit('100.0', lcutWidget, maxLength=5)
-        lcutEdit.setValidator(validCuts)
-        lcutEdit.setFocusPolicy(QtCore.Qt.ClickFocus)
-        lcutEdit.setFixedSize(50,25)
-        self.connect(lcutEdit, QtCore.SIGNAL('textEdited(QString&)'),
-                     lcutEdit, QtCore.SIGNAL('setText(QString&)'))
-        self.connect(lcutEdit, QtCore.SIGNAL('returnPressed()'), 
-                     lambda ima=self.leftIma: ima.changeCuts(lcutEdit.text())
-                     )
+        ## dock widget for history
+        self.logWidget = QtGui.QDockWidget("Log of events", self)
+        self.logWidget.setObjectName("History Widget")
+        self.logWidget.setAllowedAreas(QtCore.Qt.BottomDockWidgetArea)
 
-        self.lzoomButton = QtGui.QPushButton("Zoom")
-        self.connect(self.lzoomButton, QtCore.SIGNAL('clicked()'),
-                     self.leftIma.zoomImage)
-        self.connect(self.lzoomButton, QtCore.SIGNAL('clicked()'),
-                     lambda off=1: self.switchButtons(off))
-        self.connect(self.leftIma, QtCore.SIGNAL('zoomEnd'),
-                     lambda off=0: self.switchButtons(off))
+        self.txtBrowser = QtGui.QTextBrowser()
+        self.logWidget.setWidget(self.txtBrowser)
 
-        lcutFrame = QtGui.QHBoxLayout(lcutWidget)
-        lcutFrame.addStretch(1)
-        lcutFrame.addWidget(self.lzoomButton)
-        lcutFrame.addWidget(lcutVal)
-        lcutFrame.addWidget(lcutEdit)
+        self.addDockWidget(QtCore.Qt.BottomDockWidgetArea, self.logWidget)
 
 
-
-        rcutWidget = QtGui.QWidget(cutsWidget)  ##  right cuts
-        rcutVal  = QtGui.QLabel('Cut level:')
-        rcutEdit = QtGui.QLineEdit('100.0', rcutWidget, maxLength=5)
-        rcutEdit.setValidator(validCuts)
-        rcutEdit.setFocusPolicy(QtCore.Qt.ClickFocus)
-        rcutEdit.setFixedSize(50,25)
-        self.connect(rcutEdit, QtCore.SIGNAL('textEdited(QString&)'),
-                     rcutEdit, QtCore.SIGNAL('setText(QString&)'))
-        self.connect(rcutEdit, QtCore.SIGNAL('returnPressed()'), 
-                     lambda ima=self.rightIma: ima.changeCuts(rcutEdit.text())
-                     )
-
-        self.rzoomButton = QtGui.QPushButton("Zoom")
-        self.connect(self.rzoomButton, QtCore.SIGNAL('clicked()'),
-                     self.rightIma.zoomImage)
-        self.connect(self.rzoomButton, QtCore.SIGNAL('clicked()'),
-                     lambda off=1: self.switchButtons(off))
-        self.connect(self.rightIma, QtCore.SIGNAL('zoomEnd'),
-                     lambda off=0: self.switchButtons(off))
-
-        rcutFrame = QtGui.QHBoxLayout(rcutWidget)
-        rcutFrame.addStretch(1)
-        rcutFrame.addWidget(self.rzoomButton)
-        rcutFrame.addWidget(rcutVal)
-        rcutFrame.addWidget(rcutEdit)
+        ## create status bar
+        self.status = self.statusBar()
+        self.status.setSizeGripEnabled(False)
+        self.status.showMessage("Ready", 5000)
 
 
-        cutsFrame = QtGui.QHBoxLayout(cutsWidget)
-        cutsFrame.addWidget(lcutWidget)
-        cutsFrame.addWidget(rcutWidget)
+        ## creating Actions
+        ## FILE
+        fileQuitAction = self.createAction(\
+            "&Quit", slot=self.close, shortcut="Ctrl+Q",
+            tip="Close window")
+
+        ## EDIT
+        self.zoomMode = False
+        enableMomentsAction = self.createAction(\
+            "&Moment calculation", slot=self.enableMoments, shortcut="Alt+M",
+            checkable=True, tip="Calculate moments for grabbed sources?",
+            signal="toggled(bool)")
+
+        changeCutsAction = self.createAction(\
+            "&Cuts...", slot=self.changeCuts, shortcut="Alt+C",
+            tip="Change cuts in active image")
+
+        imageSelectGroup = QtGui.QActionGroup(self)
+        selLeftImaAction = self.createAction(\
+            "&Left", slot=self.selLeftIma, shortcut="Ctrl+L", checkable=True,
+            tip="Make left image active", signal="toggled(bool)")
+        selRightImaAction = self.createAction(\
+            "&Right", slot=self.selRightIma, shortcut="Ctrl+R", checkable=True,
+            tip="Make right image active", signal="toggled(bool)")
+        imageSelectGroup.addAction(selLeftImaAction)
+        imageSelectGroup.addAction(selRightImaAction)
+
+        modeSelectGroup = QtGui.QActionGroup(self)
+        selZoomAction   = self.createAction(\
+            "&Zoom", slot=self.selZoom, shortcut="Alt+L", checkable=True,
+            tip="Enable Zoom-Mode", signal="toggled(bool)")
+        selPickAction   = self.createAction(\
+            "&Pick", slot=self.selPick, shortcut="Alt+P", checkable=True,
+            tip="Enable selection of sources", signal="toggled(bool)")
+        selUnpickAction = self.createAction(\
+            "&Unpick", slot=self.selUnpick, shortcut="Alt+U", checkable=True,
+            tip="Enable deselection of sources", signal="toggled(bool)")
+        modeSelectGroup.addAction(selZoomAction)
+        modeSelectGroup.addAction(selPickAction)
+        modeSelectGroup.addAction(selUnpickAction)
 
 
-        butWidget = QtGui.QWidget() ## Widget containing the buttons
+        ## HELP
+        usageAction = self.createAction("&Usage", shortcut="Ctrl+H",
+                                        slot=self.usage,
+                                        tip="Instructions on usage")
 
-        self.addButton = QtGui.QPushButton("Add")
-        self.remButton = QtGui.QPushButton("Remove")
-        self.quiButton = QtGui.QPushButton("Quit")
+        ## Add menu bar to widget
+        fileMenu = self.menuBar().addMenu("&File")
+        self.addActions(fileMenu, (fileQuitAction,))
 
-        ## add new point or remove existing point
-        self.connect(self.addButton, QtCore.SIGNAL('clicked()'),
-                     self.leftIma.pickPoint)
-        self.connect(self.addButton, QtCore.SIGNAL('clicked()'),
-                     lambda off=1: self.switchButtons(off))
-        self.connect(self.addButton, QtCore.SIGNAL('clicked()'),
-                     lambda string="Adding new source:": \
-                         self.updateHistory(string))
+        editMenu = self.menuBar().addMenu("&Edit")
+        self.addActions(editMenu, (changeCutsAction, enableMomentsAction))
+        selectMenu = editMenu.addMenu("&Select")
+        self.addActions(selectMenu, (selLeftImaAction, selRightImaAction))
+        modeMenu = editMenu.addMenu("&Mode")
+        self.addActions(modeMenu, (selZoomAction, selPickAction,
+                                   selUnpickAction))
 
-        self.connect(self.remButton, QtCore.SIGNAL('clicked()'),
-                     self.leftIma.unpickPoint)
-        self.connect(self.remButton, QtCore.SIGNAL('clicked()'),
-                     lambda off=1: self.switchButtons(off))
-        self.connect(self.remButton, QtCore.SIGNAL('clicked()'),
-                     lambda string="Removing selected source:": \
-                         self.updateHistory(string))
-
-        ## work on left image
-        self.connect(self.leftIma, QtCore.SIGNAL('pickSuccess'),
-                     self.rightIma.grabPoint)
-        self.connect(self.leftIma, QtCore.SIGNAL('unpickSuccess'),
-                     self.rightIma.ungrabPoint)
-        self.connect(self.leftIma, QtCore.SIGNAL('newString'),
-                     self.updateHistory)
+        helpMenu = self.menuBar().addMenu("&Help")
+        self.addActions(helpMenu, (usageAction,))
 
 
-        ## work on right image
-        self.connect(self.rightIma, QtCore.SIGNAL('grabSuccess'),
-                     lambda off=0: self.switchButtons(off))
-        self.connect(self.rightIma, QtCore.SIGNAL('ungrabSuccess'),
-                     lambda off=0: self.switchButtons(off))
-        self.connect(self.rightIma, QtCore.SIGNAL('newString'),
-                     self.updateHistory)
+        ## Add toolbar to widget
+##         fileToolbar = self.addToolBar("File")
+##         fileToolbar.setObjectName("FileToolbar")
+##         self.addActions(fileToolbar, (fileQuitAction))
 
-        ## close GUI
-        self.connect(self.quiButton, QtCore.SIGNAL('clicked()'),
-                     self.close)
+        editToolbar = self.addToolBar("Edit")
+        editToolbar.setObjectName("EditToolBar")
+        self.addActions(editToolbar, (selZoomAction, selPickAction,
+                                      selUnpickAction))
+    
+        cutsToolbar = self.addToolBar("Cuts")
+        cutsToolbar.setObjectName("CutsToolBar")
 
-        butFrame = QtGui.QHBoxLayout(butWidget)
-        butFrame.addStretch(0)
-        butFrame.addWidget(self.addButton)
-        butFrame.addWidget(self.remButton)
-        butFrame.addWidget(self.quiButton)
+        self.cutsComboBox = QtGui.QComboBox()
+        self.cutsComboBox.addItems(CUTLEVELS)
+        self.cutsComboBox.setFocusPolicy(QtCore.Qt.ClickFocus)
+        self.cutsComboBox.setFixedWidth(80)
+        self.connect(self.cutsComboBox,
+                     QtCore.SIGNAL("currentIndexChanged(const QString&)"),
+                     self.changeCuts)
+        self.leftImaCutIndex  = 0 ## used to save current cut levels when
+        self.rightImaCutIndex = 0 ## switching between the images
 
-        
+##         self.cutsValidator  = QtGui.QDoubleValidator()
+##         self.cutsValidator.setRange(self.leftIma.cuts[0],
+##                                     self.leftIma.cuts[1])
+##         self.cutsValidator.setDecimals(3)
 
-        vbox.addWidget(imaWidget)
-        vbox.addWidget(cutsWidget)
-        vbox.addWidget(butWidget)
-        vbox.addWidget(txtWidget)
-        self.setCentralWidget(self.frame)
-        
+        self.lcutLineEdit = QtGui.QLineEdit('{0}'.format(self.leftIma.cuts[0]))
+        self.lcutLineEdit.setFixedWidth(80)
+##         self.lcutLineEdit.setValidator(self.cutsValidator)
 
+        self.hcutLineEdit = QtGui.QLineEdit('{0}'.format(self.leftIma.cuts[1]))
+        self.hcutLineEdit.setFixedWidth(80)
+##         self.hcutLineEdit.setValidator(self.cutsValidator)
 
-    def switchButtons(self, off):
-        
-        for button in [self.lzoomButton, self.rzoomButton, self.addButton,
-                       self.remButton,  self.quiButton]:
-            button.setDisabled(off)
+        self.connect(self.lcutLineEdit, QtCore.SIGNAL("returnPressed()"),
+                     self.updateLcutLineEdit)
 
-
-    def _addMenu(self):
-        ## File menu
-        self.file_menu = self.menuBar().addMenu("&File")
-
-        quit_action = self.__action("&Quit", shortcut="Ctrl+Q", slot=self.close,
-                                    tip="Close window")
-        self.file_menu.addAction(quit_action)
-
-        ## Options menu
-##         self.help_menu = self.menuBar().addMenu("&Options")
+        self.connect(self.hcutLineEdit, QtCore.SIGNAL("returnPressed()"),
+                     self.updateHcutLineEdit)
 
 
-        ## Help menu
-        self.help_menu = self.menuBar().addMenu("&Help")
+        cutsToolbar.addWidget(QtGui.QLabel('Cut levels: '))
+        cutsToolbar.addWidget(self.cutsComboBox)
+        cutsToolbar.addWidget(QtGui.QLabel('='))
+        cutsToolbar.addWidget(self.lcutLineEdit)
+        cutsToolbar.addWidget(QtGui.QLabel(':'))
+        cutsToolbar.addWidget(self.hcutLineEdit)
 
-        usage_action = self.__action("&Usage", shortcut="Ctrl+H",
-                                     slot=self.usage, tip="Usage instructions")
-        self.help_menu.addAction(usage_action)
+
+        ## Initial status of GUI
+        selLeftImaAction.setChecked(True)    ## initially select left image
+        enableMomentsAction.setChecked(True) ## moment calc. is on by default
+        selPickAction.setChecked(True)       ## initially in `pick'-mode
+        self.changeCuts("100%")
+
+        ## interaction with images:
+        self.curPick = None
+        self.matched = {}
+        self.connect(self.leftIma, QtCore.SIGNAL('pickedSource'),
+                     self.collectPick)
+        self.connect(self.rightIma, QtCore.SIGNAL('grabbedCoords'),
+                     self.collectGrab)
+        self.connect(self.leftIma, QtCore.SIGNAL('unpickedSource'),
+                     self.collectUnpick)
+        self.connect(self.leftIma, QtCore.SIGNAL('changedLoCut'),
+                     self.updateLcutLineEdit)
+        self.connect(self.leftIma, QtCore.SIGNAL('changedHiCut'),
+                     self.updateHcutLineEdit)
+        self.connect(self.rightIma, QtCore.SIGNAL('changedLoCut'),
+                     self.updateLcutLineEdit)
+        self.connect(self.rightIma, QtCore.SIGNAL('changedHiCut'),
+                     self.updateHcutLineEdit)
 
 
-    def __action(self, text, shortcut=None, tip=None, slot=None,
-                 signal="triggered()"):
+    def createAction(self, text, slot=None, shortcut=None, icon=None, tip=None,
+                     checkable=False, signal="triggered()"):
 
-        new_action = QtGui.QAction(text, self)
+        action = QtGui.QAction(text, self)
+        if icon is not None:
+            action.setIcon(QtGui.QIcon(":/{0}.png".format(icon)))
         if shortcut is not None:
-            new_action.setShortcut(shortcut)
+            action.setShortcut(shortcut)
         if tip is not None:
-            new_action.setStatusTip(tip)
+            action.setToolTip(tip)
+            action.setStatusTip(tip)
         if slot is not None:
-            self.connect(new_action, QtCore.SIGNAL(signal), slot)
-        return new_action
+            self.connect(action, QtCore.SIGNAL(signal), slot)
+        if checkable:
+            action.setCheckable(True)
+        return action
+
+
+
+    def addActions(self, target, actions):
+        for action in actions:
+            if action is None:
+                target.addSeparator()
+            else:
+                target.addAction(action)
+
 
 
     def usage(self):
@@ -345,6 +375,91 @@ class IdentSources(QtGui.QMainWindow):
         self.updateHistory(helpstring)
 
 
+        
+    def selLeftIma(self, on):
+        if on:
+            self.activeIma = self.leftIma
+            if self.zoomMode:
+                self.activeIma.zoomImage()
+                self.rightIma.stopZoom()
+            self.cutsComboBox.setCurrentIndex(self.leftImaCutIndex)
+            self.lcutLineEdit.setText(unicode(self.leftIma.cuts[0]))
+            self.hcutLineEdit.setText(unicode(self.leftIma.cuts[1]))
+        else:
+            self.leftImaCutIndex = self.cutsComboBox.currentIndex()
+
+
+    def selRightIma(self, on):
+        if on:
+            self.activeIma = self.rightIma
+            if self.zoomMode:
+                self.activeIma.zoomImage()
+                self.leftIma.stopZoom()
+            self.cutsComboBox.setCurrentIndex(self.rightImaCutIndex)
+            self.lcutLineEdit.setText(unicode(self.rightIma.cuts[0]))
+            self.hcutLineEdit.setText(unicode(self.rightIma.cuts[1]))
+        else:
+            self.rightImaCutIndex = self.cutsComboBox.currentIndex()
+
+
+    def enableMoments(self, on):
+        
+        self.rightIma.calcMoments = on
+
+
+    def changeCuts(self, value):
+        if value == "user":
+            self.lcutLineEdit.setEnabled(True)
+            self.hcutLineEdit.setEnabled(True)
+            return
+        else:
+            self.lcutLineEdit.setEnabled(False)
+            self.hcutLineEdit.setEnabled(False)
+            self.activeIma.changeCuts(vrange=float(value[:-1]))
+        
+
+    def updateLcutLineEdit(self, locut=None):
+        if not self.lcutLineEdit.isEnabled():
+            self.lcutLineEdit.setText(unicode(locut))
+        else:
+            self.activeIma.changeCuts(\
+                locut=float(self.lcutLineEdit.displayText()))
+ 
+
+    def updateHcutLineEdit(self, hicut=None):
+        if not self.hcutLineEdit.isEnabled():
+            self.hcutLineEdit.setText(unicode(hicut))
+        else:
+            self.activeIma.changeCuts(\
+                hicut=float(self.hcutLineEdit.displayText()))
+
+
+    def selZoom(self, on):
+        self.zoomMode = on
+        if on:
+            self.activeIma.zoomImage()
+        else:
+            self.activeIma.stopZoom()
+
+
+    def selPick(self, on):
+        if on:
+            self.leftIma.startPicking()
+            self.rightIma.startGrabbing()
+        else:
+            self.curPick = None
+            self.leftIma.stopPicking()
+            self.rightIma.stopGrabbing()
+
+    
+    def selUnpick(self, on):
+        if on:
+            self.leftIma.startUnpicking()
+        else:
+            self.leftIma.stopUnpicking()
+
+
+
     def updateHistory(self, string):
         if string == "left":
             string = self.leftIma.STRING
@@ -357,18 +472,85 @@ class IdentSources(QtGui.QMainWindow):
                                        .format(string))
 
 
-    def getResults(self):
-        return np.array(zip(self.leftIma.allIDs[self.leftIma.pickData],
-                            self.rightIma.grabXData,
-                            self.rightIma.grabYData,
-                            self.rightIma.grabXFWHM,
-                            self.rightIma.grabYFWHM),
-                        dtype=[('id', 'i8'),('x','f8'),('y', 'f8'),
-                               ('fwhm_x', 'f8'), ('fwhm_y','f8')]
-                        )
-                        
-        
+    def collectPick(self, n):
 
+        self.curPick = n
+        self.status.showMessage("Source #{0}: m={1:.1f} @({2:.1f},{3:.1f})"\
+                                    .format(self.pickData['id'][n],
+                                            self.pickData['mag'][n],
+                                            self.pickData['x'][n],
+                                            self.pickData['y'][n]), 5000)
+
+
+    def collectGrab(self,  coords):
+        
+        statusMessage = "Coordinates: ({0:.1f},{1:.1f})".format(\
+                coords[0], coords[1])
+        if self.rightIma.calcMoments:
+            statusMessage += " - FWHM: ({0:.1f},{1:.1f})".format(\
+                coords[2], coords[3])
+        self.status.showMessage(statusMessage, 5000)
+        
+        if self.curPick != None:
+            n = self.curPick
+            
+            matchString = "Identified source #{0} (m={1:.1f}): ".format(\
+                self.pickData['id'][n], self.pickData['mag'][n])
+            matchString += "({0:.1f},{1:.1f}) -> ({2:.1f},{3:.1f})".format(\
+                self.pickData['x'][n],self.pickData['y'][n],coords[0],coords[1])
+            self.updateHistory(matchString)
+
+            self.matched[self.pickData['id'][n]] = coords
+
+            self.leftIma.pickData.append(n)
+            self.leftIma.plotPicked()
+
+            self.rightIma.grabXData.append(coords[0])
+            self.rightIma.grabYData.append(coords[1])
+            self.rightIma.plotGrabbed()
+
+            self.curPick = None
+
+
+    def collectUnpick(self, n):
+
+        self.status.showMessage("Source #{0}: m={1:.1f} @({2:.1f},{3:.1f})"\
+                                    .format(self.pickData['id'][n],
+                                            self.pickData['mag'][n],
+                                            self.pickData['x'][n],
+                                            self.pickData['y'][n]), 5000)
+
+        matchString = "Removed identification for source #{0} -".format(\
+            self.pickData['id'][n])
+        matchString += " m={0:.1f} @({0:.1f},{2:.1f})".format(\
+            self.pickData['mag'][n],self.pickData['x'][n],self.pickData['y'][n])
+        self.updateHistory(matchString)
+
+        index2Del = self.leftIma.pickData.index(n)
+
+        del self.leftIma.pickData[index2Del]
+        self.leftIma.plotPicked()
+
+        del self.rightIma.grabXData[index2Del]
+        del self.rightIma.grabYData[index2Del]
+        self.rightIma.plotGrabbed()
+
+        del self.matched[self.pickData['id'][n]]
+
+
+
+    def getResults(self):
+        results = np.zeros(len(self.matched),
+                           dtype=[('id', 'i8'),('x','f8'),('y', 'f8'),
+                                  ('fwhm_x', 'f8'), ('fwhm_y','f8')]
+                           )
+        i=0
+        for key, value in self.matched.iteritems():
+            results[i][0] = key
+            for j in xrange(len(value)):
+                results[i][j+1] = value[j]
+            i += 1
+        return results
             
 
 def main():

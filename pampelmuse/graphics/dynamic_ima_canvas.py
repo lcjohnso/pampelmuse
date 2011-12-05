@@ -2,6 +2,7 @@ import matplotlib.pyplot
 import numpy as np
 from PyQt4 import QtCore
 from matplotlib.figure import Figure
+from matplotlib.colors import ColorConverter
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 
 
@@ -31,6 +32,7 @@ class DynamicImaCanvas(FigureCanvas):
 
         self.image = image
 
+        self.cuts  =  (self.image.min(), self.image.max())
         
         self.axes.set_autoscale_on(False)
         self.axes.set_xticks([])
@@ -39,23 +41,36 @@ class DynamicImaCanvas(FigureCanvas):
         self.draw()
 
 
-    def changeCuts(self, newcuts):
+    def changeCuts(self, vrange=None, locut=None, hicut=None):
 
-        values = self.image.copy().reshape(-1)
-        values.sort()
+        oldCuts = self.cuts
 
-        cutlev = float(newcuts)/100.
-        npix  = values.shape[0]
+        if vrange != None:
+            cutlev = float(vrange)/100.
+            npix   = self.image.size
 
-        cutpix = int((1-cutlev)*npix)
+            cutpix = int((1-cutlev)*npix)
+            
+            if cutpix == 0:
+                self.cuts = (self.image.min(), self.image.max())
+            else:
+                values = self.image.copy().reshape(-1)
+                values.sort()
+                self.cuts = (values[cutpix/2], values[-cutpix/2])
+                
+        else:
+            if locut != None:
+                self.cuts = (locut, self.cuts[1])
+            if hicut != None:
+                self.cuts = (self.cuts[0], hicut)
 
-        cmin = values[cutpix/2]
-        cmax = values[-cutpix/2]
-        if cutpix == 0:
-            cmax = values[-1]
-
-        self.imagePlot.set_clim(cmin, cmax)
+        self.imagePlot.set_clim(self.cuts[0], self.cuts[1])
         self.draw()
+
+        if self.cuts[0] != oldCuts[0]:
+            self.emit(QtCore.SIGNAL("changedLoCut"), self.cuts[0])
+        if self.cuts[1] != oldCuts[1]:
+            self.emit(QtCore.SIGNAL("changedHiCut"), self.cuts[1])
 
 
     def zoomImage(self):
@@ -135,6 +150,14 @@ class DynamicImaCanvas(FigureCanvas):
 
             self.emit(QtCore.SIGNAL("zoomEnd"))
 
+            self.cidZoomInit = self.fig.canvas.mpl_connect('button_press_event',
+                                                           self._zoomInit)
+
+    
+    def stopZoom(self):
+        
+        self.fig.canvas.mpl_disconnect(self.cidZoomInit)
+
 
 
     def addData(self, data, **kwargs):
@@ -144,18 +167,26 @@ class DynamicImaCanvas(FigureCanvas):
         ## apropriate methods
         self.allData = np.ma.array(data)
 
-        sizes = 100*(10**(-0.4*(self.allData['mag']-min(self.allData['mag']))))
-        sizes[sizes<1]=1.
+        self.sizes = 100*(10**(-0.4*(self.allData['mag']\
+                                         -min(self.allData['mag']))))
+        self.sizes[self.sizes<1]=1.
 
         self.facecolors = self.allData.size*['none'] 
 
         self.allDataPlot = self.axes.scatter(self.allData['x'], 
-                                             self.allData['y'], s=sizes,
+                                             self.allData['y'], s=self.sizes,
                                              facecolors=self.facecolors,
                                              **kwargs)
         self.draw()
 
-        self.edgecolor = self.allDataPlot.get_edgecolors()[0]
+        edgecolors = self.allDataPlot.get_edgecolors()
+        self.basecolor  = edgecolors[0]
+        if edgecolors.shape[0] == 1:
+            self.edgecolors = np.resize(\
+                edgecolors, (self.allData.size,edgecolors.shape[1]))
+        else:
+            self.edgecolors = edgecolors
+
 
         if self.allDataPlot.get_picker() != None:
             self.pickData = []
@@ -167,17 +198,39 @@ class DynamicImaCanvas(FigureCanvas):
 
 
 
-    def grabCoords(self, **kwargs):
+    def grabCoords(self, calcMoments=True, **kwargs):
         ## Dummy function for purpose of grabbing coordinates from an image
         ## Can be expanded by defining subclasses of DynamicalImaCanvas with
         ## apropriate methods
+
+        self.calcMoments = calcMoments
+        
         self.grabXData = []
         self.grabYData = []
-        self.grabXFWHM = []
-        self.grabYFWHM = []
-
 
         self.grabDataPlot, = self.axes.plot(self.grabXData, self.grabYData,
                                             **kwargs)
+
+        self.curGrabPlot, = self.axes.plot([],[], **kwargs)
+
+        ## invert colors in plot of current selection
+        mec = self.grabDataPlot.get_mec()
+        self.curGrabPlot.set_mec(self.invertColor(mec))
+
+        mfc = self.grabDataPlot.get_mfc()
+        self.curGrabPlot.set_mfc(self.invertColor(mfc))
+
+        c = self.grabDataPlot.get_c()
+        self.curGrabPlot.set_c(self.invertColor(c))
+
         self.draw()
 
+
+    def invertColor(self, color):
+        
+        if color == "none":
+            return "none"
+        else:
+            return 1 - np.asarray(ColorConverter().to_rgba(color))
+
+        

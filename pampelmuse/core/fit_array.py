@@ -24,16 +24,6 @@ from pampelmuse.functions.trans_coords import trans_coords
 from pampelmuse.graphics.fitting_gui import FittingGui
 
 
-### some old code not used anymore
-## from clip_sigma import clip_sigma
-## from ima_arith import paste_area
-
-## def shift_image(data, dx, dy):
-##     
-##     tmp_data = resample1d.shift_array(data, dx, axis=1, output='full')
-##     
-##     return resample1d.shift_array(tmp_data, dy, axis=0, output='full')
-
 
 
 class UserInterrupt(Exception):
@@ -60,7 +50,6 @@ class StarFit(FittingGui):
     """
     def __init__(self, dataFits, sigmaFits, maskFits=None,
                   verbose=1, parent=None):
-## Options to include later on: makemod=False, makeres=False, clip=5.
         """
         Initialize an instance of the `StarFit'-class.
     
@@ -140,7 +129,8 @@ class StarFit(FittingGui):
         self.spectra    = spectra
         self.coordTrans = coordTrans
 
-        ## create array to uncertainties of fitted spectra (if not provided)
+        ## create array to store uncertainties of fitted spectra
+        ## (if none provided)
         if specSigma == None:
             self.specSigma = np.zeros(self.spectra.shape, dtype='float32')
         else:
@@ -172,9 +162,10 @@ class StarFit(FittingGui):
 
         self.posFit = self.coordTrans['fit'].any()
 
+
     
     def providePSF(self, psfType, psfParameters, psfRad,
-                   osFactor=6, osRadius=2):
+                   osFactor=5, osRadius=2):
         """
         This method should be used to provide the instance with the necessary
         information about the PSF that is used in the fitting process.
@@ -266,7 +257,7 @@ class StarFit(FittingGui):
             should be returned. Not implemented yet.
         returnResdiduals : boolean, optional
             Flag indicating whether an array containing the residuals of the
-            fit should be returned. Not implemented yet.
+            fit should be returned.
         clip : float, optional
             All pixels whose values devite by more than `clip' times SIGMA are
             masked. SIGMA is the standard deviation of the residuals between
@@ -337,6 +328,7 @@ class StarFit(FittingGui):
             self.i += 1
 
 
+
     def iterFitImage(self):
 
         ## the fitting process
@@ -349,7 +341,7 @@ class StarFit(FittingGui):
         psfPars  = self.psfPars['value'][self.psfMap, self.jj]
         self.PSF = self.makePSF(psfPars)
  
-        ##  determine pixel coordinates:
+        ## determine pixel coordinates:
         self.getPixCoords()
  
         ## load data
@@ -358,16 +350,13 @@ class StarFit(FittingGui):
         self.sigma = self.sigmaFits.section[self.jj].flatten()
         if self.hasMask:
             self.mask = (self.maskFits.section[self.jj].flatten()==0)
+            self.pixMap = self.mask.cumsum()-1 ## maps input coordinates to
+            self.pixMap[self.mask==False] = -1 ## coordinates on subarray of
+                                               ## unmasked pixels
         else:
             self.mask = np.ones(self.data.shape, dtype='bool')
  
         self.dataCanvas.addImage(self.data.reshape(self.spatShape))
-
-
-##         self.outFitsData = np.zeros(\
-##             (len(self.psfStars)+2, self.spatShape[0], self.spatShape[1]),
-##              dtype='float32'
-##              )
 
         ## fit PSF/positions if requested
         if self.psfFit:
@@ -379,7 +368,6 @@ class StarFit(FittingGui):
 
             ## initial fit of fluxes
             self.spectra[:,self.jj] += lsqr(self.Afit, self.current)[0]
-##             self.outFitsData[0] = self.current.reshape(self.spatShape)
 
             ## PSF fit
             if self.asSmallIFU:
@@ -403,8 +391,23 @@ class StarFit(FittingGui):
                 self.Apsf[:,i].multiply(self.Apsf[:,i]).sum()
                 )
 
-        self.resiCanvas.addImage(self.current.reshape(self.spatShape))
-##         self.outFitsData[-1] = self.current.reshape(self.spatShape)
+        ## create 2dim. residuals for plotting (& saving if requested)
+        if self.hasMask:
+            resi1d = np.zeros((self.spatPix,), dtype='float32')
+            resi1d[self.pixMap>-1] = self.current
+            self.resi2d = (resi1d*self.sigma).reshape(self.spatShape)
+        else:
+            self.resi2d = (self.current*self.sigma).reshape(self.spatShape)
+            
+        self.resiCanvas.addImage(self.resi2d)
+
+        if self.makeRes:
+            outHDU = pyfits.PrimaryHDU(self.resi2d)
+            outHDU.writeto("resi{0}.fits".format(self.i), clobber=True)
+        ## to save memory, the residuals are currently stored as a set of
+        ## individual images. To create a datacube, they must be combined
+        ## afterwards manually.
+
             
         ## update inventory of last fits
         self.lastFittedImas.append(self.jj)
@@ -413,11 +416,6 @@ class StarFit(FittingGui):
  
         self.pBar.setValue(100.*float(self.i+1)/self.specPix)
 
-## Only for debugging
-##         outHDU = pyfits.PrimaryHDU(self.outFitsData)
-##         os.system('rm test.fits')
-##         outHDU.writeto('test.fits', clobber=1)
- 
         self.BUSY = False
 
 
@@ -434,7 +432,7 @@ class StarFit(FittingGui):
         ## self.model.sum(axis=1) returns numpy.matrixlib.defmatrix-object
         ## `getA1' returns a flattened numpy.ndarray
 
-        return self.data/self.sigma - self.model.sum(axis=1).getA1()
+        return (self.data/self.sigma)[self.mask]-self.model.sum(axis=1).getA1()
 
 
 
@@ -484,8 +482,8 @@ class StarFit(FittingGui):
         """
 
         coeffs   = np.array([], dtype='float32')
-        indices0 = np.array([], dtype='float32')
-        indices1 = np.array([], dtype='float32')
+        indices0 = np.array([], dtype='int32')
+        indices1 = np.array([], dtype='int32')
 
         for i in xrange(self.Ncmp):
 
@@ -503,6 +501,7 @@ class StarFit(FittingGui):
 
             k = -1
             for j in self.specMap[i]:
+
                 k += 1
                 if self.sources['id'][j] == -1:
                     nValues    = self.spatPix
@@ -530,13 +529,22 @@ class StarFit(FittingGui):
                 elif i != self.unResCmp:
                     logging.warning("Source #{0} entirely outside FoV."\
                                         .format(self.sources['id'][j]))
-        
+                    
         if self.unResCmp > -1 and calcUnRes:
             self.unResIndices = indices0[indices1==self.unResCmp]
             self.unResCoeffs  = coeffs[indices1==self.unResCmp]
 
-        return sparse.coo_matrix((coeffs, (indices0, indices1)),
-                                 shape=(self.spatPix, self.Ncmp)).tocsc()
+        if self.hasMask:
+            mappedIndices0 = self.pixMap[indices0]
+            used           = (mappedIndices0 > -1)
+
+            return sparse.coo_matrix((coeffs[used],
+                                      (mappedIndices0[used], indices1[used])),
+                                     shape=(self.mask.sum(), self.Ncmp)).tocsc()
+
+        else:
+            return sparse.coo_matrix((coeffs, (indices0, indices1)),
+                                     shape=(self.spatPix, self.Ncmp)).tocsc()
 
 
 
@@ -578,29 +586,49 @@ class StarFit(FittingGui):
             allPars[2:-1,j] = self.psfPars['value'][self.psfMap, self.jj]
             allPars[-1,j]   = self.spectra[kk,self.jj]
 
+            ## get current PSF estimate of source and add it to residuals
             psf_i = self.PSF(size=self.spatShape, x_c=self.x[i], y_c=self.y[i],
-                             mag=0., maxrad=self.psfRad, return_sparse=False)
-            self._current += psf_i.flatten()*self.spectra[kk,self.jj]
+                             mag=0., maxrad=self.psfRad, return_sparse=True,
+                             as_sparse_matrix=False)
+            psfIndices = psf_i[1][1] + self.spatShape[1]*psf_i[1][0]
+            psfCoeffs  = psf_i[0]/self.sigma[psfIndices]
 
-##             self.outFitsData[j+1] = self._current.reshape(self.spatShape)
+            if self.hasMask:
+                mappedIndices = self.pixMap[psfIndices]
+                used          = (mappedIndices > -1)
+                self._current[psfIndices[used]] \
+                    += psfCoeffs[used]*self.spectra[kk,self.jj]
+            else:
+                self._current[psfIndices] \
+                    += psfCoeffs*self.spectra[kk,self.jj]
 
+            
+            ## fit PSF
             allPars[fitFlags,j] = optimize.fmin(\
                 func=self.fitOnePSF,
                 x0=allPars[fitFlags,j],
                 args=(allPars[fitFlags==False,j],fitFlags),
                 disp=False)
 
-            self._current -= psf_i.flatten()*self.spectra[kk,self.jj]
+            ## subtract PSF again
+            if self.hasMask:
+                self._current[psfIndices[used]] \
+                    -= psfCoeffs[used]*self.spectra[kk,self.jj]
+            else:
+                self._current[psfIndices] \
+                    -= psfCoeffs*self.spectra[kk,self.jj]
             j += 1
 
-            self.resiCanvas.addImage(self._current.reshape(self.spatShape))
+##             self.resiCanvas.addImage(self._current.reshape(self.spatShape))
+
 
         if self.coordTrans['fit'].any(): ## update coordinate transformation
             newCoords = np.array(zip(self.sources['id'][self.psfStars],
                                      allPars[0], allPars[1]),
-                                 dtype=[('id', 'i4'), ('x', 'f8'), ('y', 'f8')])
+                                 dtype=[('id', '>i4'), ('x', '>f4'),
+                                        ('y', '>f4')])
 
-            newTrans = trans_coords(self.sources, newCoords)
+            newTrans = trans_coords(self.sources, newCoords, quiet=True)
             for prm in newTrans.dtype.names:
                 index = np.where(self.coordTrans['name']==prm)[0][0]
                 self.coordTrans['value'][index, self.jj] = newTrans[prm][0]
@@ -610,7 +638,6 @@ class StarFit(FittingGui):
         if self.psfPars['fit'].any(): ## update PSF
             self.psfPars['value'][self.psfMap, self.jj] \
                 = allPars[2:-1,:].mean(axis=1)
-
             self.PSF = self.makePSF(self.psfPars['value'][self.psfMap, self.jj])
 
 
@@ -651,12 +678,18 @@ class StarFit(FittingGui):
                           y_c=psfPars[1], mag=0., maxrad=self.fitRad,
                           return_sparse=True, as_sparse_matrix=False)
 
-        usedPix  = psfArray[1][1] + self.spatShape[1]*psfArray[1][0]
+        psfIndices = psfArray[1][1] + self.spatShape[1]*psfArray[1][0]
+        psfCoeffs  = psfArray[0]/self.sigma[psfIndices]
+        
+        if self.hasMask:
+            mappedIndices = self.pixMap[psfIndices]
+            used          = (mappedIndices > -1)
 
-        err  = (self._current[usedPix] - psfPars[-1]*psfArray[0])
-        err *= self.mask[usedPix]
+            err = self._current[mappedIndices[used]]-psfCoeffs[used]*psfPars[-1]
+        else:
+            err  = self._current[psfIndices]-psfCoeffs*psfPars[-1]
 
-        return ((err*err)/(self.sigma[usedPix]*self.sigma[usedPix])).sum()
+        return (err*err).sum()
 
 
 
@@ -686,7 +719,7 @@ class StarFit(FittingGui):
             self.sBar.showMessage("{0} Fitting positions".format(\
                     self.prefixString))
 
-            fitPars[fitFlags] = optimize.fmin(\
+            fitPars[fitFlags] =  optimize.fmin(\
                 func=self.fitMultiPSF,
                 x0=fitPars[fitFlags],
                 args=(fitPars[fitFlags==False],fitFlags),
@@ -741,7 +774,7 @@ class StarFit(FittingGui):
 
         err= self.current - model.sum(axis=1).getA1()
 
-        return (((err*err)/(self.sigma*self.sigma))[self.mask]).sum()
+        return (err*err).sum()
 
         
 
