@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='ISO-8859-1'?>
 <?xml-stylesheet type="text/xsl" href="PMstyle.xsl"?>
-<configuration xmlns="http://www.tobedefined.com/pampelmuse" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" timestamp="2011-11-29T21:03:10Z" xsi:schemaLocation="http://www.tobedefined.com/pampelmuse PMschema.xsd">
+<configuration xmlns="http://www.tobedefined.com/pampelmuse" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" timestamp="2011-12-08T15:59:13Z" xsi:schemaLocation="http://www.tobedefined.com/pampelmuse PMschema.xsd">
  <!-- <parameter inuse="1">
   <name>FITRAD</name>
   <value dtype="float">3.0</value>
@@ -99,7 +99,7 @@
   <value dtype="bool">True</value>
   <comment>This flag defines how the determination of the PSF and the coordinate transformation is performed during the fit. If SMALLIFU is enabled, all sources are used for this purpose (recommended for IFUs with a small number of spatial pixels), otherwise bright, isolated stars are used (recommended for MUSE)</comment>
   <updated timestamp="2011-11-28T19:37:02Z">Appended parameter SMALLIFU to configuration file.</updated>
- </parameter>
+ </parameter><parameter category="0general"><name>DOBACKUP</name><value dtype="bool">False</value><comment>If DOBACKUP-flag is set, input values will not be deleted but moved to backup-HDUs in the PRM-file</comment><updated timestamp="2011-12-05T21:17:42Z">Appended parameter DOBACKUP to configuration file.</updated></parameter><parameter category="0general"><name>STORERES</name><value dtype="bool">False</value><comment>If the STORERES-flag is set, a datacube with the residuals of the fit will be stored.</comment><updated timestamp="2011-12-08T15:59:13Z">Appended parameter STORERES to configuration file.</updated></parameter>
  <parameter category="3fit">
   <name>FITRAD</name>
   <value dtype="float">3.0</value>

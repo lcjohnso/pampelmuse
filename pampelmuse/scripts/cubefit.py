@@ -12,10 +12,12 @@ CHANGELOG
 2011/10/13, v0.0.1.0, updated how PampelMuse-packages are imported
 2011/10/27, v0.1.0.0, added possibility to abort stop fit with or
                       without saving current results
+2011712/08, v0.1.0.1, added option to  save cube with residuals of the fit.
+                      Also some modifications wrt. to backup of input data.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
 __version__ = "0.1.0.0"
-import os, sys
+import logging, os, sys
 import numpy as np, pyfits
 from PyQt4 import QtCore, QtGui
 
@@ -36,8 +38,9 @@ def cubefit(arguments):
     psfType  = arguments.config["PSFTYPE"]                ##
     psfInit  = arguments.config["PSFPARS"]                ##
     psfFit   = arguments.config["PSFFIT"]                 ##
-    dobackup = True
     smallIFU = arguments.config["SMALLIFU"]               ##
+    dobackup = arguments.config["DOBACKUP"]               ##
+    storeRes = arguments.config["STORERES"]               ##
     ########################################################
 
 
@@ -52,7 +55,7 @@ def cubefit(arguments):
     ## Check for previous PampelMuse-results
     try:
         lastFitIndex = prmFile[0].header['PMFITIND']
-        if lastFitIndex == Ndsp:
+        if lastFitIndex == Ndsp or lastFitIndex == "SUCCESS":
             lastFitIndex = None
     except KeyError:
         lastFitIndex = None
@@ -172,7 +175,10 @@ def cubefit(arguments):
 
 
     ## open datacubes & check consistency
-    dataFits = pyfits.open('{0}.dat.fits'.format(prefix))
+    dataFits  = pyfits.open('{0}.dat.fits'.format(prefix))
+    cubeShape = (dataFits[0].header['NAXIS3'],
+                 dataFits[0].header['NAXIS2'],
+                 dataFits[0].header['NAXIS1'])
     if dataFits[0].header['NAXIS3'] != Ndsp:
         raise IOError, "No. of spectral pixels in data-cube and prm-file do "\
             +" not match."
@@ -204,26 +210,27 @@ def cubefit(arguments):
                       psfRad=psfRad)
         
     fitter(fitRad=fitRad, lastFitIndex=lastFitIndex, asSmallIFU=smallIFU,
-           returnResiduals=1)
+           returnResiduals=storeRes)
 
     app.exec_()
 
-## Only for debugging ########
-##     import sys
-##     sys.exit
-##############################
+
     if not fitter.save:
         sys.exit()
         
-    print " => Saving results...",
+    logging.info("Saving results.")
 
     ## collect fitting results
     prmFile  = pyfits.open("{0}.prm.fits".format(prefix), mode='update')
     extNames = [prmFile[i].name for i in xrange(len(prmFile))]
 
     ## save status of fit process in header of primary HDU
-    prmFile[0].header.update('PMFITIND', fitter.i,
-                             "Status of PampelMuse fitting")
+    if fitter.i != Ndsp:
+        prmFile[0].header.update('PMFITIND', fitter.i,
+                                 "Status of PampelMuse fitting")
+    else:
+        prmFile[0].header.update('PMFITIND', 'SUCCESS',
+                                 "Status of PampelMuse fitting")
 
     ## store spectra
     crval1 = prmFile['SPECTRA'].header['CRVAL1'] 
@@ -236,7 +243,7 @@ def cubefit(arguments):
     newSpecHDU.header.update('CRVAL1', crval1)
     newSpecHDU.header.update('CDELT1', cdelt1)
 
-    if dobackup:
+    if dobackup and lastFitIndex == None:
         if 'INSPECTRA' in extNames:
             prmFile.remove(prmFile['INSPECTRA'])
         prmFile['SPECTRA'].header.update('EXTNAME', 'INSPECTRA')
@@ -252,11 +259,11 @@ def cubefit(arguments):
     newSigmaHDU.header.update('CRVAL1', crval1)
     newSigmaHDU.header.update('CDELT1', cdelt1)
 
-    if dobackup:
+    if dobackup and lastFitIndex == None:
         if 'INSIGMASPC' in extNames:
-            prmFile.remove(prmFile['INPOSPARS'])
+            prmFile.remove(prmFile['INSIGMASPC'])
         if 'SIGMASPC' in extNames:
-                prmFile['POSPARS'].header.update('EXTNAME', 'INPOSPARS')
+                prmFile['POSPARS'].header.update('EXTNAME', 'INSIGMASPC')
     else:
         if 'SIGMASPC' in extNames:
             prmFile.remove(prmFile['SIGMASPC'])
@@ -270,7 +277,7 @@ def cubefit(arguments):
         newPosHDU.header.update('CRPIX1', crpix1)
         newPosHDU.header.update('CRVAL1', crval1)
         newPosHDU.header.update('CDELT1', cdelt1)
-        if dobackup:
+        if dobackup and lastFitIndex == None:
             if 'INPOSPARS' in extNames:
                 prmFile.remove(prmFile['INPOSPARS'])
             if 'POSPARS' in extNames:
@@ -293,7 +300,7 @@ def cubefit(arguments):
         newPSFHDU.header.update('CRVAL1', crval1)
         newPSFHDU.header.update('CDELT1', cdelt1)
         
-        if dobackup:
+        if dobackup and lastFitIndex == None:
             if 'INPSFPARS' in extNames:
                 prmFile.remove(prmFile['INPSFPARS'])
             if 'PSFPARS' in extNames:
@@ -305,4 +312,19 @@ def cubefit(arguments):
 
     prmFile.close()
 
-    print "OK\n"
+
+    if storeRes and fitter.i == Ndsp:
+
+        resCube = np.zeros(cubeShape, dtype="float32")
+
+        for i in xrange(Ndsp):
+            
+            jj = (Ndsp>>1) - 1 - int(i/2) + i*np.mod(i, 2) + np.mod(Ndsp, 2)
+
+            resCube[jj] = pyfits.getdata("resi{0}.fits".format(i))
+
+        resHDU = pyfits.PrimaryHDU(resCube)
+        resHDU.writeto("{0}.res.fits".format(prefix))
+
+        for i in xrange(Ndsp):
+            os.system("rm resi{0}.fits".format(i))

@@ -12,9 +12,12 @@ v0.1.0.0 -2011/10/13 - modified how the PampelMuse-scripts are imported
                        to reflect new package-structure.
                      - first experimental "release"
 v0.1.0.1 -2011/11/29 - included logging-option
+v0.1.0.2 -2011/12/08 - added new routine `EXTRACT' to write the pixel
+                       positions of the extracted stars to an ASCII-file
+
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.1.0.1"
+__version__ = "0.1.0.2"
 
 import argparse, logging, os, re
 
@@ -25,6 +28,7 @@ from pampelmuse.config import xml_interact
 from pampelmuse.scripts.initfit import initfit
 from pampelmuse.scripts.cubefit import cubefit
 from pampelmuse.scripts.polyfit import polyfit
+from pampelmuse.scripts.extract import get_pixpos
 
 
 CONFIGPATH = os.path.expandvars("$pampelmuse_path/config/")
@@ -90,7 +94,7 @@ PMparser.add_argument("prefix", type=str,
                               used by routine CUBEFIT if provided
                             * <prefix>.prm.fits - the parameter file of the fit,
                               provided by INITFIT, required by CUBEFIT and
-                              POLYFIT
+                              POLYFIT and EXTRACT
                             """)
 
 ## Note: 'fromfile' and 'fromline' share the same dest 'parameter'. However,
@@ -101,18 +105,17 @@ group = PMparser.add_mutually_exclusive_group(required=False)
 group.add_argument("--fromfile", type=argparse.FileType('r'),
                    action=GetValuesFromFile, dest="parameter",
                    default=argparse.SUPPRESS,
-                   help="""Update configuration using the parameters provided
-                           in an ASCII-file: One parameter per line, name and
-                           value separated by '=', lines starting with '#'
-                           are ignored""")
+                   help="""
+Update configuration using the parameters provided in an ASCII-file: One
+parameter per line, name and value separated by '=', lines starting with '#'
+are ignored""")
 group.add_argument("--fromline", type=str, nargs=1,
                    action=GetValuesFromLine, dest="parameter",
                    default=argparse.SUPPRESS,
-                   help="""Update configuration using the parameters provided
-                           in the command line, following '--fromline'-string.
-                           Again, name and value must be separated by '=' (no
-                           whitespace!). Individual parameters  must be comma-
-                           separated.""")
+                   help="""
+Update configuration using the parameters provided in the command line,
+following '--fromline'-string. Again, name and value must be separated
+by '=' (no whitespace!). Individual parameters  must be comma-separated.""")
 
 PMsubparsers = PMparser.add_subparsers(title='Available routines')
 
@@ -140,11 +143,10 @@ c) Generation of an input catalogue containing intitial guessse of the
 """)
 IFparser.add_argument("sourcelist", type=str,
                       help="""
-                            ASCII-file containing the results from crowded-
-                            field  photometry. Lines starting with '#' are
-                            considered comments. Unless otherwise specified,
-                            the routine assumes the following structure:
-                            <ID>  <XPOS>  <YPOS>  <MAG> ... (per line)""")
+ASCII-file containing the results from crowded-field  photometry. Lines
+starting with '#' are considered comments. Unless otherwise specified
+(using the CFPCOLS-parameter of the configuration), the routine assumes
+the following structure: <ID>  <XPOS>  <YPOS>  <MAG> ... (per line)""")
 IFparser.set_defaults(func=initfit)
 
 
@@ -158,6 +160,21 @@ file. If the modified file is fed to the CUBEFIT-routine, PampelMuse will
 use the polynomial fits. 
 """)
 PFparser.set_defaults(func=polyfit)
+
+
+EXparser = PMsubparsers.add_parser("EXTRACT",
+                                   help="""
+Routine calculates the pixel positions of the sources that have been extracted
+from a datacube. The list of extracted sources is stored as an ASCII-file
+under >prefix>.src.dat.""")
+EXparser.add_argument("--addcoords", type=str, help="""
+A simple ASCII-file that contains the ID and new x and y posisions for at
+least 4 from the source catalog. If such a file is provided, the routine
+will determine the coordinate transformation into the new coordiante system
+and also store the list of sources with the additional coordinates in a
+separate ASCII-file named <prefix>.add.dat.""")
+EXparser.set_defaults(func=get_pixpos)
+
 
 
 print """
