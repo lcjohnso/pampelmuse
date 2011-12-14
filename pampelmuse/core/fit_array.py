@@ -9,9 +9,12 @@ v0.0.0.1, 2011/10/13, changed how required PampelMuse-packages are imported
 v0.1.0.0, 2011/10/27, modified creation and usage of fitting matrix
                       included GUI to control fitting process (experimental)
                       added option to continue previously stopped fit
+v0.1.1.1, 2011/12/14, fixed bug that neither mask nor sigma cube were used.
+                      included PSF fitting routine suited for small IFUs.
+                      removed `verbose'-option, using `logging'-module instead.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.1.0.0"
+__version__ = "0.1.1.1"
 
 import logging, os, sys, time
 import numpy as np, pyfits
@@ -48,8 +51,7 @@ class StarFit(FittingGui):
     proceedes to the red and blue. This is done because usually the highest
     signal is expected near the center of the observed wavelength range.
     """
-    def __init__(self, dataFits, sigmaFits, maskFits=None,
-                  verbose=1, parent=None):
+    def __init__(self, dataFits, sigmaFits, maskFits=None, parent=None):
         """
         Initialize an instance of the `StarFit'-class.
     
@@ -64,8 +66,6 @@ class StarFit(FittingGui):
             The HDU containing the sigma-values of the data.
         maskFits : pyfits HDU object, optional
             The HDU containing the bad-pixel mask (if any)
-        verbose : integer, optional
-            The amount of output printed on the screen.
 
         Returns
         -------
@@ -90,10 +90,11 @@ class StarFit(FittingGui):
 
         if self.maskFits != None:
             self.hasMask = True
+            logging.info("Bad-pixel mask is used.")
         else:
             self.hasMask = False
+            logging.info("No bad-pixel mask is used.")
 
-        self.vb        = verbose ## 0-quiet, 1,2-some info, 3-lot of info
         
 
         
@@ -465,7 +466,7 @@ class StarFit(FittingGui):
 
 
 
-    def fillMatrix(self, radius, calcUnRes=True):
+    def fillMatrix(self, radius, calcUnRes=True, doLog=True):
         """
         Define the source matrix. The source matrix is a sparse matrix that
         contains the spatial profiles of all resolved components, one per
@@ -479,6 +480,10 @@ class StarFit(FittingGui):
         calcUnRes : boolean, optional
             If False, the matrix column containing the unresolved stellar
             component (if included) is not computed, but left empty.
+        doLog : boolean, optional
+            If True, the routine method will print a logging.ERROR-message
+            every time a source whose PSF is completely outside the FoV is
+            encountered.
         """
 
         coeffs   = np.array([], dtype='float32')
@@ -500,6 +505,8 @@ class StarFit(FittingGui):
                 continue
 
             k = -1
+
+            nValuesCmp = 0
             for j in self.specMap[i]:
 
                 k += 1
@@ -526,10 +533,14 @@ class StarFit(FittingGui):
                     coeffs[-nValues:]   = newCoeffs/self.sigma[newIndices]
                     indices0[-nValues:] = newIndices
                     indices1[-nValues:] = i*np.ones((nValues,), dtype='int32')
-                elif i != self.unResCmp:
-                    logging.warning("Source #{0} entirely outside FoV."\
-                                        .format(self.sources['id'][j]))
+
+                    nValuesCmp += nValues
                     
+            if nValuesCmp == 0 and doLog:
+                logging.error("Component #{0} entirely outside FoV."\
+                                  .format(self.sources['id'][0]))
+                    
+
         if self.unResCmp > -1 and calcUnRes:
             self.unResIndices = indices0[indices1==self.unResCmp]
             self.unResCoeffs  = coeffs[indices1==self.unResCmp]
@@ -763,7 +774,7 @@ class StarFit(FittingGui):
         if fitFlags[self.coordTrans.size:].any(): ## recalc PSF
             self.PSF = self.makePSF(allPars[self.coordTrans.size:])
 
-        Aprm  = self.fillMatrix(radius=self.fitRad, calcUnRes=False)
+        Aprm = self.fillMatrix(radius=self.fitRad, calcUnRes=False, doLog=False)
 
         Y, X  = Aprm.nonzero()
 
@@ -814,21 +825,5 @@ class StarFit(FittingGui):
                 .mean(axis=-1)
 
 
-
-    def vprint(self, string, vb_min):
-        """
-        Method used to print information on the screen.
-        
-        Parameters
-        ----------
-        string : string
-            The string to be printed.
-        vb_min : integer
-            The minimum verbosity at which the string is printed.
-        """
-    
-        if self.vb >= vb_min:
-            sys.stdout.write(string)
-            sys.stdout.flush()
 
 
