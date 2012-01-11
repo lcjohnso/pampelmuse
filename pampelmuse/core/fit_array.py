@@ -12,9 +12,11 @@ v0.1.0.0, 2011/10/27, modified creation and usage of fitting matrix
 v0.1.1.1, 2011/12/14, fixed bug that neither mask nor sigma cube were used.
                       included PSF fitting routine suited for small IFUs.
                       removed `verbose'-option, using `logging'-module instead.
+v0.1.2.1, 2012/01/07, fixed bug that wrong images where used to update initial
+                      guesses if a previously stopped analysis was continued.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.1.1.1"
+__version__ = "0.1.2.1"
 
 import logging, os, sys, time
 import numpy as np, pyfits
@@ -279,12 +281,13 @@ class StarFit(FittingGui):
         self.lastFittedImas = []
 
         ## recover last processed images from previous fit (if any)
-        j = self.i-self.Ntrack
+        j = self.i-2*self.Ntrack
         while j < self.i:
-            self.lastFittedImas.append(\
-                (self.specPix>>1) - 1 - int(j/2) + j*np.mod(j, 2)\
-                    + np.mod(self.specPix, 2)
-                )
+            if j >= 0:
+                self.lastFittedImas.append(\
+                    (self.specPix>>1) - 1 - int(j/2) + j*np.mod(j, 2)\
+                        + np.mod(self.specPix, 2)
+                    )
             j += 1
 
         self.asSmallIFU = asSmallIFU
@@ -324,6 +327,7 @@ class StarFit(FittingGui):
                 self.i, int(np.log10(self.specPix))+1, self.specPix)
             self.sBar.showMessage("{0} Analyzing slice #{1}".format(\
                     self.prefixString, self.jj))
+            logging.debug("Analyzing slice #{0}".format(self.jj))
 
             self.iterFitImage()
             self.i += 1
@@ -384,7 +388,11 @@ class StarFit(FittingGui):
         self.Afit = self.fillMatrix(radius=self.fitRad)
 
         ##  fit
-        self.spectra[:,self.jj] += lsqr(self.Afit, self.current)[0]
+        bestFit = lsqr(self.Apsf, self.current)
+
+        self.spectra[:,self.jj] += bestFit[0]
+        logging.debug("Chi**2 of fit: {0:.1f}".format(bestFit[4]**2))
+
 
         ## get uncertainties
         for i in xrange(self.Ncmp):
@@ -711,7 +719,7 @@ class StarFit(FittingGui):
         procedure is recommended only for IFUs with a small number of spatial
         pixels.
         The results of the fits is used to update the PSF and/or the
-        coordinates of the parameter transformation.
+        parameters of the coordinate transformation.
         """
         nPars = self.coordTrans.size + self.psfPars.size
 
@@ -720,9 +728,9 @@ class StarFit(FittingGui):
 
         fitPars = np.zeros((nPars,), dtype='float64')
         fitPars[:self.coordTrans.size] \
-            = self.coordTrans['value'][self.posMap,self.jj]
+            = self.coordTrans['value'][self.posMap, self.jj]
         fitPars[self.coordTrans.size:] \
-            = self.psfPars['value'][self.psfMap,self.jj]
+            = self.psfPars['value'][self.psfMap, self.jj]
 
 
         ## Fit position parameters
@@ -733,13 +741,15 @@ class StarFit(FittingGui):
             fitPars[fitFlags] =  optimize.fmin(\
                 func=self.fitMultiPSF,
                 x0=fitPars[fitFlags],
-                args=(fitPars[fitFlags==False],fitFlags),
+                args=(fitPars[fitFlags==False], fitFlags),
                 disp=False)
 
             self.coordTrans['value'][self.posMap,self.jj] \
                 = fitPars[:self.coordTrans.size]
 
             self.getPixCoords()
+
+            
 
         ## Fit PSF parameters
         fitFlags[:self.coordTrans.size] = False
@@ -752,7 +762,7 @@ class StarFit(FittingGui):
             fitPars[fitFlags] = optimize.fmin(\
                 func=self.fitMultiPSF,
                 x0=fitPars[fitFlags],
-                args=(fitPars[fitFlags==False],fitFlags),
+                args=(fitPars[fitFlags==False], fitFlags),
                 disp=False)
 
             self.psfPars['value'][self.psfMap, self.jj] \
@@ -783,7 +793,7 @@ class StarFit(FittingGui):
         model = Aoff*sparse.dia_matrix((self.spectra[:,self.jj],[0]),
                                        shape=(Aprm.shape[1], Aprm.shape[1]))
 
-        err= self.current - model.sum(axis=1).getA1()
+        err   = self.current - model.sum(axis=1).getA1()
 
         return (err*err).sum()
 
@@ -812,6 +822,7 @@ class StarFit(FittingGui):
             ## get every second of the recently fitted images
             LASTFITS = [self.lastFittedImas[i] for i in xrange(\
                     0, len(self.lastFittedImas), 2)]
+        logging.debug("Previous fits in focus: {0}".format(LASTFITS))
 
         if self.coordTrans['fit'].any():
             self.coordTrans['value'][self.coordTrans['fit'], self.jj] \
