@@ -14,9 +14,10 @@ v0.1.1.1, 2011/12/14, fixed bug that neither mask nor sigma cube were used.
                       removed `verbose'-option, using `logging'-module instead.
 v0.1.2.1, 2012/01/07, fixed bug that wrong images where used to update initial
                       guesses if a previously stopped analysis was continued.
+v0.1.2.2, 2012/01/12, minor update about the information that is logged.
 """
-__author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.1.2.1"
+__author__  = "Sebastian Kamann (skamann@aip.de)"
+__version__ = "0.1.2.2"
 
 import logging, os, sys, time
 import numpy as np, pyfits
@@ -520,8 +521,8 @@ class StarFit(FittingGui):
                 k += 1
                 if self.sources['id'][j] == -1:
                     nValues    = self.spatPix
-                    newCoeffs  = np.ones((self.spatPix,), dtype='float32')
-                    newIndices = np.arange(self.spatPix, dtype='int32')
+                    newCoeffs  = np.ones(self.spatPix, dtype="float32")
+                    newIndices = np.arange(self.spatPix, dtype="int32")
 
                 else:
                     psf_ij = self.PSF(size=self.spatShape, x_c=self.x[j],
@@ -545,8 +546,8 @@ class StarFit(FittingGui):
                     nValuesCmp += nValues
                     
             if nValuesCmp == 0 and doLog:
-                logging.error("Component #{0} entirely outside FoV."\
-                                  .format(self.sources['id'][0]))
+                logging.error("Component #{0} entirely outside FoV.".format(\
+                        self.sources['id'][self.specMap[i][0]]))
                     
 
         if self.unResCmp > -1 and calcUnRes:
