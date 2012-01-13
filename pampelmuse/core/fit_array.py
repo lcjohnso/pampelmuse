@@ -15,9 +15,11 @@ v0.1.1.1, 2011/12/14, fixed bug that neither mask nor sigma cube were used.
 v0.1.2.1, 2012/01/07, fixed bug that wrong images where used to update initial
                       guesses if a previously stopped analysis was continued.
 v0.1.2.2, 2012/01/12, minor update about the information that is logged.
+v0.1.3.2, 2012/01/12, corrected minor bug that wrong fits were used to update
+                      initial guesses for first images.
 """
 __author__  = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.1.2.2"
+__version__ = "0.1.3.2"
 
 import logging, os, sys, time
 import numpy as np, pyfits
@@ -822,7 +824,7 @@ class StarFit(FittingGui):
         else:
             ## get every second of the recently fitted images
             LASTFITS = [self.lastFittedImas[i] for i in xrange(\
-                    0, len(self.lastFittedImas), 2)]
+                    len(self.lastFittedImas)-2, -1, 2)]
         logging.debug("Previous fits in focus: {0}".format(LASTFITS))
 
         if self.coordTrans['fit'].any():
