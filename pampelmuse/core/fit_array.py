@@ -372,7 +372,7 @@ class StarFit(FittingGui):
             self.pixMap[self.mask==False] = -1 ## coordinates on subarray of
                                                ## unmasked pixels
             logging.debug("[@{0}] {1} masked pixels".format(\
-                self.jj, (self.pixMap==-1).sum()))
+                self.jj, (self.mask==False).sum()))
             
         else:
             self.mask = np.ones(self.data.shape, dtype='bool')
@@ -764,6 +764,9 @@ class StarFit(FittingGui):
                 args=(fitPars[fitFlags==False], fitFlags),
                 disp=False)
 
+            logging.debug("[@{0}] Fitted coord. transformation: {1}".format(\
+                    self.jj, fitPars[:self.coordTrans.size]))
+
             self.coordTrans['value'][self.posMap,self.jj] \
                 = fitPars[:self.coordTrans.size]
 
@@ -784,6 +787,9 @@ class StarFit(FittingGui):
                 x0=fitPars[fitFlags],
                 args=(fitPars[fitFlags==False], fitFlags),
                 disp=False)
+
+            logging.debug("[@{0}] Fitted PSF model: {1}".format(\
+                    self.jj, fitPars[self.coordTrans.size:]))
 
             self.psfPars['value'][self.psfMap, self.jj] \
                 = fitPars[self.coordTrans.size:]
@@ -849,12 +855,20 @@ class StarFit(FittingGui):
             self.coordTrans['value'][self.coordTrans['fit'], self.jj] \
                 = self.coordTrans['value'][self.coordTrans['fit']][:,LASTFITS]\
                 .mean(axis=-1)
+            
+            logging.debug("[@{0}] Initial coord. transformation: {1}".format(\
+                    self.jj,
+                    self.coordTrans['value'][self.coordTrans['fit'], self.jj]))
 
 
         if self.psfPars['fit'].any(): ## update PSF
             self.psfPars['value'][self.psfPars['fit'], self.jj] \
                 = self.psfPars['value'][self.psfPars['fit']][:,LASTFITS]\
                 .mean(axis=-1)
+
+            logging.debug("[@{0}] Initial PSF model: {1}".format(\
+                    self.jj,
+                    self.psfPars['value'][self.psfPars['fit'], self.jj]))
 
 
 
