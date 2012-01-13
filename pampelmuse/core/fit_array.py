@@ -17,9 +17,12 @@ v0.1.2.1, 2012/01/07, fixed bug that wrong images where used to update initial
 v0.1.2.2, 2012/01/12, minor update about the information that is logged.
 v0.1.3.2, 2012/01/12, corrected minor bug that wrong fits were used to update
                       initial guesses for first images.
+v0.1.4.3, 2012/01/13, some bugfixing on previous change, updated logging,
+                      changed usage of sky component (now dividing by number
+                      of spatial pixels)
 """
 __author__  = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.1.3.2"
+__version__ = "0.1.4.3"
 
 import logging, os, sys, time
 import numpy as np, pyfits
@@ -154,6 +157,14 @@ class StarFit(FittingGui):
             self.relMags[i] -= (-2.5*np.log10(np.sum(\
                         [10**(-0.4*m) for m in self.relMags[i]]
                         )))
+        logging.debug("Components/Spectra used in fit:")
+        for comp, spec in self.specMap.iteritems(): 
+            logging.debug("   {0:5d} - {1}".format(comp, spec))
+
+        logging.debug("Relative magnitudes of spectra in components:")
+        for comp, mags in self.relMags.iteritems():
+            logging.debug("   {0:5d} - {1}".format(comp, mags))
+
 
         ## look for unresolved stellar component
         unRes = self.sources['status']==0
@@ -330,7 +341,6 @@ class StarFit(FittingGui):
                 self.i, int(np.log10(self.specPix))+1, self.specPix)
             self.sBar.showMessage("{0} Analyzing slice #{1}".format(\
                     self.prefixString, self.jj))
-            logging.debug("Analyzing slice #{0}".format(self.jj))
 
             self.iterFitImage()
             self.i += 1
@@ -361,6 +371,9 @@ class StarFit(FittingGui):
             self.pixMap = self.mask.cumsum()-1 ## maps input coordinates to
             self.pixMap[self.mask==False] = -1 ## coordinates on subarray of
                                                ## unmasked pixels
+            logging.debug("[@{0}] {1} masked pixels".format(\
+                self.jj, (self.pixMap==-1).sum()))
+            
         else:
             self.mask = np.ones(self.data.shape, dtype='bool')
  
@@ -391,10 +404,12 @@ class StarFit(FittingGui):
         self.Afit = self.fillMatrix(radius=self.fitRad)
 
         ##  fit
-        bestFit = lsqr(self.Apsf, self.current)
+        bestFit = lsqr(self.Afit, self.current)
 
         self.spectra[:,self.jj] += bestFit[0]
-        logging.debug("Chi**2 of fit: {0:.1f}".format(bestFit[4]**2))
+
+        logging.debug("[@{0}] Chi**2 of fit: {1:.1f}".format(\
+                self.jj, bestFit[4]**2))
 
 
         ## get uncertainties
@@ -524,6 +539,7 @@ class StarFit(FittingGui):
                 if self.sources['id'][j] == -1:
                     nValues    = self.spatPix
                     newCoeffs  = np.ones(self.spatPix, dtype="float32")
+                    newCoeffs /= self.spatPix
                     newIndices = np.arange(self.spatPix, dtype="int32")
 
                 else:
@@ -548,8 +564,9 @@ class StarFit(FittingGui):
                     nValuesCmp += nValues
                     
             if nValuesCmp == 0 and doLog:
-                logging.error("Component #{0} entirely outside FoV.".format(\
-                        self.sources['id'][self.specMap[i][0]]))
+                logging.error(\
+                    "[@{0}] Component #{1} entirely outside FoV.".format(\
+                        self.jj, self.sources['id'][self.specMap[i][0]]))
                     
 
         if self.unResCmp > -1 and calcUnRes:
@@ -824,8 +841,9 @@ class StarFit(FittingGui):
         else:
             ## get every second of the recently fitted images
             LASTFITS = [self.lastFittedImas[i] for i in xrange(\
-                    len(self.lastFittedImas)-2, -1, 2)]
-        logging.debug("Previous fits in focus: {0}".format(LASTFITS))
+                    len(self.lastFittedImas)-2, -1, -2)]
+        logging.debug("[@{0}] Previous fits in focus: {1}".format(\
+                self.jj, LASTFITS))
 
         if self.coordTrans['fit'].any():
             self.coordTrans['value'][self.coordTrans['fit'], self.jj] \

@@ -14,10 +14,10 @@ v0.1.0.0 -2011/10/13 - modified how the PampelMuse-scripts are imported
 v0.1.0.1 -2011/11/29 - included logging-option
 v0.1.0.2 -2011/12/08 - added new routine `EXTRACT' to write the pixel
                        positions of the extracted stars to an ASCII-file
-
+v0.1.0.3 -2012/01/13 - some minor updates to usage of logging module
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.1.0.2"
+__version__ = "0.1.0.3"
 
 import argparse, logging, os, re
 
@@ -214,6 +214,8 @@ LOGLEVELS   = {0:logging.CRITICAL,
                2:logging.WARNING,
                3:logging.INFO,
                4:logging.DEBUG}
-logging.basicConfig(level=LOGLEVELS[args.config["VERBOSE"]])
+logging.basicConfig(format="%(asctime)s:%(levelname)s - %(message)s",
+                    datefmt='%m/%d/%Y %H:%M:%S',
+                    level=LOGLEVELS[args.config["VERBOSE"]])
     
 args.func(args)  ## execute the connected function
