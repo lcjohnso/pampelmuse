@@ -29,11 +29,14 @@ CHANGELOG
                       are no longer infered using other spectra but are set
                       to a constant value.
                       Logging is included.
-2012/12/05, v0.2.1.2, added a `method to store an image HDU containing the
+2011/12/05, v0.2.1.2, added a `method to store an image HDU containing the
                       PSF parameters as a function of wavelength.
+2012/01/16, v0.2.2.2, fixed bug that the code crashed if a secondary component
+                      hat no primary counterpart. Instead now the status of the
+                      secondary is increased and a warning message is logged.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.2.1.2"
+__version__ = "0.2.2.2"
 import datetime, logging, pyfits, os
 import numpy as np
 
@@ -108,10 +111,19 @@ class StoreParam:
         ## make sure no source with status=1 has dependent primary component
         for i in xrange(self.selectedSources.size):
             if self.selectedSources['status'][i] == 1:
-                j = np.where(self.selectedSources['id']\
-                                 ==self.selectedSources['primary'][i])[0][0]
-                self.selectedSources['primary'][i]\
-                    = self.selectedSources['primary'][j]
+                secondary = self.selectedSources['id'][i]
+                primary   = self.selectedSources['primary'][i]
+
+                prim = np.where(self.selectedSources['id']==primary)[0]
+                if prim.size > 0:
+                    j = prim[0]
+                    self.selectedSources['primary'][i]\
+                        = self.selectedSources['primary'][j]
+                else:
+                    logging.warn(\
+                        "Source #{0} is secondary,".format(secondary)+\
+                            "but primary [#{0}] is missing".format(primary))
+                    self.selectedSources['status'][i] = 2
 
         ## match sources in the two lists
         self.selector = [np.where(self.sourceList['id']==i)[0][0] \
