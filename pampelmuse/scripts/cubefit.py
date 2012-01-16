@@ -12,11 +12,14 @@ CHANGELOG
 2011/10/13, v0.0.1.0, updated how PampelMuse-packages are imported
 2011/10/27, v0.1.0.0, added possibility to abort stop fit with or
                       without saving current results
-2011712/08, v0.1.0.1, added option to  save cube with residuals of the fit.
+2011/12/08, v0.1.0.1, added option to  save cube with residuals of the fit.
                       Also some modifications wrt. to backup of input data.
+2012/01/16, v0.1.0.2, modified how images with fit residuals are (temporarily)
+                      stored to allow for starting multiple fits from same
+                      folder.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.1.0.0"
+__version__ = "0.1.0.2"
 import logging, os, sys
 import numpy as np, pyfits
 from PyQt4 import QtCore, QtGui
@@ -210,7 +213,7 @@ def cubefit(arguments):
                       psfRad=psfRad)
         
     fitter(fitRad=fitRad, lastFitIndex=lastFitIndex, asSmallIFU=smallIFU,
-           returnResiduals=storeRes)
+           returnResiduals=storeRes, prefix=prefix)
 
     app.exec_()
 
@@ -321,10 +324,9 @@ def cubefit(arguments):
             
             jj = (Ndsp>>1) - 1 - int(i/2) + i*np.mod(i, 2) + np.mod(Ndsp, 2)
 
-            resCube[jj] = pyfits.getdata("resi{0}.fits".format(i))
+            resCube[jj] = pyfits.getdata("{0}.res{1}.fits".format(prefix, i))
+            os.system("rm {0}.res{1}.fits".format(prefix, i))
 
         resHDU = pyfits.PrimaryHDU(resCube)
         resHDU.writeto("{0}.res.fits".format(prefix))
 
-        for i in xrange(Ndsp):
-            os.system("rm resi{0}.fits".format(i))

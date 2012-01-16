@@ -23,9 +23,12 @@ v0.1.4.3, 2012/01/13, some bugfixing on previous change, updated logging,
 v0.1.4.4, 2012/01/16, changed how residuals are calculated in fitting routine
                       for positions/PSF since the old approach was unstable.
                       Some updates on logging.
+v0.1.4.5, 2012/01/16, Modified logging of the flux changes to avoid 'divide by
+                      zero' warning.
+v0.1.4.6, 2012/01/16, added option to specify name of stored residual images. 
 """
 __author__  = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.1.4.4"
+__version__ = "0.1.4.6"
 
 import logging, os, sys, time
 import numpy as np, pyfits
@@ -243,7 +246,8 @@ class StarFit(FittingGui):
 
 
     def __call__(self, fitRad, Ntrack=10, lastFitIndex=None, asSmallIFU=False,
-                 returnModel=False, returnResiduals=False, clip=5.):
+                 returnModel=False, returnResiduals=False, prefix=None,
+                 clip=5.):
         """
         Execute the fitting process. For each image of the datacube, the 
         following steps are performed:
@@ -278,6 +282,11 @@ class StarFit(FittingGui):
         returnResdiduals : boolean, optional
             Flag indicating whether an array containing the residuals of the
             fit should be returned.
+        prefix : string, optional
+            In case that the fitted model and/or the residuals should be
+            stored, `fileRoot' allows to provide a prefix used to store the
+            individual images. This is needed in case that several fits are
+            started from the same folder.
         clip : float, optional
             All pixels whose values devite by more than `clip' times SIGMA are
             masked. SIGMA is the standard deviation of the residuals between
@@ -285,6 +294,11 @@ class StarFit(FittingGui):
         """
         self.makeMod = max(returnModel, returnResiduals) ## create model array
         self.makeRes = returnResiduals                   ## and residuals?
+        if prefix == None:
+            self.prefix = ""
+        else:
+            self.prefix = prefix
+
         self.clip    = clip    ## efficiency of bad pixel masking
 
         self.fitRad  = fitRad
@@ -394,11 +408,11 @@ class StarFit(FittingGui):
             ## initial fit of fluxes
             bestFit = lsqr(self.Afit, self.current)
             
+            self.spectra[:,self.jj] += bestFit[0]
             logging.debug("[@{0}] Chi**2 of initial fit: {1:.1f}".format(\
                     self.jj, bestFit[4]**2))
             logging.debug("[@{0}] Relative changes in fluxes: {1}".format(\
                     self.jj, bestFit[0]/self.spectra[:,self.jj]))
-            self.spectra[:,self.jj] += bestFit[0]
 
 
             ## PSF fit
@@ -416,11 +430,11 @@ class StarFit(FittingGui):
 
         ##  fit
         bestFit = lsqr(self.Afit, self.current)
+        self.spectra[:,self.jj] += bestFit[0]
         logging.debug("[@{0}] Chi**2 of final fit: {1:.1f}".format(\
                 self.jj, bestFit[4]**2))
         logging.debug("[@{0}] Relative changes in fluxes: {1}".format(\
                 self.jj, bestFit[0]/self.spectra[:,self.jj]))
-        self.spectra[:,self.jj] += bestFit[0]
 
         ## get uncertainties
         for i in xrange(self.Ncmp):
@@ -440,7 +454,8 @@ class StarFit(FittingGui):
 
         if self.makeRes:
             outHDU = pyfits.PrimaryHDU(self.resi2d)
-            outHDU.writeto("resi{0}.fits".format(self.i), clobber=True)
+            outHDU.writeto("{0}.res{1}.fits".format(self.prefix, self.i),
+                           clobber=True)
         ## to save memory, the residuals are currently stored as a set of
         ## individual images. To create a datacube, they must be combined
         ## afterwards manually.
