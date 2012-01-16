@@ -20,9 +20,12 @@ v0.1.3.2, 2012/01/12, corrected minor bug that wrong fits were used to update
 v0.1.4.3, 2012/01/13, some bugfixing on previous change, updated logging,
                       changed usage of sky component (now dividing by number
                       of spatial pixels)
+v0.1.4.4, 2012/01/16, changed how residuals are calculated in fitting routine
+                      for positions/PSF since the old approach was unstable.
+                      Some updates on logging.
 """
 __author__  = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.1.4.3"
+__version__ = "0.1.4.4"
 
 import logging, os, sys, time
 import numpy as np, pyfits
@@ -371,6 +374,7 @@ class StarFit(FittingGui):
             self.pixMap = self.mask.cumsum()-1 ## maps input coordinates to
             self.pixMap[self.mask==False] = -1 ## coordinates on subarray of
                                                ## unmasked pixels
+
             logging.debug("[@{0}] {1} masked pixels".format(\
                 self.jj, (self.mask==False).sum()))
             
@@ -388,7 +392,14 @@ class StarFit(FittingGui):
             self.Afit = self.fillMatrix(radius=self.fitRad)
 
             ## initial fit of fluxes
-            self.spectra[:,self.jj] += lsqr(self.Afit, self.current)[0]
+            bestFit = lsqr(self.Afit, self.current)
+            
+            logging.debug("[@{0}] Chi**2 of initial fit: {1:.1f}".format(\
+                    self.jj, bestFit[4]**2))
+            logging.debug("[@{0}] Relative changes in fluxes: {1}".format(\
+                    self.jj, bestFit[0]/self.spectra[:,self.jj]))
+            self.spectra[:,self.jj] += bestFit[0]
+
 
             ## PSF fit
             if self.asSmallIFU:
@@ -405,12 +416,11 @@ class StarFit(FittingGui):
 
         ##  fit
         bestFit = lsqr(self.Afit, self.current)
-
-        self.spectra[:,self.jj] += bestFit[0]
-
-        logging.debug("[@{0}] Chi**2 of fit: {1:.1f}".format(\
+        logging.debug("[@{0}] Chi**2 of final fit: {1:.1f}".format(\
                 self.jj, bestFit[4]**2))
-
+        logging.debug("[@{0}] Relative changes in fluxes: {1}".format(\
+                self.jj, bestFit[0]/self.spectra[:,self.jj]))
+        self.spectra[:,self.jj] += bestFit[0]
 
         ## get uncertainties
         for i in xrange(self.Ncmp):
@@ -801,6 +811,7 @@ class StarFit(FittingGui):
     def fitMultiPSF(self, x0, fixedPars, fitFlags):
 
         allPars = np.zeros(fitFlags.shape, dtype='float64')
+
         allPars[fitFlags] = x0
         allPars[fitFlags==False] = fixedPars
 
@@ -810,16 +821,27 @@ class StarFit(FittingGui):
         if fitFlags[self.coordTrans.size:].any(): ## recalc PSF
             self.PSF = self.makePSF(allPars[self.coordTrans.size:])
 
-        Aprm = self.fillMatrix(radius=self.fitRad, calcUnRes=False, doLog=False)
 
-        Y, X  = Aprm.nonzero()
+        Aprm = self.fillMatrix(radius=self.psfRad, calcUnRes=False, doLog=False)
 
-        Aoff  = Aprm - sparse.csr_matrix((self.Apsf[Y, X].getA1(), (Y, X)),
-                                         shape=Aprm.shape)  
-        model = Aoff*sparse.dia_matrix((self.spectra[:,self.jj],[0]),
-                                       shape=(Aprm.shape[1], Aprm.shape[1]))
+        model =  Aprm*sparse.dia_matrix((self.spectra[:,self.jj],[0]),
+                                        shape=(self.Ncmp, self.Ncmp))
 
-        err   = self.current - model.sum(axis=1).getA1()
+        err =  (self.data/self.sigma)[self.mask]-model.sum(axis=1).getA1()
+
+## !!! Old residual calculation, unstable(?)
+##         Aprm = self.fillMatrix(radius=self.fitRad, calcUnRes=False,
+##                                doLog=False)
+## 
+##         Y, X  = Aprm.nonzero()
+## 
+##         Aoff  = Aprm - sparse.csr_matrix((self.Apsf[Y, X].getA1(), (Y, X)),
+##                                          shape=Aprm.shape)  
+##         model = Aoff*sparse.dia_matrix((self.spectra[:,self.jj],[0]),
+##                                        shape=(Aprm.shape[1], Aprm.shape[1]))
+## 
+##         err   = self.current - model.sum(axis=1).getA1()
+
 
         return (err*err).sum()
 
@@ -857,8 +879,7 @@ class StarFit(FittingGui):
                 .mean(axis=-1)
             
             logging.debug("[@{0}] Initial coord. transformation: {1}".format(\
-                    self.jj,
-                    self.coordTrans['value'][self.coordTrans['fit'], self.jj]))
+                    self.jj, self.coordTrans['value'][self.posMap, self.jj]))
 
 
         if self.psfPars['fit'].any(): ## update PSF
@@ -867,8 +888,7 @@ class StarFit(FittingGui):
                 .mean(axis=-1)
 
             logging.debug("[@{0}] Initial PSF model: {1}".format(\
-                    self.jj,
-                    self.psfPars['value'][self.psfPars['fit'], self.jj]))
+                    self.jj, self.psfPars['value'][self.psfMap, self.jj]))
 
 
 
