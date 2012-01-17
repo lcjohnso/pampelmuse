@@ -17,9 +17,11 @@ CHANGELOG
 2012/01/16, v0.1.0.2, modified how images with fit residuals are (temporarily)
                       stored to allow for starting multiple fits from same
                       folder.
+2012/01/17, v0.1.0.3, modified code to handle new option of providing IFU
+                      pixel coordinates for every source.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.1.0.2"
+__version__ = "0.1.0.3"
 import logging, os, sys
 import numpy as np, pyfits
 from PyQt4 import QtCore, QtGui
@@ -69,6 +71,13 @@ def cubefit(arguments):
     srcList = np.array(prmFile['SOURCES'].data,
                        dtype=prmFile['SOURCES'].data.dtype)
 
+    if "x_ifu" in srcList.dtype.names and "y_ifu" in srcList.dtype.names:
+        logging.info("Found IFU pixel coordinates. "\
+                         + "Ignoring coord. transformation.")
+        hasIfuCoords = True
+    else:
+        hasIfuCoords = False
+
     ## collect the  spectra
     spcList = prmFile['SPECTRA'].data
     
@@ -97,7 +106,7 @@ def cubefit(arguments):
     if posfit in [1,2]: isfitted[2:] = True
     if posfit == 2:     isfitted[:2] = True
 
-    if 'POSPARS' in extNames: ## check if HDU exists
+    if 'POSPARS' in extNames and not hasIfuCoords: ## check if HDU exists
         valueShape = (prmFile['POSPARS'].header['NAXIS1'],)
 
         posPars = np.zeros(len(requiredPars),

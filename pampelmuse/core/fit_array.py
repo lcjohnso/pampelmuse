@@ -26,9 +26,11 @@ v0.1.4.4, 2012/01/16, changed how residuals are calculated in fitting routine
 v0.1.4.5, 2012/01/16, Modified logging of the flux changes to avoid 'divide by
                       zero' warning.
 v0.1.4.6, 2012/01/16, added option to specify name of stored residual images. 
+v0.1.4.7, 2012/01/17, modified code to handle new option of providing IFU
+                      pixel coordinates for every source.
 """
 __author__  = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.1.4.6"
+__version__ = "0.1.4.7"
 
 import logging, os, sys, time
 import numpy as np, pyfits
@@ -143,6 +145,12 @@ class StarFit(FittingGui):
         self.sources    = sources
         self.spectra    = spectra
         self.coordTrans = coordTrans
+
+        ## check for IFU pixel coordinates:
+        if "x_ifu" in sources.dtype.names and "y_ifu" in sources.dtype.names:
+            self.hasIfuCoords = True
+        else:
+            self.hasIfuCoords = False
 
         ## create array to store uncertainties of fitted spectra
         ## (if none provided)
@@ -500,9 +508,9 @@ class StarFit(FittingGui):
            formation. If `None', default, the class' `coordTrans'-attribute
            is used.
         """
-        if self.sources['x'].ndim > 1:
-            self.x = self.sources['x'][:,self.jj]
-            self.y = self.sources['y'][:,self.jj]
+        if self.hasIfuCoords:
+            self.x = self.sources['x_ifu'][:,self.jj]
+            self.y = self.sources['y_ifu'][:,self.jj]
         else:
             if coordTrans != None:
                 A, B, C, D = coordTrans

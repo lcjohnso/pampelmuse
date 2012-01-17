@@ -24,9 +24,12 @@ CHANGELOG
                       `fit_array').
                       supplying a numpy integer as an argument to the `format'
                       property of a string seemed to cause problems.
+2012/01/17, v0.1.0.0, added option to provide uncertainties of measured output
+                      coordinates, using fields 'x_err' and 'y_err' (if
+                      present) in `outcoords' record-array.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.0.1.2"
+__version__ = "0.1.0.0"
 import logging
 import numpy as np
 
@@ -89,13 +92,25 @@ def trans_coords(incoords, outcoords, quiet=False):
     M = 2*m
     N = 4
 
-    A = np.ones((M,N), dtype='float32')  ## fill matrix
-    A[:m,0] = incoords['x'][inSel]
-    A[m:,0] = incoords['y'][inSel]
-    A[:m,1] = incoords['y'][inSel]
-    A[m:,1] = -incoords['x'][inSel]
-    A[m:,2] = 0.
-    A[:m,3] = 0.
+    ## check if errors for out-coordinates are provided
+    if "x_err" in outcoords.dtype.names and "y_err" in outcoords.dtype.names:
+        err = True
+        if not quiet:
+            logging.info("Found uncertainties of output coordinates.")
+    else:
+        err = False
+        if not quiet:
+            logging.info("Uncertainties of output coordinates not found.")
+
+
+
+    _A = np.ones((M,N), dtype='float32')  ## fill matrix
+    _A[:m,0] = incoords['x'][inSel]
+    _A[m:,0] = incoords['y'][inSel]
+    _A[:m,1] = incoords['y'][inSel]
+    _A[m:,1] = -incoords['x'][inSel]
+    _A[m:,2] = 0.
+    _A[:m,3] = 0.
 
     b = np.ones((M,), dtype='float32')
 
@@ -105,6 +120,17 @@ def trans_coords(incoords, outcoords, quiet=False):
     if outcoords['x'].ndim == 1:
         b[:m] = outcoords['x'][outSel]
         b[m:] = outcoords['y'][outSel]
+
+        if err:
+            b[:m] /= outcoords['x_err'][outSel]
+            b[m:] /= outcoords['y_err'][outSel]
+
+            A = np.copy(_A)
+            for j in xrange(4):
+                A[:m,j] /= outcoords['x_err'][outSel]
+                A[m:,j] /= outcoords['y_err'][outSel]
+        else:
+            A = _A
         
         tmpResult.append(tuple(np.linalg.lstsq(A, b)[0]))
 
@@ -116,6 +142,17 @@ def trans_coords(incoords, outcoords, quiet=False):
 
             b[:m] = outcoords['x'][outSel,i]
             b[m:] = outcoords['y'][outSel,i]
+
+            if err:
+                b[:m] /= outcoords['x_err'][outSel,i]
+                b[m:] /= outcoords['y_err'][outSel,i]
+
+                A = np.copy(_A)
+                for j in xrange(4):
+                    A[:m,j] /= outcoords['x_err'][outSel,i]
+                    A[m:,j] /= outcoords['y_err'][outSel,i]
+            else:
+                A = _A
 
             tmpResult.append(tuple(np.linalg.lstsq(A, b)[0]))
 

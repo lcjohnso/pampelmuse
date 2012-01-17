@@ -15,9 +15,11 @@ v0.1.0.1 -2011/11/29 - included logging-option
 v0.1.0.2 -2011/12/08 - added new routine `EXTRACT' to write the pixel
                        positions of the extracted stars to an ASCII-file
 v0.1.0.3 -2012/01/13 - some minor updates to usage of logging module
+v0.1.0.4 -2012/01/17 - added posfit module. Still needs some debugging and
+                       documentation
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.1.0.3"
+__version__ = "0.1.0.4"
 
 import argparse, logging, os, re
 
@@ -29,6 +31,7 @@ from pampelmuse.scripts.initfit import initfit
 from pampelmuse.scripts.cubefit import cubefit
 from pampelmuse.scripts.polyfit import polyfit
 from pampelmuse.scripts.extract import get_pixpos
+from pampelmuse.scripts.posfit import posfit
 
 
 CONFIGPATH = os.path.expandvars("$pampelmuse_path/config/")
@@ -175,6 +178,11 @@ and also store the list of sources with the additional coordinates in a
 separate ASCII-file named <prefix>.add.dat.""")
 EXparser.set_defaults(func=get_pixpos)
 
+
+XFparser = PMsubparsers.add_parser("POSFIT",
+                                  help="""
+Fit individual source positions with polynomials.TBD.""")
+XFparser.set_defaults(func=posfit)
 
 
 print """
