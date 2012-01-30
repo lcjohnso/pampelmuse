@@ -1,3 +1,18 @@
+"""
+DYNAMICPLOTCANVAS
+=================
+Routine is used to create a lineplot and interact with it. The routine is
+called by the POLYFIT routine of PampelMuse.
+
+CHANGELOG:
+----------
+2012/01/25, v0.0.1.1, added some documentation. Fixed bug that sometimes the
+                      vertical line indicating the current cursor position did
+                      not disappear upon updating  the data to be plotted. 
+"""
+__author__ = "Sebastian Kamann (skamann@aip.de)"
+__version__ = "0.0.1.1"
+
 import matplotlib.pyplot
 import numpy as np
 from PyQt4 import QtCore
@@ -46,6 +61,8 @@ class DynamicPlotCanvas(FigureCanvas):
             self.thePlots[name].set_xdata(xData)
         if yData!=None:
             self.thePlots[name].set_ydata(yData)
+
+        self.vLine.set_data([],[])
 
         self.axes.axes.relim()
         self.axes.autoscale_view(tight=False)

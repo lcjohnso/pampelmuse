@@ -34,9 +34,11 @@ CHANGELOG
 2012/01/16, v0.2.2.2, fixed bug that the code crashed if a secondary component
                       hat no primary counterpart. Instead now the status of the
                       secondary is increased and a warning message is logged.
+2012/01/30, v0.3.0.0, updated the code to produce PRM-files in agreement with
+                      the new structure.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.2.2.2"
+__version__ = "0.3.0.0"
 import datetime, logging, pyfits, os
 import numpy as np
 
@@ -163,6 +165,9 @@ class StoreParam:
         
         self.sourceCatHDU = pyfits.new_table(self.sourceCat)
         self.sourceCatHDU.header.update('EXTNAME', 'SOURCES')
+
+        ## to indicate prm-file is compliant with new structure:
+        self.sourceCatHDU.header.update('PRMSTRUC', 2)
         self.HDUList.append(self.sourceCatHDU)
 
         self.includeUnres = (selectedSources['status']==0).any()
@@ -270,34 +275,58 @@ class StoreParam:
             
 
 
-    def storePosPars(self, pospars):
+    def storePosPars(self, posPars, posFit=2):
         """
-        Create a FITS-image that contains the parameters of the coordinate
+        Create a FITS-table that contains the parameters of the coordinate
         transformation (as a function of wavelength).
 
         Parameters
         ----------
-        pospars :  numpy_record_array
-            The structured array must contain 4 fields (named 'A', 'B', 'C',
-            'D') with the parameters of the transformation.
+        posPars :  numpy_record_array
+            The structured array must contain fields (named e.g. 'A', 'B',
+            'C', 'D') with the parameters of the transformation.
+        posFit : integer
+            `posFit' indicates how the source positions are fitted. Check
+            the PampelMuse-README for details.
         """
 
-        logging.info("Creating Image HDU to store paramaters of coord. trans.")
+        logging.info("Creating Table HDU to store paramaters of coord. trans.")
 
-        outData = np.zeros((4,pospars.size), dtype='float32')
-        outData[0] = pospars['A']
-        outData[1] = pospars['B']
-        outData[2] = pospars['C']
-        outData[3] = pospars['D']
+        nPars = len(posPars.dtype)
+        nDim  = int(posPars.size)
 
-        self.addImaHDU(data=outData, extname='POSPARS', crpix1=1,
-                       crval1=self.wlStart, cdelt1=self.wlStep)
+        outData = pyfits.new_table([\
+                pyfits.Column(name="name", format="1A",
+                              array=np.zeros((nPars,))),
+                pyfits.Column(name="value", format="{0}E".format(nDim),
+                              array=np.zeros((nPars, nDim))),
+                pyfits.Column(name="freepar", format="L",
+                              array=np.zeros((nPars,))),
+                pyfits.Column(name="isfitted", format="L",
+                              array=np.zeros((nPars,))),
+                pyfits.Column(name="polyfit", format="{0}E".format(nDim),
+                              array=np.zeros((nPars, nDim)))
+                ])
+
+        i = 0
+        for name in posPars.dtype.names:
+            outData.data.field('name')[i] = name
+            outData.data.field('value')[i] = posPars[name]
+            if name in ["C", "D"] and posFit > 0:
+                outData.data.field('freepar')[i] = True
+            if name in ['A', 'B'] and posFit > 1:
+                outData.data.field('freepar')[i] = True
+            i += 1
+
+        outData.header.update("EXTNAME", "POSPARS")
+
+        self.HDUList.append(outData)
 
 
 
-    def storePSF(self, psfType, psfPars):
+    def storePSF(self, psfType, psfPars, psfFit):
         """
-        Create a FITS-image that contains the parameters of the point-spread
+        Create a FITS-table that contains the parameters of the point-spread
         function(as a function of wavelength).
 
         Parameters
@@ -309,21 +338,40 @@ class StoreParam:
             field with the parameters name. Note that no validation of the
             input is performed at this point. It is up to the user to provide
             a valid set of input parameters for a certain PSF type.
+        psfFit : array_like
+            A flag indicating whether a parameter is fitted. Must be of same
+            length as `psfPars'.
         """
 
-        logging.info("Creating Image HDU to store paramaters of PSF.")
+        logging.info("Creating Table HDU to store paramaters of PSF.")
         
         nPars = len(psfPars.dtype.names)
+        nDim  = int(psfPars.size)
 
-        psfArgs = {"psfType":psfType}
+        outData = pyfits.new_table([\
+                pyfits.Column(name="name", format="10A",
+                              array=np.zeros((nPars,))),
+                pyfits.Column(name="value", format="{0}E".format(nDim),
+                              array=np.zeros((nPars, nDim))),
+                pyfits.Column(name="freepar", format="L",
+                              array=np.zeros((nPars,))),
+                pyfits.Column(name="isfitted", format="L",
+                              array=np.zeros((nPars,))),
+                pyfits.Column(name="polyfit", format="{0}E".format(nDim),
+                              array=np.zeros((nPars, nDim)))
+                ])
 
-        outData = np.zeros((nPars, psfPars.size), dtype='float32')
-        for i in xrange(nPars):
-            outData[i] = psfPars[psfPars.dtype.names[i]]
-            psfArgs["psfPar{0}".format(i+1)] = psfPars.dtype.names[i]
+        i = 0
+        for name in psfPars.dtype.names:
+            outData.data.field('name')[i] = name
+            outData.data.field('value')[i] = psfPars[name]
+            outData.data.field('freepar')[i] = psfFit[i]
+            i += 1
 
-        self.addImaHDU(data=outData, extname='PSFPARS', crpix1=1,
-                       crval1=self.wlStart, cdelt1=self.wlStep, **psfArgs)
+        outData.header.update("EXTNAME", "PSFPARS")
+        outData.header.update("PSFTYPE", psfType)
+
+        self.HDUList.append(outData)
 
 
         
@@ -353,8 +401,9 @@ class StoreParam:
         outHDU = pyfits.HDUList(self.HDUList)
         
         if clobber:
-            logging.info("Existing file has been overwritten.")
-            if os.path.exists(filename):  os.remove(filename)
+            if os.path.exists(filename):
+                os.remove(filename)
+                logging.info("Existing file has been overwritten.")
         outHDU.writeto(filename)
         
 

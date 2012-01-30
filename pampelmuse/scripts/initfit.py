@@ -30,9 +30,12 @@ CHANGELOG:
                       obtained during aperture spectrophotometry are used
                       to update the (fitted)  PSF parameters.
                       Some debugging.
+2012/01/30, v0.2.0.0, changed the code to create PRM-files the are consistent
+                      with the updated structure, i.e. PSF and coordinate
+                      parameters are stored in binary FITS-tables.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.1.2.3"
+__version__ = "0.2.0.0"
 import os, sys, logging
 import numpy as np, pyfits
 from scipy import interpolate,sparse
@@ -91,6 +94,7 @@ def initfit(arguments):
     psfType  = arguments.config["PSFTYPE"]          ##
     psfPars  = arguments.config["PSFPARS"]          ##
     psfFit   = arguments.config["PSFFIT"]           ##
+    posFit   = arguments.config["POSFIT"]           ##
     ##################################################
     DATAPATH = os.path.expandvars("$pampelmuse_path/data/")
 
@@ -410,8 +414,8 @@ def initfit(arguments):
     storage.storeSourceCat(finalList)
     storage.storeSourceSpec(inputSpectra=aperResults, magZ=selector.mZ,
                             spatPix=dat_data_ima.size)
-    storage.storePSF(psfType=psfType, psfPars=psfOutPars)
-    storage.storePosPars(transformation)
+    storage.storePSF(psfType=psfType, psfPars=psfOutPars, psfFit=isfitted)
+    storage.storePosPars(posPars=transformation, posFit=posFit)
     storage.writeto('{0}.prm.fits'.format(prefix), clobber=1)
 
 

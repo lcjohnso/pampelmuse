@@ -28,9 +28,14 @@ v0.1.4.5, 2012/01/16, Modified logging of the flux changes to avoid 'divide by
 v0.1.4.6, 2012/01/16, added option to specify name of stored residual images. 
 v0.1.4.7, 2012/01/17, modified code to handle new option of providing IFU
                       pixel coordinates for every source.
+v0.2.0.0, 2012/01/30, modified code so that it can handle the updated
+                      structure of the prm-files. Mainly updates on how
+                      positions are handled. Also started adding possibility
+                      to fit individual source position. This is not working
+                      yet.
 """
 __author__  = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.1.4.7"
+__version__ = "0.2.0.0"
 
 import logging, os, sys, time
 import numpy as np, pyfits
@@ -114,7 +119,8 @@ class StarFit(FittingGui):
         
 
         
-    def provideSources(self, sources, spectra, coordTrans, specSigma=None):
+    def provideSources(self, sources, spectra, pixCoords=None, coordTrans=None,
+                       specSigma=None):
         """
         This method should be used to provide the instance with the necessary
         information about the sources in the field.
@@ -130,11 +136,15 @@ class StarFit(FittingGui):
         spectra : nd_array
             A 2dim. array containing a spectrum for every independent component
             defined in `sources'.
-        coordTrans : numpy record array
+        pixCoords : nd_array, optional
+            A 3dim. array containing x- and y-coordinates for every (stellar)
+            source. Note that if `pixCoords' are provided, any `coordTrans'
+            will be ignored.
+        coordTrans : numpy record array, optional
             The parameters of the coordinate transformation from input to pixel
             coordinates. The array must contain the fields `name', `value' and
             `fit', providing the name, the initial value(s) and a fit flag for
-            every parameter.
+            every parameter. Only used if `pixCoords' are not provided.
             Note that `value' can either contain single values or an array with
             one value per spectral pixel.
         specSigma : nd_array or None, optional
@@ -144,13 +154,26 @@ class StarFit(FittingGui):
         """
         self.sources    = sources
         self.spectra    = spectra
+        self.pixCoords  = pixCoords
         self.coordTrans = coordTrans
 
         ## check for IFU pixel coordinates:
-        if "x_ifu" in sources.dtype.names and "y_ifu" in sources.dtype.names:
+        if pixCoords != None:
+            self.coordTrans   = None
             self.hasIfuCoords = True
+            self.posFit       = False
+            self.dofPos       = 2*self.pixCoords[-1]
         else:
+            if self.coordTrans == None:
+                logging.critical(\
+                    "Neither pixel coordinates nor coord. transf. provided.")
             self.hasIfuCoords = False
+            self.posFit       = self.coordTrans['fit'].any()
+            self.dofPos       = self.coordTrans.size
+
+            self.posMap = [np.where(self.coordTrans['name']==name)[0][0] \
+                               for name in ['A','B','C','D']]
+
 
         ## create array to store uncertainties of fitted spectra
         ## (if none provided)
@@ -186,12 +209,6 @@ class StarFit(FittingGui):
             self.unResCmp = self.sources['specrow'][np.where(unRes)[0][0]]
         else:
             self.unResCmp = -1
-
-
-        self.posMap = [np.where(self.coordTrans['name']==name)[0][0] \
-                           for name in ['A','B','C','D']]
-
-        self.posFit = self.coordTrans['fit'].any()
 
 
     
@@ -406,7 +423,7 @@ class StarFit(FittingGui):
         self.dataCanvas.addImage(self.data.reshape(self.spatShape))
 
         ## fit PSF/positions if requested
-        if self.psfFit:
+        if self.psfFit or self.posFit:
 
             ## create model matrix
             self.Apsf = self.fillMatrix(radius=self.psfRad)
@@ -421,7 +438,6 @@ class StarFit(FittingGui):
                     self.jj, bestFit[4]**2))
             logging.debug("[@{0}] Relative changes in fluxes: {1}".format(\
                     self.jj, bestFit[0]/self.spectra[:,self.jj]))
-
 
             ## PSF fit
             if self.asSmallIFU:
@@ -496,7 +512,7 @@ class StarFit(FittingGui):
 
 
 
-    def getPixCoords(self, coordTrans=None):
+    def getPixCoords(self, coordTrans=None, pixCoords=None):
         """
         Calculate the pixel coordinates from the provided input coordinates
         and the best-fit parameters of the coordinate transformation.
@@ -507,10 +523,16 @@ class StarFit(FittingGui):
            Can be used to provide the parameters of the coordinate trans-
            formation. If `None', default, the class' `coordTrans'-attribute
            is used.
+        pixCoords : array_like, optional
+           Can be used to provide a list of pixel coordinates, given as a
+           1dim. array of x- and y-values: [x0, x1, ..., xN, y0, y1, ..., yN]
         """
-        if self.hasIfuCoords:
-            self.x = self.sources['x_ifu'][:,self.jj]
-            self.y = self.sources['y_ifu'][:,self.jj]
+        if pixCoords != None:
+            self.x = pixCoords[:len(pixCoords)>>1]
+            self.y = pixCoords[len(pixCoords)>>1:]
+        elif self.hasIfuCoords:
+            self.x = self.pixCoords[0,self.jj]
+            self.y = self.pixCoords[1,self.jj]
         else:
             if coordTrans != None:
                 A, B, C, D = coordTrans
@@ -632,10 +654,10 @@ class StarFit(FittingGui):
 
         allPars = np.zeros((nPars, self.psfStars.size), dtype='float32')
 
-        fitFlags = np.zeros((nPars,), dtype='bool')
-        fitFlags[:2] = self.coordTrans['fit'].any()
+        fitFlags       = np.zeros((nPars,), dtype='bool')
+        fitFlags[:2]   = self.posFit
         fitFlags[2:-1] = self.psfPars['fit'][self.psfMap]
-        fitFlags[-1] = True
+        fitFlags[-1]   = True
 
         ## create working copy of `current'-array. Required since the
         ## definition of `current' (using an @property-method) does not
@@ -691,23 +713,25 @@ class StarFit(FittingGui):
                     -= psfCoeffs*self.spectra[kk,self.jj]
             j += 1
 
-##             self.resiCanvas.addImage(self._current.reshape(self.spatShape))
 
+        if self.posFit: ## update coordinate transformation
+            if not self.hasIfuCoords:
+                newCoords = np.array(zip(self.sources['id'][self.psfStars],
+                                         allPars[0], allPars[1]),
+                                     dtype=[('id', '>i4'),
+                                            ('x', '>f4'),
+                                            ('y', '>f4')])
 
-        if self.coordTrans['fit'].any(): ## update coordinate transformation
-            newCoords = np.array(zip(self.sources['id'][self.psfStars],
-                                     allPars[0], allPars[1]),
-                                 dtype=[('id', '>i4'), ('x', '>f4'),
-                                        ('y', '>f4')])
-
-            newTrans = trans_coords(self.sources, newCoords, quiet=True)
-            for prm in newTrans.dtype.names:
-                index = np.where(self.coordTrans['name']==prm)[0][0]
-                self.coordTrans['value'][index, self.jj] = newTrans[prm][0]
+                newTrans = trans_coords(self.sources, newCoords, quiet=True)
+                for prm in newTrans.dtype.names:
+                    index = np.where(self.coordTrans['name']==prm)[0][0]
+                    self.coordTrans['value'][index, self.jj] = newTrans[prm][0]
+            else:
+                logging.critical("Indvidual positions fit not yet supported.")
 
             self.getPixCoords()
 
-        if self.psfPars['fit'].any(): ## update PSF
+        if self.psfFit: ## update PSF
             self.psfPars['value'][self.psfMap, self.jj] \
                 = allPars[2:-1,:].mean(axis=1)
             self.PSF = self.makePSF(self.psfPars['value'][self.psfMap, self.jj])
@@ -774,22 +798,29 @@ class StarFit(FittingGui):
         The results of the fits is used to update the PSF and/or the
         parameters of the coordinate transformation.
         """
-        nPars = self.coordTrans.size + self.psfPars.size
+
+        nPars = self.dofPos + self.psfPars.size
 
         fitFlags = np.zeros((nPars,), dtype='bool')
-        fitFlags[:self.coordTrans.size] = self.coordTrans['fit'][self.posMap]
+        fitPars  = np.zeros((nPars,), dtype='float64')
 
-        fitPars = np.zeros((nPars,), dtype='float64')
-        fitPars[:self.coordTrans.size] \
-            = self.coordTrans['value'][self.posMap, self.jj]
-        fitPars[self.coordTrans.size:] \
-            = self.psfPars['value'][self.psfMap, self.jj]
+        if self.hasIfuCoords:
+            fitPars[:self.dofPos] =self.pixCoords[:,self.jj].flatten()
+        else:
+            fitPars[:self.dofPos] =self.coordTrans['value'][self.posMap,self.jj]
+
+        fitPars[self.dofPos:] = self.psfPars['value'][self.psfMap, self.jj]
 
 
         ## Fit position parameters
-        if fitFlags.any():
-            self.sBar.showMessage("{0} Fitting positions".format(\
-                    self.prefixString))
+        if self.posFit:
+            if self.hasIfuCoords:
+                fitFlags[:self.dofPos] = True
+            else:
+                fitFlags[:self.dofPos] = self.coordTrans['fit'][self.posMap]
+
+            self.sBar.showMessage(\
+                "{0} Fitting positions".format(self.prefixString))
 
             fitPars[fitFlags] =  optimize.fmin(\
                 func=self.fitMultiPSF,
@@ -797,23 +828,23 @@ class StarFit(FittingGui):
                 args=(fitPars[fitFlags==False], fitFlags),
                 disp=False)
 
-            logging.debug("[@{0}] Fitted coord. transformation: {1}".format(\
-                    self.jj, fitPars[:self.coordTrans.size]))
-
-            self.coordTrans['value'][self.posMap,self.jj] \
-                = fitPars[:self.coordTrans.size]
+            if not self.hasIfuCoords:
+                self.coordTrans['value'][self.posMap, self.jj] \
+                    = fitPars[:self.dofPos]
+            else:
+                self.pixCoords[:,self.jj] = fitPars[:self.dofPos].reshape(2,-1)
 
             self.getPixCoords()
 
             
-
         ## Fit PSF parameters
-        fitFlags[:self.coordTrans.size] = False
-        fitFlags[self.coordTrans.size:] = self.psfPars['fit'][self.psfMap]
+        fitFlags[:self.dofPos] = False
+        fitFlags[self.dofPos:] = self.psfPars['fit'][self.psfMap]
+            
 
-        if fitFlags.any():
-            self.sBar.showMessage("{0} Fitting PSF".format(\
-                    self.prefixString))
+        if self.psfFit:
+            self.sBar.showMessage(\
+                "{0} Fitting PSF".format(self.prefixString))
 
             fitPars[fitFlags] = optimize.fmin(\
                 func=self.fitMultiPSF,
@@ -822,10 +853,10 @@ class StarFit(FittingGui):
                 disp=False)
 
             logging.debug("[@{0}] Fitted PSF model: {1}".format(\
-                    self.jj, fitPars[self.coordTrans.size:]))
+                    self.jj, fitPars[self.dofPos:]))
 
             self.psfPars['value'][self.psfMap, self.jj] \
-                = fitPars[self.coordTrans.size:]
+                = fitPars[self.dofPos:]
 
             self.PSF = self.makePSF(self.psfPars['value'][self.psfMap, self.jj])
 
@@ -838,12 +869,14 @@ class StarFit(FittingGui):
         allPars[fitFlags] = x0
         allPars[fitFlags==False] = fixedPars
 
-        if fitFlags[:self.coordTrans.size].any(): ## recalc pixel positions
-            self.getPixCoords(coordTrans=allPars[:self.coordTrans.size])
+        if fitFlags[:self.dofPos].any(): ## recalc pixel positions
+            if not self.hasIfuCoords:
+                self.getPixCoords(coordTrans=allPars[:self.dofPos])
+            else:
+                self.getPixCoords(pixCoords=allPars[:self.dofPos])
 
-        if fitFlags[self.coordTrans.size:].any(): ## recalc PSF
-            self.PSF = self.makePSF(allPars[self.coordTrans.size:])
-
+        if fitFlags[self.dofPos:].any(): ## recalc PSF
+            self.PSF = self.makePSF(allPars[self.dofPos:])
 
         Aprm = self.fillMatrix(radius=self.psfRad, calcUnRes=False, doLog=False)
 
@@ -896,7 +929,7 @@ class StarFit(FittingGui):
         logging.debug("[@{0}] Previous fits in focus: {1}".format(\
                 self.jj, LASTFITS))
 
-        if self.coordTrans['fit'].any():
+        if self.posFit: ## update coordinate transformation
             self.coordTrans['value'][self.coordTrans['fit'], self.jj] \
                 = self.coordTrans['value'][self.coordTrans['fit']][:,LASTFITS]\
                 .mean(axis=-1)
@@ -905,7 +938,7 @@ class StarFit(FittingGui):
                     self.jj, self.coordTrans['value'][self.posMap, self.jj]))
 
 
-        if self.psfPars['fit'].any(): ## update PSF
+        if self.psfFit: ## update PSF
             self.psfPars['value'][self.psfPars['fit'], self.jj] \
                 = self.psfPars['value'][self.psfPars['fit']][:,LASTFITS]\
                 .mean(axis=-1)

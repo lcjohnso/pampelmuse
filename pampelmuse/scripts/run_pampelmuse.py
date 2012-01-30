@@ -17,11 +17,20 @@ v0.1.0.2 -2011/12/08 - added new routine `EXTRACT' to write the pixel
 v0.1.0.3 -2012/01/13 - some minor updates to usage of logging module
 v0.1.0.4 -2012/01/17 - added posfit module. Still needs some debugging and
                        documentation
+v0.2.0.0 -2012/01/29 - replaced posfit-module with updateprm-module. Since 
+                       the previously applied polynomial fitting of the
+                       parameters of the coordinate transformation led to
+                       wrong results, the polyfit-module now works directly
+                       on the source coordinates instead. To implement this,
+                       the structure of the prm-file has been modified. Old
+                       prm-files can be updated using the updateprm-module.
+                       
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.1.0.4"
+__version__ = "0.2.0.0"
 
-import argparse, logging, os, re
+import argparse, logging, os, re, sys
+import pyfits
 
 ## required PampelMuse-packages
 from pampelmuse.config import xml_interact
@@ -31,7 +40,7 @@ from pampelmuse.scripts.initfit import initfit
 from pampelmuse.scripts.cubefit import cubefit
 from pampelmuse.scripts.polyfit import polyfit
 from pampelmuse.scripts.extract import get_pixpos
-from pampelmuse.scripts.posfit import posfit
+from pampelmuse.scripts.updateprm import updateprm
 
 
 CONFIGPATH = os.path.expandvars("$pampelmuse_path/config/")
@@ -179,10 +188,12 @@ separate ASCII-file named <prefix>.add.dat.""")
 EXparser.set_defaults(func=get_pixpos)
 
 
-XFparser = PMsubparsers.add_parser("POSFIT",
+XFparser = PMsubparsers.add_parser("UPDATEPRM",
                                   help="""
-Fit individual source positions with polynomials.TBD.""")
-XFparser.set_defaults(func=posfit)
+The routine can be used to change the structure of a prm-file created by a 
+PampelMuse-version < 0.2.0.0 so that the file is compliant with any newer
+PampelMuse-version""")
+XFparser.set_defaults(func=updateprm)
 
 
 print """
@@ -226,4 +237,21 @@ logging.basicConfig(format="%(asctime)s:%(levelname)s - %(message)s",
                     datefmt='%m/%d/%Y %H:%M:%S',
                     level=LOGLEVELS[args.config["VERBOSE"]])
     
+
+## check whether provided prm-file can be used with current PampelMuse-version.
+if args.func.func_name in ["cubefit", "polyfit"]:
+    prmInfo = pyfits.getheader("{0}.prm.fits".format(args.prefix), "SOURCES")
+    try:
+        prmStructure = prmInfo["PRMSTRUC"]
+    except KeyError:
+        prmStructure  = 1
+
+    if prmStructure < 2:
+        logging.critical("Provided PRM-file not compliant with current")
+        logging.critical("PampelMuse-version. Run")
+        logging.critical("      'PampelMuse {0} UPDATEPRM'".format(args.prefix))
+        logging.critical("to modify PRM-file first.")
+
+        sys.exit()
+
 args.func(args)  ## execute the connected function
