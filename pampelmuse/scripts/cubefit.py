@@ -22,9 +22,11 @@ CHANGELOG
 2012/01/30, v0.2.0.0, major modifications to make code compliant with updated
                       structure of PRM-files.
 2012/01/31, v0.2.0.1, slight changes wrt. logging. 
+2012/01/31, v0.2.1.1, fixed bug that code crashed when trying to overwrite an
+                      existing residual cube.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.2.0.1"
+__version__ = "0.2.1.1"
 import logging, os, sys
 import numpy as np, pyfits
 from PyQt4 import QtCore, QtGui
@@ -380,5 +382,8 @@ def cubefit(arguments):
             os.system("rm {0}.res{1}.fits".format(prefix, i))
 
         resHDU = pyfits.PrimaryHDU(resCube)
+        if os.path.exists("{0}.res.fits".format(prefix)):
+            os.remove("{0}.res.fits".format(prefix))
+            logging.warning("Existing residual cube has been overwritten.")
         resHDU.writeto("{0}.res.fits".format(prefix))
 
