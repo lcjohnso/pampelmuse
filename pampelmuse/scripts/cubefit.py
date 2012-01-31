@@ -21,9 +21,10 @@ CHANGELOG
                       pixel coordinates for every source.
 2012/01/30, v0.2.0.0, major modifications to make code compliant with updated
                       structure of PRM-files.
+2012/01/31, v0.2.0.1, slight changes wrt. logging. 
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.2.0.0"
+__version__ = "0.2.0.1"
 import logging, os, sys
 import numpy as np, pyfits
 from PyQt4 import QtCore, QtGui
@@ -66,6 +67,9 @@ def cubefit(arguments):
             lastFitIndex = None
     except KeyError:
         lastFitIndex = None
+    if lastFitIndex !=  None:
+        logging.info("Continuing previously paused fit, current image: {0}"\
+                         .format(lastFitIndex))
 
 
     ## CREATE ARRAYS THAT CONTAIN PARAMETERS USED IN THE FIT
