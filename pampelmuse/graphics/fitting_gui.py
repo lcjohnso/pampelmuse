@@ -1,3 +1,18 @@
+"""
+FITTINGGUI
+==========
+The graphical back-bone of the StarFit-class defined in the fit_array.py
+file.
+
+CHANGELOG
+---------
+<v0.1.0.0, ...2012/01/31, (c). S. Kamann
+0.1.0.0, 2012/01/31, changed interval of timer from 5s to 0.5s to avoid
+                     ridicolous overheads when fitting only fluxes.
+"""
+__author__  = "Sebastian Kamann (skamann@aip.de)"
+__version__ = "0.1.0.0"
+
 import numpy as np, sys, time
 from PyQt4 import QtCore, QtGui
 
@@ -5,7 +20,7 @@ from PyQt4 import QtCore, QtGui
 from pampelmuse.graphics.dynamic_ima_canvas import DynamicImaCanvas
 
 
-INTERVAL=5000 ## timer interval, in milli-seconds
+INTERVAL=500 ## timer interval, in milli-seconds
 
 class FittingGui(QtGui.QMainWindow):
 
