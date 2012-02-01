@@ -403,7 +403,7 @@ class StoreParam:
         if clobber:
             if os.path.exists(filename):
                 os.remove(filename)
-                logging.info("Existing file has been overwritten.")
+                logging.info("Existing PRM-file has been overwritten.")
         outHDU.writeto(filename)
         
 

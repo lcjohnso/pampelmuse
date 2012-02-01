@@ -89,10 +89,14 @@ v0.8.0.0 - 2011/09/09 - changed how shape parameters are deduced from input
 v0.8.0.1, 2011/10/13 - changed how required PampelMuse-packages are imported
 v0.8.0.2, 2011/11/11 - updated calculation and inserting of oversampling region
                        for Moffat profile
+v0.8.0.3, 2012/02/01 - replaced math with numpy. added logging module. Included
+                       handler for beta<=1. in Moffat profile.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.8.0.2"
-import numpy, math
+__version__ = "0.8.0.3"
+
+import logging
+import numpy as np
 from scipy import special, sparse
 
 ## required PampelMuse-packages
@@ -155,21 +159,26 @@ class Moffat:
         else:
             self.osf = osfactor
 
+        if self.beta <= 1.:
+            logging.error("Value of beta ({0:.2f}) out of valid range [>1].")
+            logging.error("Using beta=2.5 instead.")
+        
+
 
     ## effective radius
     @property
     def r_d(self): 
-        return  self.fwhm /(2. *math.sqrt(2**(1. /self.beta) -1.))
+        return  self.fwhm /(2. *np.sqrt(2**(1. /self.beta) -1.))
 
 
     ## central surface brightness for mag=0 (i.e. flux=1)
     @property
     def _sigma_0(self):
-        return (self.beta-1.)/(math.pi*(self.r_d**2)*(1.-self.e))
+        return (self.beta-1.)/(np.pi*(self.r_d**2)*(1.-self.e))
 
 
 
-    def __call__(self, size, x_c, y_c, mag, maxrad=numpy.inf,
+    def __call__(self, size, x_c, y_c, mag, maxrad=np.inf,
                  return_sparse=False, as_sparse_matrix=True):
         """
         A function call is used to actually fill an array of given size.
@@ -230,8 +239,8 @@ class Moffat:
 
         ## select sub-array around profile center (if requested)
         if self.maxrad != None:
-            xdef = abs(numpy.arange(self.size[1])-self.x_c)<=self.maxrad
-            ydef = abs(numpy.arange(self.size[0])-self.y_c)<=self.maxrad
+            xdef = abs(np.arange(self.size[1])-self.x_c)<=self.maxrad
+            ydef = abs(np.arange(self.size[0])-self.y_c)<=self.maxrad
 
             xs = xdef.argmax()
             ys = ydef.argmax()
@@ -250,7 +259,7 @@ class Moffat:
         self._y_c  = self.y_c - ys
 
         ##  calculate profile
-        self.array =numpy.fromfunction(self._draw, self._size, dtype='float32')
+        self.array =np.fromfunction(self._draw, self._size, dtype='float32')
 
         if self.osf != 1: ## take care of oversampling region
             csize = ((2*self.osr+1)*self.osf, (2*self.osr+1)*self.osf)
@@ -271,10 +280,10 @@ class Moffat:
             self.r_d *= self.osf
             self.sigma_0 /= (self.osf**2)
 
-            self.maxrad = (self.osr+numpy.sqrt(0.5))*self.osf
+            self.maxrad = (self.osr+np.sqrt(0.5))*self.osf
 
             ## calculate profile
-            carray = numpy.fromfunction(self._draw, csize, dtype='float32')
+            carray = np.fromfunction(self._draw, csize, dtype='float32')
 
             ## undo changes to shape parameters
             self.r_d /= self.osf
@@ -285,11 +294,11 @@ class Moffat:
             ## resample and insert
             s1_size = (2*self.osr+1, (2*self.osr+1)*self.osf, self.osf)
             s2_size = (2*self.osr+1, 2*self.osr+1, self.osf)
-            step1 = numpy.sum(numpy.reshape(carray, s1_size, 'C'), axis=2)
-            step2 = numpy.sum(numpy.reshape(step1, s2_size, 'F'), axis=2)
+            step1 = np.sum(np.reshape(carray, s1_size, 'C'), axis=2)
+            step2 = np.sum(np.reshape(step1, s2_size, 'F'), axis=2)
 
-            Y, X = numpy.indices(step2.shape)
-            SEL = (numpy.sqrt((X-self._x_c)**2 + (Y-self._y_c)**2) <= self.osr)\
+            Y, X = np.indices(step2.shape)
+            SEL = (np.sqrt((X-self._x_c)**2 + (Y-self._y_c)**2) <= self.osr)\
                 &((X-self.osr+x_n)>=0)&((X-self.osr+x_n)<self._size[1])\
                 &((Y-self.osr+y_n)>=0)&((Y-self.osr+y_n)<self._size[0])
 
@@ -302,8 +311,8 @@ class Moffat:
 
 
         ## return requested output
-        if (self.sparse or self.maxrad != numpy.inf):
-            Y, X = numpy.indices(self._size)
+        if (self.sparse or self.maxrad != np.inf):
+            Y, X = np.indices(self._size)
 
             _valid   = (self.array.flatten()!=0.)
             profdata = (self.array.flatten()[_valid], (Y.flatten()[_valid]+ys,
@@ -315,7 +324,7 @@ class Moffat:
                 else:
                     return profdata
             else:
-                return numpy.array(sparse.coo_matrix(\
+                return np.array(sparse.coo_matrix(\
                         profdata, shape=self.size).todense())
 
         else:
@@ -325,15 +334,15 @@ class Moffat:
 
     def _draw(self, y, x): ## changed x & y to "correct" numpy axis-swapping 
         """
-        method to fill array with profile, called via numpy.fromfunction
+        method to fill array with profile, called via np.fromfunction
         """
-        u =(x-self._x_c)*math.sin(self.theta)-(y-self._y_c)*math.cos(self.theta)
-        v =(y-self._y_c)*math.sin(self.theta)+(x-self._x_c)*math.cos(self.theta)
+        u =(x-self._x_c)*np.sin(self.theta)-(y-self._y_c)*np.cos(self.theta)
+        v =(y-self._y_c)*np.sin(self.theta)+(x-self._x_c)*np.cos(self.theta)
 
-        r = numpy.sqrt(u**2 + (v/(1. - self.e))**2)
+        r = np.sqrt(u**2 + (v/(1. - self.e))**2)
 
-        return numpy.where(r>self.maxrad, 
-                           0, self.sigma_0*(1. + (r/self.r_d)**2)**(-self.beta))
+        return np.where(r>self.maxrad, 
+                        0, self.sigma_0*(1. + (r/self.r_d)**2)**(-self.beta))
 
 
 
@@ -396,7 +405,7 @@ class Sersic:
             self.osf = osfactor
 
         self._get_kappa()
-        self._sigma_e = 1./(2*math.pi*(r_e**2)*math.exp(self.kappa)*n*
+        self._sigma_e = 1./(2*np.pi*(r_e**2)*np.exp(self.kappa)*n*
                             (self.kappa)**(-2.*n)*special.gamma(2.*n)*(1.-e))
 
         
@@ -420,12 +429,12 @@ class Sersic:
                     
     def __gammainc(self, x):
         f  = special.gammainc(2*self.n, x) - 0.5
-        df = (math.exp(-x) * x**(2.*self.n - 1.))/special.gamma(2.*self.n)
+        df = (np.exp(-x) * x**(2.*self.n - 1.))/special.gamma(2.*self.n)
         return (f, df)
 
 
 
-    def __call__(self, size, x_c, y_c, mag, maxrad=numpy.inf,
+    def __call__(self, size, x_c, y_c, mag, maxrad=np.inf,
                  return_sparse=False, as_sparse_matrix=True):
         """
         A function call is used to actually fill an array of given size. The
@@ -486,8 +495,8 @@ class Sersic:
 
         ## select sub-array around profile center (if requested)
         if self.maxrad != None:
-            xdef = abs(numpy.arange(self.size[1])-self.x_c)<=self.maxrad
-            ydef = abs(numpy.arange(self.size[0])-self.y_c)<=self.maxrad
+            xdef = abs(np.arange(self.size[1])-self.x_c)<=self.maxrad
+            ydef = abs(np.arange(self.size[0])-self.y_c)<=self.maxrad
 
             xs = xdef.argmax()
             ys = ydef.argmax()
@@ -505,7 +514,7 @@ class Sersic:
         self._y_c  = self.y_c - ys
 
         ##  calculate profile
-        self.array =numpy.fromfunction(self._draw, self._size, dtype='float32')
+        self.array =np.fromfunction(self._draw, self._size, dtype='float32')
 
         if self.osf != 1: ## take care of oversampling region
             csize = ((2*self.osr+1)*self.osf, (2*self.osr+1)*self.osf)
@@ -528,7 +537,7 @@ class Sersic:
             self.maxrad *= self.osf
 
             ## calculate profile
-            carray = numpy.fromfunction(self._draw, csize, dtype='float32')
+            carray = np.fromfunction(self._draw, csize, dtype='float32')
 
             ## undo changes to shape parameters
             self.r_e /= self.osf
@@ -538,16 +547,16 @@ class Sersic:
             ## resample and insert
             s1_size = (2*self.osr+1, (2*self.osr+1)*self.osf, self.osf)
             s2_size = (2*self.osr+1, 2*self.osr+1, self.osf)
-            step1 = numpy.sum(numpy.reshape(carray, s1_size, 'C'), axis=2)
-            step2 = numpy.sum(numpy.reshape(step1, s2_size, 'F'), axis=2)
+            step1 = np.sum(np.reshape(carray, s1_size, 'C'), axis=2)
+            step2 = np.sum(np.reshape(step1, s2_size, 'F'), axis=2)
 
             self.array = paste_area(step2, self._size, (self.osr, self.osr),
                                     (x_n, y_n), out_array=self.array)
 
 
         ## return requested output
-        if (self.sparse or self.maxrad != numpy.inf):
-            Y, X = numpy.indices(self._size)
+        if (self.sparse or self.maxrad != np.inf):
+            Y, X = np.indices(self._size)
 
             _valid   = (self.array.flatten()!=0.)
             profdata = (self.array.flatten()[_valid], (Y.flatten()[_valid]+ys,
@@ -559,7 +568,7 @@ class Sersic:
                 else:
                     return profdata
             else:
-                return numpy.array(sparse.coo_matrix(\
+                return np.array(sparse.coo_matrix(\
                         profdata, shape=self.size).todense())
 
         else:
@@ -571,15 +580,15 @@ class Sersic:
         """
         method to fill array with profile, called via numpy.fromfunction
         """
-        u =(x-self._x_c)*math.sin(self.theta)-(y-self._y_c)*math.cos(self.theta)
-        v =(y-self._y_c)*math.sin(self.theta)+(x-self._x_c)*math.cos(self.theta)
+        u =(x-self._x_c)*np.sin(self.theta)-(y-self._y_c)*np.cos(self.theta)
+        v =(y-self._y_c)*np.sin(self.theta)+(x-self._x_c)*np.cos(self.theta)
 
-        r = numpy.sqrt(u**2 + (v/(1. - self.e))**2)
+        r = np.sqrt(u**2 + (v/(1. - self.e))**2)
 
-        return numpy.where(\
+        return np.where(\
             r>self.maxrad, 
             0,
-            self.sigma_e*numpy.exp(-self.kappa*((r/self.r_e)**(1/self.n)-1)))
+            self.sigma_e*np.exp(-self.kappa*((r/self.r_e)**(1/self.n)-1)))
 
 
 
@@ -639,17 +648,17 @@ class Gaussian:
     ## The standard deviation
     @property
     def std(self):
-        return self.fwhm / math.sqrt(8.*math.log(2.))
+        return self.fwhm / np.sqrt(8.*np.log(2.))
                
  
     ## The central surface brightness for mag=0 (i.e. flux=1)
     @property
     def _sigma_0(self):
-        return 1./(2.*math.pi*(self.std**2)*(1.-self.e))
+        return 1./(2.*np.pi*(self.std**2)*(1.-self.e))
 
 
 
-    def __call__(self, size, x_c, y_c, mag, maxrad=numpy.inf,
+    def __call__(self, size, x_c, y_c, mag, maxrad=np.inf,
                  return_sparse=False, as_sparse_matrix=True):
         """
         A function call is used to actually fill an array of given size. The
@@ -709,8 +718,8 @@ class Gaussian:
 
         ## select sub-array around profile center (if requested)
         if self.maxrad != None:
-            xdef = abs(numpy.arange(self.size[1])-self.x_c)<=self.maxrad
-            ydef = abs(numpy.arange(self.size[0])-self.y_c)<=self.maxrad
+            xdef = abs(np.arange(self.size[1])-self.x_c)<=self.maxrad
+            ydef = abs(np.arange(self.size[0])-self.y_c)<=self.maxrad
 
             xs = xdef.argmax()
             ys = ydef.argmax()
@@ -730,7 +739,7 @@ class Gaussian:
 
 
         ##  calculate profile
-        self.array = numpy.fromfunction(self._draw, self._size, dtype='float32')
+        self.array = np.fromfunction(self._draw, self._size, dtype='float32')
 
         if self.osf != 1: ## take care of oversampling region
             csize = ((2*self.osr+1)*self.osf, (2*self.osr+1)*self.osf)
@@ -754,7 +763,7 @@ class Gaussian:
             self.maxrad *= self.osf
 
             ##  calculate profile
-            carray = numpy.fromfunction(self._draw, csize, dtype='float32')
+            carray = np.fromfunction(self._draw, csize, dtype='float32')
             
             ## undo changes on shape parameters
             self.std /= self.osf
@@ -764,16 +773,16 @@ class Gaussian:
             ## resample and insert profile
             s1_size = (2*self.osr+1, (2*self.osr+1)*self.osf, self.osf)
             s2_size = (2*self.osr+1, 2*self.osr+1, self.osf)
-            step1 = numpy.sum(numpy.reshape(carray, s1_size, 'C'), axis=2)
-            step2 = numpy.sum(numpy.reshape(step1, s2_size, 'F'), axis=2)
+            step1 = np.sum(np.reshape(carray, s1_size, 'C'), axis=2)
+            step2 = np.sum(np.reshape(step1, s2_size, 'F'), axis=2)
         
             self.array = paste_area(step2, self._size, (self.osr, self.osr),
                                     (x_n, y_n), out_array=self.array)
             
 
         ## return requested output
-        if (self.sparse or self.maxrad != numpy.inf):
-            Y, X = numpy.indices(self._size)
+        if (self.sparse or self.maxrad != np.inf):
+            Y, X = np.indices(self._size)
 
             _valid   = (self.array.flatten()!=0.)
 
@@ -786,7 +795,7 @@ class Gaussian:
                 else:
                     return profdata
             else:
-                return numpy.array(sparse.coo_matrix(\
+                return np.array(sparse.coo_matrix(\
                         profdata, shape=self.size).todense())
 
         else:
@@ -796,14 +805,14 @@ class Gaussian:
 
     def _draw(self, y, x):
         """
-        method to fill array with profile, called via numpy.fromfunction
+        method to fill array with profile, called via np.fromfunction
         """
-        u =(x-self._x_c)*math.sin(self.theta)-(y-self._y_c)*math.cos(self.theta)
-        v =(y-self._y_c)*math.sin(self.theta)+(x-self._x_c)*math.cos(self.theta)
+        u =(x-self._x_c)*np.sin(self.theta)-(y-self._y_c)*np.cos(self.theta)
+        v =(y-self._y_c)*np.sin(self.theta)+(x-self._x_c)*np.cos(self.theta)
 
-        r = numpy.sqrt(u**2 + (v/(1. - self.e))**2)
+        r = np.sqrt(u**2 + (v/(1. - self.e))**2)
 
-        return numpy.where(r>self.maxrad,
-                           0.,
-                           self.sigma_0*numpy.exp(-(r**2)/(2.*(self.std**2)))
+        return np.where(r>self.maxrad,
+                        0.,
+                        self.sigma_0*np.exp(-(r**2)/(2.*(self.std**2)))
                            )
