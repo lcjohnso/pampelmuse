@@ -33,9 +33,12 @@ v0.2.0.0, 2012/01/30, modified code so that it can handle the updated
                       positions are handled. Also started adding possibility
                       to fit individual source position. This is not working
                       yet.
+v0.2.0.1, 2012/02/01, not usign the `fitRad'-variable anymore since in certain
+                      situation is caused an unstable behavior of the routine.
+                      The `psfRad'-variable is used for all fits instead. 
 """
 __author__  = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.2.0.0"
+__version__ = "0.2.0.1"
 
 import logging, os, sys, time
 import numpy as np, pyfits
@@ -270,9 +273,9 @@ class StarFit(FittingGui):
         
 
 
-    def __call__(self, fitRad, Ntrack=10, lastFitIndex=None, asSmallIFU=False,
-                 returnModel=False, returnResiduals=False, prefix=None,
-                 clip=5.):
+    def __call__(self, fitRad=None, Ntrack=10, lastFitIndex=None,
+                 asSmallIFU=False, returnModel=False, returnResiduals=False,
+                 prefix=None, clip=5.):
         """
         Execute the fitting process. For each image of the datacube, the 
         following steps are performed:
@@ -286,7 +289,7 @@ class StarFit(FittingGui):
         Parameters
         ----------
         fitRad : float
-            The radius within which the PSF is fitted to a source
+            The radius within which the PSF is fitted to a source. DEPRECATED!
         Ntrack :  integer, optional
             In case the PSF and/or the source positions are fitted, the 
             routine will update the initial guesses of the fitted 
@@ -326,7 +329,10 @@ class StarFit(FittingGui):
 
         self.clip    = clip    ## efficiency of bad pixel masking
 
-        self.fitRad  = fitRad
+        if fitRad != None:
+            logging.warning("The `fitRad'-variable is not used anymore.")
+            logging.warning("Using `psfRad' instead to define fit regions.")
+##             self.fitRad  = fitRad
 
         if lastFitIndex == None:
             self.i = 0    ## iterator over all images
@@ -428,10 +434,10 @@ class StarFit(FittingGui):
             ## create model matrix
             self.Apsf = self.fillMatrix(radius=self.psfRad)
             ## create fit matrix
-            self.Afit = self.fillMatrix(radius=self.fitRad)
+##             self.Afit = self.fillMatrix(radius=self.fitRad)
 
             ## initial fit of fluxes
-            bestFit = lsqr(self.Afit, self.current)
+            bestFit = lsqr(self.Apsf, self.current)
             
             self.spectra[:,self.jj] += bestFit[0]
             logging.debug("[@{0}] Chi**2 of initial fit: {1:.1f}".format(\
@@ -450,10 +456,10 @@ class StarFit(FittingGui):
 
         ## (re)calculate matrices 
         self.Apsf = self.fillMatrix(radius=self.psfRad)
-        self.Afit = self.fillMatrix(radius=self.fitRad)
+##         self.Afit = self.fillMatrix(radius=self.fitRad)
 
         ##  fit
-        bestFit = lsqr(self.Afit, self.current)
+        bestFit = lsqr(self.Apsf, self.current)
         self.spectra[:,self.jj] += bestFit[0]
         logging.debug("[@{0}] Chi**2 of final fit: {1:.1f}".format(\
                 self.jj, bestFit[4]**2))
@@ -771,7 +777,7 @@ class StarFit(FittingGui):
         thePSF   = self.makePSF(psfPars[2:-1])
 
         psfArray = thePSF(size=self.spatShape, x_c=psfPars[0],
-                          y_c=psfPars[1], mag=0., maxrad=self.fitRad,
+                          y_c=psfPars[1], mag=0., maxrad=self.psfRad,
                           return_sparse=True, as_sparse_matrix=False)
 
         psfIndices = psfArray[1][1] + self.spatShape[1]*psfArray[1][0]
