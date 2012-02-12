@@ -25,6 +25,7 @@ v0.2.0.0 -2012/01/29 - replaced posfit-module with updateprm-module. Since
                        the structure of the prm-file has been modified. Old
                        prm-files can be updated using the updateprm-module.
 v0.2.0.1 -2012/02/12 - slightly modified formatting of the logging-messages.
+v0.2.1.1 -2012/02/12 - fixed bug in format-string of logging-messages.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
 __version__ = "0.2.0.1"
@@ -233,7 +234,7 @@ LOGLEVELS   = {0:logging.CRITICAL,
                2:logging.WARNING,
                3:logging.INFO,
                4:logging.DEBUG}
-logging.basicConfig(format="%(asctime)s%[(levelname)-8s]: %(message)s",
+logging.basicConfig(format="%(asctime)s[%(levelname)-8s]: %(message)s",
                     datefmt='%m/%d/%Y %H:%M:%S',
                     level=LOGLEVELS[args.config["VERBOSE"]])
     
