@@ -36,9 +36,16 @@ CHANGELOG
                       secondary is increased and a warning message is logged.
 2012/01/30, v0.3.0.0, updated the code to produce PRM-files in agreement with
                       the new structure.
+2012/02/03, v0.3.0.1, changed the documentation a bit.
+2012/02/12, v0.3.1.2, few bugfixes in method `storeSourceCat': instead of
+                      self.selectedSources, selectedSources was used in
+                      several lines; fixed that code crashed occasionally since
+                      some sources had non-existing primary components.
+                      Made usage of method `storePSF' more convenient in case
+                      that PSF is not wavelength-dependent.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.3.0.0"
+__version__ = "0.3.1.2"
 import datetime, logging, pyfits, os
 import numpy as np
 
@@ -119,31 +126,39 @@ class StoreParam:
                 prim = np.where(self.selectedSources['id']==primary)[0]
                 if prim.size > 0:
                     j = prim[0]
-                    self.selectedSources['primary'][i]\
-                        = self.selectedSources['primary'][j]
+
+                    newPrim = self.selectedSources['primary'][j]
+                    if np.where(self.selectedSources['id']==newPrim)[0].size>0:
+                        self.selectedSources['primary'][i]\
+                            = self.selectedSources['primary'][j]
                 else:
                     logging.warn(\
                         "Source #{0} is secondary,".format(secondary)+\
                             "but primary [#{0}] is missing".format(primary))
                     self.selectedSources['status'][i] = 2
+                    self.selectedSources['primary'][i] = secondary
+
 
         ## match sources in the two lists
         self.selector = [np.where(self.sourceList['id']==i)[0][0] \
-                             for i in selectedSources['id']]
+                             for i in self.selectedSources['id']]
 
         ## prepare column 'SPECROW':
         ## get ID of 'primary' component for each source with 'status'=1
-        priCompID  = selectedSources['primary'][selectedSources['status']==1]
-        ## get the positions of the 'primary' components 
-        priCompPos = [np.where(selectedSources['id']==i)[0][0] \
-                        for i in priCompID]
+        priCompID = self.selectedSources['primary'][\
+            self.selectedSources['status']==1]
+        ## get the positions of the 'primary' components
+        priCompPos = [np.where(self.selectedSources['id']==i)[0][0] \
+                         for i in priCompID]
         ## assign a new row to each independent source
-        self.specrow = np.cumsum(selectedSources['status']>1) - 1
+        self.specrow = np.cumsum(self.selectedSources['status']>1) - 1
         ## assign an existing row to each dependent source
-        self.specrow[selectedSources['status']==1] = self.specrow[priCompPos]
+        self.specrow[self.selectedSources['status']==1] \
+            = self.specrow[priCompPos]
         ## assign common row to all unresolved sources
-        if (selectedSources['status']==0).any():
-            self.specrow[selectedSources['status']==0] = self.specrow.max()+1
+        if (self.selectedSources['status']==0).any():
+            self.specrow[self.selectedSources['status']==0] \
+                = self.specrow.max()+1
 
         self.sourceCat = pyfits.ColDefs(\
             [pyfits.Column(name='id', format='J',
@@ -173,25 +188,30 @@ class StoreParam:
         self.includeUnres = (selectedSources['status']==0).any()
 
 
-    def  storeSourceSpec(self, inputSpectra, magZ, spatPix=256):
+    def  storeSourceSpec(self, inputSpectra, magZ=None, spatPix=None):
         """
         create a FITS image to hold all the spectra that are used in
         the analysis.
+
+        Note: Older versions used the set of provided spectra to infer the
+              spectra of sources without own spectrum. Since version 0.2.1.1
+              this behavior was changed.
 
         Parameters
         ----------
         inputSpectra : numpy_record_array
             A catalog of sources whose spectra have been measured, e.g via
-            aperture spectrophotometry. The structured array must contain
-            fields named 'id' and 'spectrum'.
-        magZ : float, optional
+            aperture spectrophotometry. It can also be an empty array in which
+            case all spectra are assigned a continuum based on their magnitude.
+            If not empty, it must contain fields named 'id' and 'spectrum'.
+        magZ : float ## , optional
             The magnitude zeropoint of the observation, defined here as the
             magnitude of a source whose spectrum has a mean flux of 1.
 ##             If  none is given, it is calculated from the provided spectra.
 ##        includeSky : boolean, optional
 ##            Whether or not a sky spectrum should be included.  If True, the
 ##            routine searches the catalog `InputSpectra' for a source with ID
-##            -1.
+##            -1. If none is found, the sky spectrum will be zero. DEPRECATED.
         spatPix : integer, optional
             The number of spatial pixels in the datacube. This number is
             used  to scale the spectrum of the unresolved component (if
@@ -221,8 +241,15 @@ class StoreParam:
 ##         else:
 ##             magZmean = magZ
 
-        self.priHDU.header.update("MAGZ", magZ,
-                                  "Estimated magnitude zeropoint")
+        if magZ == None:
+            logging.warning("No magnitude zeropoint provided.")
+            logging.warning("Source spectra will be empty unless provided.")
+            self.priHDU.header.update("MAGZ", "None",
+                                      "Estimated magnitude zeropoint")
+        else:
+            self.priHDU.header.update("MAGZ", magZ,
+                                      "Estimated magnitude zeropoint")
+
 
 ##         ## calculate mean of provided source spectra
 ##         meanSpectrum = inputSpectra['spectrum'][ii].mean(axis=0)
@@ -250,6 +277,9 @@ class StoreParam:
             ## spectrum must be inferred
             elif self.selectedSources['status'][i] >= 0:
 
+                if magZ == None:
+                    continue
+
                 mag_i = self.sourceList['mag'][self.selector][i]
                 meanFlux = 10**(-0.4*(mag_i-magZ))
 
@@ -266,8 +296,12 @@ class StoreParam:
 
 
         if self.includeUnres:
-            unresFlux /= spatPix
-            specData[-1] = unresFlux ## *meanSpectrum
+            if spatPix != None and magZ != None:
+                unresFlux /= spatPix
+                specData[-1] = unresFlux ## *meanSpectrum
+            else:
+                logging.warning("Cannot estimate spectrum of unresolved stars.")
+                logging.warning("Either `magZ' or `spatPix' is undefined.")
 
         ##  create HDUs to hold the spectra
         self.addImaHDU(data=specData, extname='SPECTRA', crpix1=1,
@@ -348,17 +382,22 @@ class StoreParam:
         nPars = len(psfPars.dtype.names)
         nDim  = int(psfPars.size)
 
+        if nDim == 1:
+            vFormat = "E"
+            vData   = np.zeros((nPars,))
+        else:
+            vFormat = "{0}E".format(nDim)
+            vData   = np.zeros((nPars, nDim))
+
         outData = pyfits.new_table([\
                 pyfits.Column(name="name", format="10A",
                               array=np.zeros((nPars,))),
-                pyfits.Column(name="value", format="{0}E".format(nDim),
-                              array=np.zeros((nPars, nDim))),
+                pyfits.Column(name="value", format=vFormat, array=vData),
                 pyfits.Column(name="freepar", format="L",
                               array=np.zeros((nPars,))),
                 pyfits.Column(name="isfitted", format="L",
                               array=np.zeros((nPars,))),
-                pyfits.Column(name="polyfit", format="{0}E".format(nDim),
-                              array=np.zeros((nPars, nDim)))
+                pyfits.Column(name="polyfit", format=vFormat, array=vData)
                 ])
 
         i = 0

@@ -24,10 +24,10 @@ v0.2.0.0 -2012/01/29 - replaced posfit-module with updateprm-module. Since
                        on the source coordinates instead. To implement this,
                        the structure of the prm-file has been modified. Old
                        prm-files can be updated using the updateprm-module.
-                       
+v0.2.0.1 -2012/02/12 - slightly modified formatting of the logging-messages.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.2.0.0"
+__version__ = "0.2.0.1"
 
 import argparse, logging, os, re, sys
 import pyfits
@@ -233,7 +233,7 @@ LOGLEVELS   = {0:logging.CRITICAL,
                2:logging.WARNING,
                3:logging.INFO,
                4:logging.DEBUG}
-logging.basicConfig(format="%(asctime)s:%(levelname)s - %(message)s",
+logging.basicConfig(format="%(asctime)s%[(levelname)-8s]: %(message)s",
                     datefmt='%m/%d/%Y %H:%M:%S',
                     level=LOGLEVELS[args.config["VERBOSE"]])
     
