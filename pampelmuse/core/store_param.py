@@ -43,9 +43,11 @@ CHANGELOG
                       some sources had non-existing primary components.
                       Made usage of method `storePSF' more convenient in case
                       that PSF is not wavelength-dependent.
+2012/02/13, v0.3.1.3, added default values for parameters `wlStart' and
+                      `wlStep' to make them optional rather than mandatory.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.3.1.2"
+__version__ = "0.3.1.3"
 import datetime, logging, pyfits, os
 import numpy as np
 
@@ -57,7 +59,7 @@ class StoreParam:
     the input for the PampelMuse-FITCUBE routine. It is usually called by
     the INITFIT-routine.
     """
-    def __init__(self, sourceList, wlStart, wlStep, specPix):
+    def __init__(self, sourceList, specPix, wlStart=1, wlStep=1):
         """
         Initialize an instance of the `StoreParam'-class.
 
@@ -67,9 +69,11 @@ class StoreParam:
             The catalog containing the sources in the field. The structured
             array must contain fields named 'id', 'x', 'y' and 'mag'. The sky
             (if any) should have ID -1.
-        wlStart : float
+        specpix : int
+            The no. of pixels along the dispersion axis.
+        wlStart : float, optional
             The wavelength of the first image of the datacube.
-        wlStep : float
+        wlStep : float, optional
             The dispersion of the datacube.
         """
         self.sourceList = sourceList
