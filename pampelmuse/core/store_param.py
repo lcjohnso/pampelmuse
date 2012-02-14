@@ -45,9 +45,11 @@ CHANGELOG
                       that PSF is not wavelength-dependent.
 2012/02/13, v0.3.1.3, added default values for parameters `wlStart' and
                       `wlStep' to make them optional rather than mandatory.
+2012/02/13, v0.3.2.3, modified `storeSourceSpec'-method to avoid that code
+                      crashes if no spectra are provided (but sky included).
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.3.1.3"
+__version__ = "0.3.2.3"
 import datetime, logging, pyfits, os
 import numpy as np
 
@@ -267,6 +269,9 @@ class StoreParam:
             
             ## source has own spectrum
             if self.selectedSources['status'][i] >= 3:
+
+                if len(inputSpectra) == 0:
+                    continue
 
                 if not self.selectedSources['id'][i] in inputSpectra['id']:
                     continue

@@ -51,6 +51,7 @@ def cubefit(arguments):
     smallIFU = arguments.config["SMALLIFU"]               ##
     dobackup = arguments.config["DOBACKUP"]               ##
     storeRes = arguments.config["STORERES"]               ##
+    jumpStart= arguments.config["JUMPSTART"]              ##
     ########################################################
 
 
@@ -255,7 +256,7 @@ def cubefit(arguments):
                       psfRad=psfRad)
         
     fitter(fitRad=fitRad, lastFitIndex=lastFitIndex, asSmallIFU=smallIFU,
-           returnResiduals=storeRes, prefix=prefix)
+           returnResiduals=storeRes, prefix=prefix, jumpStart=jumpStart)
 
     app.exec_()
 

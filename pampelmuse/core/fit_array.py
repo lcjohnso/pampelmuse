@@ -36,6 +36,8 @@ v0.2.0.0, 2012/01/30, modified code so that it can handle the updated
 v0.2.0.1, 2012/02/01, not usign the `fitRad'-variable anymore since in certain
                       situation is caused an unstable behavior of the routine.
                       The `psfRad'-variable is used for all fits instead. 
+v0.2.0.2, 2012/02/13, added parameter `jumpStart' to allow starting a fit
+                      remotely.
 """
 __author__  = "Sebastian Kamann (skamann@aip.de)"
 __version__ = "0.2.0.1"
@@ -275,7 +277,7 @@ class StarFit(FittingGui):
 
     def __call__(self, fitRad=None, Ntrack=10, lastFitIndex=None,
                  asSmallIFU=False, returnModel=False, returnResiduals=False,
-                 prefix=None, clip=5.):
+                 prefix=None, clip=5., jumpStart=False):
         """
         Execute the fitting process. For each image of the datacube, the 
         following steps are performed:
@@ -319,6 +321,9 @@ class StarFit(FittingGui):
             All pixels whose values devite by more than `clip' times SIGMA are
             masked. SIGMA is the standard deviation of the residuals between
             model and data. Not implemented yet.
+        jumpStart : boolean, optional
+            In case the fit should start directly (i.e. without pressing
+            `START'-button), enable this flag.
         """
         self.makeMod = max(returnModel, returnResiduals) ## create model array
         self.makeRes = returnResiduals                   ## and residuals?
@@ -356,6 +361,8 @@ class StarFit(FittingGui):
 
         self.show() ## start GUI that controls fitting process
 
+        if jumpStart:
+            self.startIt()
 
     
     def timeout(self):
