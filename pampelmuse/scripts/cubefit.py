@@ -24,15 +24,21 @@ CHANGELOG
 2012/01/31, v0.2.0.1, slight changes wrt. logging. 
 2012/01/31, v0.2.1.1, fixed bug that code crashed when trying to overwrite an
                       existing residual cube.
+2012/02/28, v0.3.0.0, significantly restructured/shortened the routine by
+                      introducing dedicated classes to handle PSF and
+                      source posistions [usage of class `Spectra' TBD]
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.2.1.1"
+__version__ = "0.3.0.0"
 import logging, os, sys
 import numpy as np, pyfits
 from PyQt4 import QtCore, QtGui
 
 ## required PampelMuse-packages
 from pampelmuse.core.fit_array import StarFit
+from pampelmuse.core.psf import PSF
+from pampelmuse.core.positions import Positions
+## from pampemuse.core.spectra import Spectra
 
 def cubefit(arguments):
 
@@ -44,10 +50,6 @@ def cubefit(arguments):
     prefix   = arguments.prefix                           ##
     fitRad   = arguments.config["FITRAD"]                 ##
     psfRad   = arguments.config["PSFRAD"]                 ##
-##     posfit   = arguments.config["POSFIT"]                 ##
-##     psfType  = arguments.config["PSFTYPE"]                ##
-##     psfInit  = arguments.config["PSFPARS"]                ##
-##     psfFit   = arguments.config["PSFFIT"]                 ##
     smallIFU = arguments.config["SMALLIFU"]               ##
     dobackup = arguments.config["DOBACKUP"]               ##
     storeRes = arguments.config["STORERES"]               ##
@@ -56,6 +58,7 @@ def cubefit(arguments):
 
 
     ## open PRM-file, get no. of sources
+    logging.info("Reading PampelMuse-file: {0}.prm.fits".format(prefix))
     prmFile  = pyfits.open("{0}.prm.fits".format(prefix))
     extNames = [prmFile[i].name for i in xrange(len(prmFile))]
 
@@ -77,143 +80,66 @@ def cubefit(arguments):
 
     ## CREATE ARRAYS THAT CONTAIN PARAMETERS USED IN THE FIT
     ## Collect information about sources
-    srcList = np.array(prmFile['SOURCES'].data,
-                       dtype=prmFile['SOURCES'].data.dtype)
+    logging.info("Reading 'SOURCES' HDU.")
+    srcList   = np.array(prmFile['SOURCES'].data,
+                         dtype=prmFile['SOURCES'].data.dtype)
+    positions = Positions(prmFile["SOURCES"], hdu=True)
 
     if "POSITIONS" in extNames:
-        logging.info("Using IFU pixel coordinates from 'POSITIONS' HDU.")
-        logging.info("Ignoring coordinate transformation (HDU 'POSPARS').")
-        ifuCoords = prmFile["Positions"].data
-    else:
-        logging.info("PRM-file does not contain HDU named 'POSITIONS'.")
-        logging.info("Using coordinate transformation from 'POSPARS' HDU.")
-        ifuCoords = None
+        logging.info("Reading 'POSITIONS' HDU.")
+
+        positions.loadIfuCoords(prmFile["POSITIONS"], hdu=True)
+
+    elif (srcList['status']==3).any():
+        logging.info("Preparing IFU coordinates for PSF sources.")
+
+        isPSFsource = srcList['status']==3
+        ifuData = np.zeros((2, isPSFsource.sum(), Ndsp), dtype=np.float32)
+        ifuData[0] = srcList["x"][isPSFsource]
+        ifuData[1] = srcList["y"][isPSFsource]
+
+        positions.loadIfuCoords(data=ifuData, ids=srcList['id'][isPSFsource],
+                                freepar=True, isfitted=False)
+
 
     ## collect the  spectra
+    logging.info("Reading 'SPECTRA' HDU.")
     spcList = prmFile['SPECTRA'].data
     
+
     ## check if uncertainties associated with spectra are available:
     if "SIGMASPC" in extNames:
+        logging.info("Reading 'SIGMASPC' HDU.")
         spcSigmaList = prmFile['SIGMASPC'].data
     else:
         spcSigmaList = None
 
 
-    ## Collect information about coordinate transformation    
-    ## Required parameters for the coordinate transformation ######
-##     requiredPars = ['A','B','C','D']                             ##
-    ###############################################################
-
-##     isfitted = np.array(4*[False])
-##     if posfit in [1,2]: isfitted[2:] = True
-##     if posfit == 2:     isfitted[:2] = True
-
-    if 'POSPARS' in extNames and ifuCoords == None: ## check if HDU exists
-
-        posPars = np.zeros(prmFile['POSPARS'].data.size,
-                           dtype=[('name', '|S8'),
-                                  ('value', np.float32, (Ndsp,)),
-                                  ('fit', np.bool)])
-
-        ## Perform validation of provided data
-        if posPars['value'].shape[1] != Ndsp:
-            logging.critical("Invalid shape of data in HDU 'PSFPARS'")
-
-        ## check which parameters to fit and if polynomial fits to
-        ## parameters are available
-        logging.info("Parameter  free?  polyfit?")
-        for i in xrange(posPars.size):
-
-            posPars['name'][i] = prmFile["POSPARS"].data.field("name")[i]
-            logString = " {0:8s}".format(posPars["name"][i])
-
-            if prmFile["POSPARS"].data.field("freepar")[i]:
-                logString += "   [x]"
-                if prmFile["POSPARS"].data.field("isfitted")[i]:
-                    logString += "       [x]"
-                    posPars["value"][i] \
-                        = prmFile["POSPARS"].data.field("polyfit")[i]
-                else:
-                    logString += "       [ ]"
-                    posPars["value"][i] \
-                        = prmFile["POSPARS"].data.field("value")[i]
-                    posPars["fit"][i] = True
-            else:
-                logString += "   [ ]       [ ]"
-                posPars["value"][i] = prmFile["POSPARS"].data.field("value")[i]
-
-            logging.info(logString)
+    if 'POSPARS' in extNames:
+        logging.info("Reading 'POSPARS' HDU.")
+        positions.readTransHDU(prmFile["POSPARS"], backup=dobackup)
+        positions.resizeStructure(size=Ndsp)
+        positions.makeParameters()
+        positions.info()
 
     else:
-        posPars = None
-        if ifuCoords == None:
-            logging.critical("No coord. transf. (HDU 'POSPARS') detected.")
+        logging.warning("No coord. transf. (HDU 'POSPARS') detected.")
 
 
     ## Collect information about PSF
-    ## PSF parameter definitions: ###################################
-##     psfProfiles = {'gauss':('fwhm', 'e', 'theta'),                 ##
-##                    'moffat':('beta', 'fwhm', 'e', 'theta')}        ##
-    #################################################################
-##     reqPars = psfProfiles[psfType]
-
-    ## check which PSF parameters should be fitted
-##     isfitted = np.zeros((len(reqPars),), dtype='bool')
-##     expTwo   = 2**np.arange(1, isfitted.size+1)
-##     for i in np.arange(isfitted.size+1,0,-1):
-##         if psfFit >= (expTwo[isfitted].sum()+2**i):
-##             isfitted[i-1] = True
-
+    psf = PSF()
     if "PSFPARS" in extNames: ##  check if HDU exists
-
-        psfType = prmFile["PSFPARS"].header["PSFTYPE"]
-        logging.info("Detected HDU 'PSFPARS'. Used PSF profile: {0}".format(\
-                psfType))
-
-        psfPars = np.zeros(prmFile['PSFPARS'].data.size,
-                           dtype=[('name', '|S8'),
-                                  ('value', np.float32, (Ndsp,)),
-                                  ('fit', np.bool)])
-
-        ## Perform validation of provided data
-        if psfPars['value'].shape[1] != Ndsp:
-            logging.critical("Invalid shape of data in HDU 'PSFPARS'")
-
-        ## check which parameters to fit and if polynomial fits to
-        ## parameters are available
-        logging.info("Parameter  free?  polyfit?")
-        for i in xrange(psfPars.size):
-
-            psfPars['name'][i] = prmFile["PSFPARS"].data.field("name")[i]
-            logString = " {0:8s}".format(psfPars["name"][i])
-
-            if prmFile["PSFPARS"].data.field("freepar")[i]:
-                logString += "   [x]"
-                if prmFile["PSFPARS"].data.field("isfitted")[i]:
-                    logString += "       [x]"
-                    psfPars["value"][i] \
-                        = prmFile["PSFPARS"].data.field("polyfit")[i]
-                else:
-                    logString += "       [ ]"
-                    psfPars["value"][i] \
-                        = prmFile["PSFPARS"].data.field("value")[i]
-                    psfPars["fit"][i] = True
-            else:
-                logString += "   [ ]       [ ]"
-                psfPars["value"][i] = prmFile["PSFPARS"].data.field("value")[i]
-
-            logging.info(logString)
+        logging.info("Reading 'PSFPARS' HDU.")
+        psf.readFitsHDU(prmFile["PSFPARS"])
 
     else: ## otherwise, assume Gaussian, round with FWHM=3.0pixel
         logging.warning("No HDU 'PSFPARS' found. Assuming Gaussian PSF.")
 
-        psfType = "gauss"
+        psf.makeNewPSF(profile="gauss", fwhm=3.0, e=0., theta=0.)
 
-        posPars = np.array([('fwhm', 3., True),('e', 0., False),
-                            ('theta', 0., False)],
-                           dtype=[('name', 'a1'),
-                                  ('value', 'f8', (Ndsp)),
-                                  ('freepar', 'b1')])
+    psf.info()
+    psf.resizeStructure(size=Ndsp)
+    psf.makeParameters()
 
 
     prmFile.close() ## finished reading source catalog.
@@ -249,11 +175,10 @@ def cubefit(arguments):
     fitter = StarFit(dataFits=dataFits[0], sigmaFits=sigmaFits[0],
                      maskFits=maskFits[0])
 
-    fitter.provideSources(sources=srcList, spectra=spcList, pixCoords=ifuCoords,
-                          coordTrans=posPars, specSigma=spcSigmaList)
+    fitter.provideSources(sources=srcList, spectra=spcList, positions=positions,
+                          specSigma=spcSigmaList)
 
-    fitter.providePSF(psfType=psfType, psfParameters=psfPars,
-                      psfRad=psfRad)
+    fitter.providePSF(psf=psf, psfRad=psfRad)
         
     fitter(fitRad=fitRad, lastFitIndex=lastFitIndex, asSmallIFU=smallIFU,
            returnResiduals=storeRes, prefix=prefix, jumpStart=jumpStart)
@@ -316,59 +241,31 @@ def cubefit(arguments):
     prmFile.insert(3, newSigmaHDU)
 
 
+    ## Store IFU coordinates (only if they have been fitted)
+    if positions.unsavedIfu:
+        if "POSITIONS" in extNames:
+            prmFile["POSITIONS"] = positions.makeIfuHDU()[0]
+        else:
+            prmFile.insert(4, positions.makeIfuHDU()[0])
+
+
     ## store coordinate transformation (only if it has been fitted)
-    if "POSPARS" in extNames and ifuCoords == None:
-        if fitter.coordTrans["fit"].any():
+    if positions.unsavedTrans:
+        if "POSPARS" in extNames:
+            prmFile["POSPARS"] = positions.makeTransHDU()
+        else:
+            prmFile.insert(5, positions.maskTransHDU()[0])
 
-            ## make back-up of existing values (if requested)
-            if dobackup and not "value_init" in prmFile["POSPARS"].data.names:
-                newCol = pyfits.Column(\
-                    name="value_init", format="{0}E".format(int(Ndsp)),
-                    array=np.zeros((prmFile["POSPARS"].data.size, Ndsp)))
-                newTable = pyfits.new_table([newCol])
-                fullTable= pyfits.new_table(\
-                    prmFile["POSPARS"].columns + newTable.columns)
-                fullTable.header.update("EXTNAME", "POSPARS")
-                prmFile["POSPARS"] = fullTable
-
-            ## store fit results
-            for i in xrange(fitter.coordTrans.size):
-                if fitter.coordTrans["fit"][i]:
-                    j = np.where(prmFile["POSPARS"].data.field("name")\
-                                     ==fitter.coordTrans["name"][i])[0][0]
-                    prmFile["POSPARS"].data.field("value")[j] \
-                        = fitter.coordTrans["value"][i]
-                    if dobackup:
-                        prmFile["POSPARS"].data.field("value_init")[j] \
-                            = np.copy(prmFile["POSPARS"].data.field("value")[i])
-            
 
     ## store PSF (only if it as been fitted)
-    if "PSFPARS" in extNames and fitter.psfPars["fit"].any():
-
-        ## make back-up of existing values (if requested)
-        if dobackup and not "value_init" in prmFile["PSFPARS"].data.names:
-            newCol = pyfits.Column(\
-                name="value_init", format="{0}E".format(int(Ndsp)),
-                array=np.zeros((prmFile["PSFPARS"].data.size, Ndsp)))
-            newTable = pyfits.new_table([newCol])
-            fullTable= pyfits.new_table(\
-                prmFile["PSFPARS"].columns + newTable.columns)
-            fullTable.header.update("EXTNAME", "PSFPARS")
-            prmFile["PSFPARS"] = fullTable
-
-        for i in xrange(fitter.psfPars.size):
-            if fitter.coordTrans["fit"][i]:
-                j = np.where(prmFile["PSFPARS"].data.field("name")\
-                                 ==fitter.psfPars["name"][i])[0][0]
-                prmFile["PSFPARS"].data.field("value")[j] \
-                    = fitter.psfPars["value"][i]
-                if dobackup:
-                    prmFile["PSFPARS"].data.field("value_init")[j] \
-                        = np.copy(prmFile["PSFPARS"].data.field("value")[i])
-
+    if psf.unsavedPSF:
+        if "PSFPARS" in extNames:
+            prmFile["PSFPARS"] = psf.makeFitsHDU()
+        else:
+            prmFile.insert(5, psf.makeFitsHDU())
 
     prmFile.close()
+
 
 
     if storeRes and fitter.i == Ndsp:

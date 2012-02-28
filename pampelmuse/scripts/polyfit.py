@@ -11,13 +11,17 @@ located in the `graphics'-folder.
 CHANGELOG
 ---------
 ... 2012/01/30, <v.0.2.0.0
-2012/12/30, v0.2.0.0, major updates to the InspectFitData-class so that
+2012/01/30, v0.2.0.0, major updates to the InspectFitData-class so that
                       the routine can handle the updated structure of the
                       PRM-files. This class is now located in a separate file
                       in the `graphics'-folder.
+2012/01/30, v0.3.0.0, again major updates in InspectFitData-class which was
+                      modified so that it now uses the dedicated classes `PSF',
+                      `Positions' and `Spectra'. Also included usage of the
+                      DOBACKUP-parameter.
 """
 __author__  = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.2.0.0"
+__version__ = "0.3.0.0"
 
 
 import logging, sys
@@ -37,10 +41,12 @@ def polyfit(arguments):
 
     ## List of required definitions: #######################
     prefix   = arguments.prefix                           ##
+    dobackup = arguments.config["DOBACKUP"]               ##
     ########################################################
 
     app  = QtGui.QApplication(sys.argv)
-    fitter = InspectFitData(fitsFile="{0}.prm.fits".format(prefix))
+    fitter = InspectFitData(fitsFile="{0}.prm.fits".format(prefix),
+                            dobackup=dobackup)
     fitter.show()
     app.exec_()
 

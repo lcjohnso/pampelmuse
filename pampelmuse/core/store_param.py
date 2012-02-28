@@ -94,7 +94,7 @@ class StoreParam:
         
 
         
-    def storeSourceCat(self, selectedSources):
+    def storeSourceCat(self, selectedSources, ifuCoords=False):
         """
         Create a FITS-table containing the all sources that will be
         considered during the fit.
@@ -166,14 +166,27 @@ class StoreParam:
             self.specrow[self.selectedSources['status']==0] \
                 = self.specrow.max()+1
 
+
+        if ifuCoords:
+            xyFormat = "{0}E".format(self.specPix)
+            xData    = self.sourceList['x'][self.selector][:,np.newaxis]\
+                *np.ones((self.specPix,), dtype=np.float32)
+            yData    = self.sourceList['y'][self.selector][:,np.newaxis]\
+                *np.ones((self.specPix,), dtype=np.float32)
+
+
+        else:
+            xyFormat = "E"
+            xData    = self.sourceList['x'][self.selector]
+            yData    = self.sourceList['y'][self.selector]
+
+
         self.sourceCat = pyfits.ColDefs(\
             [pyfits.Column(name='id', format='J',
                            array=selectedSources['id']),
-             pyfits.Column(name='x', format='E',
-                           array=self.sourceList['x'][self.selector]),
-             pyfits.Column(name='y', format='E',
-                           array=self.sourceList['y'][self.selector]),
-             pyfits.Column(name='mag', format='E',
+             pyfits.Column(name='x', format=xyFormat, array=xData),
+             pyfits.Column(name='y', format=xyFormat, array=yData),
+             pyfits.Column(name='mag', format="E",
                            array=self.sourceList['mag'][self.selector]),
              pyfits.Column(name='status', format='I',
                            array=selectedSources['status']),
