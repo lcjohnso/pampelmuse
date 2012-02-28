@@ -27,9 +27,11 @@ CHANGELOG
 2012/02/28, v0.3.0.0, significantly restructured/shortened the routine by
                       introducing dedicated classes to handle PSF and
                       source posistions [usage of class `Spectra' TBD]
+2012/02/28, v0.3.1.0, bugfix: HDU `INSIGMASPC' was refered to as `POSPARS' when
+                              saving fit results.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.3.0.0"
+__version__ = "0.3.1.0"
 import logging, os, sys
 import numpy as np, pyfits
 from PyQt4 import QtCore, QtGui
@@ -234,7 +236,7 @@ def cubefit(arguments):
         if 'INSIGMASPC' in extNames:
             prmFile.remove(prmFile['INSIGMASPC'])
         if 'SIGMASPC' in extNames:
-                prmFile['POSPARS'].header.update('EXTNAME', 'INSIGMASPC')
+                prmFile['SIGMASPC'].header.update('EXTNAME', 'INSIGMASPC')
     else:
         if 'SIGMASPC' in extNames:
             prmFile.remove(prmFile['SIGMASPC'])

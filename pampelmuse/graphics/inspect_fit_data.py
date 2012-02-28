@@ -14,9 +14,11 @@ CHANGELOG
                       structure of the PRM-files.
 2012/02/27, v0.3.0.0, modified the class to make use of new dedicated classes
                       for PSF, positions and spectra.
+2012/02/28, v0.3.0.1, small change when saving HDUs to make sure `INPOSITIONS'
+                      is inserted after `POSITIONS'.
 """
 __author__  = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.3.0.0"
+__version__ = "0.3.0.1"
 import logging, sys
 import numpy as np, pyfits
 from PyQt4 import QtCore, QtGui
@@ -558,6 +560,9 @@ class InspectFitData(QtGui.QMainWindow):
                     logging.info("Saving backup HDU 'INPOSITIONS'.")
                     if "INPOSITIONS" in self.extNames:
                         self.HDUList["INPOSITIONS"] = newInposHDU
+                    elif "POSITIONS" in self.extNames:
+                        self.HDUList.insert(\
+                            self.HDUList.index_of("POSITIONS")+1, newInposHDU)
                     else:
                         self.HDUList.insert(4, newInposHDU)
 

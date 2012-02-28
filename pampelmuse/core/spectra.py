@@ -10,9 +10,10 @@ spectra.
 CHANGELOG
 ---------
 2012/02/28, v0.1.0.0
+2012/02/28, v0.1.0.1, some minor changing about format of DEBUG-messages.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.1.0.0"
+__version__ = "0.1.0.1"
 
 import logging
 import numpy as np
@@ -86,17 +87,17 @@ class Spectra:
                 self.mag[ind] + 2.5*np.log10((10**(-0.4*self.mag[ind])).sum())
 
             ## only logging
-            logging.debug("{0:10d}".format(int(row)))
+            logString = "{0:10d}".format(int(row))
             j = 0
-            logString = " "
+
             for i in ind:
-                logString += "  {0} ({1:5.2f})".format(\
+                logString += "   {0} ({1:.2f})".format(\
                     int(self.ID[i]), float(self.weights[row][j]))
                 j +=1
-                if not np.mod(j, 5):
+                if not np.mod(j, 2):
                     logging.debug(logString)
-                    logString = " "
-            if np.mod(j, 5)>0: logging.debug(logString)
+                    logString = 10*" "
+            if np.mod(j, 2)>0: logging.debug(logString)
         
         self.hasUnres = (self.status==0).any()
         

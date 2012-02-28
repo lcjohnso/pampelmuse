@@ -39,12 +39,25 @@ def myLstsqSigma(A, b, sigma=None):
 
 
 def matchOnID(parent, child, assume_unique=False):
+    """
+    For each element in `children', return indix of element in `parent'.
 
+    Parameters
+    ----------
+    parent : array_like, 1dim.
+        The list that that is scanned
+    child : array_like, 1dim.
+        The list containing the entries that `parent' is scanned for.
+    assume_unique : boolean
+        Whether the entries of the two lists are unique.
+
+    Returns
+    -------
+    indices : nd_array
+        The index of every `child'-entry in the `parent' list (if found).
+    """
     indices = np.nonzero(np.in1d(parent, child, assume_unique=assume_unique))[0]
     
-##     if len(indices)<len(child):
-##         logging.error("Not all entries in child list are in parent list.")
-        
     return indices
 
 
@@ -892,7 +905,16 @@ class Positions(CoordinateTransformation):
         else:
             index = 1
 
+        if not forceTrans and self.ifuPolyfit != None and self.ifu != None:
+            ## need to change focus of ifuView-pointer to data, otherwise
+            ## polyfit is returned twice.
+            self.ifuView = self.ifu
+
         outData = self.getIfuCoords(ids=ID, forceTrans=forceTrans)
+
+        if not forceTrans and self.ifuPolyfit != None and self.ifu != None:
+            self.ifuView = self.ifuPolyfit
+
 
         if self.ifuPolyfit == None:
             return outData[index,0], None
@@ -951,6 +973,11 @@ class Positions(CoordinateTransformation):
             indices = matchOnID(parent=self.ID, child=ids,
                                 assume_unique=True)
 
+        if not forceTrans and self.ifuPolyfit != None and self.ifu != None:
+            ## need to change focus of ifuView-pointer to data, otherwise
+            ## polyfit is returned twice.
+            self.ifuView = self.ifu
+
         for i in xrange(indices.size):
 
             self.ifuPolyfit[index, indices[i]] = StepPolyFit(\
@@ -958,6 +985,9 @@ class Positions(CoordinateTransformation):
                 order=order, bins=bins, mask=mask)
             self.ifuIsfitted[index] = True
         
+        if not forceTrans and self.ifuPolyfit != None and self.ifu != None:
+            self.ifuView = self.ifuPolyfit
+
         self.unsavedIfu = True
         
 
