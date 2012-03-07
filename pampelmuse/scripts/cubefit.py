@@ -1,8 +1,8 @@
 """
 CUBEFIT
 =======
-The routine is a build around the main component of PampelMuse, namely
-the fit_cube-routine. It is called automatically if PampelMuse is started
+The routine is a build around the main component of PampelMuse, namely the
+fit_array.py-routine. It is called automatically if PampelMuse is started
 with the `FITCUBE' option. As input, it takes a dictionary containing the
 keywords and their values after PampelMuse was started.
 
@@ -27,12 +27,16 @@ CHANGELOG
 2012/02/28, v0.3.0.0, significantly restructured/shortened the routine by
                       introducing dedicated classes to handle PSF and
                       source posistions [usage of class `Spectra' TBD]
-2012/02/28, v0.3.1.0, bugfix: HDU `INSIGMASPC' was refered to as `POSPARS' when
-                              saving fit results.
+2012/02/28, v0.3.1.0, bugfix: HDU `INSIGMASPC' was refered to as `POSPARS'
+                              when saving fit results.
+2012/03/01, v0.3.1.1, Implemented usage of `Spectra'-class. Some HIERARCH-keys
+                      are now added to  the header of the PRM-file. Removed
+                      possibility to create residual cube, instead skript
+                      SUBTRES of PampelMuse can be used to do that.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.3.1.0"
-import logging, os, sys
+__version__ = "0.3.1.1"
+import datetime, logging, os, sys
 import numpy as np, pyfits
 from PyQt4 import QtCore, QtGui
 
@@ -40,7 +44,8 @@ from PyQt4 import QtCore, QtGui
 from pampelmuse.core.fit_array import StarFit
 from pampelmuse.core.psf import PSF
 from pampelmuse.core.positions import Positions
-## from pampemuse.core.spectra import Spectra
+from pampelmuse.core.spectra import Spectra
+
 
 def cubefit(arguments):
 
@@ -54,45 +59,50 @@ def cubefit(arguments):
     psfRad   = arguments.config["PSFRAD"]                 ##
     smallIFU = arguments.config["SMALLIFU"]               ##
     dobackup = arguments.config["DOBACKUP"]               ##
-    storeRes = arguments.config["STORERES"]               ##
+##     storeRes = arguments.config["STORERES"]               ##
     jumpStart= arguments.config["JUMPSTART"]              ##
     ########################################################
 
 
-    ## open PRM-file, get no. of sources
+    ## open PRM-file
     logging.info("Reading PampelMuse-file: {0}.prm.fits".format(prefix))
     prmFile  = pyfits.open("{0}.prm.fits".format(prefix))
     extNames = [prmFile[i].name for i in xrange(len(prmFile))]
 
-    Nsrc = prmFile['SOURCES'].header['NAXIS2'] ## no of sources
-    Ndsp = prmFile['SPECTRA'].header['NAXIS1'] ## no of spectral pixels
-    Nspc = prmFile['SPECTRA'].header['NAXIS2'] ## no of resolved components
-
     ## Check for previous PampelMuse-results
-    try:
-        lastFitIndex = prmFile[0].header['PMFITIND']
-        if lastFitIndex == Ndsp or lastFitIndex == "SUCCESS":
-            lastFitIndex = None
-    except KeyError:
+    try: fitStatus = prmFile[0].header['PAMPELMUSE CUBEFIT STATUS']
+    except KeyError: fitStatus = "NOT STARTED"
+    
+    if fitStatus == "STOPPED":
+        try: lastFitIndex = prmFile[0].header['PAMPELMUSE CUBEFIT LASTSLICE']
+        except KeyError: lastFitIndex = None
+    else:
         lastFitIndex = None
-    if lastFitIndex !=  None:
-        logging.info("Continuing previously paused fit, current image: {0}"\
-                         .format(lastFitIndex))
 
+    if lastFitIndex != None:
+        logging.info("Continuing previously paused fit, current slice: {0}"\
+                         .format(lastFitIndex))
 
     ## CREATE ARRAYS THAT CONTAIN PARAMETERS USED IN THE FIT
     ## Collect information about sources
-    logging.info("Reading 'SOURCES' HDU.")
-    srcList   = np.array(prmFile['SOURCES'].data,
-                         dtype=prmFile['SOURCES'].data.dtype)
+
+    ## Spectra
+    logging.info("Obtaining source spectra.")
+    spectra = Spectra(prmFile["SOURCES"],  hdu=True)
+    if "SIGMASPC" in extNames:
+        spectra.loadSpectra(data=prmFile["SPECTRA"], sigma=prmFile["SIGMASPC"],
+                            hdu=True)
+    else:
+        spectra.loadSpectra(data=prmFile["SPECTRA"], sigma=None, hdu=True)
+
+    ## Positions
+    logging.info("Obtaining source coordinates")
     positions = Positions(prmFile["SOURCES"], hdu=True)
 
     if "POSITIONS" in extNames:
         logging.info("Reading 'POSITIONS' HDU.")
-
         positions.loadIfuCoords(prmFile["POSITIONS"], hdu=True)
-
-    elif (srcList['status']==3).any():
+    elif spectra.psf.size > 0:
         logging.info("Preparing IFU coordinates for PSF sources.")
 
         isPSFsource = srcList['status']==3
@@ -102,33 +112,16 @@ def cubefit(arguments):
 
         positions.loadIfuCoords(data=ifuData, ids=srcList['id'][isPSFsource],
                                 freepar=True, isfitted=False)
-
-
-    ## collect the  spectra
-    logging.info("Reading 'SPECTRA' HDU.")
-    spcList = prmFile['SPECTRA'].data
-    
-
-    ## check if uncertainties associated with spectra are available:
-    if "SIGMASPC" in extNames:
-        logging.info("Reading 'SIGMASPC' HDU.")
-        spcSigmaList = prmFile['SIGMASPC'].data
-    else:
-        spcSigmaList = None
-
-
     if 'POSPARS' in extNames:
         logging.info("Reading 'POSPARS' HDU.")
         positions.readTransHDU(prmFile["POSPARS"], backup=dobackup)
-        positions.resizeStructure(size=Ndsp)
+        positions.resizeStructure(size=spectra.ndisp)
         positions.makeParameters()
         positions.info()
-
     else:
         logging.warning("No coord. transf. (HDU 'POSPARS') detected.")
 
-
-    ## Collect information about PSF
+    ## PSF
     psf = PSF()
     if "PSFPARS" in extNames: ##  check if HDU exists
         logging.info("Reading 'PSFPARS' HDU.")
@@ -140,9 +133,8 @@ def cubefit(arguments):
         psf.makeNewPSF(profile="gauss", fwhm=3.0, e=0., theta=0.)
 
     psf.info()
-    psf.resizeStructure(size=Ndsp)
+    psf.resizeStructure(size=spectra.ndisp)
     psf.makeParameters()
-
 
     prmFile.close() ## finished reading source catalog.
 
@@ -150,20 +142,17 @@ def cubefit(arguments):
     ## open datacubes & check consistency
     logging.info("Checking data cubes.")
     dataFits  = pyfits.open('{0}.dat.fits'.format(prefix))
-    cubeShape = (dataFits[0].header['NAXIS3'],
-                 dataFits[0].header['NAXIS2'],
-                 dataFits[0].header['NAXIS1'])
-    if dataFits[0].header['NAXIS3'] != Ndsp:
+    if dataFits[0].header['NAXIS3'] != spectra.ndisp:
         logging.critical("Data-cube and PRM-file have incompatible dimensions.")
 
     sigmaFits = pyfits.open('{0}.err.fits'.format(prefix))
-    if sigmaFits[0].header['NAXIS3'] != Ndsp:
+    if sigmaFits[0].header['NAXIS3'] != spectra.ndisp:
         logging.critical(\
             "Sigma-cube and PRM-file have incompatible dimensions.")
 
     if os.path.exists("{0}.msk.fits".format(prefix)):
         maskFits = pyfits.open('{0}.msk.fits'.format(prefix))
-        if maskFits[0].header['NAXIS3'] != Ndsp:
+        if maskFits[0].header['NAXIS3'] != spectra.ndisp:
             logging.critical(\
                 "Mask-cube and PRM-file have incompatible dimensions.")
     else:
@@ -177,13 +166,12 @@ def cubefit(arguments):
     fitter = StarFit(dataFits=dataFits[0], sigmaFits=sigmaFits[0],
                      maskFits=maskFits[0])
 
-    fitter.provideSources(sources=srcList, spectra=spcList, positions=positions,
-                          specSigma=spcSigmaList)
+    fitter.provideSources(spectra=spectra, positions=positions)
 
     fitter.providePSF(psf=psf, psfRad=psfRad)
         
     fitter(fitRad=fitRad, lastFitIndex=lastFitIndex, asSmallIFU=smallIFU,
-           returnResiduals=storeRes, prefix=prefix, jumpStart=jumpStart)
+           jumpStart=jumpStart)
 
     app.exec_()
 
@@ -197,24 +185,8 @@ def cubefit(arguments):
     prmFile  = pyfits.open("{0}.prm.fits".format(prefix), mode='update')
     extNames = [prmFile[i].name for i in xrange(len(prmFile))]
 
-    ## save status of fit process in header of primary HDU
-    if fitter.i != Ndsp:
-        prmFile[0].header.update('PMFITIND', fitter.i,
-                                 "Status of PampelMuse fitting")
-    else:
-        prmFile[0].header.update('PMFITIND', 'SUCCESS',
-                                 "Status of PampelMuse fitting")
-
     ## store spectra
-    crval1 = prmFile['SPECTRA'].header['CRVAL1'] 
-    cdelt1 = prmFile['SPECTRA'].header['CDELT1'] 
-    crpix1 = prmFile['SPECTRA'].header['CRPIX1'] 
-
-    newSpecHDU = pyfits.ImageHDU(fitter.spectra) 
-    newSpecHDU.header.update('EXTNAME', 'SPECTRA')
-    newSpecHDU.header.update('CRPIX1', crpix1)
-    newSpecHDU.header.update('CRVAL1', crval1)
-    newSpecHDU.header.update('CDELT1', cdelt1)
+    dataHDU, sigmaHDU = spectra.makeHDU(makeSigma=True)
 
     if dobackup and lastFitIndex == None:
         if 'INSPECTRA' in extNames:
@@ -222,15 +194,7 @@ def cubefit(arguments):
         prmFile['SPECTRA'].header.update('EXTNAME', 'INSPECTRA')
     else:
         prmFile.remove(prmFile['SPECTRA'])
-    prmFile.insert(2, newSpecHDU)
-
-    
-    ## store uncertainties associated with spectra
-    newSigmaHDU = pyfits.ImageHDU(fitter.specSigma) 
-    newSigmaHDU.header.update('EXTNAME', 'SIGMASPC')
-    newSigmaHDU.header.update('CRPIX1', crpix1)
-    newSigmaHDU.header.update('CRVAL1', crval1)
-    newSigmaHDU.header.update('CDELT1', cdelt1)
+    prmFile.insert(2, dataHDU)
 
     if dobackup and lastFitIndex == None:
         if 'INSIGMASPC' in extNames:
@@ -240,7 +204,7 @@ def cubefit(arguments):
     else:
         if 'SIGMASPC' in extNames:
             prmFile.remove(prmFile['SIGMASPC'])
-    prmFile.insert(3, newSigmaHDU)
+    prmFile.insert(3, sigmaHDU)
 
 
     ## Store IFU coordinates (only if they have been fitted)
@@ -266,24 +230,39 @@ def cubefit(arguments):
         else:
             prmFile.insert(5, psf.makeFitsHDU())
 
+    ## write/update header of primary HDU
+    prmFile[0].header.update(\
+        "hierarch PAMPELMUSE CUBEFIT UTC",
+        datetime.datetime.utcnow().strftime("%y-%m-%d %H:%M:%S"))
+    prmFile[0].header.update("hierarch PAMPELMUSE CUBEFIT VERSION", __version__)
+    if fitter.i != spectra.ndisp:
+        prmFile[0].header.update("hierarch PAMPELMUSE CUBEFIT STATUS","STOPPED")
+    else:
+        prmFile[0].header.update("hierarch PAMPELMUSE CUBEFIT STATUS","SUCCESS")
+    prmFile[0].header.update("hierarch PAMPELMUSE CUBEFIT LASTSLICE", fitter.i)
+    prmFile[0].header.update("hierarch PAMPELMUSE CUBEFIT SMALLIFU", smallIFU)
+    prmFile[0].header.update("hierarch PAMPELMUSE CUBEFIT PSFRAD", psfRad)
+
     prmFile.close()
 
 
-
-    if storeRes and fitter.i == Ndsp:
-
-        resCube = np.zeros(cubeShape, dtype="float32")
-
-        for i in xrange(Ndsp):
-            
-            jj = (Ndsp>>1) - 1 - int(i/2) + i*np.mod(i, 2) + np.mod(Ndsp, 2)
-
-            resCube[jj] = pyfits.getdata("{0}.res{1}.fits".format(prefix, i))
-            os.system("rm {0}.res{1}.fits".format(prefix, i))
-
-        resHDU = pyfits.PrimaryHDU(resCube)
-        if os.path.exists("{0}.res.fits".format(prefix)):
-            os.remove("{0}.res.fits".format(prefix))
-            logging.warning("Existing residual cube has been overwritten.")
-        resHDU.writeto("{0}.res.fits".format(prefix))
+##     cubeShape = (dataFits[0].header['NAXIS3'],
+##                  dataFits[0].header['NAXIS2'],
+##                  dataFits[0].header['NAXIS1'])
+##     if storeRes and fitter.i == spectra.ndisp:
+## 
+##         resCube = np.zeros(cubeShape, dtype="float32")
+## 
+##         for i in xrange(spectra.ndisp):
+##             
+##             jj = (spectra.ndisp>>1) - 1 - int(i/2) + i*np.mod(i, 2) + np.mod(spectra.ndisp, 2)
+## 
+##             resCube[jj] = pyfits.getdata("{0}.res{1}.fits".format(prefix, i))
+##             os.system("rm {0}.res{1}.fits".format(prefix, i))
+## 
+##         resHDU = pyfits.PrimaryHDU(resCube)
+##         if os.path.exists("{0}.res.fits".format(prefix)):
+##             os.remove("{0}.res.fits".format(prefix))
+##             logging.warning("Existing residual cube has been overwritten.")
+##         resHDU.writeto("{0}.res.fits".format(prefix))
 

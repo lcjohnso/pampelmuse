@@ -26,9 +26,11 @@ v0.2.0.0 -2012/01/29 - replaced posfit-module with updateprm-module. Since
                        prm-files can be updated using the updateprm-module.
 v0.2.0.1 -2012/02/12 - slightly modified formatting of the logging-messages.
 v0.2.1.1 -2012/02/12 - fixed bug in format-string of logging-messages.
+v0.3.0.0 -2012/03/01 - added new script SUBTRES to subtract the contribution
+                       of the (resolved) stars from a datacube.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.2.0.1"
+__version__ = "0.3.0.0"
 
 import argparse, logging, os, re, sys
 import pyfits
@@ -42,6 +44,7 @@ from pampelmuse.scripts.cubefit import cubefit
 from pampelmuse.scripts.polyfit import polyfit
 from pampelmuse.scripts.extract import get_pixpos
 from pampelmuse.scripts.updateprm import updateprm
+from pampelmuse.scripts.subtres import subtres
 
 
 CONFIGPATH = os.path.expandvars("$pampelmuse_path/config/")
@@ -195,6 +198,13 @@ The routine can be used to change the structure of a prm-file created by a
 PampelMuse-version < 0.2.0.0 so that the file is compliant with any newer
 PampelMuse-version""")
 XFparser.set_defaults(func=updateprm)
+
+SRparser = PMsubparsers.add_parser("SUBTRES",
+                                  help="""
+The routine is designed to subtract the contribution of the (resolved) stars
+from a datacube. To this aim, it uses a PampelMuse PRM-file along with the
+corresponding datacube.""")
+SRparser.set_defaults(func=subtres)
 
 
 print """

@@ -41,11 +41,16 @@ v0.2.0.2, 2012/02/13, added parameter `jumpStart' to allow starting a fit
 v0.3.0.0, 2012/02/24, major update on how PSF and source positions are used.
                       The now have to be provided as instances of dedicated
                       classes `Positions' and `PSF'.
-v0.3.1.1, 2012/02/28, some minor updates and bugfixing wrt new usage of PSF and
-                      positions.
+v0.3.1.1, 2012/02/28, some minor updates and bugfixing wrt new usage of PSF
+                      and positions.
+v0.3.1.2, 2012/03/01, disabled option to store residuals. Instead, the skript
+                      SUBTRES of PampelMuse can be used for this purpose.
+                      Implemented usage of PampelMuse's `Spectra'-class.
+v0.3.2.2, 2012/03/02, some severe bugfixing wrt to implementation of
+                      `Spectra'-class.
 """
 __author__  = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.3.1.1"
+__version__ = "0.3.2.2"
 
 import logging, os, sys, time
 import numpy as np, pyfits
@@ -129,7 +134,7 @@ class StarFit(FittingGui):
         
 
         
-    def provideSources(self, sources, spectra, positions, specSigma=None):
+    def provideSources(self, spectra, positions):
         """
         This method should be used to provide the instance with the necessary
         information about the sources in the field.
@@ -137,63 +142,28 @@ class StarFit(FittingGui):
         
         Parameters
         ----------
-        sources : numpy record array
-            The list of sources that are used in the analysis. The array must
-            contain the fields 'id', 'x', 'y', 'mag', 'fitopt' and 'primary'.
-            The specific meaning of the individual fields is described in the
-            documentaion of `INITFIT'.
-        spectra : nd_array
-            A 2dim. array containing a spectrum for every independent component
-            defined in `sources'.
+##         sources : numpy record array
+##             The list of sources that are used in the analysis. The array must
+##             contain the fields 'id', 'x', 'y', 'mag', 'fitopt' and 'primary'.
+##             The specific meaning of the individual fields is described in the
+##             documentaion of `INITFIT'.
+        spectra :  a pampelmuse.core.spectra.Spectra-instance
+            To provide all necessary information asbout the sources and their
+            spectra, an instance of PampelMuse's Spectra-class must be
+            provided. Check the documentation of that routine for further
+            information about how to initialize a valid instance.
         positions : a pampelmuse.core.positions.Positions-instance
             To provide all the information about source positions needed by
             this routine, an instance of the Positions-class defined in
             `positions.py' must be provided. Check the documentation of that
-            routine for furtehr information.
-        specSigma : nd_array or None, optional
-            Uncertainties associated with the provided spectra. They are not
-            used in the fit, but (re)estimated afterwards. Providing
-            `specSigma' only has an effect if not the whole cube is fitted.
+            routine for further information.
+##         specSigma : nd_array or None, optional
+##             Uncertainties associated with the provided spectra. They are not
+##             used in the fit, but (re)estimated afterwards. Providing
+##             `specSigma' only has an effect if not the whole cube is fitted.
         """
-        self.sources   = sources
         self.spectra   = spectra
         self.positions = positions
-
-
-        ## create array to store uncertainties of fitted spectra
-        ## (if none provided)
-        if specSigma == None:
-            self.specSigma = np.zeros(self.spectra.shape, dtype='float32')
-        else:
-            self.specSigma = specSigma
-
-        ## no. of fitted components
-        self.Ncmp = self.sources['specrow'].max()+1
-
-        self.specMap = {}
-        self.relMags = {}
-        for i in xrange(self.Ncmp): ## use `specrow' as reference for sources
-            self.specMap[i]  = np.where(self.sources['specrow']==i)[0]
-
-            self.relMags[i]  = self.sources['mag'][self.specMap[i]]
-            self.relMags[i] -= (-2.5*np.log10(np.sum(\
-                        [10**(-0.4*m) for m in self.relMags[i]]
-                        )))
-
-        for comp, spec in self.specMap.iteritems(): 
-            logging.debug("   {0:5d} - {1}".format(comp, spec))
-
-        logging.debug("Relative magnitudes of spectra in components:")
-        for comp, mags in self.relMags.iteritems():
-            logging.debug("   {0:5d} - {1}".format(comp, mags))
-
-
-        ## look for unresolved stellar component
-        unRes = self.sources['status']==0
-        if unRes.any():
-            self.unResCmp = self.sources['specrow'][np.where(unRes)[0][0]]
-        else:
-            self.unResCmp = -1
 
 
     
@@ -218,15 +188,10 @@ class StarFit(FittingGui):
         self.psf    = psf
         self.psfRad = psfRad
 
-        ## collect stars suitable for PSF determination
-        if self.psf.Fit or self.positions.Fit:
-            self.psfStars = np.where(self.sources['status']==3)[0]
-        
 
 
     def __call__(self, fitRad=None, Ntrack=10, lastFitIndex=None,
-                 asSmallIFU=False, returnModel=False, returnResiduals=False,
-                 prefix=None, clip=5., jumpStart=False):
+                 asSmallIFU=False, clip=5., jumpStart=False):
         """
         Execute the fitting process. For each image of the datacube, the 
         following steps are performed:
@@ -255,17 +220,17 @@ class StarFit(FittingGui):
             Flag indicating whether the data will be handled as comming from
             a small or a large IFU. This parameter controls how the PSF and/
             or positions are fitted.
-        returnModel : boolean, optional
-            Flag indicating whether an array containing the best-fit model
-            should be returned. Not implemented yet.
-        returnResdiduals : boolean, optional
-            Flag indicating whether an array containing the residuals of the
-            fit should be returned.
-        prefix : string, optional
-            In case that the fitted model and/or the residuals should be
-            stored, `fileRoot' allows to provide a prefix used to store the
-            individual images. This is needed in case that several fits are
-            started from the same folder.
+##         returnModel : boolean, optional
+##             Flag indicating whether an array containing the best-fit model
+##             should be returned. Not implemented yet.
+##         returnResdiduals : boolean, optional
+##             Flag indicating whether an array containing the residuals of the
+##             fit should be returned.
+##         prefix : string, optional
+##             In case that the fitted model and/or the residuals should be
+##             stored, `fileRoot' allows to provide a prefix used to store the
+##             individual images. This is needed in case that several fits are
+##             started from the same folder.
         clip : float, optional
             All pixels whose values devite by more than `clip' times SIGMA are
             masked. SIGMA is the standard deviation of the residuals between
@@ -274,12 +239,12 @@ class StarFit(FittingGui):
             In case the fit should start directly (i.e. without pressing
             `START'-button), enable this flag.
         """
-        self.makeMod = max(returnModel, returnResiduals) ## create model array
-        self.makeRes = returnResiduals                   ## and residuals?
-        if prefix == None:
-            self.prefix = ""
-        else:
-            self.prefix = prefix
+##         self.makeMod = max(returnModel, returnResiduals) ## create model array
+##         self.makeRes = returnResiduals                   ## and residuals?
+##         if prefix == None:
+##             self.prefix = ""
+##         else:
+##             self.prefix = prefix
 
         self.clip    = clip    ## efficiency of bad pixel masking
 
@@ -395,11 +360,12 @@ class StarFit(FittingGui):
             ## initial fit of fluxes
             bestFit = lsqr(self.Apsf, self.current)
             
-            self.spectra[:,self.jj] += bestFit[0]
+            self.spectra.addData(bestFit[0], index=self.jj)
             logging.debug("[@{0}] Chi**2 of initial fit: {1:.1f}".format(\
                     self.jj, bestFit[4]**2))
             logging.debug("[@{0}] Relative changes in fluxes: {1}".format(\
-                    self.jj, bestFit[0]/self.spectra[:,self.jj]))
+                    self.jj,
+                    bestFit[0]/self.spectra.viewData(index=self.jj)[0]))
 
             ## PSF fit
             if self.asSmallIFU:
@@ -416,17 +382,17 @@ class StarFit(FittingGui):
 
         ##  fit
         bestFit = lsqr(self.Apsf, self.current)
-        self.spectra[:,self.jj] += bestFit[0]
+        self.spectra.addData(bestFit[0], index=self.jj)
         logging.debug("[@{0}] Chi**2 of final fit: {1:.1f}".format(\
                 self.jj, bestFit[4]**2))
         logging.debug("[@{0}] Relative changes in fluxes: {1}".format(\
-                self.jj, bestFit[0]/self.spectra[:,self.jj]))
+                self.jj, bestFit[0]/self.spectra.viewData(index=self.jj)[0]))
 
         ## get uncertainties
-        for i in xrange(self.Ncmp):
-            self.specSigma[i,self.jj] = 1./np.sqrt(\
-                self.Apsf[:,i].multiply(self.Apsf[:,i]).sum()
-                )
+        for i in xrange(self.spectra.ncmp):
+            self.spectra.putSigma(\
+                1./np.sqrt(self.Apsf[:,i].multiply(self.Apsf[:,i]).sum()),
+                index=self.jj, ID=self.spectra.ID[i])
 
         ## create 2dim. residuals for plotting (& saving if requested)
         if self.hasMask:
@@ -438,13 +404,13 @@ class StarFit(FittingGui):
             
         self.resiCanvas.addImage(self.resi2d)
 
-        if self.makeRes:
-            outHDU = pyfits.PrimaryHDU(self.resi2d)
-            outHDU.writeto("{0}.res{1}.fits".format(self.prefix, self.i),
-                           clobber=True)
-        ## to save memory, the residuals are currently stored as a set of
-        ## individual images. To create a datacube, they must be combined
-        ## afterwards manually.
+##         if self.makeRes:
+##             outHDU = pyfits.PrimaryHDU(self.resi2d)
+##             outHDU.writeto("{0}.res{1}.fits".format(self.prefix, self.i),
+##                            clobber=True)
+##         ## to save memory, the residuals are currently stored as a set of
+##         ## individual images. To create a datacube, they must be combined
+##         ## afterwards manually.
 
             
         ## update inventory of last fits
@@ -461,8 +427,11 @@ class StarFit(FittingGui):
     @property
     def model(self):
         """Create the current best-fit model"""
-        return self.Apsf*sparse.dia_matrix((self.spectra[:,self.jj],[0]),
-                                           shape=(self.Ncmp, self.Ncmp))
+        return self.Apsf\
+            *sparse.dia_matrix((self.spectra.viewData(index=self.jj)[:,0],[0]),
+                               shape=(self.spectra.ncmp, self.spectra.ncmp))
+
+
 
     @property
     def current(self):
@@ -498,9 +467,9 @@ class StarFit(FittingGui):
         indices0 = np.array([], dtype='int32')
         indices1 = np.array([], dtype='int32')
 
-        for i in xrange(self.Ncmp):
+        for i in xrange(self.spectra.ncmp):
 
-            if i==self.unResCmp and not calcUnRes:
+            if i==self.spectra.unResRow and not calcUnRes:
                 nValues = self.unResCoeffs.size
 
                 coeffs.resize(coeffs.size+nValues)
@@ -512,27 +481,26 @@ class StarFit(FittingGui):
                 indices1[-nValues:] = i*np.ones((nValues,), dtype='int32')
                 continue
 
-            k = -1
-
             nValuesCmp = 0
-            for j in self.specMap[i]:
+            for j in xrange(self.spectra.map[i].size):
 
-                k += 1
-                if self.sources['id'][j] == -1:
+                if i==self.spectra.skyRow:
                     nValues    = self.spatPix
                     newCoeffs  = np.ones(self.spatPix, dtype="float32")
                     newCoeffs /= self.spatPix
                     newIndices = np.arange(self.spatPix, dtype="int32")
-
+            
                 else:
-                    psf_ij = self.PSF(size=self.spatShape, x_c=self.x[j],
-                                      y_c=self.y[j], mag=self.relMags[i][k],
-                                      maxrad=radius, return_sparse=True,
-                                      as_sparse_matrix=False)
-
+                    k = self.spectra.map[i][j] ## the index
+                    
+                    psf_ij = self.PSF(\
+                        size=self.spatShape, x_c=self.x[k], y_c=self.y[k],
+                        mag=self.spectra.weights[i][j], maxrad=radius,
+                        return_sparse=True, as_sparse_matrix=False)
                     nValues    = psf_ij[0].size
                     newCoeffs  = psf_ij[0]
                     newIndices = psf_ij[1][1] + self.spatShape[1]*psf_ij[1][0]
+
 
                 if nValues > 0:
                     coeffs.resize(coeffs.size+nValues)
@@ -548,24 +516,27 @@ class StarFit(FittingGui):
             if nValuesCmp == 0 and doLog:
                 logging.error(\
                     "[@{0}] Component #{1} entirely outside FoV.".format(\
-                        self.jj, self.sources['id'][self.specMap[i][0]]))
+                        self.jj, self.spectra.ID[self.spectra.map[i][0]]))
                     
 
-        if self.unResCmp > -1 and calcUnRes:
-            self.unResIndices = indices0[indices1==self.unResCmp]
-            self.unResCoeffs  = coeffs[indices1==self.unResCmp]
+        if self.spectra.hasUnRes and calcUnRes:
+            self.unResIndices = indices0[indices1==self.spectra.unResRow]
+            self.unResCoeffs  = coeffs[indices1==self.spectra.unResRow]
 
         if self.hasMask:
             mappedIndices0 = self.pixMap[indices0]
             used           = (mappedIndices0 > -1)
 
-            return sparse.coo_matrix((coeffs[used],
-                                      (mappedIndices0[used], indices1[used])),
-                                     shape=(self.mask.sum(), self.Ncmp)).tocsc()
+            return sparse.coo_matrix(\
+                (coeffs[used], (mappedIndices0[used], indices1[used])),
+                shape=(self.mask.sum(), self.spectra.ncmp)\
+                    ).tocsc()
 
         else:
-            return sparse.coo_matrix((coeffs, (indices0, indices1)),
-                                     shape=(self.spatPix, self.Ncmp)).tocsc()
+            return sparse.coo_matrix(\
+                (coeffs, (indices0, indices1)),
+                shape=(self.spatPix, self.spectra.ncmp)\
+                    ).tocsc()
 
 
 
@@ -594,18 +565,18 @@ class StarFit(FittingGui):
         ## loop over all PSF sources; add source to residuals, fit resulting
         ##  array and subtract source again.
         j = 0
-        for i in self.psfStars:
-            kk = self.sources['specrow'][i]
+        for i in self.spectra.psf:
 
             self.sBar.showMessage(\
                 "{0} Fitting PSF to Source #{1} ({2}/{3})".format(\
-                    self.prefixString, self.sources['id'][i], j+1,
+                    self.prefixString, self.spectra.ID[i], j+1,
                     len(self.psfStars)))
 
             allPars[0,j]    = self.x[i]
             allPars[1,j]    = self.y[i]
             allPars[2:-1,j] = self.psf.viewValue(index=self.jj)
-            allPars[-1,j]   = self.spectra[kk, self.jj]
+            allPars[-1,j]   = self.spectra.viewData(\
+                index=self.jj, ID=self.spectra.ID[i])
 
             ## get current PSF estimate of source and add it to residuals
             psf_i = self.PSF(size=self.spatShape, x_c=self.x[i], y_c=self.y[i],
@@ -617,11 +588,9 @@ class StarFit(FittingGui):
             if self.hasMask:
                 mappedIndices = self.pixMap[psfIndices]
                 used          = (mappedIndices > -1)
-                self._current[mappedIndices[used]] \
-                    += psfCoeffs[used]*self.spectra[kk,self.jj]
+                self._current[mappedIndices[used]] += allPars[-1,j]
             else:
-                self._current[psfIndices] \
-                    += psfCoeffs*self.spectra[kk,self.jj]
+                self._current[psfIndices] += psfCoeffs*allPars[-1,j]
 
             
             ## fit PSF
@@ -634,17 +603,16 @@ class StarFit(FittingGui):
 
             ## subtract PSF again
             if self.hasMask:
-                self._current[mappedIndices[used]] \
-                    -= psfCoeffs[used]*self.spectra[kk,self.jj]
+                self._current[mappedIndices[used]]\
+                    -= psfCoeffs[used]*allPars[-1,j]
             else:
-                self._current[psfIndices] \
-                    -= psfCoeffs*self.spectra[kk,self.jj]
+                self._current[psfIndices] -= psfCoeffs*allPars[-1,j]
             j += 1            
 
         if self.positions.Fit: ## update coordinate transformation
 
             self.positions.putIfuCoords(values=allPars[:2], index=self.jj,
-                                        ids=self.sources['id'][self.psfStars])
+                                        ids=self.spectra.ID[self.spectra.psf])
             if self.positions.verifyTrans:
                 self.positions.updateTransformation(index=self.jj)
 
@@ -785,8 +753,9 @@ class StarFit(FittingGui):
 
         Aprm = self.fillMatrix(radius=self.psfRad, calcUnRes=False, doLog=False)
 
-        model =  Aprm*sparse.dia_matrix((self.spectra[:,self.jj],[0]),
-                                        shape=(self.Ncmp, self.Ncmp))
+        model =  Aprm*sparse.dia_matrix(\
+            (self.spectra.viewData(index=self.jj)[:,0],[0]),
+            shape=(self.spectra.ncmp, self.spectra.ncmp))
 
         err =  (self.data/self.sigma)[self.mask]-model.sum(axis=1).getA1()
 

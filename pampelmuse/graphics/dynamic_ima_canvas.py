@@ -167,8 +167,8 @@ class DynamicImaCanvas(FigureCanvas):
         ## apropriate methods
         self.allData = np.ma.array(data)
 
-        self.sizes = 100*(10**(-0.4*(self.allData['mag']\
-                                         -min(self.allData['mag']))))
+        self.sizes = (10**(-0.2*(self.allData['mag']\
+                                     -max(self.allData['mag']))))
         self.sizes[self.sizes<1]=1.
 
         self.facecolors = self.allData.size*['none'] 

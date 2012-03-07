@@ -1,11 +1,13 @@
 """
 INITFIT
 =======
-The routine is used as a wrapper for the 'indent_sources.py' and the
-'create_prm.py' routine. It is called automatically if PampelMuse is
-started using the `INITFIT`-option.
-The purpose of those routines is to create the input data that is
-required by the fitting routine of PampelMuse (option `CUBEFIT`).
+The routine is designed to create a sophisticated list of sources to be
+analysed with the PampelMuse routine CUBEFIT. It is called automatically if
+PampelMuse is started using the `INITFIT`-option. As input, it requires the
+prefix of the data-cube that should be analysed and an ASCII-file containing
+photometry of the field (in a single photometric bandpass). The output will
+be a PampelMuse PRM-file containing all the required information for the 
+next steps of the analysis.
 
 CHANGELOG:
 ----------
@@ -33,21 +35,25 @@ CHANGELOG:
 2012/01/30, v0.2.0.0, changed the code to create PRM-files the are consistent
                       with the updated structure, i.e. PSF and coordinate
                       parameters are stored in binary FITS-tables.
+2012/03/07, v0.3.0.0, major updates to the code in order to implement the
+                      usage of the new classes that faciliate I/O of fit
+                      parameters: Sources and PSF. Some dependencies have been
+                      removed in the process (SelectSources and StoreParam).
+                      Still need to implement a few things.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.2.0.0"
-import os, sys, logging
+__version__ = "0.3.0.0"
+import datetime, os, sys, logging
 import numpy as np, pyfits
-from scipy import interpolate,sparse
+from scipy import interpolate, sparse
 from PyQt4 import QtGui
 
 ## required PampelMuse routines
 from pampelmuse.graphics.ident_sources import IdentSources
 from pampelmuse.core.aperture import AperPhoto
-from pampelmuse.functions.trans_coords import trans_coords
-from pampelmuse.core.select_sources import SelectSources
-from pampelmuse.core.store_param import StoreParam 
-from pampelmuse.core.my_profiles import Gaussian, Moffat
+from pampelmuse.core.sources import Sources
+from pampelmuse.core.psf import PSF
+
 
 
 ## class defines the exception that is raised when the parameters
@@ -75,11 +81,13 @@ def initfit(arguments):
     print ""
   
   
-    ## List of required definitions: #################
+###### List of required definitions: #################
     prefix   = arguments.prefix                     ##
     cfpfile  = arguments.sourcelist                 ##
-    cfpcols  = arguments.config["CFPCOLS"]          ##
+######  Photometry information:                     ##
     passband = arguments.config["PASSBAND"]         ##
+    pixScale = 10.                                  ## Write to config-file
+###### Source selection process:                    ##
     smallifu = arguments.config["SMALLIFU"]         ##
 ##     aperrad  = arguments.config["APERRAD"]       ## deprecated, ->fitrad
     apernois = arguments.config["APERNOIS"]         ##
@@ -88,118 +96,146 @@ def initfit(arguments):
     binrad   = arguments.config["BINRAD"]           ##
     useunres = arguments.config["USEUNRES"]         ##
     unreslim = arguments.config["UNRESLIM"]         ##
-    ewidth   = arguments.config["EWIDTH"]           ##
+##     ewidth   = arguments.config["EWIDTH"]        ## not used anymore
     globsky  = arguments.config["GLOBSKY"]          ##
-    fitrad   = arguments.config["FITRAD"]           ##
+###### Source positions:                            ##
+    posFit   = arguments.config["POSFIT"]           ##
+###### The PSF                                      ##
+    psfRad   = arguments.config["PSFRAD"]           ##
     psfType  = arguments.config["PSFTYPE"]          ##
     psfPars  = arguments.config["PSFPARS"]          ##
     psfFit   = arguments.config["PSFFIT"]           ##
-    posFit   = arguments.config["POSFIT"]           ##
     ##################################################
     DATAPATH = os.path.expandvars("$pampelmuse_path/data/")
 
 
+    ## get results from crowded-field photometry, initialize sources
     logging.info("Reading photometry results from file `{0}'".format(cfpfile))
-    sys.stdout.flush()
-    ## get results from crowded-field photometry
-    cfpResults = np.copy(np.genfromtxt(cfpfile, 
-                                       usecols=cfpcols,
-                                       dtype=[('id','i8'), ('x','f8'),
-                                              ('y','f8'), ('mag','f8')
-                                              ],
-                                       )
-                         )
-    cfpResults['x'] -= cfpResults['x'].min()
-    cfpResults['y'] -= cfpResults['y'].min()
+
+    cfpResults = np.genfromtxt(cfpfile, names=True, dtype=None)
+    if useunres: select = cfpResults['mag']<unreslim
+    else:        select = cfpResults['mag']<reslim
 
     if globsky:
-        cfpResults.resize(cfpResults.size+1)
-        cfpResults['id'][-1] = -1
-
-    if useunres:
-        resSrc = (cfpResults['mag']<unreslim)&(cfpResults['id']>=0)
+        ids = np.r_[cfpResults['id'][select], -1]
+        x   = np.r_[cfpResults['x'][select], 0]
+        y   = np.r_[cfpResults['y'][select], 0]
+        mag = np.r_[cfpResults['mag'][select], 0]
     else:
-        resSrc = (cfpResults['mag']<reslim)&(cfpResults['id']>=0)
+        ids = cfpResults['id'][select]
+        x   = cfpResults['x'][select]
+        y   = cfpResults['y'][select]
+        mag = cfpResults['mag'][select]
+
+    x -= x[ids>=0].min()
+    y -= y[ids>=0].min()
+
+    sources     = Sources(ids=ids)
+    sources.x   = x
+    sources.y   = y
+    sources.mag = mag
 
 
-    ## create pseudo observation from photometry results
-    ## PSF is a Gaussian with  a FWHM of 4pix with PSFRAD=15.0pix
-    ## The zeropoint is such that a source with magnitude `reslim' will
-    ## have a flux of 1000 counts and a peak-S/N of roughly 10
-    logging.info("Using photometry to create pseudo-observation of FoV")
-    PSF = Gaussian(fwhm=4.)
+    ## initialize PSF
+    if psfType == "moffat":  psfArgs = ["theta", "e", "fwhm", "beta"]
+    elif psfType == "gauss": psfArgs = ["theta", "e", "fwhm"]
 
-    size = (int(cfpResults['y'].max()+1), int(cfpResults['x'].max()+1))
+    psf = PSF() ## PSF used for analysisa
+    psf.makeNewPSF(profile=psfType)
 
-    MZERO = reslim + 7.5
+    ## check which PSF parameters should be fitted and add parameters
+    n = len(psfArgs)
+    for arg in psfArgs:
+        if psfFit >= 2**n:
+            psfFit -= 2**n
+            psf.addParameter(name=arg, value=psfPars[n-1], freepar=True)
+        else:
+            psf.addParameter(name=arg, value=psfPars[n-1], freepar=False)
+        n -= 1
 
-    ident_ima = np.zeros(size, dtype='float32')
-    for i in xrange(resSrc.sum()):
-        ident_ima += PSF(size=size,
-                         x_c=cfpResults['x'][resSrc][i],
-                         y_c=cfpResults['y'][resSrc][i],
-                         mag=(cfpResults['mag'][resSrc][i]-MZERO),
-                         maxrad=15., return_sparse=True,
-                         as_sparse_matrix=True).todense()
-
-    ident_ima += np.random.normal(loc=0., scale=10, size=size)
+    psf.makeValues()
+    psf.info()
 
 
     ## open FITS-files:
     logging.info("Reading IFS data: ")
-    dat_data, dat_head = pyfits.getdata("{0}.dat.fits".format(prefix),
-                                        header=True)
-    wlStep   = dat_head['CDELT3']
-    wlStart  = dat_head['CRVAL3']
-    wlNsteps = dat_head['NAXIS3']
 
+    ## data
+    dataHDU = pyfits.open("{0}.dat.fits".format(prefix))[0]
+    cdelt = dataHDU.header['CDELT3']
+    crval = dataHDU.header['CRVAL3']
+    ndisp = dataHDU.header['NAXIS3']
     logging.info("   {0}.dat.fits - OK".format(prefix))
 
-    err_data           = pyfits.getdata("{0}.err.fits".format(prefix))
-    err_data_ima       = np.mean(err_data, axis=0)
+    ## sigma
+    sigmaHDU = pyfits.open("{0}.err.fits".format(prefix))[0]
     logging.info("   {0}.err.fits - OK".format(prefix))
 
+    ## mask
     try:
-        msk_cube = pyfits.open("{0}.msk.fits".format(prefix))
-        msk_data = np.asarray(msk_cube[0].data, dtype='bool')
-        msk_cube.close()
+        maskHDU = pyfits.open("{0}.err.fits".format(prefix))[0]
         logging.info("   {0}.msk.fits - OK".format(prefix))
     except IOError:
-        msk_data=None
+        maskHDU = None
         logging.info("   {0}.msk.fits - Not found".format(prefix))
 
+    ## collapse data-cube to image in the provided photometric filter
     logging.info("Creating mock {0}-band image from datacube.".format(passband))
     filtercurve = np.genfromtxt(os.path.join(DATAPATH, passband), usecols=(0,1),
-                                dtype=[("wl", ">f4"), ("tp", ">f4")])
+                                dtype=[("wl", np.float32), ("tp", np.float32)])
 
-    IP = interpolate.interp1d(filtercurve["wl"], filtercurve["tp"],
-                              bounds_error=False, fill_value=0)
+    f = interpolate.UnivariateSpline(\
+        filtercurve["wl"], filtercurve["tp"], k=3, s=0)
+    fMin = filtercurve["wl"].min()
+    fMax = filtercurve["wl"].max()
 
-    wl_cube = np.arange(wlNsteps, dtype='float64')
-    wl_cube *= wlStep
-    wl_cube += wlStart
+    ## make loop to avoid extensive use of memory for large data-cubes
+    dataIma  = np.zeros((dataHDU.header["NAXIS2"], dataHDU.header["NAXIS1"]),
+                        dtype=np.float32)
+    sigmaIma = np.zeros(dataIma.shape, dtype=np.float32)
+    for i in xrange(ndisp):
+        wave_i = crval+i*cdelt
+        if wave_i > fMin and wave_i < fMax:
+            dataIma  += dataHDU.section[i]*f(wave_i)[0]
+            sigmaIma += sigmaHDU.section[i]*f(wave_i)[0]
+    dataIma  /= filtercurve["tp"].sum()
+    sigmaIma /= filtercurve["tp"].sum()
 
-    dat_data_ima = np.average(dat_data, axis=0, weights=IP(wl_cube))
 
+    ## create pseudo observation from photometry results
+    ## PSF is same as in IFU, with FWHM scaled by `pixScale'-Parameter
+    ## The zeropoint is such that a source with magnitude `reslim' will
+    ## have a flux of 1000 counts and a peak-S/N of roughly 10
+    logging.info("Creating mock image from photometry sources.")
 
+    MZERO     = reslim + 7.5
+    size      = (int((sources.y.max()/pixScale)+1),
+                 int((sources.x.max()/pixScale)+1))
+    identIma  = np.zeros(size, dtype='float32')
+    prof      = psf(index=0)
+    for i in xrange(sources.nsrc):
+        identIma += prof(size=size, x_c=sources.x[i]/pixScale,
+                         y_c=sources.y[i]/pixScale, mag=(sources.mag[i]-MZERO),
+                         maxrad=10, return_sparse=True, as_sparse_matrix=True)\
+                         .todense()
+    identIma += np.random.normal(loc=0., scale=10, size=size)
+
+    ## start source identification GUI to identify bright(est) stars
     logging.info("Preparing GUI for source identification"),
-    ## start gui, identify bright(est) stars and extract their spectra
+
+    ##  temporary solution: create rec-array from Sources-instance; usage of
+    ##                      instance in IdentSources will be implemented later
+    pickData = sources.toRec(ids=sources.ID[sources.mag<reslim])
+    pickData["x"] /= pixScale
+    pickData["y"] /= pixScale
+
     app  = QtGui.QApplication(sys.argv)
-    identifier = IdentSources(grabIma=dat_data_ima, pickIma=ident_ima,
-                              pickData=cfpResults[resSrc])
+    identifier = IdentSources(grabIma=dataIma, pickIma=identIma,
+                              pickData=pickData)
     identifier.show()
     app.exec_()
 
     identified = identifier.getResults()
-
-
-    ## use 'grab'-coordinates to get initial coordinate transformation
-    pospars   = trans_coords(cfpResults, identified)
-    (A,B,C,D) = pospars[0]
-
-    transformation = np.ones((wlNsteps,),  dtype=pospars.dtype)
-    for name in transformation.dtype.names:
-            transformation[name] *= pospars[name][0]
 
 
     ## adjust PSF FWHM (only if >=4 sources have a valid FWHM measurement)
@@ -207,49 +243,51 @@ def initfit(arguments):
     if valid.sum() < 4:
         logging.warn("Skipping FWHM measurement - too few sources ({0})"\
                          .format(valid.sum()))
+        fwhm = psf.values[psf.parameters.index("fwhm"),:].mean(axis=-1)
     else:
         fwhm = 0.5*(identified['fwhm_x'][valid].mean() \
                         + identified['fwhm_y'][valid].mean())
         logging.info("Estimated FWHM (Gaussian): {0:.1f}pixel".format(fwhm))
+        psf.values[psf.parameters.index("fwhm"),:] =  fwhm
+        ## NOTE: will only write FWHM to values if FWHM is fitted
 
 
-    ## preparing PSF for following source selection
-    logging.info("Reading PSF information from configuration file.")
-    if psfType == "gauss": ## TheGaussian PSF
-        logging.info("   Analytical PSF model is a Gaussian.")
-        dtype   = [('fwhm', '>f4'), ('e', '>f4'), ('theta', '>f4')]
-        makePSF = lambda pars: Gaussian(fwhm=pars[0], e=pars[1], theta=pars[2])
+    ## determine coordinate transformation using identified sources
+    sources.loadIFUCoords(\
+        data=identified[["x", "y"]].view(np.float64).reshape(-1,2).T,
+        ids=identified["id"])
+    sources.calcTrans()
+    if posFit == 1: sources.ctFree[2:] = True
+    elif posFit == 2: sources.ctFree[:] = True
 
-    elif psfType == "moffat": ## The Moffat PSF
-        logging.info("   Analytical PSF model is a Moffat.")
-        dtype   = [('beta','>f4'), ('fwhm','>f4'), ('e','>f4'), ('theta','>f4')]
-        makePSF = lambda pars: Moffat(beta=pars[0], fwhm=pars[1],
-                                      e=pars[2], theta=pars[3])
+    ## Source selection process 
+    logging.info("Selecting sources to be used in PSF fitting.")
 
-    psfOutPars  = np.array(wlNsteps*[tuple(psfPars)], dtype=dtype)
-    psfParNames = list(psfOutPars.dtype.names)
+    ## get IFU coordinates for all (resolved) sources
+    sources.callTrans()
 
-    ## check which PSF parameters should be fitted
-    isfitted = np.zeros((len(psfParNames),), dtype='bool')
-    expTwo   = 2**np.arange(1, isfitted.size+1)
-    for i in np.arange(isfitted.size+1,0,-1):
-        if psfFit >= (expTwo[isfitted].sum()+2**i):
-            isfitted[i-1] = True
+    ## Position in Fov/distance to edge of FoV
+    edgeDist = sources.edgeDist(fovShape=dataIma.shape)
 
+    ## Photometric calibration:
+    srcFlux = (10**(-0.4*sources.mag[sources.ifuSelect][edgeDist>0])).sum()
+    magZ    = -2.5*np.log10(srcFlux/dataIma.sum())
+    logging.info("Estimated photometric zeropoint ({0}): {1:.2f}".format(\
+            passband, float(magZ)))
 
+    ## distance to next brighter source
+    distToBrighter, brighterID = sources.distToBrighter()
 
-    makePSF(psfPars)
-    if valid.sum() >= 4 and isfitted[psfParNames.index("fwhm")]:
-        PSF.fwhm = fwhm ## update FWHM (if possible)
-        psfOutPars['fwhm'][:] = fwhm
+    ## signal-to-noise
+    signalToNoise = sources.signalToNoise(psf=prof, magZ=magZ, sigma=sigmaIma,
+                                          r=psfRad)
+    ##  modify S/N of sources close to brighter neighbor:
+    close = distToBrighter<(0.75*fwhm)
+    signalToNoise[close] /= 0.75*fwhm/distToBrighter[close]
 
+    if not smallifu:
+        shoulderDrop = sources.shoulderDrop(r=psfRad)
 
-    ## Initialize source selection process 
-    selector = SelectSources(sourcelist=cfpResults[resSrc],
-                             bbImage=dat_data_ima,
-                             psf=PSF, pospars=[A,B,C,D])
-
-    logging.info("Selecting sources suited for PSF fitting.")
     ## determine status of all sources in catalogue:
     ##  4 - global sky spectrum
     ##  3 - resolved, own spectrum
@@ -257,60 +295,50 @@ def initfit(arguments):
     ##  1 - resolved, but next to brighter source
     ##  0 - unresolved
     ## -1 - excluded
-    resCheck = selector(criteria=['whatSNR', 'howFarFromBright',
-                                  'howCloseToEdge'],
-                        magcut=reslim, sigma=err_data_ima, psfrad=fitrad)
 
-    sourceList = []
+    status  = -1*np.ones((sources.nsrc,), dtype=np.int16)
+    primary = np.zeros((sources.nsrc,), dtype=np.int32)
 
     logging.info("Results of source selection:")
     logging.info("       ID    mag     S/N  d_bright  status")
-    for i in xrange(resCheck.size):
+    for i in xrange(sources.nsrc):
         
-        listEntry = [resCheck['id'][i]]
-        primary   = resCheck['id'][i]
-        status    = 1
-
-        if resCheck['whatSNR'][i] > snrcut:
-            if resCheck['howFarFromBright'][i] < binrad*PSF.fwhm:
-                primary = resCheck['brightNeighbor'][i]
+        if sources.ID[i] < 0:
+            status[i]  = 4
+            primary[i] = sources.ID[i]
+        elif sources.mag[i] <= reslim:
+            if signalToNoise[i] > snrcut:
+                if distToBrighter[i] < binrad*fwhm:
+                    status[i]  = 1
+                    primary[i] = brighterID[i]
+                else:
+                    ## TBD: check is source is useful PSF source 
+                    status[i]  = 2
+                    primary[i] = sources.ID[i]
             else:
-                status += 1
-##             if resCheck['howCloseToEdge'][i] < -(fitrad-1.):
-##                 continue
-        else:
-            if resCheck['howFarFromBright'][i] < 2*binrad*PSF.fwhm:
-                primary = resCheck['brightNeighbor'][i]
-            else:
-                status += 1
-            if resCheck['howCloseToEdge'][i] < 0:
-                continue
+                if edgeDist[i] < 0:
+                    continue
+                if distToBrighter[i] < 2*binrad*fwhm:
+                    status[i]  = 1
+                    primary[i] = brighterID[i]
+                else:
+                    status[i]  = 2
+                    primary[i] = sources.ID[i]
 
-        listEntry.extend([status, primary])
-        sourceList.append(tuple(listEntry))
-        
-        j = np.where(cfpResults['id']==resCheck['id'][i])[0][0]
-        logging.info("   {0:6d}  {1:5.2f}  {2:6.1f}  {3:8.2f}  {4:6d}".format(\
-                resCheck['id'][i], cfpResults['mag'][j], resCheck['whatSNR'][i],
-                resCheck['howFarFromBright'][i], status)
-                      )
+            logging.info("   {0:6d}  {1:5.2f}  {2:6.1f}  {3:8.2f}  {4:6d}"\
+                             .format(int(sources.ID[i]),
+                                     float(sources.mag[i]),
+                                     float(signalToNoise[i]),
+                                     float(distToBrighter[i]),
+                                     int(status[i])))
+            
+        elif useunres:
+            if sources.mag[i]<=unreslim and edgeDist[i]>-fwhm:
+                status[i]  = 0
+                primary[i] = -2
 
-    if useunres:
-        resIDs = [sourceList[i][0] for i in xrange(len(sourceList))]
-
-        unresCheck = selector(criteria=['howCloseToEdge'], magcut=unreslim)
-        
-        for i in xrange(unresCheck.size):
-            if not unresCheck['id'][i] in resIDs:
-                if unresCheck['howCloseToEdge'][i] > -ewidth:
-                    sourceList.append((unresCheck['id'][i], 0, -1))
-
-    if globsky:
-        sourceList.append((-1, 4, -1)) ## the sky spectrum
-
-    finalList = np.array(sourceList,
-                         dtype=[('id', 'i8'),('status', 'i4'),('primary', 'i8')]
-                         )
+    sources.status  = status
+    sources.primary = primary
 
     
     if not smallifu:
@@ -403,24 +431,38 @@ def initfit(arguments):
                                  "mean={0:.2f}rad.".format(theta.mean()))
 
     else:
-        aperResults = np.array([], dtype=[('id', 'i8'), ('spectrum', 'f8')])
+        ## create dummy data: every spectrum is empty
+        sources.loadSpectra(\
+            data=np.zeros((sources.ncmp, ndisp), dtype=np.float32),
+            crval=crval, cdelt=cdelt)
 
 
     ## write results to file
-    logging.info("Writing results to prm-file.")
+    logging.info("Saving source selection in PRM-file:")
+    logging.info("   {0}.prm.fits".format(prefix))
 
-    storage = StoreParam(sourceList=cfpResults, wlStart=wlStart,
-                         wlStep=wlStep, specPix=wlNsteps)
-    storage.storeSourceCat(finalList)
-    storage.storeSourceSpec(inputSpectra=aperResults, magZ=selector.mZ,
-                            spatPix=dat_data_ima.size)
-    storage.storePSF(psfType=psfType, psfPars=psfOutPars, psfFit=isfitted)
-    storage.storePosPars(posPars=transformation, posFit=posFit)
-    storage.writeto('{0}.prm.fits'.format(prefix), clobber=1)
+    primaryHDU = pyfits.PrimaryHDU()
+    primaryHDU.header.update(\
+        "hierarch PAMPELMUSE INITFIT UTC",
+        datetime.datetime.utcnow().strftime("%y-%m-%d %H:%M:%S"))
+    primaryHDU.header.update("hierarch PAMPELMUSE INITFIT VERSION", __version__)
+    primaryHDU.header.update("hierarch PAMPELMUSE INITFIT PASSBAND", passband)
+    primaryHDU.header.update("hierarch PAMPELMUSE INITFIT RESLIM", reslim)
+    primaryHDU.header.update("hierarch PAMPELMUSE INITFIT SNRCUT", snrcut)
+    primaryHDU.header.update("hierarch PAMPELMUSE INITFIT BINRAD", binrad)
+    primaryHDU.header.update("hierarch PAMPELMUSE INITFIT USEUNRES", useunres)
+    primaryHDU.header.update("hierarch PAMPELMUSE INITFIT UNRESLIM", unreslim)
+    primaryHDU.header.update("hierarch PAMPELMUSE INITFIT GLOBSKY", globsky)
 
+    sourceHDU  = sources.makeSourceHDU()
+    spectraHDU = sources.makeSpecHDU(makeSigma=False)
+    posparsHDU = sources.makeTransHDU(includePolyFit=False)
+    psfparsHDU = psf.makePSFHDU(includePolyFit=False)
 
+    HDUList = pyfits.HDUList([primaryHDU, sourceHDU, spectraHDU, posparsHDU,
+                              psfparsHDU])
 
-
-
-
-    
+    if os.path.exists("{0}.prm.fits".format(prefix)):
+        logging.warning("Overwriting existing PRM-file.")
+        os.remove("{0}.prm.fits".format(prefix))
+    HDUList.writeto("{0}.prm.fits".format(prefix))

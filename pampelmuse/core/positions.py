@@ -11,15 +11,23 @@ that are dedicated to handle IFU coordinates diectly.
 CHANGELOG
 ---------
 2012/02/28, v0.1.0.0
+2012/03/01, v0.1.0.1, modified matchOnID-function so that it returns the
+                      indices of the `parent'-array in the same order the
+                      provided IDs are given.
+2012/03/07, v0.2.0.0, major updates to the CoordinateTransformation-class so
+                      that it makes use of the new ValueArray-structure.
+                      Usage of Positions-class is deprecated, required methods
+                      have been transfered to Sources-class in pampelmuse.core
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.1.0.0"
+__version__ = "0.2.0.0"
 import logging
 import numpy as np, pyfits
 from PyQt4 import QtCore
 
 ## required PampelMuse-packages:
 from pampelmuse.functions.step_poly_fit import StepPolyFit
+from pampelmuse.core.value_array import ValueArray
 
 
 def myLstsqSigma(A, b, sigma=None):
@@ -56,14 +64,26 @@ def matchOnID(parent, child, assume_unique=False):
     indices : nd_array
         The index of every `child'-entry in the `parent' list (if found).
     """
-    indices = np.nonzero(np.in1d(parent, child, assume_unique=assume_unique))[0]
+##     indices \
+##         = np.nonzero(np.in1d(parent, child, assume_unique=assume_unique))[0]
+##     return indices
+##
+## increases speed by ~ x2:
+    return np.nonzero((child[:,np.newaxis]-parent)==0)[1]
+
+
+
+class CoordinateTransformation(object):
     
-    return indices
+    parameters = ["A", "B", "C", "D"]
 
+    def __init__(self):
 
+        self.ctData   = None
+        self.ctFree   = None
+        self.ctPoly   = None
+        self.ctValues = None
 
-
-class CoordinateTransformation:
 
     def makeNewTrans(self, **kwargs):
 
@@ -71,17 +91,21 @@ class CoordinateTransformation:
 
         self.backup = False
 
+        self.unsavedTrans = True
+
         self.initStructure()
 
         for name, value in kwargs.iteritems():
             self.addParameter(name, value)
 
-        self.unsavedTrans = True
-
 
         
     def calcTrans(self, inCoords, outCoords):
         
+        logging.info("Determining coordinate transformation.")
+
+        self.backup = False
+
         ## check if provided data is valid
         for name in ['id', 'x', 'y']:
             if not name in inCoords.dtype.names:
@@ -125,12 +149,13 @@ class CoordinateTransformation:
             outSel.append(np.where(outCoords['id']==inID)[0][0])
     
         m = len(inSel) ## No of matching sources provided
-        if not quiet:
-            logging.info(\
-                "Determining coord. transf. using {0} sources.".format(m))
-        if m<4:
-            logging.error("Number of sources <4!")
+        if m<2:
+            logging.critical("Number of matching sources <2!")
             return
+        elif m<4:
+            logging.warning("Number of matching sources <4!")
+        else:
+            logging.info("Number of matching sources: {0}".format(m))
 
 
         ## create ndarrays for fitting
@@ -139,24 +164,26 @@ class CoordinateTransformation:
         inCoordArr[1] = inCoords["y"][inSel]
 
         outCoordArr = np.zeros((2, m, ndisp), dtype=np.float32)
-        outCoordArr[0] = outCoords["x"][inSel]
-        outCoordArr[1] = outCoords["y"][inSel]
+        outCoordArr[0] = outCoords["x"][outSel][:,np.newaxis]
+        outCoordArr[1] = outCoords["y"][outSel][:,np.newaxis]
 
         if err:
             outSigmaArr = np.zeros(outCoordArr.shape, dtype=np.float32)
-            outCoordArr[0] = outCoords["x_err"][inSel]
-            outCoordArr[1] = outCoords["y_err"][inSel]
+            outSigmaArr[0] = outCoords["x_err"][outSel]
+            outSigmaArr[1] = outCoords["y_err"][outSel]
         else:
             outSigmaArr = None
 
-        coordTrans = quickFit(inCoordArr, outCoordArr, outSigma=outSigmaArr)[0]
+        coordTrans = self.quickFit(inCoordArr, outCoordArr,
+                                   outSigma=outSigmaArr)[0]
 
-        self.initStructure()
+        self.makeNewTrans()
 
         for i in xrange(self.npars):
             self.addParameter(name=self.parameters[i], value=coordTrans[i])
 
 
+        ## Only logging from this line
         logging.info(\
             "Determined coord. transf. for {0} image(s).".format(ndisp))
 
@@ -171,18 +198,42 @@ class CoordinateTransformation:
         for i in xrange(m):
             J = inSel[i]
             K = outSel[i]
+
             logging.info("   {0:6d}  {1:+5.2f}  {2:+5.2f}".format(\
-                    int(incoords['id'][J]),
-                    float(x-outCoordArr[0,K].mean(axis=-1)),
-                    float(y-outCoordArr[1,K].mean(axis=-1))))
+                    int(inCoords['id'][J]),
+                    float((x[i]-outCoordArr[0,K]).mean(axis=-1)),
+                    float((y[i]-outCoordArr[1,K]).mean(axis=-1))))
+
+
+
+    def quickFit(self, inCoords, outCoords, outSigma=None):
+        
+        m = inCoords[0].shape[0]
+        M = 2*m
+
+        A = np.ones((M,4), dtype=np.float32)
+        A[:m,0] =  inCoords[0].flatten()
+        A[m:,0] =  inCoords[1].flatten()
+        A[:m,1] =  inCoords[1].flatten()
+        A[m:,1] = -inCoords[0].flatten()
+        A[m:,2] = 0.
+        A[:m,3] = 0.
+
+        b = np.vstack(outCoords)
+        if outSigma != None: sigma = np.vstack(outSigma)
+        else: sigma = None
+
+        return myLstsqSigma(A, b, sigma=sigma)
 
 
 
     def readTransHDU(self, HDU, backup=False):
 
-        logging.info(\
-            "Reading coord. transf. from HDU '{0}'.".format(\
-                HDU.header["EXTNAME"]))
+        if "EXTNAME" in HDU.header:
+            logging.info("Initializing coord. transf. from HDU '{0}'.".format(\
+                    HDU.header["EXTNAME"]))
+        else:
+            logging.info("Initializing coord. transf. from unnamed HDU.")
 
 
         ## check if required fields 'name' and 'value exist':
@@ -220,73 +271,70 @@ class CoordinateTransformation:
 
 
     def initStructure(self):
-
-        self.parameters = ["A", "B", "C", "D"]
+        """
+        The method is used to prepare the required arrays containing the
+        properties of the PSF parameters. It should be called immediately
+        after a PSF has been initialized and before any parameters are
+        added.
+        """
         self.npars      = len(self.parameters)
         self.disp       = False
         self.lockSize   = False ## Cannot resize after call to makeParameters
 
-        self.value      = np.zeros(1, {"names":self.parameters,
-                                       "formats":self.npars*[np.float32]})
-        self.freepar    = np.zeros(1, {"names":self.parameters,
-                                       "formats":self.npars*[np.bool]})
-        self.isfitted   = np.zeros(1, {"names":self.parameters,
-                                       "formats":self.npars*[np.bool]})
-        self.polyfit    = np.zeros(1, {"names":self.parameters,
-                                       "formats":self.npars*[np.float32]})
-        if self.backup:
-            self.value_init = np.zeros(1, {"names":self.parameters,
-                                           "formats":self.npars*[np.float32]})
+        self.ctData = np.zeros((2,self.npars,1),  dtype=np.float32)
+        self.ctFree = np.zeros((self.npars,),  dtype=np.bool)
+        self.ctPoly = np.zeros((self.npars,),  dtype=np.bool)
+
         self.missing    = [name for name in self.parameters]
  
 
         
-    @property
-    def ndisp(self):
-        return self.value.size
-
-
-
     def addParameter(self, name, value, freepar=False, isfitted=False,
                      polyfit=None):
 
         if not name in self.missing:
-            logging.error(\
-                "Cannot add parameter '{0}', it is not missing.".format(name))
+            logging.error("Cannot add parameter: '{0}' not missing.".format(\
+                    name))
+            return
+        
+        i = self.parameters.index(name)
+
+        ## check if value has correct data shape, reshape self.ctData if needed 
+        value = np.asarray(value)
+        if value.size > self.ctData.shape[-1]:
+            if self.disp:
+                logging.warning("Differing data size of parameter '{0}'.")
+                logging.warning("Transformation structure will be resized.")
+            self.resizeStructure(ndisp=value.size)
+        elif value.size < self.ctData.shape[-1] and value.size > 1:
+            logging.error("Cannot add parameter: '{0}' has invalid data size."\
+                              .format(name))
             return
 
-        value = np.asarray(value)
-        if isfitted:
-            if polyfit==None:
-                logging.error(\
-                    "No `polyfit' available, but `isfitted'-flag set.")
-                return
+        ##  check if polyfit information is valid
+        if isfitted and polyfit==None:
+            logging.error("Cannot add parameter: '{0}'".format(name))
+            logging.error(" No `polyfit' available, but `isfitted'-flag set.")
+            return
+        
+        if polyfit != None:
             polyfit = np.asarray(polyfit)
             if polyfit.size != value.size:
+                logging.error("Cannot add parameter: '{0}'".format(name))
                 logging.error("Incompatible sizes of `value' and `polyfit'.")
                 return
         
-        if value.size > self.value.size:
-            if self.disp:
-                logging.warning("Differing data size of parameter '{0}'.")
-                logging.warning("Transf. structure will be resized.")
-            self.resizeStructure(size=value.size)
-        elif value.size < self.value.size and value.size > 1:
-            logging.error(\
-                "Cannot add parameter '{0}', it has invalid data size.")
-            return
+        self.ctData[0,i] = value
+        self.ctFree[i]   = freepar
+        self.ctPoly[i]   = isfitted
+        if polyfit    !=  None: self.ctData[1,i]  = polyfit
+##         if self.backup: self.value_init[name] = value
 
-        self.value[name] = value
-        if freepar  != None: self.freepar[name]  = freepar
-        if isfitted != None: self.isfitted[name] = isfitted
-        if polyfit  != None: self.polyfit[name]  = polyfit
-        if self.backup: self.value_init[name] = value
         self.missing.remove(name)
 
-        logging.info(\
-            "Added parameter '{0}' to transf. definition.".format(name))
-
         self.unsavedTrans = True
+
+        logging.info("Added parameter '{0}' to transformation.".format(name))
 
 
 
@@ -299,9 +347,8 @@ class CoordinateTransformation:
         if self.missing != []:
             logging.warning("Some transf. parameters have not been specified:")
             for prm in self.missing:
-                logging.warning(\
-                    "   Missing parameter '{0}'".format(", ".join(prm)))
-                return False
+                logging.warning("   Missing parameter '{0}'".format(prm))
+            return False
         else:
             return True
 
@@ -310,7 +357,7 @@ class CoordinateTransformation:
     def info(self):
         
         logging.info("Summary of coordinate transformation instance:")
-        logging.info(" Valid: {0}".format(self.verifyTrans))
+##         logging.info(" Valid: {0}".format(self.verifyTrans))
         logging.info(" Parameter  defined?  free?  polyfit?")
 
         for i in xrange(self.npars):
@@ -320,14 +367,14 @@ class CoordinateTransformation:
             if not name in self.missing:
                 logString += "      [x]"
             else:
-                logstring += "      [ ]     [ ]       [ ]\n"
+                logstring += "      [ ]     [ ]       [ ]"
                 logging.info(logString)
                 continue
 
-            if self.freepar[name]: logString += "     [x]"
+            if self.ctFree[i]: logString += "     [x]"
             else: logString += "     [ ]"
 
-            if self.isfitted[name]: logString += "       [x]"
+            if self.ctPoly[i]: logString += "       [x]"
             else: logString += "       [ ]"
 
             logging.info(logString)
@@ -343,80 +390,57 @@ class CoordinateTransformation:
     def resizeStructure(self, size):
         
         if self.lockSize:
-            logging.error("Cannot resize after calling or modifying instance.")
+            logging.error("Cannot resize after calling `makeValues'.")
+            logging.error("To resize, call `delValues' first.")
             return
 
-        if self.value.size == size:
+        if self.ctData.shape[-1] == ndisp:
             return
 
-        oldsize = self.value.size
-        if oldsize == 1 and size > 1:
+        if self.ctData.shape[-1] == 1 and ndisp > 1:
             self.disp = True
 
-        self.value.resize(size)
-        for prm in self.value.dtype.names:
-            self.value[prm][oldsize:] = self.value[prm][oldsize-1]
+        kMax = min(ndisp, self.ctData.shape[-1])-1
+        newData = np.zeros((self.ctData.shape)[:2]+(ndisp,),  dtype=np.float32)
+        newData[...,:kMax] = self.ctData[...,:kMax]
+        if ndisp > self.ctData.shape[-1]:
+            newData[...,kMax:] = self.ctData[...,-1][:,:,np.newaxis]
+        self.ctData = newData
 
-        self.polyfit.resize(size)
 
-        if self.backup:
-            self.value_init.resize(size)
-            for prm in self.value_init.dtype.names:
-                self.value_init[prm][oldsize:] = self.value_init[prm][oldsize-1]
+##         if self.backup:
+##             Needs to be implemented
 
+        
         self.unsavedTrans = True
 
 
-        
-    def makeParameters(self):
+
+    def makeValues(self):
 
         if not self.verifyTrans:
-            logging.error(" Definition of coord. trans. is not valid.")
+            logging.error(" PSF definition is not valid.")
             return
 
-        ## value array
-        self.valueView = self.value.view(self.value["A"].dtype)\
-            .reshape(len(self.value), -1)
+        self.ctValues = ValueArray(\
+            self.ctData, free=self.ctFree, poly=self.ctPoly)
 
-        ## freepar & isfitted
-        self.freeparView = self.freepar.view(self.freepar["A"].dtype)\
-            .reshape(-1,)
-        self.isfittedView = self.isfitted.view(self.isfitted["A"].dtype)\
-            .reshape(-1,)
-
-        ## Parameter A
-        if self.isfitted["A"]:
-            self.A = self.polyfit["A"].view(self.polyfit["A"].dtype).reshape(-1)
-        else:
-            self.A = self.value["A"].view(self.value["A"].dtype).reshape(-1)
-
-        ## Parameter B
-        if self.isfitted["B"]:
-            self.B = self.polyfit["B"].view(self.polyfit["B"].dtype).reshape(-1)
-        else:
-            self.B = self.value["B"].view(self.value["B"].dtype).reshape(-1)
-
-        ## Parameter C
-        if self.isfitted["C"]:
-            self.C = self.polyfit["C"].view(self.polyfit["C"].dtype).reshape(-1)
-        else:
-            self.C = self.value["C"].view(self.value["C"].dtype).reshape(-1)
-
-        ## Parameter D
-        if self.isfitted["D"]:
-            self.D = self.polyfit["D"].view(self.polyfit["D"].dtype).reshape(-1)
-        else:
-            self.D = self.value["D"].view(self.value["D"].dtype).reshape(-1)
-            
         self.lockSize = True
+
+
+
+    def delValues(self):
         
-        
+        if not self.lockSize:
+            return
+
+##         del self.ctValues
+        self.ctValues = None
+        self.lockSize = False
+
+        logging.warning("Deleted attribute `values', unlocked data size.")
+
     
-    @property    
-    def toUpdate(self):
-        return self.freeparView&(self.isfittedView==False)
-
-
 
     @property
     def Fit(self):
@@ -424,208 +448,87 @@ class CoordinateTransformation:
         if not self.verifyTrans:
             return False
         
-        return self.toUpdate.any()
-
-
-
-    def quickFit(self, inCoords, outCoords, outSigma=None):
-        
-        m = inCoords.shape[1]
-        M = 2*m
-
-        A = np.ones((M,4), dtype=np.float32)
-        A[:m,0] =  inCoords[0].flatten()
-        A[m:,0] =  inCoords[1].flatten()
-        A[:m,1] =  inCoords[1].flatten()
-        A[m:,1] = -inCoords[0].flatten()
-        A[m:,2] = 0.
-        A[:m,3] = 0.
-
-        sigma = None
-        if outCoords.ndim == 2 or outCoords.shape[-1] == 1:
-            b = outCoords.flatten()
-            if outSigma != None:
-                sigma = outSigma.flatten()
-        else:
-            b = outCoords.reshape(-1, outCoords.shape[-1])
-            if outSigma != None:
-                sigma = outSigma.reshape(-1, outCoords.shape[-1])
-
-        return myLstsqSigma(A, b, sigma=sigma)
-
-
-
-    def viewParameter(self, name):
-
-        if not self.lockSize:
-            self.makeParameters()
-
-        if not name in self.parameters:
-            logging.error("Unknown transf. parameter: {0}".format(name))
-            return None
-
-        i = self.parameters.index(name)
-
-        if not self.isfittedView[i]:
-            return self.valueView[:,i], None
-        else:
-            return self.valueView[:,i], self.polyfitView[:,i]
-
-
-
-    def viewValue(self, index=None):
-        
-        if not self.lockSize:
-            self.makeParameters()
-
-        if index != None:
-            index = np.asarray(index)
-            if index.min()<0 or index.max()>=self.valueView.shape[0]:
-                logging.error("Cannot view coordinate transformation:")
-                logging.error(" Index/indices out of valid range [0,{0})."\
-                                  .format(self.value.size))
-            
-            return self.valueView[index]
-        else:
-            return self.valueView
-
-
-
-    def putValue(self, data, index=None):
-
-        if not self.lockSize:
-            self.makeParameters()
-
-        if np.atleast_2d(data).shape[1] != self.valueView.shape[1]:
-            logging.error("Cannot update coordinate transformation:")
-            logging.error(" Data size does not match number of parameters.")
-            return
-        
-        if index != None:
-            index = np.asarray(index)
-            if index.min()<0 or index.max()>=self.valueView.shape[0]:
-                index = np.asarray(values)
-                logging.error("Cannot update coordinate transformation:")
-                logging.error(" Index/indices out of valid range [0,{0})."\
-                                  .format(self.value.size))
-                return
-            if index.size != np.atleast_2d(data).shape[0]:
-                logging.error("Cannot update coordinate transformation:")
-                logging.error(" Data size does not match number of indices")
-                return
-
-            self.valueView[index,self.toUpdate] = data[self.toUpdate]
-
-        else:
-            if not data.shape[0] == self.valueView.shape[0]:
-                logging.error("Cannot update coordinate transformation:")
-                logging.error(" Data size does not match size of parameters.")
-                return
-
-            self.valueView[:,self.toUpdate] = data[self.toUpdate]
-
-        self.unsavedTrans = True
+        return (self.ctFree&(self.ctPoly==False)).any()
 
             
 
-    def __call__(self, x, y, index=None):
-
+    def __call__(self, x, y, index=Ellipsis):
+        ## index can be any valid slice definition:  an integer, a slice()-
+        ## object or an Ellipsis-object
+        
         if not self.verifyTrans:
+            logging.error("Cannot determine pixel positions of sources:")
+            logging.error(" No valid coord. transf. avalable.")
             return None
 
         if not self.lockSize:
-            self.makeParameters()
+            self.makeValues()
 
-        x = np.asarray(x)
-        y = np.asarray(y)
-        if index != None:
-            index = np.asarray(index)
-
-        if x.size != y.size:
+        x = np.atleast_1d(x)
+        y = np.atleast_1d(y)
+        if x.ndim != 1:
+            logging.error("Provided x- & y-coords have invalid dimensions.")
+        if x.shape != y.shape:
             logging.error("Length of provided x- & y-coords differ.")
             return None
         
-        if index != None:
-            if index.min()<0 or index.max()>=self.value.size: 
-                logging.error("Cannot call coordinate transformation:")
-                logging.error(" Index/indices out of valid range [0,{0})."\
-                                  .format(self.ndisp))
-                return None
+        A = self.ctValues[0, index] 
+        B = self.ctValues[1, index]
+        C = self.ctValues[2, index]
+        D = self.ctValues[3, index]
 
-        if x.size > 1:
-            if index == None:
-                xOut = self.A*x[:,np.newaxis] +self.B*y[:,np.newaxis] +self.C
-                yOut = self.A*y[:,np.newaxis] -self.B*x[:,np.newaxis] +self.D
-            else:
-                xOut = self.A[index]*x +self.B[index]*y + self.C[index]
-                yOut = self.A[index]*y -self.B[index]*x + self.D[index]
+        xOut = A*x[:,np.newaxis] + B*y[:,np.newaxis] + C
+        yOut = A*y[:,np.newaxis] - B*x[:,np.newaxis] + D
 
-            return np.dstack((xOut.T, yOut.T)).T
-        else:
-            if index == None:
-                xOut = self.A*x + self.B*y + self.C
-                yOut = self.A*y - self.B*x + self.D
-            else:
-                xOut = self.A[index]*x + self.B*y + self.C[index]
-                yOut = self.A[index]*y - self.B*x + self.D[index]
+        return [xOut, yOut]
 
-            return np.rollaxis(np.dstack((xOut, yOut)), 2, 0)
 
 
 
     def makeTransHDU(self,  includePolyFit=True):
         
         if self.unsavedTrans:
-            logging.info("Saving updated coord. trans. to FITS BinTable-HDU.")
+            logging.info("Saving updated coord-trans. to FITS BinTable-HDU.")
         else:
             logging.warning(\
-                "Saving unchanged coord. trans. to FITS BinTable-HDU.")
+                "Saving unchanged coord-trans. to FITS BinTable-HDU.")
 
 
         if not self.disp: 
             dataFmt = "E"
         else:
-            dataFmt = "{0}E".format(self.value.size)
+            dataFmt = "{0}E".format(self.ctData.shape[-1])
 
         outColumns = [
-            pyfits.Column(name="name", format="1A", array=self.parameters),
-            pyfits.Column(name="value", format=dataFmt),
-            pyfits.Column(name="freepar", format="L")]
+            pyfits.Column(name="name", format="10A", array=self.parameters),
+            pyfits.Column(name="value", format=dataFmt,
+                          array=np.squeeze(self.ctData[0])),
+            pyfits.Column(name="freepar", format="L", array=self.ctFree)
+            ]
 
         if includePolyFit:
-            outColumns.extend([
-                    pyfits.Column(name="isfitted", format="L"),
-                    pyfits.Column(name="polyfit", format=dataFmt)])
+            outColumns.extend([\
+                    pyfits.Column(\
+                        name="isfitted", format="L", array=self.ctPoly),
+                    pyfits.Column(\
+                        name="polyfit", format=dataFmt,
+                        array=np.squeeze(self.ctData[1]))])
             
-        if self.backup:
-            outColumns.append(
-                pyfits.Column(name="value_init", format=dataFmt))
-
         outHDU = pyfits.new_table(outColumns, header=pyfits.Header(\
                 cards=[pyfits.Card(key="EXTNAME", value="POSPARS")]))
-
-        for i in xrange(self.npars):
-            name = outHDU.data.field("name")[i]
-
-            outHDU.data.field("value")[i] = self.value[name]
-            outHDU.data.field("freepar")[i] = self.freepar[name]
-            if includePolyFit:
-                outHDU.data.field("isfitted")[i] = self.isfitted[name]
-                outHDU.data.field("polyfit")[i] = self.polyfit[name]
-            if self.backup:
-                outHDU.data.field("value_init")[i] = self.value_init[name] 
 
         outHDU.add_checksum()
 
         self.unsavedTrans = False
 
-        return outHDU  
+        return outHDU
 
 
 
-class Positions(CoordinateTransformation):
+class Positions(CoordinateTransformation): ## usage is deprecated
 
     def __init__(self, sources, hdu=False):
+        logging.error("Usage os Positions-class  is deprecated.")
 
         if hdu:
             logging.info("Initializing source coord. instance from HDU.")

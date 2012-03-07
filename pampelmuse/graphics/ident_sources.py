@@ -475,11 +475,11 @@ class IdentSources(QtGui.QMainWindow):
     def collectPick(self, n):
 
         self.curPick = n
-        self.status.showMessage("Source #{0}: m={1:.1f} @({2:.1f},{3:.1f})"\
-                                    .format(self.pickData['id'][n],
-                                            self.pickData['mag'][n],
-                                            self.pickData['x'][n],
-                                            self.pickData['y'][n]), 5000)
+        self.status.showMessage(\
+            "Source #{0}: m={1:.1f} @({2:.1f},{3:.1f})".format(\
+                self.pickData['id'][n], float(self.pickData['mag'][n]),
+                float(self.pickData['x'][n]), float(self.pickData['y'][n])),
+            5000)
 
 
     def collectGrab(self,  coords):
@@ -495,9 +495,10 @@ class IdentSources(QtGui.QMainWindow):
             n = self.curPick
             
             matchString = "Identified source #{0} (m={1:.1f}): ".format(\
-                self.pickData['id'][n], self.pickData['mag'][n])
+                self.pickData['id'][n], float(self.pickData['mag'][n]))
             matchString += "({0:.1f},{1:.1f}) -> ({2:.1f},{3:.1f})".format(\
-                self.pickData['x'][n],self.pickData['y'][n],coords[0],coords[1])
+                float(self.pickData['x'][n]), float(self.pickData['y'][n]),
+                float(coords[0]), float(coords[1]))
             self.updateHistory(matchString)
 
             self.matched[self.pickData['id'][n]] = coords
@@ -514,16 +515,17 @@ class IdentSources(QtGui.QMainWindow):
 
     def collectUnpick(self, n):
 
-        self.status.showMessage("Source #{0}: m={1:.1f} @({2:.1f},{3:.1f})"\
-                                    .format(self.pickData['id'][n],
-                                            self.pickData['mag'][n],
-                                            self.pickData['x'][n],
-                                            self.pickData['y'][n]), 5000)
+        self.status.showMessage(\
+            "Source #{0}: m={1:.1f} @({2:.1f},{3:.1f})".format(\
+                self.pickData['id'][n], float(self.pickData['mag'][n]),
+                float(self.pickData['x'][n]), float(self.pickData['y'][n])),
+        5000)
 
         matchString = "Removed identification for source #{0} -".format(\
             self.pickData['id'][n])
         matchString += " m={0:.1f} @({0:.1f},{2:.1f})".format(\
-            self.pickData['mag'][n],self.pickData['x'][n],self.pickData['y'][n])
+                float(self.pickData['mag'][n]), float(self.pickData['x'][n]),
+                float(self.pickData['y'][n]))
         self.updateHistory(matchString)
 
         index2Del = self.leftIma.pickData.index(n)

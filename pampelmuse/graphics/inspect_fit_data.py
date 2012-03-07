@@ -16,10 +16,12 @@ CHANGELOG
                       for PSF, positions and spectra.
 2012/02/28, v0.3.0.1, small change when saving HDUs to make sure `INPOSITIONS'
                       is inserted after `POSITIONS'.
+2012/03/03, v0.3.0.2, added some HIERARCH-keys to the header of the updated
+                      PampelMuse PRM-file.
 """
 __author__  = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.3.0.1"
-import logging, sys
+__version__ = "0.3.0.2"
+import datetime, logging, sys
 import numpy as np, pyfits
 from PyQt4 import QtCore, QtGui
 
@@ -591,5 +593,10 @@ class InspectFitData(QtGui.QMainWindow):
 
     def close(self):
 
+        self.HDUList[0].header.update(\
+            "hierarch PAMPELMUSE POLYFIT UTC",
+            datetime.datetime.utcnow().strftime("%y-%m-%d %H:%M:%S"))
+        self.HDUList[0].header.update(\
+            "hierarch PAMPELMUSE POLYFIT VERSION", __version__)
         self.HDUList.close()
         QtGui.QMainWindow.close(self)
