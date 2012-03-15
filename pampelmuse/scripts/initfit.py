@@ -86,10 +86,10 @@ def initfit(arguments):
     cfpfile  = arguments.sourcelist                 ##
 ######  Photometry information:                     ##
     passband = arguments.config["PASSBAND"]         ##
-    pixScale = 10.                                  ## Write to config-file
+    pixScale = arguments.config["PIXSCALE"]         ## 
 ###### Source selection process:                    ##
     smallifu = arguments.config["SMALLIFU"]         ##
-##     aperrad  = arguments.config["APERRAD"]       ## deprecated, ->fitrad
+    aperRad  = arguments.config["APERRAD"]          ##
     apernois = arguments.config["APERNOIS"]         ##
     reslim   = arguments.config["RESLIM"]           ##
     snrcut   = arguments.config["SNRCUT"]           ##
@@ -173,7 +173,7 @@ def initfit(arguments):
 
     ## mask
     try:
-        maskHDU = pyfits.open("{0}.err.fits".format(prefix))[0]
+        maskHDU = pyfits.open("{0}.msk.fits".format(prefix))[0]
         logging.info("   {0}.msk.fits - OK".format(prefix))
     except IOError:
         maskHDU = None
@@ -214,6 +214,7 @@ def initfit(arguments):
     identIma  = np.zeros(size, dtype='float32')
     prof      = psf(index=0)
     for i in xrange(sources.nsrc):
+        if sources.ID[i] < 0: continue 
         identIma += prof(size=size, x_c=sources.x[i]/pixScale,
                          y_c=sources.y[i]/pixScale, mag=(sources.mag[i]-MZERO),
                          maxrad=10, return_sparse=True, as_sparse_matrix=True)\
@@ -225,7 +226,9 @@ def initfit(arguments):
 
     ##  temporary solution: create rec-array from Sources-instance; usage of
     ##                      instance in IdentSources will be implemented later
-    pickData = sources.toRec(ids=sources.ID[sources.mag<reslim])
+    pickData = sources.toRec(\
+        ids=sources.ID[(sources.mag<reslim)&(sources.ID>=0)])
+
     pickData["x"] /= pixScale
     pickData["y"] /= pixScale
 
@@ -264,7 +267,7 @@ def initfit(arguments):
     logging.info("Selecting sources to be used in PSF fitting.")
 
     ## get IFU coordinates for all (resolved) sources
-    sources.callTrans()
+    sources.loadIFUCoords()
 
     ## Position in Fov/distance to edge of FoV
     edgeDist = sources.edgeDist(fovShape=dataIma.shape)
@@ -340,7 +343,11 @@ def initfit(arguments):
     sources.status  = status
     sources.primary = primary
 
-    
+    ## create dummy data: every spectrum is empty
+    sources.loadSpectra(data=np.zeros((sources.ncmp, ndisp), dtype=np.float32),
+                        crval=crval, cdelt=cdelt)
+
+
     if not smallifu:
         logging.info("Searching for useful PSF stars.")
         ## searching photometry results for usefuls PSF stars
@@ -351,91 +358,94 @@ def initfit(arguments):
         ## (3) isolation criterium (relative contribution from neighboring
         ##      sources smaller than value of `APERNOIS'-parameter)
 
-        psfCheck = selector(criteria=['howIsolated','howCloseToEdge'],
-                             rad=fitrad, magcut=reslim-3, maglim=reslim)
-        psfIDs   = psfCheck['id'][(psfCheck['howIsolated']<apernois)\
-                                    &(psfCheck['howCloseToEdge']>1)]
-        
         logging.info("IDs of stars that fullfil search criteria:")
-        logging.info("   {0}".format(", ".join(map(str, psfIDs))))
+        logging.info("       ID    mag  shoulderDrop")
+        for i in xrange(sources.nsrc):
+            
+            if sources.status[i] == 2 \
+                    and sources.mag[i] <= (reslim-3) \
+                    and edgeDist[i] > fwhm \
+                    and shoulderDrop[i] < apernois:
 
-        if len(psfIDs) == 0:
+                sources.status[i] = 3
+                logging.info("   {0:6d}  {1:5.2f}  {2:14.2f}".format(\
+                        int(sources.ID[i]),
+                        float(sources.mag[i]),
+                        float(shoulderDrop[i])))
+
+        if len(sources.psfIndices) == 0:
             logging.error("No useful PSF sources found!")
             raise ConfigurationError, "No useful PSF sources found!"
-        elif len(psfIDs) < 4:
+        elif len(sources.psfIndices) < 4:
             logging.warning("Found only {0} useful PSF source(s)".format(\
-                    len(psfIDs)))
+                    len(sources.psfIndices)))
 
         ## carry out aperture spectrophotometry for PSF sources
-        logging.info("Performing aperture spectrophotometry on PSF sources.")
+        logging.info("Aperture spectrophotometry on PSF stars.")
 
-        selected = [np.where(cfpResults['id']==i)[0][0] for i in psfIDs]
+        sources.loadIFUCoords(ids=sources.ID[sources.status==3])
 
-        xAper = A*cfpResults['x'][selected]+B*cfpResults['y'][selected]+C
-        yAper = A*cfpResults['y'][selected]-B*cfpResults['x'][selected]+D
-        aperInput = np.array(zip(psfIDs, xAper, yAper),
-                             dtype=[('id', 'i8'), ('x', 'f8'), ('y', 'f8')])
-
-        make_aper = AperPhoto(data=dat_data, centers=aperInput, mask=msk_data)
+        aperData = sources.toRec(ids=sources.ID[sources.status==3])
+        aperData["x"] = np.squeeze(sources.xdata[0])
+        aperData["y"] = np.squeeze(sources.ydata[0])
+ 
+        make_aper = AperPhoto(data=dataHDU, centers=aperData, mask=maskHDU)
         
-        aperResults = make_aper.aper_photo(rAper=fitrad, psf=PSF,
+        aperResults = make_aper.aper_photo(rAper=aperRad, psf=psf,
                                            calcMoments=True, thresh=3.,
                                            localBG=True)
         
-        ## modify `status' of PSF sources in list of sources to fit
-        for i in xrange(finalList.size):
-            if finalList['id'][i] in aperResults['id']:
-                if finalList['id'][i] > -1:
-                    finalList['status'][i] +=1
-
         if aperResults.size > 3:
             ## determine wavelength-dependent coordinate transformation
             logging.info("Determining wavelength-dependent coord. transf.")
-            transformation = trans_coords(cfpResults[resSrc], aperResults)
-            
+            stars     = (aperResults["id"]>=0)
+            ifuCoords = aperResults[["x","y"]][stars].view(np.float32)\
+                .reshape(stars.sum(), 2, -1)
+
+            sources.loadIFUCoords(data=np.rollaxis(ifuCoords, 1, 0),
+                                  ids=aperResults["id"][stars])
+            sources.calcTrans()
+
             ##  determine FWHM, E and THETA
-            logging.info("Approximating PSF parameters from measured moments.")
+            logging.info("Approximating PSF from measured moments.")
+            x2 = aperResults[["x2"]][stars].view(np.float32)\
+                .reshape(stars.sum(), -1)
+            y2 = aperResults[["y2"]][stars].view(np.float32)\
+                .reshape(stars.sum(), -1)
+            xy = aperResults[["xy"]][stars].view(np.float32)\
+                .reshape(stars.sum(), -1)
+
+            psf.delValues()
+            psf.resizeStructure(ndisp=x2.shape[1])
+            psf.makeValues()
 
             ## get A, B:
-            A = np.sqrt((aperResults['x2']+aperResults['y2'])/2.+np.sqrt(\
-                    ((aperResults['x2']-aperResults['y2'])/2.)**2\
-                        +aperResults['xy']**2))
-            B = np.sqrt((aperResults['x2']+aperResults['y2'])/2.-np.sqrt(\
-                    ((aperResults['x2']-aperResults['y2'])/2.)**2\
-                        +aperResults['xy']**2))
+            A = np.sqrt((x2+y2)/2.+np.sqrt(((x2-y2)/2.)**2+xy**2))
+            B = np.sqrt((x2+y2)/2.-np.sqrt(((x2-y2)/2.)**2+xy**2))
             
             ## FWHM
-            if isfitted[psfParNames.index("fwhm")]:
-                fwhm = np.sqrt(8.*np.log(2))*np.mean(A, axis=0)
-                psfOutPars['fwhm'] = fwhm
-                logging.info("   Wavelength-dependent FWHM, mean={0:.2f}pix."\
-                                 .format(fwhm.mean()))
-
+            fwhm = np.sqrt(8.*np.log(2))*np.mean(A, axis=0)
+            psf.values[psf.parameters.index("fwhm")] = fwhm
+            logging.info("   Mean FWHM: {0:.2f}pix.".format(fwhm.mean()))
 
             ## Ellipticity
-            if isfitted[psfParNames.index("e")]:
-                e    = 1. - np.mean(A/B, axis=0)
-                psfOutPars['e'] = e
-                logging.info("   Wavelength-dependent ellipt., mean={0:.2f}"\
-                                 .format(e.mean()))
+            e    = 1. - np.mean(np.where(B!=0, A/B, 1.), axis=0)
+            psf.values[psf.parameters.index("e")] = e
+            logging.info("   Mean ellipticity: {0:.2f}".format(e.mean()))
         
-
             ## Position angle
-            if isfitted[psfParNames.index("theta")]:
-                theta = 0.5*np.arctan(2*aperResults['xy']/\
-                                          (aperResults['x2']-aperResults['y2']))
-                theta -= (-1)**(theta<0)*np.pi/4.
-                theta += (-1)**(aperResults['xy']>0)*np.pi/4.
-                psfOutPars['theta'] = theta.mean(axis=0)
-                logging.info("   Wavelength-dependent pos. angle, "+\
-                                 "mean={0:.2f}rad.".format(theta.mean()))
+            theta  = np.where(x2!=y2, 0.5*np.arctan(2*xy/(x2-y2)), 0.)
+            theta -= (-1)**(theta<0)*np.pi/4.
+            theta += (-1)**(xy>0)*np.pi/4.
+            psf.values[psf.parameters.index("theta")] = theta.mean(axis=0)
+            logging.info(\
+                "   Mean position angle: {0:.2f}rad.".format(theta.mean()))
 
-    else:
-        ## create dummy data: every spectrum is empty
-        sources.loadSpectra(\
-            data=np.zeros((sources.ncmp, ndisp), dtype=np.float32),
-            crval=crval, cdelt=cdelt)
-
+            ##  copy spectra to sources instance
+            for i in xrange(aperResults.size):
+                j = np.where(sources.ID==aperResults["id"][i])[0][0]
+                sources.data[sources.specrow[j]] = aperResults["spectrum"][i]
+            
 
     ## write results to file
     logging.info("Saving source selection in PRM-file:")

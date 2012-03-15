@@ -160,9 +160,10 @@ class Moffat:
             self.osf = osfactor
 
         if self.beta <= 1.:
-            logging.error("Value of beta ({0:.2f}) out of valid range [>1].")
+            logging.error("Value of beta ({0:.2f}) out of valid range [>1]."\
+                              .format(float(self.beta)))
             logging.error("Using beta=2.5 instead.")
-        
+            self.beta=2.5
 
 
     ## effective radius
@@ -226,7 +227,6 @@ class Moffat:
             non-zero values and respective pixel coordinates or a sparse
             coo-matrix of same `size` is returned.
         """
-
         self.size  = size
         self.x_c   = x_c
         self.y_c   = y_c
@@ -253,82 +253,129 @@ class Moffat:
 
             self._size = self.size
 
-
         ## central coordinates on sub-array
         self._x_c  = self.x_c - xs
-        self._y_c  = self.y_c - ys
+        self._y_c  = self.y_c - ys  
 
-        ##  calculate profile
-        self.array =np.fromfunction(self._draw, self._size, dtype='float32')
+        Y, X = np.indices(self._size)
+        sel = np.sqrt((X-self._x_c)**2+(Y-self._y_c)**2)<self.maxrad
+        _X = X[sel]
+        _Y = Y[sel]
 
-        if self.osf != 1: ## take care of oversampling region
-            csize = ((2*self.osr+1)*self.osf, (2*self.osr+1)*self.osf)
+        _U = (_X-self._x_c)*np.sin(self.theta)-(_Y-self._y_c)*np.cos(self.theta)
+        _V = (_Y-self._y_c)*np.sin(self.theta)+(_X-self._x_c)*np.cos(self.theta)
+        _R = np.sqrt(_U**2 + (_V/(1. - self.e))**2)
 
-            x_n = int(round(self._x_c))
-            y_n = int(round(self._y_c))
+        self.array = self.sigma_0*(1. + (_R/self.r_d)**2)**(-self.beta)
 
-            self._x_c += (self.osr - x_n)
-            self._y_c += (self.osr - y_n)
+        if self.osf != 1:
+    
+            ctrsel = np.sqrt((_Y-self._x_c)**2+(_X-self._x_c)**2)<self.osr
+            
+            if ctrsel.any():
+                subPix = np.resize(\
+                    np.linspace(-0.5+1./(2*self.osf),
+                                 0.5-1./(2*self.osf),
+                                 self.osf),
+                (self.osf, self.osf))
+                _Xos = _X[ctrsel][:,np.newaxis] + subPix.flatten()
+                _Yos = _Y[ctrsel][:,np.newaxis] + subPix.T.flatten()
 
-            self._x_c *= self.osf
-            self._y_c *= self.osf
+                _Uos = (_Xos-self._x_c)*np.sin(self.theta) \
+                    - (_Yos-self._y_c)*np.cos(self.theta)
+                _Vos=(_Yos-self._y_c)*np.sin(self.theta) \
+                    + (_Xos-self._x_c)*np.cos(self.theta)
+                _Ros= np.sqrt(_Uos**2 + (_Vos/(1. - self.e))**2)
 
-            self._x_c += 0.5*(self.osf-1.)
-            self._y_c += 0.5*(self.osf-1.)
+                self.array[ctrsel] \
+                    = (self.sigma_0/(self.osf**2)\
+                           *(1. + (_Ros/self.r_d)**2)**(-self.beta))\
+                    .sum(axis=1)
 
-            ## modify shape parameters
-            self.r_d *= self.osf
-            self.sigma_0 /= (self.osf**2)
-
-            self.maxrad = (self.osr+np.sqrt(0.5))*self.osf
-
-            ## calculate profile
-            carray = np.fromfunction(self._draw, csize, dtype='float32')
-
-            ## undo changes to shape parameters
-            self.r_d /= self.osf
-            self.sigma_0 *= (self.osf**2)
-
-            self.maxrad = maxrad
-
-            ## resample and insert
-            s1_size = (2*self.osr+1, (2*self.osr+1)*self.osf, self.osf)
-            s2_size = (2*self.osr+1, 2*self.osr+1, self.osf)
-            step1 = np.sum(np.reshape(carray, s1_size, 'C'), axis=2)
-            step2 = np.sum(np.reshape(step1, s2_size, 'F'), axis=2)
-
-            Y, X = np.indices(step2.shape)
-            SEL = (np.sqrt((X-self._x_c)**2 + (Y-self._y_c)**2) <= self.osr)\
-                &((X-self.osr+x_n)>=0)&((X-self.osr+x_n)<self._size[1])\
-                &((Y-self.osr+y_n)>=0)&((Y-self.osr+y_n)<self._size[0])
-
-            if SEL.any():
-                self.array[Y[SEL]+y_n-self.osr, X[SEL]+x_n-self.osr] \
-                    = step2[Y[SEL], X[SEL]]
-
-##             self.array = paste_area(step2, self._size, (self.osr, self.osr),
-##                                     (x_n, y_n), out_array=self.array)
-
-
-        ## return requested output
-        if (self.sparse or self.maxrad != np.inf):
-            Y, X = np.indices(self._size)
-
-            _valid   = (self.array.flatten()!=0.)
-            profdata = (self.array.flatten()[_valid], (Y.flatten()[_valid]+ys,
-                                                       X.flatten()[_valid]+xs))
-
-            if self.sparse:
-                if self.asmatrix:
-                    return sparse.coo_matrix(profdata, shape=self.size)
-                else:
-                    return profdata
+        if self.sparse:
+            if self.asmatrix:
+                return sparse.coo_matrix((self.array,(_Y+ys, _X+xs)),
+                                         shape=self.size)
             else:
-                return np.array(sparse.coo_matrix(\
-                        profdata, shape=self.size).todense())
-
+                return (self.array, (_Y+ys, _X+xs))
         else:
-            return self.array
+            return np.array(\
+                sparse.coo_matrix((self.array, (_Y+ys, _X+xs)),
+                                  shape=self.size)\
+                    .todense())
+
+ 
+##         ##  calculate profile
+##         self.array =np.fromfunction(self._draw, self._size, dtype='float32')
+##         print time.time() - t0
+## 
+##         if self.osf != 1: ## take care of oversampling region
+##             csize = ((2*self.osr+1)*self.osf, (2*self.osr+1)*self.osf)
+## 
+##             x_n = int(round(self._x_c))
+##             y_n = int(round(self._y_c))
+## 
+##             self._x_c += (self.osr - x_n)
+##             self._y_c += (self.osr - y_n)
+## 
+##             self._x_c *= self.osf
+##             self._y_c *= self.osf
+## 
+##             self._x_c += 0.5*(self.osf-1.)
+##             self._y_c += 0.5*(self.osf-1.)
+## 
+##             ## modify shape parameters
+##             self.r_d *= self.osf
+##             self.sigma_0 /= (self.osf**2)
+## 
+##             self.maxrad = (self.osr+np.sqrt(0.5))*self.osf
+## 
+##             ## calculate profile
+##             carray = np.fromfunction(self._draw, csize, dtype='float32')
+## 
+##             ## undo changes to shape parameters
+##             self.r_d /= self.osf
+##             self.sigma_0 *= (self.osf**2)
+## 
+##             self.maxrad = maxrad
+## 
+##             ## resample and insert
+##             s1_size = (2*self.osr+1, (2*self.osr+1)*self.osf, self.osf)
+##             s2_size = (2*self.osr+1, 2*self.osr+1, self.osf)
+##             step1 = np.sum(np.reshape(carray, s1_size, 'C'), axis=2)
+##             step2 = np.sum(np.reshape(step1, s2_size, 'F'), axis=2)
+## 
+##             Y, X = np.indices(step2.shape)
+##             SEL = (np.sqrt((X-self._x_c)**2 + (Y-self._y_c)**2) <= self.osr)\
+##                 &((X-self.osr+x_n)>=0)&((X-self.osr+x_n)<self._size[1])\
+##                 &((Y-self.osr+y_n)>=0)&((Y-self.osr+y_n)<self._size[0])
+## 
+##             if SEL.any():
+##                 self.array[Y[SEL]+y_n-self.osr, X[SEL]+x_n-self.osr] \
+##                     = step2[Y[SEL], X[SEL]]
+## 
+## ##             self.array = paste_area(step2, self._size, (self.osr, self.osr),
+## ##                                     (x_n, y_n), out_array=self.array)
+## 
+##         ## return requested output
+##         if (self.sparse or self.maxrad != np.inf):
+##             Y, X = np.indices(self._size)
+## 
+##             _valid   = (self.array.flatten()!=0.)
+##             profdata = (self.array.flatten()[_valid], (Y.flatten()[_valid]+ys,
+##                                                        X.flatten()[_valid]+xs))
+## 
+##             if self.sparse:
+##                 if self.asmatrix:
+##                     return sparse.coo_matrix(profdata, shape=self.size)
+##                 else:
+##                     return profdata
+##             else:
+##                 return np.array(sparse.coo_matrix(\
+##                         profdata, shape=self.size).todense())
+## 
+##         else:
+##             return self.array
 
 
 

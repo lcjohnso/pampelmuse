@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='ISO-8859-1'?>
 <?xml-stylesheet type="text/xsl" href="PMstyle.xsl"?>
-<configuration xmlns="http://www.tobedefined.com/pampelmuse" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" timestamp="2012-02-13T21:21:21Z" xsi:schemaLocation="http://www.tobedefined.com/pampelmuse PMschema.xsd">
+<configuration xmlns="http://www.tobedefined.com/pampelmuse" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" timestamp="2012-03-14T09:13:10Z" xsi:schemaLocation="http://www.tobedefined.com/pampelmuse PMschema.xsd">
  <!-- <parameter inuse="1">
   <name>FITRAD</name>
   <value dtype="float">3.0</value>
@@ -39,7 +39,7 @@
   <value dtype="tuple">(0, 1, 2, 3)</value>
   <comment>The columns of the crowded-field photometry file that contain: ID, x position, y position and magnitude of the stars</comment>
   <updated timestamp="2011-08-09T16:23:06Z">Appended parameter CFPCOLS to configuration file.</updated>
- </parameter><parameter category="1pho"><name>PASSBAND</name><value dtype="str">F814W</value><comment>The photometric passband in which the provided magnitudes are given</comment><updated timestamp="2011-11-29T21:03:10Z">Appended parameter PASSBAND to configuration file.</updated></parameter>
+ </parameter><parameter category="1pho"><name>PASSBAND</name><value dtype="str">F814W</value><comment>The photometric passband in which the provided magnitudes are given</comment><updated timestamp="2011-11-29T21:03:10Z">Appended parameter PASSBAND to configuration file.</updated></parameter><parameter category="1pho"><name>PIXSCALE</name><value dtype="float">10.0</value><comment>The scaling of the IFU pixels with respect to the input coordinates. Same as the IFU pixelsize if the input coordinates are given in acrseconds. If the input coordinates are given in pixels, it is the ratio of IFU to input pixelsize.</comment><updated timestamp="2012-03-14T09:13:10Z">Appended parameter PIXSCALE to configuration file.</updated></parameter>
  <parameter category="2sel">
   <name>APERRAD</name>
   <value dtype="float">3.0</value>

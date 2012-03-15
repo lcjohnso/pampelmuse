@@ -42,9 +42,10 @@ from PyQt4 import QtCore, QtGui
 
 ## required PampelMuse-packages
 from pampelmuse.core.fit_array import StarFit
+from pampelmuse.core.sources import Sources
 from pampelmuse.core.psf import PSF
-from pampelmuse.core.positions import Positions
-from pampelmuse.core.spectra import Spectra
+## from pampelmuse.core.positions import Positions
+## from pampelmuse.core.spectra import Spectra
 
 
 def cubefit(arguments):
@@ -66,7 +67,7 @@ def cubefit(arguments):
 
     ## open PRM-file
     logging.info("Reading PampelMuse-file: {0}.prm.fits".format(prefix))
-    prmFile  = pyfits.open("{0}.prm.fits".format(prefix))
+    prmFile  = pyfits.open("{0}.prm.fits".format(prefix), mode="update")
     extNames = [prmFile[i].name for i in xrange(len(prmFile))]
 
     ## Check for previous PampelMuse-results
@@ -83,43 +84,42 @@ def cubefit(arguments):
         logging.info("Continuing previously paused fit, current slice: {0}"\
                          .format(lastFitIndex))
 
-    ## CREATE ARRAYS THAT CONTAIN PARAMETERS USED IN THE FIT
-    ## Collect information about sources
+###### CREATE ARRAYS THAT CONTAIN PARAMETERS USED IN THE FIT ##################
+    ## Collect information about sources/create Sources-instance
+    logging.info("Obtaining information about sources in the field.")
+    sources = Sources(data=prmFile["SOURCES"], hdu=True)
 
     ## Spectra
     logging.info("Obtaining source spectra.")
-    spectra = Spectra(prmFile["SOURCES"],  hdu=True)
-    if "SIGMASPC" in extNames:
-        spectra.loadSpectra(data=prmFile["SPECTRA"], sigma=prmFile["SIGMASPC"],
-                            hdu=True)
+    if "SPECTRA" in extNames:
+        if "SIGMASPC" in extNames:
+            sources.loadSpectra(prmFile["SPECTRA"], hdu=True,
+                                sigma=prmFile["SIGMASPC"])
+        else:
+            sources.loadSpectra(data=prmFile["SPECTRA"], hdu=True, sigma=None)
     else:
-        spectra.loadSpectra(data=prmFile["SPECTRA"], sigma=None, hdu=True)
+        logging.critical("No spectra (HDU `SPECTRA') have been provided.")
+
 
     ## Positions
-    logging.info("Obtaining source coordinates")
-    positions = Positions(prmFile["SOURCES"], hdu=True)
+    logging.info("Obtaining information about source coordinates")
+    fullPosFit=False
 
     if "POSITIONS" in extNames:
         logging.info("Reading 'POSITIONS' HDU.")
-        positions.loadIfuCoords(prmFile["POSITIONS"], hdu=True)
-    elif spectra.psf.size > 0:
-        logging.info("Preparing IFU coordinates for PSF sources.")
+        sources.loadPositionsHDU(prmFile["POSITIONS"])
 
-        isPSFsource = srcList['status']==3
-        ifuData = np.zeros((2, isPSFsource.sum(), Ndsp), dtype=np.float32)
-        ifuData[0] = srcList["x"][isPSFsource]
-        ifuData[1] = srcList["y"][isPSFsource]
-
-        positions.loadIfuCoords(data=ifuData, ids=srcList['id'][isPSFsource],
-                                freepar=True, isfitted=False)
     if 'POSPARS' in extNames:
         logging.info("Reading 'POSPARS' HDU.")
-        positions.readTransHDU(prmFile["POSPARS"], backup=dobackup)
-        positions.resizeStructure(size=spectra.ndisp)
-        positions.makeParameters()
-        positions.info()
+        sources.readTransHDU(prmFile["POSPARS"], backup=dobackup)
+        sources.resizeStructure(size=sources.ndisp)
+        sources.makeValues()
+        sources.info()
+        
     else:
         logging.warning("No coord. transf. (HDU 'POSPARS') detected.")
+        if sources.Fit:
+            fullPosFit=True
 
     ## PSF
     psf = PSF()
@@ -132,27 +132,27 @@ def cubefit(arguments):
 
         psf.makeNewPSF(profile="gauss", fwhm=3.0, e=0., theta=0.)
 
+    psf.resizeStructure(ndisp=sources.ndisp)
+    psf.makeValues()
     psf.info()
-    psf.resizeStructure(size=spectra.ndisp)
-    psf.makeParameters()
 
-    prmFile.close() ## finished reading source catalog.
+##     prmFile.close() ## finished reading source catalog.
 
 
     ## open datacubes & check consistency
     logging.info("Checking data cubes.")
     dataFits  = pyfits.open('{0}.dat.fits'.format(prefix))
-    if dataFits[0].header['NAXIS3'] != spectra.ndisp:
+    if dataFits[0].header['NAXIS3'] != sources.ndisp:
         logging.critical("Data-cube and PRM-file have incompatible dimensions.")
 
     sigmaFits = pyfits.open('{0}.err.fits'.format(prefix))
-    if sigmaFits[0].header['NAXIS3'] != spectra.ndisp:
+    if sigmaFits[0].header['NAXIS3'] != sources.ndisp:
         logging.critical(\
             "Sigma-cube and PRM-file have incompatible dimensions.")
 
     if os.path.exists("{0}.msk.fits".format(prefix)):
         maskFits = pyfits.open('{0}.msk.fits'.format(prefix))
-        if maskFits[0].header['NAXIS3'] != spectra.ndisp:
+        if maskFits[0].header['NAXIS3'] != sources.ndisp:
             logging.critical(\
                 "Mask-cube and PRM-file have incompatible dimensions.")
     else:
@@ -166,7 +166,7 @@ def cubefit(arguments):
     fitter = StarFit(dataFits=dataFits[0], sigmaFits=sigmaFits[0],
                      maskFits=maskFits[0])
 
-    fitter.provideSources(spectra=spectra, positions=positions)
+    fitter.provideSources(sources, fullPosFit=fullPosFit)
 
     fitter.providePSF(psf=psf, psfRad=psfRad)
         
@@ -182,16 +182,16 @@ def cubefit(arguments):
     logging.info("Saving results.")
 
     ## collect fitting results
-    prmFile  = pyfits.open("{0}.prm.fits".format(prefix), mode='update')
-    extNames = [prmFile[i].name for i in xrange(len(prmFile))]
+##     prmFile  = pyfits.open("{0}.prm.fits".format(prefix), mode='update')
+##     extNames = [prmFile[i].name for i in xrange(len(prmFile))]
 
     ## store spectra
-    dataHDU, sigmaHDU = spectra.makeHDU(makeSigma=True)
+    dataHDU, sigmaHDU = sources.makeSpecHDU(makeSigma=True)
 
     if dobackup and lastFitIndex == None:
         if 'INSPECTRA' in extNames:
             prmFile.remove(prmFile['INSPECTRA'])
-        prmFile['SPECTRA'].header.update('EXTNAME', 'INSPECTRA')
+        prmFile['SPECTRA'].name = 'INSPECTRA'
     else:
         prmFile.remove(prmFile['SPECTRA'])
     prmFile.insert(2, dataHDU)
@@ -200,7 +200,7 @@ def cubefit(arguments):
         if 'INSIGMASPC' in extNames:
             prmFile.remove(prmFile['INSIGMASPC'])
         if 'SIGMASPC' in extNames:
-                prmFile['SIGMASPC'].header.update('EXTNAME', 'INSIGMASPC')
+                prmFile['SIGMASPC'].name = 'INSIGMASPC'
     else:
         if 'SIGMASPC' in extNames:
             prmFile.remove(prmFile['SIGMASPC'])
@@ -208,34 +208,34 @@ def cubefit(arguments):
 
 
     ## Store IFU coordinates (only if they have been fitted)
-    if positions.unsavedIfu:
+    if fullPosFit:
         if "POSITIONS" in extNames:
-            prmFile["POSITIONS"] = positions.makeIfuHDU()[0]
+            prmFile["POSITIONS"] = sources.makeCoordinatesHDU()
         else:
-            prmFile.insert(4, positions.makeIfuHDU()[0])
+            prmFile.insert(4, sources.makeCoordinatesHDU())
 
 
     ## store coordinate transformation (only if it has been fitted)
-    if positions.unsavedTrans:
+    elif sources.Fit:
         if "POSPARS" in extNames:
-            prmFile["POSPARS"] = positions.makeTransHDU()
+            prmFile["POSPARS"] = sources.makeTransHDU()
         else:
-            prmFile.insert(5, positions.maskTransHDU()[0])
+            prmFile.insert(5, sources.makeTransHDU())
 
 
     ## store PSF (only if it as been fitted)
-    if psf.unsavedPSF:
+    if psf.Fit:
         if "PSFPARS" in extNames:
-            prmFile["PSFPARS"] = psf.makeFitsHDU()
+            prmFile["PSFPARS"] = psf.makePSFHDU()
         else:
-            prmFile.insert(5, psf.makeFitsHDU())
+            prmFile.insert(5, psf.makePSFHDU())
 
     ## write/update header of primary HDU
     prmFile[0].header.update(\
         "hierarch PAMPELMUSE CUBEFIT UTC",
         datetime.datetime.utcnow().strftime("%y-%m-%d %H:%M:%S"))
     prmFile[0].header.update("hierarch PAMPELMUSE CUBEFIT VERSION", __version__)
-    if fitter.i != spectra.ndisp:
+    if fitter.i != sources.ndisp:
         prmFile[0].header.update("hierarch PAMPELMUSE CUBEFIT STATUS","STOPPED")
     else:
         prmFile[0].header.update("hierarch PAMPELMUSE CUBEFIT STATUS","SUCCESS")
@@ -243,19 +243,19 @@ def cubefit(arguments):
     prmFile[0].header.update("hierarch PAMPELMUSE CUBEFIT SMALLIFU", smallIFU)
     prmFile[0].header.update("hierarch PAMPELMUSE CUBEFIT PSFRAD", psfRad)
 
-    prmFile.close()
+    prmFile.flush()
 
 
 ##     cubeShape = (dataFits[0].header['NAXIS3'],
 ##                  dataFits[0].header['NAXIS2'],
 ##                  dataFits[0].header['NAXIS1'])
-##     if storeRes and fitter.i == spectra.ndisp:
+##     if storeRes and fitter.i == sources.ndisp:
 ## 
 ##         resCube = np.zeros(cubeShape, dtype="float32")
 ## 
-##         for i in xrange(spectra.ndisp):
+##         for i in xrange(sources.ndisp):
 ##             
-##             jj = (spectra.ndisp>>1) - 1 - int(i/2) + i*np.mod(i, 2) + np.mod(spectra.ndisp, 2)
+##             jj = (sources.ndisp>>1) - 1 - int(i/2) + i*np.mod(i, 2) + np.mod(sources.ndisp, 2)
 ## 
 ##             resCube[jj] = pyfits.getdata("{0}.res{1}.fits".format(prefix, i))
 ##             os.system("rm {0}.res{1}.fits".format(prefix, i))

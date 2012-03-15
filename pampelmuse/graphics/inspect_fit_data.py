@@ -28,8 +28,7 @@ from PyQt4 import QtCore, QtGui
 ##  required PampelMuse-packages
 from pampelmuse.graphics.dynamic_plot_canvas import DynamicPlotCanvas
 from pampelmuse.core.psf import PSF
-from pampelmuse.core.positions import Positions
-from pampelmuse.core.spectra import Spectra
+from pampelmuse.core.sources import Sources
 
 
 
@@ -290,11 +289,11 @@ class InspectFitData(QtGui.QMainWindow):
             logging.critical("Input is not a valid PampelMuse PRM-file.")
             logging.critical("No HDU named 'SPECTRA' detected.")
 
-        self.spectra = Spectra(self.HDUList["SOURCES"], hdu=True)
-        self.spectra.loadSpectra(data=self.HDUList["SPECTRA"], hdu=True)
+        self.sources = Sources(data=self.HDUList["SOURCES"], hdu=True)
+        self.sources.loadSpectra(data=self.HDUList["SPECTRA"], hdu=True)
 
         self.sourceList = {}
-        self.sourceList["Spectra"] = self.spectra.provideNames()
+        self.sourceList["Spectra"] = self.sources.provideNames()
 
         self.hduSelect.addItem("Spectra")
         self.hduMap["Spectra"] = "SPECTRA"
@@ -303,11 +302,8 @@ class InspectFitData(QtGui.QMainWindow):
         ## The routine will search for HDUs named POSPARS, POSITIONS and
         ## INPOSITIONS. Note that since in case POSITIONS and INPOSITIONS
         ## contain similar data, that from POSITIONS is used.
-        self.positions = Positions(self.HDUList["SOURCES"], hdu=True)
-
         if "POSPARS" in self.extNames:
-            self.positions.readTransHDU(self.HDUList["POSPARS"])
-            self.positions.makeParameters()
+            self.sources.readTransHDU(self.HDUList["POSPARS"])
 
             self.hduSelect.addItem("x Positions")
             self.hduMap["x Positions"] = "POSITIONS"
@@ -316,41 +312,33 @@ class InspectFitData(QtGui.QMainWindow):
             self.hduSelect.addItem("Coord. Trans.")
             self.hduMap["Coord. Trans."] = "POSPARS"
 
-            self.sourceList["Positions"] = self.positions.provideIDs()
-            self.sourceList["Coord. Trans."] = self.positions.provideParNames()
-
-            self.forceTrans=True
+            self.sourceList["Positions"] = self.sources.providePosIDs()
+            self.sourceList["Coord. Trans."] = self.sources.provideParNames()
 
             if "POSITIONS" in self.extNames:
-                if "INPOSITIONS" in self.extNames:
-                    self.positions.loadIfuCoords(\
-                        data=self.HDUList["INPOSITIONS"], hdu=True)
+                self.sources.loadPositionsHDU(self.HDUList["POSITIONS"])
 
-                self.positions.loadIfuCoords(\
-                    data=self.HDUList["POSITIONS"], hdu=True)
+            self.sources.loadIFUCoords()
 
         elif "POSITIONS" in self.extNames:
-            if "INPOSITIONS" in self.extNames:
-                self.positions.loadIfuCoords(\
-                    data=self.HDUList["INPOSITIONS"], hdu=True)
-
-            self.positions.loadIfuCoords(\
-                data=self.HDUList["POSITIONS"], hdu=True)
 
             self.hduSelect.addItem("x Positions")
             self.hduMap["x Positions"] = "POSITIONS"
             self.hduSelect.addItem("y Positions")
             self.hduMap["y Positions"] = "POSITIONS"
 
-            self.sourceList["Positions"] = self.positions.provideIDs()
+            if "INPOSITIONS" in self.extNames:
+                self.sources.loadPositionsHDU(self.HDUList["INPOSITIONS"])
+            self.sources.loadPositionsHDU(self.HDUList["POSITIONS"])
 
-            self.forceTrans = False
+            self.sourceList["Positions"] = self.sources.providePosIDs()
+
+            self.sources.loadIFUCoords()
 
         ## Handle PSF ##########################################################
         if "PSFPARS" in self.extNames:
             self.psf = PSF()
             self.psf.readFitsHDU(self.HDUList["PSFPARS"])
-            self.psf.makeParameters()
 
             self.hduSelect.addItem("PSF")
             self.hduMap["PSF"] = "PSFPARS"
@@ -359,7 +347,7 @@ class InspectFitData(QtGui.QMainWindow):
 
         ########################################################################
 
-        self.mask = np.ones((self.spectra.ndisp,), dtype=np.bool)
+        self.mask = np.ones((self.sources.ndisp,), dtype=np.bool)
 
         self._updateRowSelect(self.hduSelect.currentText())
 
@@ -388,22 +376,27 @@ class InspectFitData(QtGui.QMainWindow):
         ## retrieve current data for selected HDU and property
         if self.curProp == "Spectra":
             self.yFit  = None
-            self.yData = self.spectra.viewSpectrum(name=self.curRowName)
+            self.yData = self.sources.viewSpectrum(name=self.curRowName)
 
         elif self.curProp == "x Positions":
-            self.yData, self.yFit = self.positions.viewIfu(\
-                ID=int(self.curRowName), coord="x", forceTrans=self.forceTrans)
-        
+            self.yData, self.yFit \
+                = self.sources.getIFUCoords(coord="x", ID=int(self.curRowName))
+         
         elif self.curProp == "y Positions":
-            self.yData, self.yFit = self.positions.viewIfu(\
-                ID=int(self.curRowName), coord="y", forceTrans=self.forceTrans)
+            self.yData, self.yFit \
+                = self.sources.getIFUCoords(coord="y", ID=int(self.curRowName))
             
         elif self.curProp == "PSF":
-            self.yData, self.yFit = self.psf.viewParameter(name=self.curRowName)
+            i = self.psf.parameters.index(self.curRowName)
+            self.yData = self.psf.data[0,i]
+            if self.psf.poly[i]: self.yFit = self.psf.data[1,i]
+            else: self.yFit = None
 
         elif self.curProp == "Coord. Trans.":
-            self.yData, self.yFit = self.positions.viewParameter(\
-                name=self.curRowName)
+            i = self.sources.parameters.index(self.curRowName)
+            self.yData = self.sources.ctData[0,i]
+            if self.sources.ctPoly[i]: self.yFit = self.sources.ctData[1,i]
+            else: self.yFit = None
 
         ## update plot
         self.xData = np.arange(self.yData.size)
@@ -461,9 +454,9 @@ class InspectFitData(QtGui.QMainWindow):
             if self.curProp == "x Positions": coord="x"
             else: coord="y"
 
-            self.positions.fitIfuCoordinates(\
+            self.sources.fitIFUCoords(\
                 ids=ids, coord=coord, order=order, bins=bins, mask=self.mask,
-                forceTrans=self.forceTrans, commonSlope=self.commonSlope)
+                commonSlope=self.commonSlope)
             self._updatePlotData()
                 
         elif self.curProp == "Coord. Trans.":
@@ -507,7 +500,7 @@ class InspectFitData(QtGui.QMainWindow):
 
 
     def plotMask(self):
-        searchMask = np.diff(np.r_[True, self.mask, True])
+        searchMask = np.diff(np.r_[1, self.mask, 1])
         maskStart  = np.where(searchMask==-1)[0]
         maskEnd    = np.where(searchMask==1)[0]
 
@@ -552,34 +545,34 @@ class InspectFitData(QtGui.QMainWindow):
 
         if "POSPARS" in self.extNames or "POSITIONS" in self.extNames:
 
-            if self.positions.unsavedIfu: ## check if unsaved changes exist
-                newInposHDU, newPosHDU  = self.positions.makeIfuHDU()
+##             if self.sources.unsavedIFUCoords:
+##             ## check if unsaved changes exist
+
                 ## Results of polynomial fit are written to `POSITIONS'-HDU,
                 ## Input positions (if any) are saved in `INPOSITIONS'-HDU
                 ## (only if backup-flag is set)
 
-                if newInposHDU != None and self.dobackup:
-                    logging.info("Saving backup HDU 'INPOSITIONS'.")
-                    if "INPOSITIONS" in self.extNames:
-                        self.HDUList["INPOSITIONS"] = newInposHDU
-                    elif "POSITIONS" in self.extNames:
-                        self.HDUList.insert(\
-                            self.HDUList.index_of("POSITIONS")+1, newInposHDU)
-                    else:
-                        self.HDUList.insert(4, newInposHDU)
+            if self.dobackup \
+                    and "INPOSITIONS" not in self.extNames \
+                    and "POSITIONS" in self.extNames \
+                    and not self.sources.verifyTrans:
 
-                if newPosHDU != None:
-                    logging.info("Saving updated HDU 'POSITIONS'.")
-                    if "POSITIONS" in self.extNames:
-                        self.HDUList["POSITIONS"] = newPosHDU
-                    else:
-                        self.HDUList.insert(4, newPosHDU)
+                logging.info("Creating backup of existing HDU 'POSITIONS'.")
+                self.HDUList["POSITIONS"].name = "INPOSITIONS"
 
-                update=True
+                self.dobackup = False
 
-        if "PSFPARS" in self.extNames and self.psf.isfittedView.any():
+            newPosHDU   = self.sources.makeCoordinatesHDU(polyFit=True)
+            
+            try: self.HDUList["POSITIONS"] = newPosHDU
+            except: self.HDUList.insert(4, newPosHDU)
+
+            update=True
+
+
+        if "PSFPARS" in self.extNames and self.psf.free.any():
             if self.psf.unsavedPSF:  ## check if unsaved changes exist
-                self.HDUList["PSFPARS"] = self.psf.makeFitsHDU()
+                self.HDUList["PSFPARS"] = self.psf.makePSFHDU()
 
                 update = True
 

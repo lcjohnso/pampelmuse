@@ -15,9 +15,12 @@ __author__ = "Sebastian Kamann (skamann@aip.de)"
 __version__ = "0.1.0.0"
 import logging
 import numpy as np, pyfits
+from PyQt4 import QtCore
 
+## required PampelMuse-packages
 from pampelmuse.core.positions import CoordinateTransformation
-
+from pampelmuse.functions.step_poly_fit import StepPolyFit
+from pampelmuse.core.value_array import ValueArray
 
 
 def matchOnID(parent, child):
@@ -60,7 +63,9 @@ class Sources(CoordinateTransformation, object):
             logging.info("Initializing Sources instance.")
 
         ## initialize properties:
-        self._id       = ids
+
+        if ids != None: self._id = np.asarray(ids)
+        else: self._id = None
         self._x        = None
         self._y        = None
         self._mag      = None
@@ -70,29 +75,31 @@ class Sources(CoordinateTransformation, object):
         self._indexmap = None
         self._weights  = None
 
-        if data==None:
-            data = np.array([], dtype=[('empty', np.int16),])
+        self.values    = None ## for later usage of IFU coordinates
 
         ## IDs must be present
-        try:
-            self._id = data[["id"]].view(data["id"].dtype).reshape(-1,)
-        except ValueError:
-            if self._id == None:
-                logging.critical("No field `ID' found in provided data.")
+        if data != None:
+            try:
+                self._id = data[["id"]].view(data["id"].dtype).reshape(-1,)
+            except ValueError:
+                pass
+
+        if self._id == None:
+            logging.critical("No field `ID' found in provided data.")
+
         self.nsrc = self._id.size
 
         ## some properties are optional
-        for name in ["x", "y", "mag"]:
-            try:
-                self.__dict__["_{0}".format(name)]\
-                    = data[[name]].view(data[name].dtype).reshape(-1,)
-            except ValueError:
-                continue
+        if data != None:
+            for name in ["x", "y", "mag"]:
+                if name in data.dtype.names:
+                    self.__dict__["_{0}".format(name)]\
+                        = data[[name]].view(data[name].dtype).reshape(-1,)
 
-        ## include specrow, status, primary
-        if "specrow" in data.dtype.names: self.setSpecrow(data["specrow"])
-        if "status" in data.dtype.names: self.setStatus(data["status"])
-        if "primary" in data.dtype.names: self.setPrimary(data["primary"])
+            ## include specrow, status, primary
+            if "specrow" in data.dtype.names: self.setSpecrow(data["specrow"])
+            if "status" in data.dtype.names: self.setStatus(data["status"])
+            if "primary" in data.dtype.names: self.setPrimary(data["primary"])
 
         super(Sources, self).__init__()
 
@@ -310,6 +317,10 @@ class Sources(CoordinateTransformation, object):
         else: return self._specrow[np.where(self.status==0)[0][0]]
             
 
+    @property
+    def psfIndices(self):
+        return np.arange(self.nsrc, dtype=np.int32)[self.status==3]
+
 
     def info(self):
         
@@ -333,7 +344,8 @@ class Sources(CoordinateTransformation, object):
             logging.warning("Some source properties are not set.")
             return
 
-
+        if self.verifyTrans:
+            CoordinateTransformation.info(self)
 
 ###############################################################################
 ##              Methods dealing with the spectra of the sources              ##
@@ -369,6 +381,8 @@ class Sources(CoordinateTransformation, object):
         if self.sigma!=None:
             if self.sigma.shape != self.data.shape:
                 logging.error("Spectra and sigma arrays have different shapes.")
+        else:
+            self.sigma = np.zeros(self.data.shape, dtype=np.float32)
 
         self.ndisp = self.data.shape[1]
 
@@ -384,9 +398,9 @@ class Sources(CoordinateTransformation, object):
         if self.hasSky:
             self.names.append("Sky")
             self.nameMap["Sky"] = self.skyRow
-        if self.hasUnRes:
+        if self.hasUnres:
             self.names.append("Unresolved")
-            self.nameMap["Unresolved"] = self.unResRow
+            self.nameMap["Unresolved"] = self.unresRow
         
         return self.names
 
@@ -405,101 +419,147 @@ class Sources(CoordinateTransformation, object):
 
 
 
-##     def viewData(self, index, ID=None):
-##         
-##         index = np.atleast_1d(index)
-##         
-##         if ID == None:
-##             return self.data[:,index]
-##         else:
-##             ID = np.atleast_1d(ID)
-##             select = self.specrow[matchOnID(self.ID, ID)]
-##             if select.size < ID.size:
-##                 logging.error("Cannot return data: Invalid ID(s) provided.")
-##                 return None
-##             return self.data[select[:,np.newaxis], index]
-## 
-## 
-## 
-##     def addData(self, data, index, ID=None):
-## 
-##         index = np.atleast_1d(index)
-##         
-##         if ID == None:
-##             self.data[:,index] += data[:,np.newaxis]
-##         else:
-##             ID = np.atleast_1d(ID)
-##             select = self.specrow[matchOnID(self.ID, ID)]
-##             if select.size < ID.size:
-##                 logging.error("Cannot add to data: Invalid ID(s) provided.")
-##                 return
-##             self.data[select[:,np.newaxis], index] += data
-## 
-## 
-## 
-## 
-##     def putSigma(self, sigma, index, ID=None):
-## 
-##         if self.sigma==None:
-##             self.sigma = np.zeros(self.data.shape, dtype=self.data.dtype)
-##             
-##         index = np.atleast_1d(index)
-##         
-##         if ID == None:
-##              self.sigma[:,index] = sigma
-##         else:
-##             ID = np.atleast_1d(ID)
-##             select = self.specrow[matchOnID(self.ID, ID)]
-##             if select.size < ID.size:
-##                 logging.error("Cannot put sigma: Invalid ID(s) provided.")
-##                 return
-##             self.sigma[select[:,np.newaxis], index] = sigma
-
-
-
 ###############################################################################
 ##            Methods dealing with IFU coordinates of the sources            ##
 ###############################################################################
-    def loadIFUCoords(self, data, polyfit=None, ids=None, free=False):
+    @property
+    def Fit(self):
 
-        self.free = free
+        if "poly" in self.__dict__ and "free" in self.__dict__:
+            
+            if self.free.any() and not self.poly.all():
+                return True
+            elif self.poly.all():
+                return False
 
-        if ids==None:
-            logging.warning("No IDs for IFU coordinates were provided.")
-            self.ifuID = self._id[self._ID>=0]
-        else:
-            self.ifuID = np.asarray(ids)
-        
-        self.ifuSelect = matchOnID(self._id, self.ifuID)
-        if self.ifuSelect.size < self.ifuID.size:
-            logging.error("Invalid source IDs have been provided.")
-            return
+        return CoordinateTransformation.Fit
 
-        data = np.atleast_3d(data)
-        if data.shape[0] != 2:
-            logging.error("Provided `data' has invalid shape.")
-            return
-        if data.shape[1] != len(self.ifuID):
-            logging.error("`data'-shape incompatible with no. of IDs.")
-            return
 
-        self.xdata = np.resize(data[0], (2,)+data[0].shape)
-        self.ydata = np.resize(data[1], (2,)+data[0].shape)
 
-        self.poly = False
-        if polyfit != None:
-            polyfit = np.at_least_3d(polyfit)
-            if data.shape != polyfit.shape:
-                logging.error(\
-                    "`polyfit' must have same shape as `data' if provided.")
+    def loadIFUCoords(self, data=None, ids=None, index=slice(None),free=False):
+        ## idea to provide additional parameters to load only certain
+        ## slices from HDUs to restrict memory usage.
+        ## index can be either an integer or a slice()-object
+        ## IMPORTANT: index-lists of boolean-lists are not supported!
+
+        if not isinstance(index, slice):
+            if np.asarray(index).shape == (): index = slice(index, index+1, 1)
+            else: logging.error("`index' must be slice or integer, not {0}"\
+                                    .format(type(index)))
+
+        if data != None:
+
+            if ids==None:
+                logging.warning("No IDs for IFU coordinates were provided.")
+                self.ifuID = self._id[self._id>=0]
+            else:
+                self.ifuID = np.asarray(ids)
+
+            self.ifuSelect = matchOnID(self._id, self.ifuID)
+            if self.ifuSelect.size < self.ifuID.size:
+                logging.error("Invalid source IDs have been provided.")
                 return
-            self.xdata[1] = polyfit[0]
-            self.ydata[1] = polyfit[1]
-            self.poly = True
+
+            data = np.atleast_3d(data)
+            if data.shape[0] != 2:
+                logging.error("Provided `data' has invalid shape.")
+                return
+            if data.shape[1] != len(self.ifuID):
+                logging.error("`data'-shape incompatible with no. of IDs.")
+                return
+
+            self.xdata = np.resize(data[0], (2,)+data[0].shape)
+            self.ydata = np.resize(data[1], (2,)+data[1].shape)
+
+            self.free = np.asarray(free).resize(data.shape[1])
+
+        elif self.verifyTrans:
+
+            if ids==None: self.ifuID = self._id[self._id>=0]
+            else: self.ifuID = np.asarray(ids)
+
+            self.ifuSelect = matchOnID(self._id, self.ifuID)
+            if self.ifuSelect.size < self.ifuID.size:
+                logging.error("Invalid source IDs have been provided.")
+                return
+
+            xNew, yNew = self.__call__(x=self._x[self.ifuSelect],
+                                       y=self._y[self.ifuSelect],
+                                       index=index)
+        
+            self.xdata = np.resize(xNew, (2,)+xNew.shape)
+            self.ydata = np.resize(yNew, (2,)+yNew.shape)
+
+            self.free = np.zeros(self.ifuID.shape, dtype=np.bool)
+
+        elif "dataHDU" in self.__dict__ or "polyFitHDU" in self.__dict__:
+
+            if "dataID" in self.__dict__: availableID = self.dataID
+            else: availableID = self.polyFitID
+
+            if ids==None:
+                self.ifuID = availableID
+                slc = None
+            else:
+                self.ifuID = np.atleast_1d(ids)
+                slc = matchOnID(availableID, self.ifuID)
+                if slc.size < self.ifuID.size:
+                    logging.error("Requested ID(s) do not possess IFU coords.")
+                    return
+
+            self.ifuSelect = matchOnID(self._id, self.ifuID)
+            if self.ifuSelect.size < self.ifuID.size:
+                logging.error("Invalid source IDs have been provided.")
+                return
+
+            if index == slice(None):
+                ndisp = self.ndisp
+            elif isinstance(index, slice):
+                ndisp = (index.stop-index.start+index.step-1)/index.step
+
+            self.xdata = np.zeros((2, self.ifuID.size, ndisp), dtype=np.float32)
+            self.ydata = np.zeros((2, self.ifuID.size, ndisp), dtype=np.float32)
+
+            if "dataHDU" in self.__dict__:
+                if slc == None:
+                    self.xdata[0] = self.dataHDU.section[0,:,index]
+                    self.ydata[0] = self.dataHDU.section[1,:,index]
+                else:
+                    for i in xrange(slc.size):
+                        self.xdata[0,i] = self.dataHDU.section[0,slc[i],index]
+                        self.ydata[0,i] = self.dataHDU.section[1,slc[i],index]
+
+            self.free  = np.ones(self.ifuID.shape, dtype=np.bool)
+
+        else:
+            logging.error("Cannot load IFU coords. Information missing.")
+
+
+        self.poly = np.zeros((2,self.ifuID.size), dtype=np.bool)
+        if "polyFitHDU" in self.__dict__:
+            
+            slc = matchOnID(self.polyFitID, self.ifuID)
+            if slc.size < self.ifuID.size:
+                logging.warning("Some ID(s) do not possess polyFit coords.")
+            put = np.in1d(self.ifuID, self.polyFitID, assume_unique=True)
+
+            if put.all():
+                self.xdata[1] = self.polyFitHDU.section[0,:,index]
+                self.ydata[1] = self.polyFitHDU.section[1,:,index]
+            else:
+                for i in xrange(put.size):
+                    if put[i]:
+                        self.xdata[1,i] =self.polyFitHDU.section[0,slc[i],index]
+                        self.ydata[1,i] =self.polyFitHDU.section[1,slc[i],index]
+
+            self.poly[:,put] = True
+
+        self.xvalues = ValueArray(self.xdata, free=self.free, poly=self.poly[0])
+        self.yvalues = ValueArray(self.ydata, free=self.free, poly=self.poly[1])
 
 
 
-    def calcTrans(self):
+    def calcTrans(self, index=slice(None)):
 
         if self._x == None or self._y == None:
             logging.error("Cannot determine coordinate transformation:")
@@ -517,7 +577,8 @@ class Sources(CoordinateTransformation, object):
    
         coordTrans = self.quickFit(\
             [self._x[self.ifuSelect], self._y[self.ifuSelect]],
-            [self.xdata[0], self.ydata[0]], outSigma=None)[0]
+            [self.xdata[0,:,index], self.ydata[0,:,index]],
+            outSigma=None)[0]
 
         self.makeNewTrans()
 
@@ -547,59 +608,109 @@ class Sources(CoordinateTransformation, object):
                     float((y[i]-self.ydata[0,i]).mean(axis=-1))))
 
 
-    def callTrans(self):
 
-        self.ifuID     = self._id[self._id>=0]
-        self.ifuSelect = matchOnID(self._id, self.ifuID)
+    def loadPositionsHDU(self, name):
 
-        xNew, yNew = self.__call__(x=self._x[self._id>0], y=self._y[self._id>0])
-        
-        if "xdata" in self.__dict__ and "ydata" in self.__dict__:
-            if xNew.shape == self.xdata.shape[1:]:
-                self.xdata[0] = xNew
-                self.ydata[0] = yNew
-                return
+        ## need to provide nameID and polyFitID
+        ## look for hierarch-keywords "PAMPELMUSE POSITIONS ID{i}"
 
-        logging.warning("Shape of IFU coord. array changed.")
-        logging.warning("Lost scope of polynomial fits (if any).")
+        if "EXTNAME" in name.header:
+            logging.info("Reading IFU coords. from HDU '{0}'.".format(\
+                    name.header["EXTNAME"]))
+        else:
+            logging.info("Reading IFU coords. from unnamed HDU.")
 
-        self.xdata = np.zeros((2,)+xNew.shape)
-        self.ydata = np.zeros((2,)+yNew.shape)
-        self.xdata[0] = xNew
+        hduID = np.arange(name.header["NAXIS2"], dtype=np.int32)
+        for i in xrange(hduID.size):
+            if "PAMPELMUSE POSITIONS ID{0}".format(i) in name.header:
+                hduID[i] = name.header["PAMPELMUSE POSITIONS ID{0}".format(i)]
+            else:
+                hduID = self._id[self._id>=0][:name.header["NAXIS2"]]
+                break
 
-        self.ydata[0] = yNew
+        if name.header["NAXIS1"] in [self.nsrc, self.nsrc+1]\
+                and name.header["NAXIS2"] not in [self.nsrc, self.nsrc+1]:
+            logging.warning("Opened FITS-HDU has an outdated structure.")
+            logging.warning("Will try to update and use as polyfit coords.")
 
+            if name.header["NAXIS1"] == self.nsrc:
+                tmpHDU = pyfits.ImageHDU(np.rollaxis(name.data, 1, 3))
+            else:
+                tmpHDU = pyfits.imageHDU(np.rollaxis(name.data[...,:-1], 1, 3))
 
-##         if hdu:
-##             if "EXTNAME" in data.header:
-##                 logging.info("Reading IFU coords. from HDU '{0}'.".format(\
-##                         data.header["EXTNAME"]))
-##             else:
-##                 logging.info("Reading IFU coords. from unnamed HDU.")
-## 
-##             if data.header["NAXIS1"] in [self.nsrc, self.nsrc+1]\
-##                     and data.header["NAXIS2"] not in [self.nsrc, self.nsrc+1]:
-##                 logging.warning("Opened FITS-HDU has an outdated structure.")
-##                 logging.warning("Will try to update and use as polyfit coords.")
-## 
-##                 if data.header["NAXIS1"] == self.nsrc:
-##                     self.ifuPolyfit = np.rollaxis(data.data, 1, 3)
-##                 else:
-##                     self.ifuPolyfit = np.rollaxis(data.data[...,:-1], 1, 3)
-## 
-##             else:
-##                 if "FREEPAR" in data.header:
-##                     self.free = data.header["FREEPAR"]
-##                 if "ISFITTED" in data.header:
-##                     self.poly = data.header["ISFITTED"]
-## 
-##                 if self.poly:
-##                     self.ifuPolyfit = data.data
-##                 else:
-##                     self.ifu = data.data
-## 
+            tmpHDU.writeto("tmpPos.fits", clobber=True)
+            self.polyFitHDU = pyfits.open("tmpPos.fits")[1]
+            self.polyFitID  = np.copy(hduID)
+
+        else:
+            try: poly = name.header["PAMPELMUSE POSITIONS POLY"]
+            except:
+                try: poly = name.header["ISFITTED"]
+                except: poly = False
+
+            if not poly:
+                self.dataHDU = name
+                self.dataID  = np.copy(hduID)
+            else:
+                self.polyFitHDU = name
+                self.polyFitID  = np.copy(hduID)
 
 
+
+    def providePosIDs(self, minStatus=1):
+
+        posSel = np.in1d(self.status, np.arange(minStatus,4))
+
+        return QtCore.QStringList(self.ID[posSel].astype("|S6"))
+
+    
+
+    def getIFUCoords(self, coord, ID):
+
+        if not coord in ["x", "y"]: return None, None
+        else: i = ["x", "y"].index(coord)
+
+        if not ID in self._id:
+            logging.error(\
+                "Cannot return IFU coords - unknown ID: {0}".format(ID))
+            return None, None
+        else:
+            j = matchOnID(self.ifuID, np.atleast_1d(ID))[0]
+
+        if not self.poly[i,j]:
+            if coord == "x": return self.xdata[0,j], None
+            else: return self.ydata[0,j], None
+        else:
+            if coord == "x": return self.xdata[:,j]
+            else: return self.ydata[:,j]
+          
+
+
+    def fitIFUCoords(self, ids, coord, order, bins, mask=None,
+                     commonSlope=False):
+
+        if commonSlope:
+            logging.warning("Flag `commonSlope' not yet supported.")
+
+        if not coord in ["x", "y"]: return
+        else: i = ["x", "y"].index(coord)
+
+        if ids==None: indices2Fit = np.arange(self.ifuID.size, dtype=np.int32)
+        else: indices2Fit = matchOnID(self.ifuID, np.atleast_1d(ids))
+
+        k = 1
+        for j in indices2Fit:
+            if coord == "x": self.xdata[1,j] = StepPolyFit(\
+                self.xdata[0,j], order=order, bins=bins, mask=mask)
+            else: self.ydata[1,j] = StepPolyFit(\
+                self.ydata[0,j], order=order, bins=bins, mask=mask)
+            self.poly[i,j] = True
+            logging.debug("Polyn. fit to source #{0} [{1}/{2}]".format(\
+                    self.ifuID[j], k, len(indices2Fit)))
+            k += 1
+
+
+    
 ################################################################################
 ##              Source selection methods/properties                           ##
 ################################################################################
@@ -686,7 +797,8 @@ class Sources(CoordinateTransformation, object):
             if self.__dict__["_{0}".format(attribute)] != None:
                 names.append(attribute)
         return np.rec.fromarrays(\
-            [self.__dict__["_{0}".format(name)] for name in names], names=names)
+            [self.__dict__["_{0}".format(name)][select] for name in names],
+            names=names)
 
 
 
@@ -738,3 +850,32 @@ class Sources(CoordinateTransformation, object):
                 return outHDU, None
         else:
             return outHDU
+
+
+
+    def makeCoordinatesHDU(self, polyFit=False):
+
+        if not polyFit:
+            toStore = np.ones(self.ifuID.size, dtype=np.bool)
+            i = 0
+        else:
+            ## NOTE: polyFit-coords are only stored for sources for which both
+            ##       x & y have been fitted.
+            toStore = (self.poly[0]&self.poly[1])
+            if not toStore.any(): return None
+            i=1
+            
+        outHDU = pyfits.ImageHDU(np.rollaxis(\
+                np.dstack((self.xdata[i,toStore], self.ydata[i,toStore])),2,0),
+                                 name="POSITIONS")
+        outHDU.header.update("hierarch PAMPELMUSE POSITIONS POLY", bool(i))
+
+        k = 0
+        for j in xrange(self.ifuID.size):
+            if toStore[j]:
+                outHDU.header.update(\
+                    "hierarch PAMPELMUSE POSITIONS ID{0}".format(k),
+                    self.ifuID[j])
+                k += 1
+
+        return outHDU

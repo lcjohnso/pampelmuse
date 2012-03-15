@@ -83,6 +83,9 @@ class CoordinateTransformation(object):
         self.ctFree   = None
         self.ctPoly   = None
         self.ctValues = None
+        self.npars    = len(self.parameters)
+##         self.missing  = [name for name in self.parameters]
+
 
 
     def makeNewTrans(self, **kwargs):
@@ -207,7 +210,7 @@ class CoordinateTransformation(object):
 
 
     def quickFit(self, inCoords, outCoords, outSigma=None):
-        
+
         m = inCoords[0].shape[0]
         M = 2*m
 
@@ -219,9 +222,13 @@ class CoordinateTransformation(object):
         A[m:,2] = 0.
         A[:m,3] = 0.
 
-        b = np.vstack(outCoords)
-        if outSigma != None: sigma = np.vstack(outSigma)
-        else: sigma = None
+        sigma = None
+        if outCoords[0].ndim>1:
+            b = np.vstack(outCoords)
+            if outSigma != None: sigma = np.vstack(outSigma)
+        else:
+            b = np.hstack(outCoords)
+            if outSigma != None: sigma = np.hstack(outSigma)
 
         return myLstsqSigma(A, b, sigma=sigma)
 
@@ -277,15 +284,12 @@ class CoordinateTransformation(object):
         after a PSF has been initialized and before any parameters are
         added.
         """
-        self.npars      = len(self.parameters)
         self.disp       = False
         self.lockSize   = False ## Cannot resize after call to makeParameters
-
+        self.missing    = [name for name in self.parameters]
         self.ctData = np.zeros((2,self.npars,1),  dtype=np.float32)
         self.ctFree = np.zeros((self.npars,),  dtype=np.bool)
         self.ctPoly = np.zeros((self.npars,),  dtype=np.bool)
-
-        self.missing    = [name for name in self.parameters]
  
 
         
@@ -305,7 +309,7 @@ class CoordinateTransformation(object):
             if self.disp:
                 logging.warning("Differing data size of parameter '{0}'.")
                 logging.warning("Transformation structure will be resized.")
-            self.resizeStructure(ndisp=value.size)
+            self.resizeStructure(size=value.size)
         elif value.size < self.ctData.shape[-1] and value.size > 1:
             logging.error("Cannot add parameter: '{0}' has invalid data size."\
                               .format(name))
@@ -345,9 +349,9 @@ class CoordinateTransformation(object):
             return False
 
         if self.missing != []:
-            logging.warning("Some transf. parameters have not been specified:")
-            for prm in self.missing:
-                logging.warning("   Missing parameter '{0}'".format(prm))
+##             logging.warning("Some transf. parameters have not been specified:")
+##             for prm in self.missing:
+##                 logging.warning("   Missing parameter '{0}'".format(prm))
             return False
         else:
             return True
@@ -394,16 +398,16 @@ class CoordinateTransformation(object):
             logging.error("To resize, call `delValues' first.")
             return
 
-        if self.ctData.shape[-1] == ndisp:
+        if self.ctData.shape[-1] == size:
             return
 
-        if self.ctData.shape[-1] == 1 and ndisp > 1:
+        if self.ctData.shape[-1] == 1 and size > 1:
             self.disp = True
 
-        kMax = min(ndisp, self.ctData.shape[-1])-1
-        newData = np.zeros((self.ctData.shape)[:2]+(ndisp,),  dtype=np.float32)
+        kMax = min(size, self.ctData.shape[-1])-1
+        newData = np.zeros((self.ctData.shape)[:2]+(size,),  dtype=np.float32)
         newData[...,:kMax] = self.ctData[...,:kMax]
-        if ndisp > self.ctData.shape[-1]:
+        if size > self.ctData.shape[-1]:
             newData[...,kMax:] = self.ctData[...,-1][:,:,np.newaxis]
         self.ctData = newData
 

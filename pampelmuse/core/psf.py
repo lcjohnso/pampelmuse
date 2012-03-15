@@ -15,9 +15,10 @@ CHANGELOG
                       their individual properties (i.e whether they are free
                       fit parameters or have been replaced by a polynomial
                       fit.)
+2012/03/08, v0.2.1.0, some debugging wrt. polynomial fitting of parameters
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.2.0.0"
+__version__ = "0.2.0.1"
 
 import logging, os
 import numpy as np, pyfits
@@ -301,21 +302,25 @@ class PSF:
     def defineFunction(self):
 
         if self.psftype == "moffat":
-            self.function = lambda index : Moffat(\
+            self.function = lambda index, osfactor=5, osradius=2: Moffat(\
                 beta =self.values[0,index],
                 fwhm =self.values[1,index],
                 e    =self.values[2,index],
-                theta=self.values[3,index])
+                theta=self.values[3,index],
+                osfactor=osfactor,
+                osradius=osradius)
 
         elif self.psftype == "gauss":
-            self.function = lambda index : Gaussian(\
+            self.function = lambda index, osfactor=5, osradius=2: Gaussian(\
                 fwhm =self.values[0,index],
                 e    =self.values[1,index],
-                theta=self.values[2,index])
+                theta=self.values[2,index],
+                osfactor=osfactor,
+                osradius=osradius)
 
 
 
-    def  __call__(self, index=0):
+    def  __call__(self, index=0, osradius=2, osfactor=5):
 
         if not self.verifyPSF:
             logging.error("Cannot call PSF instance:")
@@ -325,13 +330,14 @@ class PSF:
         if not self.lockSize:
             self.makeValues()
 
+
         if index > self.data.shape[-1]:
             logging.error("Cannot call PSF instance:")
             logging.error(" Index out of valid range [0,{1}).".format(\
                     self.values.size))
             return None
 
-        return self.function(index=index)
+        return self.function(index=index, osradius=osradius, osfactor=osfactor)
 
 
 
@@ -346,7 +352,7 @@ class PSF:
         
         i = self.parameters.index(name)
 
-        self.data[1,i] = StepPolyFit(self.values[i,:], order=order, bins=bins,
+        self.data[1,i] = StepPolyFit(self.data[0,i,:], order=order, bins=bins,
                                      mask=mask)
         self.poly[i]   = True
         

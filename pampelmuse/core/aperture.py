@@ -28,9 +28,11 @@ __author__ = "Sebastian Kamann (skamann@aip.de)"
 __version__ = "0.1.2.1"
 import logging, sys
 import numpy as np, pyfits
-
-## from my_profiles import Gaussian
 from matplotlib.mlab import griddata
+
+## required PampelMuse-packages
+## from pampelmuse.core.psf import PSF
+
 
 
 
@@ -156,38 +158,52 @@ class AperPhoto:
         """
         logging.info("Starting aperture photometry, validating input.")
 
+        ## reading information about sources
         self.centers = centers
         for name in ['id', 'x', 'y']: ## check if input is valid
             if not name in self.centers.dtype.names:
-                raise IOError, "No field named '{0}'".format(name)\
-                    +" was found in `centers'-array"
-
-        self.mask    = mask
+                logging.critical(\
+                    "Field '{0}' not found in `centers'".format(name))
 
         self.Nsources = self.centers.size
         logging.info("Found {0} valid sources.".format(self.Nsources))
 
+        ## prepare data array, check whether array or HDU provided
         if len(data.shape) == 3:
             self.data    = data
+            if isinstance(self.data, (pyfits.PrimaryHDU, pyfits.ImageHDU)):
+                self.dataFITS = True
+            else:
+                self.dataFITS = False
             self.Nimages = self.data.shape[0]
         else:
-            self.data    = data.reshape((1,data.shape[0], data.shape[1]))
-            self.Nimages = 1
+            self.data     = data.reshape((1,data.shape[0], data.shape[1]))
+            self.dataFITS = False
+            self.Nimages  = 1
         self.spatpix = self.data.shape[1:]
-        logging.info("Input data is {0}D, containing {1} spectral pixels."\
+        logging.info("Input data is {0}D, with {1} spectral pixels."\
                          .format(2+(self.Nimages>1),  self.Nimages))
 
+        ## prepare mask array (if any), check whether array or HDU provided
+        self.mask = mask
+        if isinstance(self.mask, (pyfits.PrimaryHDU, pyfits.ImageHDU)):
+            self.maskFITS = True
+        else:
+            self.maskFITS = False
+        if self.mask != None:
+            if self.mask.shape != self.data.shape:
+                logging.critical("Data and mask have different shapes.")
+
         ## prepare record array that will contains output.
-        self.results = np.zeros(self.Nsources+1,
-                                dtype=[('id', 'i8'),
-                                       ('spectrum', 'f8', (self.Nimages,)),
-                                       ('x', 'f8', (self.Nimages,)),
-                                       ('y', 'f8', (self.Nimages,)),
-                                       ('x2', 'f8', (self.Nimages,)),
-                                       ('y2', 'f8', (self.Nimages,)),
-                                       ('xy', 'f8', (self.Nimages,))
-                                       ]
-                                )
+        self.results = np.zeros(self.Nsources+1, dtype=[\
+                ('id',np.int32),
+                ('spectrum', np.float32, (self.Nimages,)),
+                ('x', np.float32, (self.Nimages,)),
+                ('y', np.float32, (self.Nimages,)),
+                ('x2', np.float32, (self.Nimages,)),
+                ('y2', np.float32, (self.Nimages,)),
+                ('xy', np.float32, (self.Nimages,))
+                ])
         
 
         
@@ -231,7 +247,7 @@ class AperPhoto:
             Note that the global background flux/spectrum is stored in the
             'spectrum' slot of a hypothetical source with 'id' -1.
         """
-        self.rAper  = rAper
+        self.rAper   = rAper
         self.thresh  = thresh
         self.calcMom = calcMoments
         logging.info("Aperture photometry - starting calulation with:")
@@ -241,8 +257,8 @@ class AperPhoto:
         logging.info("   Local background calculation? - {0}".format(localBG))
 
         if psf != None:
-            logging.info("   Using PSF of type `{0}' for aperture correction."\
-                             .format(psf.__class__.__name__))
+            logging.info("   Aperture correction with `{0}'-PSF.".format(\
+                    psf.psftype))
         else:
             logging.info("   No aperture correction applied.")
 
@@ -255,19 +271,20 @@ class AperPhoto:
         self.annuSelect = SelectAnnulus(self.spatpix, self.centers)
 
         for i in xrange(self.Nimages):
-            logging.debug("Analysing image #{0} (of {1})".format(\
+            logging.info("Aperture spectrophotometry - image #{0}/{1})".format(\
                     i+1, self.Nimages))
 
-            ##  if mask provided, interpolate masked values
-            if self.mask != None and self.mask[i].any():
-                logging.debug("   Implementing mask.")
-                mask_i = (self.mask[i] == False)
-                data_i = griddata(Y[mask_i], X[mask_i], self.data[i][mask_i], 
-                                  Y, X)
-            else:
-                logging.debug("   No masked values found.")
-                data_i = self.data[i].copy()
+            if self.mask !=  None:
+                if self.maskFITS: mask_i = (self.mask.section[i]==0)
+                else: mask_i  = (self.mask[i] == 0)
+                print mask_i.sum(), self.mask.section[i]
+            if self.dataFITS: data_i = self.data.section[i]
+            else:  data_i = np.copy(self.data[i])
 
+            ##  if mask provided, interpolate masked values
+            if self.mask != None:
+                logging.debug("   Implementing mask.")
+                data_i = griddata(Y[mask_i], X[mask_i], data_i[mask_i], Y, X)
 
             ##  estimate global background value.
             logging.debug("   Determining global background")
@@ -313,8 +330,8 @@ class AperPhoto:
                                                                   moments[k]))
                             k += 1
                     else:
-                        logging.error("Too few pixels (>3) to calculate "+\
-                                          "moments.")
+                        logging.error(\
+                            "Too few pixels (<4) to calculate moments.")
                         self.results['x'][j][i] = self.centers['x'][j]
                         self.results['y'][j][i] = self.centers['y'][j]
 
@@ -324,15 +341,13 @@ class AperPhoto:
 
                 ## Aperture photometry:
                 if psf != None:
-                    psf_ij = psf(size=self.spatpix,
-                                 x_c=self.centers['x'][j],
-                                 y_c=self.centers['y'][j],
-                                 mag=0.,
-                                 maxrad=3.*psf.fwhm,
-                                 return_sparse=True
-                                 )
+                    psfProf = psf(index=i*psf.disp) 
+                    psf_ji  = psfProf(size=self.spatpix,
+                                      x_c=self.centers['x'][j],
+                                      y_c=self.centers['y'][j],
+                                      mag=0., maxrad=15, return_sparse=False)
 
-                    corr =  np.asarray(psf_ij.todense())[selPix_ji].sum()
+                    corr =  psf_ji[selPix_ji].sum()
                 else:
                     corr = 1.
 
@@ -443,7 +458,7 @@ class AperPhoto:
                                    data<(median+thresh*sigma))
 
             if valid.sum() < 5:
-                logging.warn("Sigma-clipping left <5 vlid pixels.")
+                logging.warn("Sigma-clipping left <5 valid pixels.")
 	
             data = data[valid]
             i += 1
@@ -470,7 +485,7 @@ class AperPhoto:
         """
 
         if data.size < 5:
-            logging.warn("Less than 5 pixels are used for moment calculation.")
+            logging.warn("Less than 5 pixels used to calculate moments.")
 
         total = float(data.sum())
         x  = (X*data).sum()/total
@@ -480,6 +495,18 @@ class AperPhoto:
         y2 = (Y*Y*data).sum()/total - y**2        
         xy = (X*Y*data).sum()/total - x*y
         
+        if x2<0:
+            logging.error("Source has unphysical moments: <x^2> < 0")
+            x2=0
+
+        if y2<0:
+            logging.error("Source has unphysical moments: <y^2> < 0")
+            y2=0
+
+        if xy**2 >= x2*y2:
+            logging.error("Source has unphysical moments: <xy>^2 >= <x^2><y^2>")
+            xy = 0
+
 ##         col = data[:,int(y)]
 ##         if col.sum() > 0.:
 ##             sigma_x = math.sqrt(abs(((np.arange(col.size())-y)**2)*col).sum()/col.sum())
