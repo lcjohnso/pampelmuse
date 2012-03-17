@@ -484,7 +484,7 @@ class StarFit(FittingGui):
         coeffs   = np.array([], dtype='float32')  ## PSF coefficents
         indices0 = np.array([], dtype='int32')    ## row indices
         indices1 = np.array([], dtype='int32')    ## column indices
-        print self.sources.indexmap, self.sources.specrow
+
         for i in xrange(self.sources.ncmp): ## iterate over `specrow`
 
             if i==self.sources.unresRow and not calcUnres:
