@@ -1,12 +1,15 @@
 """
 APERTURE
 ========
-The code provides a routine to perform aperture photometry on a 2dim.
-image or aperture spectrophotometry a 3dim. datacube. 
-The main routine is the class `AperPhoto' that performs aperture (spectro)-
-photometry for a list of input positions. Additonal features are the
-estimation of a global or a local background value/spectrum and the
-calculation of 1st and 2nd order moments for the sources.
+The routine is designed to perform aperture photometry on a 2dim. image or
+aperture spectrophotometry a 3dim. datacube. 
+
+The main routine is the class `AperPhoto` that performs aperture (spectro)-
+photometry for a list of input positions, provided as a structured array. A
+local background around every source is estimated and subtracted before its
+flux and moments are determined. Additonally the routine estimates the global
+background in the data.
+
 The class `SelectAnnulus' is called to extract doughnut-shaped regions from
 the input data and is frequently called by `AperPhoto'.
 
@@ -23,17 +26,18 @@ CHANGELOG:
                       with the latest estimate of the global background
 2011/12/02, v0.1.1.1, included logging-module
 2011/12/05, v0.1.2.1, bugfixed logging
+2012/03/16, v0.4.0.0, modified the code to use the dedicated `PSF`-class
+                      defined by PampelMuse. Also adapted the current
+                      version number to the version number of PampelMuse.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.1.2.1"
+__version__ = "0.4.0.0"
 import logging, sys
 import numpy as np, pyfits
 from matplotlib.mlab import griddata
 
 ## required PampelMuse-packages
-## from pampelmuse.core.psf import PSF
-
-
+## None required, instance of the `PSF`-class provided
 
 
 
@@ -55,17 +59,15 @@ class SelectAnnulus:
             pixel coordinates of the sources in the array.
         """
 
-        self.shape = shape
-
+        self.shape   = shape
         self.centers = centers
 
         for name in ['id', 'x', 'y']:
             if not name in self.centers.dtype.names:
-                raise IOError, "No field named '{0}'".format(name)\
-                    +" was found in 'centers'-array"
+                logging.critical(\
+                    "Field '{0}' not found in 'centers'-array".format(name))
 
 
-                
     def __call__(self, ids, r_min, r_max):
         """
         Select pixels in an annulus around one or more sources.
@@ -82,10 +84,11 @@ class SelectAnnulus:
 
         Returns
         -------
-        A 2dim. boolean array of provided 'shape' with all pixels set to True
-        that:
-        (a) are at a distance >=r_min  wrt to all selected sources.
-        [(b) are at a distance <=r_max to ONE selected source.]
+        selected_pixel : array_like
+            A 2dim. boolean array of with shape `shape` and all pixels set to
+            True that:
+                (a) are at a distance >=r_min  wrt to all selected sources.
+               [(b) are at a distance <=r_max to ONE selected source.]
         """
 
         self.IDs = np.asarray([ids]).flatten()
@@ -126,15 +129,13 @@ class SelectAnnulus:
 
 
 
-
-## changed input 'centers' to a record array, also a record-array is returned
-## the sky spectrum is returned as the spectrum having id=-1
 class AperPhoto:
     """
-    Perform aperture (spectro)photometry on 2 or 3dimensional data. Prior
-    to any flux measurement, the background is determined Optionally,
-    AperPhoto also calculates first and second order moments for the
-    provided sources.
+    Perform aperture (spectro)photometry on 2 or 3dimensional data using
+    a provided list of sources. The calculation of the first and second order
+    moments for the provided sources  is optional. Prior to any flux or moment
+    measurement, a background (global or local if  requested) is determined
+    and subtracted. 
     """
 
     def __init__(self, data, centers, mask=None):
@@ -143,18 +144,24 @@ class AperPhoto:
 
         Parameters
         ----------
-        data : ndarray
+        data : array_like of pyfits HDU-instance
             The 2 or 3dim. array on which the aperture photometry should
             be performed. In case of a 3dim. array, the first axis must
-            be the spectral one.
+            be the spectral one. Also, in the case of a 3dim. array a pyfits
+            HDU-instance can be provided that will then be loaded into memory
+            image-by-image (useful for large data-cubes).
         centers : numpy_record_array
             Initial guesses for the pixel coordinates of all sources for which
             photometric measurements should be performed. The record array must
             contain fields named 'id', 'x' and 'y'.
-        mask : ndarray or None
+        mask :  array_like of pyfits HDU-instance
             Must be boolean array of same shape as `data` if provided. All
             pixels set to True in `mask` are replaced using 2dim. linear
             interpolation before aperture photometry is performed.
+            
+        Returns
+        -------
+        The newly created instance
         """
         logging.info("Starting aperture photometry, validating input.")
 
@@ -215,6 +222,7 @@ class AperPhoto:
         background is determined using a sigma-clipping approach.
         Optionally, a local background around every soource can be
         determined.
+
         Note that the aperture (spectro)photometry is always performed
         around the input coordinates, NOT around the first order moments
         (even if they are calculated).
@@ -520,104 +528,3 @@ class AperPhoto:
 ##         fwhm = 2.355*(sigma_x+sigma_y)/2.
 
         return (x, y, x2, y2, xy)
-
-
-
-## OUTDATED!!!
-## def aper_photo(root_name, init_guesses, r_aper=3., moments=True, thresh=3.):
-##     """
-##     Function uses the methods of the AperPhoto-class to do aperture
-##     photometry on a datacube (3dim. array)
-## 
-##     Results are stored as a FITS-table on the disk
-## 
-##     Parameters
-##     ----------
-##     root_name : string
-##         The datacube must have filename <root_name>.dat.fits; the results
-##         are stored under <root_name>.src.fits
-##     init_guesses : string
-##         Path to an ASCII-file containing approximate x- and y-coordinates
-##         of the sources suited for aperture photometry in the cube. The
-##         file must be readable by asciidata with x-coordinates as first
-##         column and y-coordinates as second column
-##     r_aper : float, optional
-##         Radius for aperture photometry
-##     moments : bool, optional
-##         Whether moments for the sources should be calculated
-##     thresh : float, optional
-##         Only consider pixels with values above <thresh> times the
-##         background noise in moment calculation.
-##     """
-## 
-## 
-##     ## read data cube
-##     indata, head  = pyfits.getdata(root_name+'.dat.fits', header=True)
-## 
-##     ## get wavelength information
-##     wavl = np.arange(indata.shape[0], dtype='float32')
-##     wavl *= head['CDELT3']
-##     wavl += head['CRVAL3']
-## 
-##     ## get center coordinates from ASCII-file <init_guesses>
-##     centers = [[],[]]
-##     srclist = asciidata.open(init_guesses)
-##     for i in xrange(srclist.nrows):
-##         centers[0].append(srclist[1][i])
-##         centers[1].append(srclist[2][i])
-##     centers = np.asarray(centers)
-##     Nsources = centers.shape[1]
-## 
-##     results = np.zeros((3*Nsources+1, indata.shape[0]),
-##                           dtype='float32')
-## 
-##     ## Source columns will be numbered consecutively
-##     names = ['BACK']
-##     for i in xrange(Nsources):
-##         names.extend(['XPOS%i' %i, 'YPOS%i' %i, 'FLUX%i' %i])
-## 
-##     ## Aperture photometry for every image is performed
-##     for i in xrange(indata.shape[0]):
-##         ap_ima = AperPhoto(indata[i], centers)
-##         ap_ima.aper_photo(moments=moments)
-## 
-##         results[0,i] = ap_ima.backval
-## 
-##         for j in xrange(Nsources):
-##             results[1+3*j,i] = ap_ima.moments[j,1]  ## exchange x- & y-axis
-##             results[2+3*j,i] = ap_ima.moments[j,0]
-##             results[3+3*j,i] = ap_ima.fluxes[j]
-## 
-##         sys.stdout.write('\rProcessing image %0*d/%0*d' %(4, i+1, 4,
-##                                                           indata.shape[0]))
-##         sys.stdout.flush()
-## 
-##     print ""
-## 
-##     ## use median position of first source as reference
-##     x_ref = np.median(results[1])
-##     y_ref = np.median(results[2])
-## 
-##     for j in xrange(Nsources):
-##         results[1+3*j] -= x_ref
-##         results[2+3*j] -= y_ref
-## 
-##     
-##     columns = []
-## 
-##     columns.append(pyfits.Column(name='WAVELEN', format='D', array=wavl))
-## 
-##     for i in xrange(results.shape[0]):
-##         columns.append(pyfits.Column(name=names[i], format='D',
-##                                      array=results[i]))
-##     
-##     tblHDU = pyfits.new_table(columns)
-##     tblHDU.header.update('XREF', x_ref)
-##     tblHDU.header.update('YREF', y_ref)
-## 
-##     priHDU = pyfits.PrimaryHDU()
-## 
-##     HDUList = pyfits.HDUList([priHDU, tblHDU])
-##     HDUList.writeto(root_name+'.src.fits', clobber=True)
-## 
-

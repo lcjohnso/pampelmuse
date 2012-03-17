@@ -2,11 +2,13 @@
 POSITIONS
 =========
 The routine is designed as an interface for the loading, modification and
-storage of the source coordinates that are used by PampelMuse. It consists
-of two classes: `CoordinateTransformation' is designed to work with a
-transformation from input to IFU coordinates. the `Positions'-class can access
-all methods provided by CoordinateTransformation and has own methods defined
-that are dedicated to handle IFU coordinates diectly.
+storage of the coordinate transformation that is used by PampelMuse. The main
+class is `CoordinateTransformation' and is designed to provide a convenient
+way to transform from input to IFU coordinates. It is used as a super-class by
+the `Sources'-class of PampelMuse.
+Versions <0.4.0.0 also contained a second class, `Positions' for direct access
+to IFU coordinates. The methods of this class have been transferred to the
+`Sources'-class and the `Positions'-class deleted. 
 
 CHANGELOG
 ---------
@@ -16,11 +18,14 @@ CHANGELOG
                       provided IDs are given.
 2012/03/07, v0.2.0.0, major updates to the CoordinateTransformation-class so
                       that it makes use of the new ValueArray-structure.
-                      Usage of Positions-class is deprecated, required methods
+                      Usage of `Positions'-class is deprecated, required methods
                       have been transfered to Sources-class in pampelmuse.core
+2012/03/16, v0.4.0.0, some major updates to the `CoordinateTransformation'-
+                      class; the` Positions'-class was deleted; some
+                      documentation has been added.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.2.0.0"
+__version__ = "0.4.0.0"
 import logging
 import numpy as np, pyfits
 from PyQt4 import QtCore
@@ -31,9 +36,41 @@ from pampelmuse.core.value_array import ValueArray
 
 
 def myLstsqSigma(A, b, sigma=None):
+    """
+    The routine is a wrapper around the the numpy.linalg.lstsq-routine. It is
+    designed as an extension that allows the user to also provide uncertainties
+    together with the data when minimizing |Ax-b|.
 
-    if not sigma: return np.linalg.lstsq(A, b)
-    else:
+    Parameters
+    ----------
+    A : array_like, shape (M, N)
+        "Coefficient" matrix.
+    b : array_like, shape (M,) or (M, K)
+        Ordinate or "dependent variable" values. If `b` is two-dimensional,
+        the least-squares solution is calculated for each of the `K` columns
+        of `b`.
+    sigma : array_like, same shape as b, optional
+        Uncertainties associated to the data provided in `b`.
+
+    Returns
+    -------
+    x : ndarray, shape (N,) or (N, K)
+        Least-squares solution.  The shape of `x` depends on the shape of
+        `b`.
+    residues : ndarray, shape (), (1,), or (K,)
+        Sums of residues; squared Euclidean 2-norm for each column in
+        ``b - a*x``.
+        If the rank of `a` is < N or > M, this is an empty array.
+        If `b` is 1-dimensional, this is a (1,) shape array.
+        Otherwise the shape is (K,).
+    rank : int
+        Rank of matrix `a`.
+    s : ndarray, shape (min(M,N),)
+        Singular values of `a`.
+    """
+    if not sigma: ## normal function call if no uncertainties provided
+        return np.linalg.lstsq(A, b)
+    else:         ## otherwise divide A and b by uncertainties
         b_ = b/sigma
         if b_.ndim > 1:
             results = [np.zeros((4,b_.shape[1]), dtype=np.float32)]
@@ -46,9 +83,11 @@ def myLstsqSigma(A, b, sigma=None):
 
 
 
-def matchOnID(parent, child, assume_unique=False):
+def matchOnID(parent, child):
     """
-    For each element in `children', return indix of element in `parent'.
+    Compare to 1dim. lists for common entries. For each element in `children`
+    that is also part of the `parent`-list, the index of in the `parent'-list
+    is returned.
 
     Parameters
     ----------
@@ -56,47 +95,65 @@ def matchOnID(parent, child, assume_unique=False):
         The list that that is scanned
     child : array_like, 1dim.
         The list containing the entries that `parent' is scanned for.
-    assume_unique : boolean
-        Whether the entries of the two lists are unique.
 
     Returns
     -------
     indices : nd_array
         The index of every `child'-entry in the `parent' list (if found).
     """
-##     indices \
-##         = np.nonzero(np.in1d(parent, child, assume_unique=assume_unique))[0]
-##     return indices
-##
-## increases speed by ~ x2:
     return np.nonzero((child[:,np.newaxis]-parent)==0)[1]
 
 
 
 class CoordinateTransformation(object):
-    
+    """
+    The class that stores information about the coordinate transformation that
+    is used by PampelMuse. So far, the coordinates transformation is 
+        x = A*u + B*v + C
+        y = A*v - B*u + D
+    With (x,y) being the coordinates in IFU pixels and (u,v) being the input
+    (or reference) coordinates. A-D are the parameters of the transformation.
+    """
+
     parameters = ["A", "B", "C", "D"]
 
+
     def __init__(self):
-
-        self.ctData   = None
-        self.ctFree   = None
-        self.ctPoly   = None
-        self.ctValues = None
-        self.npars    = len(self.parameters)
-##         self.missing  = [name for name in self.parameters]
-
+        """
+        Intialize an instance of the `CoordinateTransformation`-class. The
+        __init__-method does not take any input arguments, it just defines
+        some properties that are needed later on.
+        """
+        self.ctData   = None  ## will contain the parameters of the transf.
+        self.ctFree   = None  ## will contain flags about whether a polynomial
+                              ## is a free parameter in the fit.
+        self.ctPoly   = None  ## will contain flags about whether a polynomial
+                              ## fit exists for a parameter.
+        self.ctValues = None  ## will later be used as a ValueArray for
+                              ## convenient access to ctData.
+        self.npars    = len(self.parameters) ## no. of parameters
+ 
 
 
     def makeNewTrans(self, **kwargs):
-
+        """
+        Create a new coordinate transformation. One or more parameters of the
+        transformation might be provided as keyword arguments:
+        
+        Parameters
+        ----------
+        kwargs : float or array_like
+            Any parameter of the transformation, either as a constant value
+            or including dispersion information. Parameters initially not
+            provided might later be added using the `addParameter`-method.
+        """
         logging.info("Initializing coordinate transformation.")
 
         self.backup = False
 
-        self.unsavedTrans = True
+##         self.unsavedTrans = True
 
-        self.initStructure()
+        self.initStructure() ## Initialize framework of the coord. transf.
 
         for name, value in kwargs.iteritems():
             self.addParameter(name, value)
@@ -104,7 +161,24 @@ class CoordinateTransformation(object):
 
         
     def calcTrans(self, inCoords, outCoords):
-        
+        """
+        Calculate a new coordinate transformation using the provided input
+        (reference) and output (IFU) coordinates. Uncertainties associated
+        to the output coordinates might also be provided.
+
+        Parameters
+        ----------
+        inCoords : structured array
+            The array must contain at least 3 fields, named `id`, `x` and `y`,
+            containing the IDs of the sources and their reference x- and y-
+            coordinates
+        outCoords :  structured array
+            Again, the coordinate must contain the three fields `id`, `x` and
+            `y`. Sources are matched to their counterparts in the `inCoords`-
+            array based on the ID. If the `outCoords`-array contains fields
+            named `x_err` and `y_err`, those are taken as the uncertainties
+            associated with `x` and `y`.
+        """
         logging.info("Determining coordinate transformation.")
 
         self.backup = False
@@ -210,7 +284,32 @@ class CoordinateTransformation(object):
 
 
     def quickFit(self, inCoords, outCoords, outSigma=None):
+        """
+        A short-cut for calculating a new coordinate transformation, without
+        any checking of the input.
 
+        Note that the routine returns the output of the least-squares fit.
+        This behavior is different from the `calcTrans`-method that
+        initializes a new coordinate transformation.
+        
+        Parameters
+        ----------
+        inCoords : array_like, shape (2, N)
+           The input coordinates (u and v) for a sample of N>2 sources.
+        outCoords : array_like, shape (2, N) or (2, N, K)
+           The output coordinates (x and y) for the same sample of sources
+           as in `inCoords`. If `outCoords` is 3dimensional, the transf. is
+           determined for the K coordinates.
+        outSigma : array_like, shape (2, N) or (2, N, K), optional
+           The uncertainties (if any) associated with the output coordrinates.
+           Must be of same size as `outCoords` if provided.
+
+        Returns
+        -------
+        The results of the least squares fit. Consult the documentation of
+        myLstsqSigma for more information on the output.
+
+        """
         m = inCoords[0].shape[0]
         M = 2*m
 
@@ -225,6 +324,7 @@ class CoordinateTransformation(object):
         sigma = None
         if outCoords[0].ndim>1:
             b = np.vstack(outCoords)
+            ## to check: might be better to use np.hstack(np.squueze(outCoords))
             if outSigma != None: sigma = np.vstack(outSigma)
         else:
             b = np.hstack(outCoords)
@@ -235,7 +335,19 @@ class CoordinateTransformation(object):
 
 
     def readTransHDU(self, HDU, backup=False):
+        """
+        Load an existing coordinate transfomation from a FITS BinTable-HDU.
 
+        Parameters
+        ----------
+        HDU : a pyfits BinTableHDU-instance
+            The HDU to load. It should at least contain the fields `name` and
+            `value` for each parameter. Fields `freepar`, `isfitted` and
+            `polyfit` are optional.
+        backup : bool, optional
+            Flag indicating whether existing data should be backed up if it
+            is overwritten with new data.
+        """
         if "EXTNAME" in HDU.header:
             logging.info("Initializing coord. transf. from HDU '{0}'.".format(\
                     HDU.header["EXTNAME"]))
@@ -259,6 +371,7 @@ class CoordinateTransformation(object):
         isfitted = False
         polyfit  = None
 
+        ## add the parameters to the coord. tranf. definition
         for i in xrange(HDU.data.size):
             if "freepar" in HDU.data.names:
                 freepar=HDU.data.field("freepar")[i]
@@ -273,7 +386,7 @@ class CoordinateTransformation(object):
                               isfitted=isfitted,
                               polyfit=polyfit)
 
-        self.unsavedTrans = False
+##         self.unsavedTrans = False
 
 
 
@@ -282,10 +395,12 @@ class CoordinateTransformation(object):
         The method is used to prepare the required arrays containing the
         properties of the PSF parameters. It should be called immediately
         after a PSF has been initialized and before any parameters are
-        added.
+        added. It is called automatically by methods `makeNewTrans`,
+        `calcTrans` and `loadTransHDU`.
         """
         self.disp       = False
-        self.lockSize   = False ## Cannot resize after call to makeParameters
+        self.lockSize   = False ## Cannot resize after call to `makeValues`
+                                ## unless `delValues` is called
         self.missing    = [name for name in self.parameters]
         self.ctData = np.zeros((2,self.npars,1),  dtype=np.float32)
         self.ctFree = np.zeros((self.npars,),  dtype=np.bool)
@@ -295,7 +410,29 @@ class CoordinateTransformation(object):
         
     def addParameter(self, name, value, freepar=False, isfitted=False,
                      polyfit=None):
+        """
+        Add a parameter to an existing coord. transf. definition.
 
+        Note that this routine cannot be used to update the values and size
+        of an existing parameter.
+
+        Parameters
+        ----------
+        name : string
+            The name of the parameter to add, either `A`, `B`, C` or `D`.
+        value : float or array_like
+           The (initial) value of the parameter, either as a single float or 
+           a 1dim. array.
+        freepar : bool,  optional
+           A flag indicating whether the parameter is free if the coordinate
+           transformation is fitted.
+        isfitted : bool, optional
+           A flag indicating if a polynomial fit to the `value` exists. If
+           True, `polyfit` must be specified.
+        polyfit : array_like, optional
+           The polynomial  fit to `value`. Only used if flag `isfitted` is
+           set.
+        """
         if not name in self.missing:
             logging.error("Cannot add parameter: '{0}' not missing.".format(\
                     name))
@@ -336,7 +473,7 @@ class CoordinateTransformation(object):
 
         self.missing.remove(name)
 
-        self.unsavedTrans = True
+##         self.unsavedTrans = True
 
         logging.info("Added parameter '{0}' to transformation.".format(name))
 
@@ -344,12 +481,15 @@ class CoordinateTransformation(object):
 
     @property
     def verifyTrans(self):
-
+        """
+        Property to check whether the coord. transf.  definition is valie,
+        i.e. whether all of its parameters have been provided.
+        """
         if not "parameters" in dir(self):
             return False
 
         if self.missing != []:
-##             logging.warning("Some transf. parameters have not been specified:")
+##             logging.warning("Some coord. transf. parameters not specified:")
 ##             for prm in self.missing:
 ##                 logging.warning("   Missing parameter '{0}'".format(prm))
             return False
@@ -359,7 +499,10 @@ class CoordinateTransformation(object):
 
 
     def info(self):
-        
+        """
+        The method pretty-prints some information about the status of the
+        coord. transf. definition out on the scree.
+        """
         logging.info("Summary of coordinate transformation instance:")
 ##         logging.info(" Valid: {0}".format(self.verifyTrans))
         logging.info(" Parameter  defined?  free?  polyfit?")
@@ -386,13 +529,35 @@ class CoordinateTransformation(object):
 
 
     def provideParNames(self):
+        """
+        Short routine whose sole purpose is to provide a list of the names of
+        all the parameters to the `InspectFitData`-routine of PampelMuse.
 
+        Returns
+        -------
+        names :QtCore.QStringList
+            The names of the parameters of the coord. transf.
+        """
         return QtCore.QStringList(self.parameters)
 
 
 
     def resizeStructure(self, size):
-        
+        """
+        The method can be used to resize the arrays containing the data of
+        the individual parameters (the `ctData`-property). This is for example
+        useful to add wavelength information to the coord. transf. definition.
+
+        Note that this routine can only be called if the `ctValues`-property
+        is not currently filled with data.
+
+        Parameters
+        ----------
+        size : integer, >0
+            The new size of the structure. It it exceeds the current size, the
+            additional entries are appended to the `ctData`-property and filled
+            with the values from the last existing slice.
+        """
         if self.lockSize:
             logging.error("Cannot resize after calling `makeValues'.")
             logging.error("To resize, call `delValues' first.")
@@ -414,14 +579,23 @@ class CoordinateTransformation(object):
 
 ##         if self.backup:
 ##             Needs to be implemented
-
         
-        self.unsavedTrans = True
+##         self.unsavedTrans = True
 
 
 
     def makeValues(self):
-
+        """
+        The method views the `ctData`-property as a ValueArray, using the
+        property `ctValues`. The idea behind this the ValueArray-structure is
+        to combine the all the information about the parameters in a 2dim.
+        array that
+        i) redirects `__getitem__`-calls automatically to the right values,
+           i.e the polynomial fit if available, the data  itself otherwise. 
+        ii) handles `__setitem__`-calls such that only parameters whose
+            `ctFree`-flag is True and whose `ctPoly`-flag is False are
+            updated.
+        """
         if not self.verifyTrans:
             logging.error(" PSF definition is not valid.")
             return
@@ -429,16 +603,20 @@ class CoordinateTransformation(object):
         self.ctValues = ValueArray(\
             self.ctData, free=self.ctFree, poly=self.ctPoly)
 
-        self.lockSize = True
+        self.lockSize = True ## notresizing possible if `ctValues` contains
+                             ## data
 
 
 
     def delValues(self):
-        
+        """        
+        Empty the `ctValues`-property (if it contains data). This might be
+        necessary in case the data structure needs to  be resized after
+        method `makeValues` has been called.
+        """
         if not self.lockSize:
             return
 
-##         del self.ctValues
         self.ctValues = None
         self.lockSize = False
 
@@ -448,6 +626,12 @@ class CoordinateTransformation(object):
 
     @property
     def Fit(self):
+        """
+        Property to check whether any of the parameters of the coordinate
+        transformation are free parameters in a fit.
+        Criterion for a free parameter: `ctFree`-flag is True, `ctPoly`-flag
+                                        is False.
+        """
 
         if not self.verifyTrans:
             return False
@@ -457,6 +641,32 @@ class CoordinateTransformation(object):
             
 
     def __call__(self, x, y, index=Ellipsis):
+        """
+        Call the coordinate transformation with a set of input (reference)
+        coordinates and return the IFU coordinates.
+
+        Parameters
+        ----------
+        x :  float or array_like, with shape (N,)
+           The input x-coordinate(s) of the sources.
+        y :  float or array_like, with shape (N,)
+           The input y-coordinate(s) of the sources. Must have same shape as
+           `x`.
+        index : integer, slice- or Ellipsis-object
+           The indices of the coord. transf. that should be used to calculate
+           the IFU-coordinates. If `index` is an integer, the returned coords.
+           will be 1D. Otherwise, they will be 2D with shape (N, len(slice)).
+
+        Returns
+        -------   
+        x_out : array_like, with shape (N,) or (N, len(slice))
+            The IFU x-coordinates. The shape of the array will depend on the
+            provided input.
+        y_out : array_like, with shape (N,) or (N, len(slice))
+            The IFU y-coordinates. The shape of the array will depend on the
+            provided input.
+        """
+
         ## index can be any valid slice definition:  an integer, a slice()-
         ## object or an Ellipsis-object
         
@@ -488,14 +698,30 @@ class CoordinateTransformation(object):
 
 
 
-
     def makeTransHDU(self,  includePolyFit=True):
-        
-        if self.unsavedTrans:
-            logging.info("Saving updated coord-trans. to FITS BinTable-HDU.")
-        else:
-            logging.warning(\
-                "Saving unchanged coord-trans. to FITS BinTable-HDU.")
+        """
+        Write the current coord. transf. definition to a FITS BinTableHDU.
+        The table will contain fields named `name`, `value`, `freepar`,
+        [`isfitted`, `polyfit`]
+
+        Parameters
+        ----------
+        includePolyFit : bool, optional
+            If the `includePolyFit`-flag is set, the returned table will
+            contain the fields named `isfitted` and `polyfit` containing
+            information about  the polynomial fit (if any).
+
+        Returns
+        -------
+        outHDU : pyfits BinTableHDU-instance
+            A  FITS binary table named `POSPARS` and containing all the
+            information about the coord. transf.
+        """
+##         if self.unsavedTrans:
+##             logging.info("Saving updated coord-trans. to FITS BinTable-HDU.")
+##         else:
+##             logging.warning(\
+##                 "Saving unchanged coord-trans. to FITS BinTable-HDU.")
 
 
         if not self.disp: 
@@ -523,437 +749,6 @@ class CoordinateTransformation(object):
 
         outHDU.add_checksum()
 
-        self.unsavedTrans = False
+##         self.unsavedTrans = False
 
         return outHDU
-
-
-
-class Positions(CoordinateTransformation): ## usage is deprecated
-
-    def __init__(self, sources, hdu=False):
-        logging.error("Usage os Positions-class  is deprecated.")
-
-        if hdu:
-            logging.info("Initializing source coord. instance from HDU.")
-            sources = np.array(sources.data,
-                               dtype=sources.data.dtype)
-        else:
-            logging.info("Initializing source coord. instance.")
-
-        if not "id" in sources.dtype.names:
-            logging.critical("No field named `id' found in provided list.")
-
-        ## sources with ID<0 are considered unresolved
-        rsv = (sources["id"]>=0)
-
-        self.ID = sources[["id"]][rsv].view(sources["id"].dtype).reshape(-1,)
-        
-        if "x" not in sources.dtype.names or "y" not in sources.dtype.names:
-            self.hst = None
-            logging.warning("No input coordinates (fields `x'  and `y') found.")
-        else:
-            if sources["x"].dtype != sources["y"].dtype:
-                logging.error("Array types of x- and y-coordinates differ.")
-            
-            self.hst = sources[["x","y"]][rsv].view(sources["x"].dtype)\
-                .reshape(rsv.sum(), 2).swapaxes(0,1)
-            logging.info("Found input coordinates for {0} sources.".format(\
-                    self.hst.shape[1]))
-
-        self.hst2ifu = None
-        if self.hst != None and "posrow" in sources.dtype.names:
-            self.hst2ifu = matchOnID(sources["posrow"],
-                                     sources["posrow"][sources["posrow"]>=0])
-
-        self.nSrc = self.ID.size ## No. of sources considered
-
-        self.ifu         = None
-        self.ifuPolyfit  = None
-        self.ifuView     = None
-        self.ifuIsfitted = None
-        self.unsavedIfu  = False
-
-
-    def loadIfuCoords(self, data, ids=None, hdu=False, freepar=False,
-                      isfitted=False):
-
-        self.freepar = freepar
-        self.isfitted = isfitted
-
-        if hdu:
-            if "EXTNAME" in data.header:
-                logging.info("Reading IFU coords. from HDU '{0}'.".format(\
-                        data.header["EXTNAME"]))
-            else:
-                logging.info("Reading IFU coords. from unnamed HDU.")
-
-            if data.header["NAXIS2"] > self.nSrc \
-                    and data.header["NAXIS1"] in [self.nSrc, self.nSrc+1]:
-                logging.warning("Opened FITS-HDU has an outdated structure.")
-                logging.warning("Will try to update and use as polyfit coords.")
-
-                if data.header["NAXIS1"] == self.nSrc:
-                    self.ifuPolyfit = np.rollaxis(data.data, 1, 3)
-                else:
-                    self.ifuPolyfit = np.rollaxis(data.data[...,:-1], 1, 3)
-
-            else:
-                if "FREEPAR" in data.header:
-                    self.freepar = data.header["FREEPAR"]
-                if "ISFITTED" in data.header:
-                    self.isfitted = data.header["ISFITTED"]
-
-                if self.isfitted:
-                    self.ifuPolyfit = data.data
-                else:
-                    self.ifu = data.data
-
-        else:
-            if self.isfitted:
-                self.ifuPolyfit = data
-            else:
-                self.ifu = data
-            self.unsavedIfu = True
-
-        if self.ifuPolyfit != None:
-            self.ifuIsfitted = np.ones(self.ifuPolyfit.shape[:-1],
-                                       dtype=np.bool)
-
-        if self.ifuPolyfit != None:
-            self.ifuView = self.ifuPolyfit
-        elif self.ifu != None:
-            self.ifuView = self.ifu
-            
-
-        if self.ifuView != None:
-            self.ndisp = self.ifuView.shape[-1]
-            self.nIfu  = self.ifuView.shape[-2]
-
-
-        logging.info(\
-            "Got IFU pixel coordinates for {0} source(s).".format(self.nIfu))
-
-        if ids!=None:
-            self.hst2ifu = matchOnID(self.ID, ids)
-            if self.hst2ifu.size < len(ids):
-                logging.error("Unknown source ID(s) provided.")
-            self.ifuID = self.ID[self.hst2ifu]
-
-        if self.hst2ifu==None and self.hst!=None:
-            logging.warning("No mapping from input to IFU coords provided.")
-            logging.warning("Assuming coords belong to first {0} source(s)."\
-                                .format(self.nIfu))
-            self.hst2ifu = np.arange(self.nIfu, dtype=np.int32)
-            self.ifuID = self.ID[self.hst2ifu]
-
-
-
-    @property
-    def Fit(self):
-        
-        if self.ifuIsfitted != None:
-            return (self.ifuIsfitted.all()==False)
-
-        elif self.ifu != None:
-            return self.freepar
-        
-        else:
-            return self.toUpdate.any()
-
-    @property
-    def unsavedTrans(self):
-        if not self.verifyTrans:
-            return False
-        else:
-            return CoordinateTransformation.unsavedTrans
-
-        
-    def provideIDs(self):
-
-        if self.ifuView == None:
-            return QtCore.QStringList(self.ID.astype("|S6"))
-        else:
-            return QtCore.QStringList(self.ifuID.astype("|S6"))
-
-
-
-    def putIfuCoords(self, values, index=None, ids=None):
-
-        if self.ifu == None:
-            return
-
-        values = np.asarray(values)
-        if index != None:
-            index = np.asarray(index)
-
-        if values.shape[0] != 2:
-            logging.error("Cannot update IFU coords using `values':")
-            logging.error(" First axis must have len=2, not {0}.".format(\
-                    values.shape[0]))
-            return
-
-        ## match provided IDs to IFU coordinates.
-        if ids == None:
-            ids = self.ifuID
-        else:
-            ids = np.asarray(ids)
-        IDmatch = matchOnID(parent=self.ifuID, child=ids, assume_unique=True)
-
-        if IDmatch.size < ids.size:
-            logging.error("Cannot update IFU coords using `values':")
-            logging.error(" Invalid source ID(s) have been provided.")
-
-        if not values.shape[1] == ids.size:
-            logging.error("Cannot update IFU coords using `values':")
-            logging.error(" Array size does not match # of IDs to update.")
-            return
-        
-        ## check if dispersion indices are useful
-        if index!=None:
-            if index.min()<0 or index.max()>=self.ndisp:
-                logging.error("Cannot update IFU coords using `values':")
-                logging.error(" Index/indices out of valid range [0,{0})."\
-                                  .format(self.ndisp))
-                return
-        elif values.ndim>2:
-            if values.shape[2] != self.ifu.shape[-1]:
-                logging.error("Cannot update IFU coords using `values':")
-                logging.error(" Lengths of dispersion axes do not match.")
-                return
-        else:
-            if self.ifuView.shape[-1]>1:
-                logging.error("Cannot update IFU coords using `values':")
-                logging.error(" Lengths of dispersion axes do not match.")
-                return
-            
-        if index == None:
-            self.ifu[:,IDmatchID] = values
-        else:
-            self.ifu[:,IDmatch,index] = values
-        self.unsavedIfu = True
-
-
-
-    def getIfuCoords(self, index=None, ids=None, forceTrans=True):
-            
-        if self.ifuView==None and not self.verifyTrans:
-            logging.error("Cannot return IFU coords for requested sources:")
-            logging.error(" Neither IFU coords nor coord. trans. provided.")
-            return None
-        elif self.ifuView==None and not forceTrans:
-            forceTrans=True
-
-        if index!=None:
-            index = np.atleast_1d(np.asarray(index))
-            ndisp = index.size
-        else:
-            ndisp = self.ndisp
-
-        ## match provided IDs to input coordinates.
-        if ids == None:
-            ids = self.ID
-        else:
-            ids = np.atleast_1d(np.asarray(ids))
-        IDmatch = matchOnID(parent=self.ID, child=ids, assume_unique=True)
-
-        if IDmatch.size < ids.size:
-            logging.error("Cannot return IFU coords for requested sources:")
-            logging.error(" Invalid source ID(s) have been provided.")
-            return None
-
-        if self.ifuView != None:
-            ifuIDmatch = matchOnID(\
-                parent=self.ifuID, child=ids, assume_unique=True)
-
-        if self.verifyTrans:
-            outIFU = self.__call__(self.hst[0,IDmatch], self.hst[1,IDmatch],
-                                   index=index)
-            if forceTrans: return outIFU
-
-        else:
-            outIFU = np.zeros((2, ifuIDmatch.size, ndisp), dtype=np.float32)
-
-
-        if not self.verifyTrans and ifuIDmatch.size < ids.size:
-            logging.error("Cannot return IFU coords for requested sources:")
-            logging.error(" Source(s) without IFU coords have been provided.")
-            return None
-
-        if ifuIDmatch.size>0:
-            sel = np.in1d(ids, self.ifuID)
-            if index == None:
-                outIFU[:,sel] = self.ifuView[:,ifuIDmatch]
-            else:
-                outIFU[:,sel] = self.ifuView[:,ifuIDmatch[:,np.newaxis],index]
-
-        ## about slicing of n-dim. arrays using index arrays (e.g. [0,1,4]):
-        ####################################################################
-        ## *if multiple index arrays are used, like in x[...,[1,2,3],[2,3,4],
-        ##  numpy will extract all entries whose last two indices are (1,2),
-        ##  (2,3) or (3,4) from x, hence the dimension of x is reduced by 1.
-        ## *Using x[:,[1,2,3], [4]] will result in broadcasting of the second
-        ##  index array: x[...,[1,2,3], [1,1,1]] and extraction of entries
-        ##  whose last 2 indices are (1,1), (2,1), (3,1), again reducing the
-        ##  array dimension by one.
-        ## *To extract without reducing the dimension of x, use
-        ##  x[...,[[1]],[2],[3]], [1]] or  x[...,[[1]],[2],[3]], [2,3,4]]
-
-        return outIFU
-
-
-
-    def viewIfu(self, ID, coord, forceTrans=True):
-
-        if not coord in ["x", "y"]:
-            return None
-        elif coord == "x":
-            index = 0
-        else:
-            index = 1
-
-        if not forceTrans and self.ifuPolyfit != None and self.ifu != None:
-            ## need to change focus of ifuView-pointer to data, otherwise
-            ## polyfit is returned twice.
-            self.ifuView = self.ifu
-
-        outData = self.getIfuCoords(ids=ID, forceTrans=forceTrans)
-
-        if not forceTrans and self.ifuPolyfit != None and self.ifu != None:
-            self.ifuView = self.ifuPolyfit
-
-
-        if self.ifuPolyfit == None:
-            return outData[index,0], None
-        else:
-            if self.verifyTrans:
-                i = np.squeeze(matchOnID(parent=self.ID,
-                                         child=np.atleast_1d(ID),
-                                         assume_unique=True))
-            else:
-                i = np.squeeze(matchOnID(parent=self.ifuID,
-                                         child=np.atleast_1d(ID),
-                                         assume_unique=True))
-
-            if self.ifuIsfitted[index, i]:
-                return outData[index,0], self.ifuPolyfit[index, i]
-            else:
-                return outData[index,0], None
-        
-
-
-    def fitIfuCoordinates(self, ids, coord, order, bins, mask=None,
-                          forceTrans=True, commonSlope=False):
-
-        if commonSlope:
-            logging.warning("Flag `commonSlope' not yet supported.")
-
-        if not coord in ["x", "y"]:
-            return None
-        elif coord == "x":
-            index = 0
-        else:
-            index = 1
-
-
-        if self.ifuPolyfit == None:
-            if not self.verifyTrans:
-                self.ifuPolyfit = np.zeros(self.ifu.shape,  dtype=np.float32)
-            else:
-                self.ifuPolyfit = np.zeros((2, self.ID.size, self.ndisp),
-                                           dtype=np.float32)
-            self.ifuIsfitted = np.zeros(self.ifuPolyfit.shape[:-1],
-                                        dtype=np.bool)
-
-        if ids != None:
-            ids = np.atleast_1d(np.asarray(ids))
-        elif not self.verifyTrans:
-            ids = self.ifuID
-        else:
-            ids = self.ID
-        
-
-        if not self.verifyTrans:
-            indices = matchOnID(parent=self.ifuID, child=ids,
-                                assume_unique=True)
-        else:
-            indices = matchOnID(parent=self.ID, child=ids,
-                                assume_unique=True)
-
-        if not forceTrans and self.ifuPolyfit != None and self.ifu != None:
-            ## need to change focus of ifuView-pointer to data, otherwise
-            ## polyfit is returned twice.
-            self.ifuView = self.ifu
-
-        for i in xrange(indices.size):
-
-            self.ifuPolyfit[index, indices[i]] = StepPolyFit(\
-                self.getIfuCoords(ids=ids[i], forceTrans=forceTrans)[index,0],
-                order=order, bins=bins, mask=mask)
-            self.ifuIsfitted[index] = True
-        
-        if not forceTrans and self.ifuPolyfit != None and self.ifu != None:
-            self.ifuView = self.ifuPolyfit
-
-        self.unsavedIfu = True
-        
-
-
-    def updateTransformation(self, ids=None, index=None):
-        
-        if not self.verifyTrans:
-            logging.error("Cannot update coordinate transformation:")
-            logging.error(" No valid transformation defined.")
-            return
-
-
-        if ids == None:
-            ids = self.ifuID
-        else:
-            ids = np.asarray(ids)
-        selected = np.in1d(self.ifuID, ids, assume_unique=True)
-
-
-        if index == None:
-            newCT = self.quickFit(self.hst[self.hst2ifu][selected],
-                                  self.ifu[selected])
-        else:
-            newCT = self.quickFit(self.hst[self.hst2ifu][selected],
-                                  self.ifu[selected][index])
-            
-        self.updateValues(newCT, index=index)
-
-
-
-    def makeIfuHDU(self):
-
-        if self.ifuPolyfit != None:
-
-            ifuPolyfitHDU = pyfits.ImageHDU(self.ifuPolyfit, name="POSITIONS")
-            ifuPolyfitHDU.header.update("ISFITTED", True)
-            ifuPolyfitHDU.add_checksum()
-
-            if self.ifu != None:
-                ifuHDU = pyfits.ImageHDU(self.ifu, name="INPOSITIONS")
-                ifuHDU.header.update("FREEPAR", self.freepar)
-                ifuHDU.header.update("ISFITTED", False)
-                ifuHDU.add_checksum()
-            else:
-                ifuHDU = None
-
-
-        elif self.ifu != None:
-            
-            ifuPolyfitHDU = None
-
-            ifuHDU = pyfits.ImageHDU(self.ifu, name="POSITIONS")
-            ifuHDU.header.update("FREEPAR", self.freepar)
-            ifuHDU.header.update("ISFITTED",  False)
-            ifuHDU.add_checksum()
-        else:
-            ifuPolyfitHDU = None
-            ifuHDU        = None
-
-        self.unsavedIfu = False
-
-        return ifuHDU, ifuPolyfitHDU

@@ -17,9 +17,10 @@ import datetime, logging, os, sys
 import numpy as np, pyfits
 
 ## required PampelMuse-packages
+from pampelmuse.core.sources import Sources
 from pampelmuse.core.psf import PSF
-from pampelmuse.core.positions import Positions
-from pampelmuse.core.spectra import Spectra
+
+
 
 
 def subtres(arguments):

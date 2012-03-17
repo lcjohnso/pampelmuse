@@ -37,12 +37,14 @@ CHANGELOG:
                       parameters are stored in binary FITS-tables.
 2012/03/07, v0.3.0.0, major updates to the code in order to implement the
                       usage of the new classes that faciliate I/O of fit
-                      parameters: Sources and PSF. Some dependencies have been
-                      removed in the process (SelectSources and StoreParam).
-                      Still need to implement a few things.
+                      parameters: `Sources` and `PSF`. Some dependencies have
+                      been removed in the process (SelectSources and
+                      StoreParam). Still need to implement a few things.
+2012/03/17, v0.4.0.0, this version makes full use of the new structure that
+                      uses the `Sources`- and `PSF`-classes.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.3.0.0"
+__version__ = "0.4.0.0"
 import datetime, os, sys, logging
 import numpy as np, pyfits
 from scipy import interpolate, sparse

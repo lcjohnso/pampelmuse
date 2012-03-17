@@ -1,8 +1,22 @@
 """
-The program contains `StarFit', the core-routine of PampelMuse. The
-routine is optimized to handle large datacubes, e.g MUSE-like data.
-For the analysis of smaller datacubes, e.g PMAS-like data,  some features
-still have to be added from older routines.
+The program contains `StarFit', the core-routine of PampelMuse. Its purpose
+is to extract the spectra of the sources and to fit their positions and/or
+the PSF of the observed data-cube. The routine is designed to handle both large
+(e.g MUSE-like data) and small (e.g PMAS-like data) data-sets.
+
+The analysis is started in the central slice of the provided datacube. After
+the analysis of this slice is completed, the routine moves on to the next blue
+resp. red slice in an alternating manner.
+
+In case an the PSF and/or positions are fitted, their fit is preceded by an
+initial fit of the source fluxes using the initial guesses for PSF and/or
+positions. A final fit of the source fluxes and the estimation of the flux
+uncertainties complete the analysis of each slice.
+
+The whole fitting process can be controlled via a Qt-Gui that is automatically
+launched at the beginning of the fit. It is also possible to pause the fit
+after an arbitrary slice and continue later on.
+
 
 v0.0.0.0, 2011/09/30, (c). S. Kamann
 v0.0.0.1, 2011/10/13, changed how required PampelMuse-packages are imported
@@ -48,9 +62,15 @@ v0.3.1.2, 2012/03/01, disabled option to store residuals. Instead, the skript
                       Implemented usage of PampelMuse's `Spectra'-class.
 v0.3.2.2, 2012/03/02, some severe bugfixing wrt to implementation of
                       `Spectra'-class.
+v0.4.0.0, 2012/03/16, completed implementation of the dedicated PampelMuse-
+                      classes `Sources` and `PSF`. The updated routine has
+                      been successfully tested using different data sets.
+v0.4.1.0, 2012/03/17, fixed major bug with regard to preparation of sparse
+                      matrix, in some cases sources were put into the wrong
+                      columns.
 """
 __author__  = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.3.2.2"
+__version__ = "0.4.1.0"
 
 import logging, os, sys, time
 import numpy as np, pyfits
@@ -58,29 +78,22 @@ from scipy.sparse.linalg import lsqr
 from scipy import sparse, optimize
 
 ##  required PampelMuse-routines
-from pampelmuse.core.my_profiles import Gaussian, Moffat
-from pampelmuse.functions.trans_coords import trans_coords
 from pampelmuse.graphics.fitting_gui import FittingGui
-
-
-
-
-class UserInterrupt(Exception):
-    def __init__(self, value):
-        self.value = value
-    def __str__(self):
-        return repr(self.value)
+## No need to load `Sources` and `PSF`-classes since instances of them are
+## provided to the respective methods of `StarFit`.
 
 
 class StarFit(FittingGui):
     """
     `StarFit' is the core-routine of PampelMuse.  It uses a catalog of input
-    sources, created using the `INITFIT'-package to analyse a complete
-    datacube in an image-by-image manner. The fitting process itself is
-    split into to parts: 
+    sources, created e.g. using the dedicated `INITFIT`-script to analyse a
+    complete datacube in an image-by-image manner. The fitting process itself
+    is split into to parts: 
             (i) PSF & positions (if requested): A non-linear least squares fit
-                    is performed for individual suited sources. The results
-                    from the individual fits are combined afterwards.
+                    is performed for individual suited sources or the ensemble
+                    of resolved sources. In case individual PSF-stars are used,
+                    the results from the individual fits are combined
+                    afterwards.
             (ii) Fluxes: A linear least-squares fit is performed for all the
                     resolved sources simultaneously.
     Note that the routine first analyzes a central image and than alternating
@@ -93,15 +106,17 @@ class StarFit(FittingGui):
     
         Parameters
         ----------
-        dataFits : pyfits HDU object
+        dataFits : a pyfits ImageHDU- or PrimaryHDU-instance
             The data to analyze. Note that instead of the pure data, the HDU 
             containing the data must be provided. This is necessary since the
             routine will only load the image that is currently analyzed into
             memory.
-        sigmaFits : pyfits HDU object
+        sigmaFits : a pyfits ImageHDU- or PrimaryHDU-instance
             The HDU containing the sigma-values of the data.
-        maskFits : pyfits HDU object, optional
-            The HDU containing the bad-pixel mask (if any)
+        maskFits : a pyfits ImageHDU- or PrimaryHDU-instance, optional
+            The HDU containing the bad-pixel mask (if any).
+        parent : optional
+            Is provided as input to the `FittingGui`-superclass.
 
         Returns
         -------
@@ -133,48 +148,37 @@ class StarFit(FittingGui):
 
         
 
-        
+
     def provideSources(self, sources, fullPosFit=False):
         """
         This method should be used to provide the instance with the necessary
-        information about the sources in the field.
-        All of those information is usually provided by the `INITFIT'-package.
+        information about the sources in the field. This should be done by
+        providing a valid instance of the dedicated `Sources`-clas that is
+        part of the PampelMuse-package.
+        A convenient way to create a valid `Sources`-instance is to use the  of
+        `INITFIT'-script of PampelMuse.
         
         Parameters
         ----------
-##         sources : numpy record array
-##             The list of sources that are used in the analysis. The array must
-##             contain the fields 'id', 'x', 'y', 'mag', 'fitopt' and 'primary'.
-##             The specific meaning of the individual fields is described in the
-##             documentaion of `INITFIT'.
         sources : a pampelmuse.core.sources.Sources-instance
             To provide all necessary information asbout the sources, their
             spectra and positions, an instance of PampelMuse's Sources-class
             must be provided. Check the documentation of that routine for
             further information about how to initialize a valid instance.
-##         spectra :  a pampelmuse.core.spectra.Spectra-instance
-##             To provide all necessary information asbout the sources and their
-##             spectra, an instance of PampelMuse's Spectra-class must be
-##             provided. Check the documentation of that routine for further
-##             information about how to initialize a valid instance.
-##         positions : a pampelmuse.core.positions.Positions-instance
-##             To provide all the information about source positions needed by
-##             this routine, an instance of the Positions-class defined in
-##             `positions.py' must be provided. Check the documentation of that
-##             routine for further information.
-## ##         specSigma : nd_array or None, optional
-##             Uncertainties associated with the provided spectra. They are not
-##             used in the fit, but (re)estimated afterwards. Providing
-##             `specSigma' only has an effect if not the whole cube is fitted.
+        fullPosFit : boolean, optional
+            A flag indicating whether individual source positions should be
+            fitted. If `fullPosFit` is False (default), the routine will
+            assume that a coordinate trasnsformation is used or polynomial
+            fits to the individual source positions are available.
         """
         self.sources    = sources
 
+        ##  if fullPosFit-Flag is True, memory for all positions on all slices
+        ## must be provided right away. Otherwise, it is sufficient to allocate
+        ## memory only for the positions of the currently analysed slice. 
         self.fullPosFit = fullPosFit
         if self.fullPosFit:
             self.sources.loadIFUCoords()
-
-        ## idea is to later load them image-by-image (restrict memory usage)
-        ## Yet PyFits must support storing of image-sections for this to work
 
 
     
@@ -186,9 +190,9 @@ class StarFit(FittingGui):
         Parameters
         ----------
         psf : a pampelmuse.core.psf.PSF-instance
-            The psf should be prepared using the PSF-class of the `psf.py'-
-            routine. For further documentation on the PSF, check the
-            documentation of that routine
+            The psf should be prepared using the dedicated PampelMuse `PSF`-
+            class. For further documentation on the PSF, check the
+            documentation of the class.
         psfRad : float
             The radius out to which the PSF is defined around a source
         osFactor : integer, optional
@@ -203,12 +207,11 @@ class StarFit(FittingGui):
         self.osRadius = osRadius
         
 
-
     def __call__(self, fitRad=None, Ntrack=10, lastFitIndex=None,
                  asSmallIFU=False, clip=5., jumpStart=False):
         """
-        Execute the fitting process. For each image of the datacube, the 
-        following steps are performed:
+        Execute (i.e start or continue) the fitting process. For each image of
+        the datacube, the following steps are performed:
             [1) Update the initial values]
              2) Initialize the PSF model for the analyzed image
              3) Create a PSF for every resolved source/component
@@ -234,34 +237,16 @@ class StarFit(FittingGui):
             Flag indicating whether the data will be handled as comming from
             a small or a large IFU. This parameter controls how the PSF and/
             or positions are fitted.
-##         returnModel : boolean, optional
-##             Flag indicating whether an array containing the best-fit model
-##             should be returned. Not implemented yet.
-##         returnResdiduals : boolean, optional
-##             Flag indicating whether an array containing the residuals of the
-##             fit should be returned.
-##         prefix : string, optional
-##             In case that the fitted model and/or the residuals should be
-##             stored, `fileRoot' allows to provide a prefix used to store the
-##             individual images. This is needed in case that several fits are
-##             started from the same folder.
         clip : float, optional
             All pixels whose values devite by more than `clip' times SIGMA are
             masked. SIGMA is the standard deviation of the residuals between
-            model and data. Not implemented yet.
+            model and data. WARNING: NOT IMPLEMENTED YET!
         jumpStart : boolean, optional
             In case the fit should start directly (i.e. without pressing
             `START'-button), enable this flag.
         """
-##         self.makeMod = max(returnModel, returnResiduals) ## create model array
-##         self.makeRes = returnResiduals                   ## and residuals?
-##         if prefix == None:
-##             self.prefix = ""
-##         else:
-##             self.prefix = prefix
-
         self.clip    = clip    ## efficiency of bad pixel masking
-
+                               ## WARNING: Has no effect yet.
         if fitRad != None:
             logging.warning("The `fitRad'-variable is not used anymore.")
             logging.warning("Using `psfRad' instead to define fit regions.")
@@ -294,7 +279,11 @@ class StarFit(FittingGui):
 
     
     def timeout(self):
-
+        """
+        Method is called every time the `FittingGui`-instance encounters a
+        `timeout`. Depending on the current status of the fitting routine, 
+        the method calls the appropriate methods to analyze it.
+        """
         if not self.STARTED:
             return
 
@@ -302,9 +291,9 @@ class StarFit(FittingGui):
             return
 
         if self.ABORTED:
+            logging.warning("Fit stopped on user request.")
             self.timer.stop()
             self.close()
-            raise UserInterrupt('Aborted on user request')
     
         if self.PAUSED:
             self.sBar.showMessage("PAUSED")
@@ -315,11 +304,11 @@ class StarFit(FittingGui):
         ## jj is a counter that starts at the central spectral pixel
         ## and proceeds simultaneoulsy to the red and blue end.
 
-        if self.i == self.specPix:
+        if self.i == self.specPix: ## if data-cubbe is entirely analysed
             self.timer.stop()
             self.save = True
             self.close()
-        else:
+        else: ## update information in GUI
             self.prefixString = "[{0:0{1}d}/{2}]".format(\
                 self.i, int(np.log10(self.specPix))+1, self.specPix)
             self.sBar.showMessage("{0} Analyzing slice #{1}".format(\
@@ -331,8 +320,17 @@ class StarFit(FittingGui):
 
 
     def iterFitImage(self):
+        """
+        The method is called for every slice of the datacube by the `timeout`-
+        method. It is basically a wrapper that calls all the necessary
+        routines required to analyze an individual slice from the datacube.
+        It is also used to load the data section from the HDUs that is
+        currently analysed, update the information in the GUI and calculate
+        the uncertainties associated with the fluces once the analysis is
+        completed.
+        """
 
-        ## the fitting process
+        ## change state of routine to indicate a fit is carried out
         self.BUSY = True
 
         ## update parameter initial guesses (if any):
@@ -342,10 +340,6 @@ class StarFit(FittingGui):
         self.PSF = self.psf(index=self.jj,  osradius=self.osRadius,
                             osfactor=self.osFactor)
  
-        ## determine pixel coordinates:
-##         self.x, self.y = self.positions.getIfuCoords(\
-##             index=self.jj, forceTrans=False)
-
         ## update coordinate data if necessary
         if not self.fullPosFit:
             self.sources.loadIFUCoords(index=self.jj)
@@ -379,13 +373,15 @@ class StarFit(FittingGui):
             ## initial fit of fluxes
             bestFit = lsqr(self.Apsf, self.current)
             self.sources.data[:,self.jj] += bestFit[0]
+
+            ## some logging
             logging.debug("[@{0}] Chi**2 of initial fit: {1:.1f}".format(\
                     self.jj, bestFit[4]**2))
             logging.debug("[@{0}] Relative changes in fluxes: {1}".format(\
                     self.jj, bestFit[0]/self.sources.data[:,self.jj]))
 
 
-            ## PSF fit
+            ## PSF/positions fit
             if self.asSmallIFU:
                 self.fitPSF_smallIFU()
             else:
@@ -401,6 +397,8 @@ class StarFit(FittingGui):
         ##  fit
         bestFit = lsqr(self.Apsf, self.current)
         self.sources.data[:,self.jj] += bestFit[0]
+
+        ##  some logging
         logging.debug("[@{0}] Chi**2 of final fit: {1:.1f}".format(\
                 self.jj, bestFit[4]**2))
         logging.debug("[@{0}] Relative changes in fluxes: {1}".format(\
@@ -410,7 +408,7 @@ class StarFit(FittingGui):
         self.sources.sigma[..., self.jj] = \
             1./np.sqrt(self.Apsf.multiply(self.Apsf).sum(axis=0))
 
-        ## create 2dim. residuals for plotting (& saving if requested)
+        ## create 2dim. residuals for plotting
         if self.hasMask:
             resi1d = np.zeros((self.spatPix,), dtype='float32')
             resi1d[self.pixMap>-1] = self.current
@@ -427,7 +425,7 @@ class StarFit(FittingGui):
  
         self.pBar.setValue(100.*float(self.i+1)/self.specPix)
 
-        self.BUSY = False
+        self.BUSY = False ## change status to indicste fit is completed
 
 
 
@@ -455,6 +453,13 @@ class StarFit(FittingGui):
         Define the source matrix. The source matrix is a sparse matrix that
         contains the spatial profiles of all resolved components, one per
         column.
+        The method initially creates empty arrays to hold the source (PSF)
+        coefficient, their (1dim.) coordinates on the data array (the row
+        indices in the PSF coefficient matrix) and the source indices (the
+        column indices in the PSF coeffficient matrix). It then loops over
+        all components in the `Sources`-instance, calculates the PSF for the
+        component and adds the data to the three arrays. FInally, the three
+        arrays are combined into a single sparse matrix.
         
         Parameters
         ----------
@@ -468,15 +473,23 @@ class StarFit(FittingGui):
             If True, the routine method will print a logging.ERROR-message
             every time a source whose PSF is completely outside the FoV is
             encountered.
+        
+        Returns
+        -------
+        a scipy.sparse.coo_matrix-instance
+            This is  the PSF coefficient matrix that is used in the linear
+            least-squares fit to determine the source fluxes.
         """
 
-        coeffs   = np.array([], dtype='float32')
-        indices0 = np.array([], dtype='int32')
-        indices1 = np.array([], dtype='int32')
-
-        for i in xrange(self.sources.ncmp):
+        coeffs   = np.array([], dtype='float32')  ## PSF coefficents
+        indices0 = np.array([], dtype='int32')    ## row indices
+        indices1 = np.array([], dtype='int32')    ## column indices
+        print self.sources.indexmap, self.sources.specrow
+        for i in xrange(self.sources.ncmp): ## iterate over `specrow`
 
             if i==self.sources.unresRow and not calcUnres:
+                ## if unresolved component should  not be recalculated,
+                ## add existing one to data.
                 nValues = self.unresCoeffs.size
 
                 coeffs.resize(coeffs.size+nValues)
@@ -489,23 +502,26 @@ class StarFit(FittingGui):
                 continue
 
             nValuesCmp = 0
-            for j in xrange(self.sources.indexmap[i].size):
+            k = 0
+            for j in self.sources.indexmap[i]:
 
-                if i==self.sources.skyRow:
+                if i==self.sources.skyRow: ## add constant sky component
+
                     nValues    = self.spatPix
                     newCoeffs  = np.ones(self.spatPix, dtype="float32")
                     newCoeffs /= self.spatPix
                     newIndices = np.arange(self.spatPix, dtype="int32")
             
-                else:
-                    k = (self.sources.ifuSelect==i).argmax()
+                else: ## add resolved component using the current PSF
+
+                    l = (self.sources.ifuSelect==j).argmax()
                     ## the index of the source in the IFU coord-array
 
                     psf_ij = self.PSF(\
                         size=self.spatShape,
-                        x_c=self.sources.xvalues[k][self.jj*self.fullPosFit],
-                        y_c=self.sources.yvalues[k][self.jj*self.fullPosFit],
-                        mag=self.sources.weights[i][j], maxrad=radius,
+                        x_c=self.sources.xvalues[l,self.jj*self.fullPosFit],
+                        y_c=self.sources.yvalues[l,self.jj*self.fullPosFit],
+                        mag=self.sources.weights[i][k], maxrad=radius,
                         return_sparse=True, as_sparse_matrix=False)
 
                     nValues    = psf_ij[0].size
@@ -513,17 +529,19 @@ class StarFit(FittingGui):
                     newIndices = psf_ij[1][1] + self.spatShape[1]*psf_ij[1][0]
 
 
-                if nValues > 0:
+                if nValues > 0: ## resize arrays and add new data
                     coeffs.resize(coeffs.size+nValues)
                     indices0.resize(indices0.size+nValues)
                     indices1.resize(indices1.size+nValues)
 
+                    ## divide by flux uncertainties before adding coefficents:
                     coeffs[-nValues:]   = newCoeffs/self.sigma[newIndices]
+
                     indices0[-nValues:] = newIndices
                     indices1[-nValues:] = i*np.ones((nValues,), dtype='int32')
 
                     nValuesCmp += nValues
-
+                k += 1
             if nValuesCmp == 0 and doLog:
                 logging.error(\
                     "[@{0}] Component #{1} entirely outside FoV.".format(\
@@ -533,7 +551,7 @@ class StarFit(FittingGui):
             self.unresIndices = indices0[indices1==self.sources.unresRow]
             self.unresCoeffs  = coeffs[indices1==self.sources.unresRow]
 
-        if self.hasMask:
+        if self.hasMask: ## implement mask if it has been provided
             mappedIndices0 = self.pixMap[indices0]
             used           = (mappedIndices0 > -1)
 
@@ -609,14 +627,15 @@ class StarFit(FittingGui):
                 self._current[psfIndices] += psfCoeffs*allPars[-1,j]
 
             ## fit PSF
-            self.BAD = False
+            self.BAD = False ## a flag indicating if a PSF parameter was
+                             ## fitted with an invalid value (e.g. beta<=1)
 
             bestFit_j = optimize.fmin(\
                 func=self.fitOnePSF,
                 x0=allPars[fitFlags,j],
                 args=(allPars[fitFlags==False,j],fitFlags),
                 disp=False)
-            if not self.BAD:
+            if not self.BAD: ##  only update data if fit was valid
                 allPars[fitFlags,j] = bestFit_j
 
 
@@ -713,7 +732,7 @@ class StarFit(FittingGui):
         squares fit is performed using all resolved sources. This fitting
         procedure is recommended only for IFUs with a small number of spatial
         pixels.
-        The results of the fits is used to update the PSF and/or the
+        The results of the fit is used to update the PSF and/or the
         parameters of the coordinate transformation.
         """
 
@@ -768,7 +787,33 @@ class StarFit(FittingGui):
 
 
     def fitMultiPSF(self, x0, fixedPars, fitFlags):
-
+        """
+        The optimization routine that is passed to the `fmin'-routine of the
+        `scipy.optimize'-package. During each iteration, a PSF array is
+        prepared for every resolved source, the PSFs are scaled and subtracted
+        from the data. The chi^2-value is returned.
+        
+        Parameters
+        ----------
+        x0 : array_like
+            The initial guesses of the parameters that are fitted in the
+            following order:
+                coordTransPar0, .., coordTransPar_i, psfPar_0, .., psfPar_j
+        fixedPars : array_like
+            The values of the parameters that are not fitted in the following
+            order same order as `x0`. Each parameter of the coordinate transf.
+            or the PSF must occur either in `x0` OR in `fixedPars`.
+        fitFlags : array_like
+            A boolean flag for each parameter needed to create the PSF
+            indicating whether it is fitted. The number of True-values must be
+            equal to the size of `x0` and the number of False-values must be
+            equal to the size of `fixedPars`.
+        
+        Returns
+        -------
+        chi2 : float
+            The chi^2 value of the fit.
+        """
         allPars = np.zeros(fitFlags.shape, dtype='float64')
 
         allPars[fitFlags] = x0
@@ -805,11 +850,9 @@ class StarFit(FittingGui):
 ## 
 ##         err   = self.current - model.sum(axis=1).getA1()
 
-
         return (err*err).sum()
 
-        
-
+    
 
     def updatePars(self):
         """
@@ -836,12 +879,12 @@ class StarFit(FittingGui):
         logging.debug("[@{0}] Previous fits in focus: {1}".format(\
                 self.jj, LASTFITS))
 
-        if self.sources.Fit: ## update coordinate transformation
+        if self.sources.Fit:
             
-            if not self.fullPosFit:
+            if not self.fullPosFit:  ## update coordinate transformation
                 self.sources.ctValues[...,self.jj] \
                     = self.sources.ctData[0,:][...,LASTFITS].mean(axis=-1)
-            else:
+            else: ## update coordinates
                 self.sources.xvalues[...,self.jj] \
                     = self.sources.xdata[0,:][...,LASTFITS].mean(axis=-1)
                 self.sources.yvalues[...,self.jj] \

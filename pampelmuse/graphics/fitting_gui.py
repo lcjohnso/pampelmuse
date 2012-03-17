@@ -21,7 +21,7 @@ from PyQt4 import QtCore, QtGui
 from pampelmuse.graphics.dynamic_ima_canvas import DynamicImaCanvas
 
 
-INTERVAL=100 ## timer interval, in milli-seconds
+INTERVAL=10 ## timer interval, in milli-seconds
 
 class FittingGui(QtGui.QMainWindow):
 
