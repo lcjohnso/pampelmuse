@@ -485,7 +485,7 @@ class CoordinateTransformation(object):
         Property to check whether the coord. transf.  definition is valie,
         i.e. whether all of its parameters have been provided.
         """
-        if not "parameters" in dir(self):
+        if not "missing" in dir(self):
             return False
 
         if self.missing != []:

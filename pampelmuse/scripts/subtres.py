@@ -58,22 +58,21 @@ def subtres(arguments):
 
     ## Spectra
     logging.info("Obtaining source spectra.")
-    spectra = Spectra(prmFile["SOURCES"],  hdu=True)
-    spectra.loadSpectra(data=prmFile["SPECTRA"], hdu=True)
+    sources = Sources(data=prmFile["SOURCES"],  hdu=True)
+    sources.loadSpectra(data=prmFile["SPECTRA"], hdu=True)
                  
     ## Positions
     logging.info("Obtaining source coordinates")
-    positions = Positions(prmFile["SOURCES"], hdu=True)
     if "POSITIONS" in extNames:
         logging.info("Reading 'POSITIONS' HDU.")
-        positions.loadIfuCoords(prmFile["POSITIONS"], hdu=True)
+        sources.loadPositionsHDU(prmFile["POSITIONS"])
 
     elif 'POSPARS' in extNames:
         logging.info("Reading 'POSPARS' HDU.")
-        positions.readTransHDU(prmFile["POSPARS"], backup=False)
-        positions.resizeStructure(size=spectra.ndisp)
-        positions.makeParameters()
-        positions.info()
+        sources.readTransHDU(prmFile["POSPARS"], backup=False)
+        sources.resizeStructure(ndisp=sources.ndisp)
+        sources.makeValues()
+        sources.info()
 
     ## PSF
     psf = PSF()
@@ -84,10 +83,8 @@ def subtres(arguments):
         logging.error("No HDU 'PSFPARS' found. Assuming Gaussian PSF.")
         psf.makeNewPSF(profile="gauss", fwhm=3.0, e=0., theta=0.)
     psf.info()
-    psf.resizeStructure(size=spectra.ndisp)
-    psf.makeParameters()
-
-    prmFile.close() ## finished reading source catalog.
+    psf.resizeStructure(ndisp=sources.ndisp)
+    psf.makeValues()
 
 
     ## open datacubes & check consistency
@@ -96,38 +93,46 @@ def subtres(arguments):
     cubeShape = (dataFits[0].header['NAXIS3'],
                  dataFits[0].header['NAXIS2'],
                  dataFits[0].header['NAXIS1'])
-    if dataFits[0].header['NAXIS3'] != spectra.ndisp:
+    if dataFits[0].header['NAXIS3'] != sources.ndisp:
         logging.critical("Cube and spectra have incompatible dimensions.")
 
     data = dataFits[0].data ## load full(!) cube into memory.
 
     for i in xrange(dataFits[0].header['NAXIS3']):
         logging.info(\
-            "Handling slice #{0} [{1:.1f}%].".format(i, (100.*i)/spectra.ndisp))
+            "Handling slice #{0} [{1:.1f}%].".format(i, (100.*i)/sources.ndisp))
         
         ## initialize PSF
         psf_i = psf(index=i)
 
+        ## load current IFU coords:
+        sources.loadIFUCoords(index=i)
+
         ## loop over components:
-        for j in xrange(spectra.ncmp):
+        for j in xrange(sources.ncmp):
 
-            if j != spectra.skyRow:
-                if j != spectra.unResRow or subtUnRes: 
-                    IDs     = spectra.ID[spectra.map[j]] 
-                    relMags = spectra.weights[j]
-
-                    ## - get position(s) and flux(es)
-                    x_ij, y_ij = positions.getIfuCoords(index=i, ids=IDs)
-                    flux_ij    = spectra.data[j,i]
+            if j != sources.skyRow:
+                if j != sources.unresRow or subtUnRes: 
 
                     ##  subtract from cube
-                    for k in xrange(spectra.map[j].size):
-                        data[i] -= flux_ij*psf_i(\
-                            size=cubeShape[1:], x_c=x_ij[k], y_c=y_ij[k],
-                            mag=relMags[k], maxrad=psfRad)
+                    for k in xrange(sources.indexmap[j].size):
+  
+                        l = np.where(\
+                            sources.ifuSelect==sources.indexmap[j][k])[0][0]
+
+                        x_k    = sources.xvalues[l,0]
+                        y_k    = sources.yvalues[l,0]
+                        flux_k = sources.data[j,i]
+                        mag_k  = sources.weights[j][k]
+
+                        data[i] -= flux_k*psf_i(\
+                            size=cubeShape[1:], x_c=x_k, y_c=y_k, mag=mag_k,
+                            maxrad=psfRad)
 
             elif subtSky:
-                data[i] -= spectra.data[j,i]
+                data[i] -= sources.data[j,i]
+
+    prmFile.close() ## finished reading source catalog.
 
 
     outHDU = pyfits.PrimaryHDU(data)

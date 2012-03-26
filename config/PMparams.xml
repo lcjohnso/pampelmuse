@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='ISO-8859-1'?>
 <?xml-stylesheet type="text/xsl" href="PMstyle.xsl"?>
-<configuration xmlns="http://www.tobedefined.com/pampelmuse" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" timestamp="2012-03-14T09:13:10Z" xsi:schemaLocation="http://www.tobedefined.com/pampelmuse PMschema.xsd">
+<configuration xmlns="http://www.tobedefined.com/pampelmuse" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" timestamp="2012-03-23T16:26:22Z" xsi:schemaLocation="http://www.tobedefined.com/pampelmuse PMschema.xsd">
  <!-- <parameter inuse="1">
   <name>FITRAD</name>
   <value dtype="float">3.0</value>
@@ -39,7 +39,19 @@
   <value dtype="tuple">(0, 1, 2, 3)</value>
   <comment>The columns of the crowded-field photometry file that contain: ID, x position, y position and magnitude of the stars</comment>
   <updated timestamp="2011-08-09T16:23:06Z">Appended parameter CFPCOLS to configuration file.</updated>
- </parameter><parameter category="1pho"><name>PASSBAND</name><value dtype="str">F814W</value><comment>The photometric passband in which the provided magnitudes are given</comment><updated timestamp="2011-11-29T21:03:10Z">Appended parameter PASSBAND to configuration file.</updated></parameter><parameter category="1pho"><name>PIXSCALE</name><value dtype="float">10.0</value><comment>The scaling of the IFU pixels with respect to the input coordinates. Same as the IFU pixelsize if the input coordinates are given in acrseconds. If the input coordinates are given in pixels, it is the ratio of IFU to input pixelsize.</comment><updated timestamp="2012-03-14T09:13:10Z">Appended parameter PIXSCALE to configuration file.</updated></parameter>
+ </parameter>
+ <parameter category="1pho">
+   <name>PASSBAND</name>
+   <value dtype="str">F814W</value>
+   <comment>The photometric passband in which the provided magnitudes are given</comment>
+   <updated timestamp="2011-11-29T21:03:10Z">Appended parameter PASSBAND to configuration file.</updated>
+  </parameter>
+  <parameter category="1pho">
+  <name>PIXSCALE</name>
+  <value dtype="float">10.0</value>
+  <comment>The scaling of the IFU pixels with respect to the input coordinates. Same as the IFU pixelsize if the input coordinates are given in acrseconds. If the input coordinates are given in pixels, it is the ratio of IFU to input pixelsize.</comment>
+  <updated timestamp="2012-03-14T09:13:10Z">Appended parameter PIXSCALE to configuration file.</updated>
+ </parameter>
  <parameter category="2sel">
   <name>APERRAD</name>
   <value dtype="float">3.0</value>
@@ -140,4 +152,16 @@
   <comment>The degree of PSF variablility, given as SUM(2**N), with N being the position in the PSFPARS array (starting with 1) of a PSF shape parameter that should be fitted</comment>
   <updated timestamp="2011-09-09T12:11:20Z">Appended parameter PSFFIT to configuration file.</updated>
  </parameter>
-<parameter><name>VERBOSE</name><value dtype="int">2</value><comment>The chattiness of PampelMuse, i.e. the amount of information that is printed out</comment><updated timestamp="2011-11-28T20:13:30Z">Appended parameter VERBOSE to configuration file.</updated></parameter><parameter category="fit"><name>JUMPSTART</name><value dtype="bool">False</value><comment>Flag indicates whether the fit starts directly or after presseing the START-button</comment><updated timestamp="2012-02-13T21:21:21Z">Appended parameter JUMPSTART to configuration file.</updated></parameter></configuration>
+ <parameter>
+  <name>VERBOSE</name>
+  <value dtype="int">2</value>
+  <comment>The chattiness of PampelMuse, i.e. the amount of information that is printed out</comment>
+  <updated timestamp="2011-11-28T20:13:30Z">Appended parameter VERBOSE to configuration file.</updated>
+</parameter>
+<parameter category="3fit">
+  <name>JUMPSTART</name>
+  <value dtype="bool">False</value>
+  <comment>Flag indicates whether the fit starts directly or after presseing the START-button</comment>
+  <updated timestamp="2012-02-13T21:21:21Z">Appended parameter JUMPSTART to configuration file.</updated>
+ </parameter>
+<parameter category="0gen"><name>USEQT</name><value dtype="bool">True</value><comment>Flag indicating whether Qt loaded to provide a graphical  interface for the analysis. Requires a system with PyQt4. Note that currently parallelization does not work with Qt.</comment><updated timestamp="2012-03-23T16:23:10Z">Appended parameter USEQT to configuration file.</updated></parameter><parameter category="0gen"><name>CPUCOUNT</name><value dtype="int">1</value><comment>The number of CPUs PampelMuse should use in the parallelized parts of the analysis. Set CPUCOUNT to -1 to use all available CPUs.</comment><updated timestamp="2012-03-23T16:26:22Z">Appended parameter CPUCOUNT to configuration file.</updated></parameter></configuration>

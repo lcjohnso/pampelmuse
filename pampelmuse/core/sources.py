@@ -1,10 +1,15 @@
 """
 SOURCES
 =======
-The `Sources'-class is the PampelMuse-routine that handles the entire source
-catalogue. It keeps track of the loaded sources, their grouping  into the
+The `Sources`-class is the PampelMuse-routine that handles the entire source
+catalogue. It keeps track of the loaded sources, their grouping into the
 individual components, their spectra and postions. It also provides some
 methods to write the individual properties into FITS-HDUs.
+
+Since the `CoordinateTransformation`-class of PampelMuse is provided as a 
+superclass to `Sources`, its functionality can also be accessed through the
+`Sources`-class.
+
 The routine is heavily used by all the main scripts of PampelMuse.
 
 CHANGELOG:
@@ -15,7 +20,8 @@ __author__ = "Sebastian Kamann (skamann@aip.de)"
 __version__ = "0.1.0.0"
 import logging
 import numpy as np, pyfits
-from PyQt4 import QtCore
+try: from PyQt4 import QtCore ## check if PyQt is available 
+except ImportError: pass
 
 ## required PampelMuse-packages
 from pampelmuse.core.positions import CoordinateTransformation
@@ -25,7 +31,9 @@ from pampelmuse.core.value_array import ValueArray
 
 def matchOnID(parent, child):
     """
-    For each element in `children', return indix of element in `parent'.
+    Compare to 1dim. lists for common entries. For each element in `children`
+    that is also part of the `parent`-list, the index of in the `parent'-list
+    is returned.
 
     Parameters
     ----------
@@ -39,22 +47,48 @@ def matchOnID(parent, child):
     indices : nd_array
         The index of every `child'-entry in the `parent' list (if found).
     """
-
     return np.nonzero((child[:,np.newaxis]-parent)==0)[1]
 
 
 
 
 class Sources(CoordinateTransformation, object):
-
+    """
+    The `Sources`-class is designed for the following purposes:
+    * Initialize and maintain a coherent catalog of sources. To this aim, the
+      class uses several properties that are either inherent to the sources
+      (ID, x, y, mag) or assigned to each source depending on its usage in
+      the analysis (status, specrow, primary)
+    * Load, maintain and save the set of spectra that is associated with the
+      source catalog
+    * Load, maintain and save the set of IFU coordinates that is associated
+      with the source catalog. To this aim, the `Sources`-class uses the
+      `CoordinateTransformation`-class of PampelMuse as a superclass. This
+      way, it can also access any coordinate transformation that might be in
+      use.
+    """
     def __init__(self, data=None, hdu=False, ids=None):
         """
-        Initialize an instance of the `StoreParam'-class.
+        Initialize a new instance of the `Sources`-class.
 
         Parameters
         ----------
-        data
-        hdu
+        data : a pyfits BinTable-HDU instance or a structured array, optional
+            The source catalog that should be used to initialize the instance.
+            It must contain at least a field named `id`, all other fields are
+            optional and the corresponding properties might be defined later.
+            If `data` is not provided, than `ids` must be given.
+        hdu : boolean, optional
+            Flag indicating whether `data` is a pyfits BinTable-HDU instance 
+            (if `data` is provided).
+        ids : array_like
+            A 1dim. array containing the source IDs that should be used to
+            initialize the scene. All other propperties must be defined
+            afterwards.
+
+        Returns
+        -------
+        The newly created instance.
         """
         if hdu:
             logging.info("Initializing Sources instance from HDU.")
@@ -62,20 +96,24 @@ class Sources(CoordinateTransformation, object):
         else:
             logging.info("Initializing Sources instance.")
 
-        ## initialize properties:
-
+        ## Initialize properties:
+        ## Note that the  properties below can be accessed in two ways:
+        ## a) with an underscore: direct access, no sanity checks performed
+        ## b) without underscore: check whether requested property has been
+        ##                        defined and whether data used to update
+        ##                        property is valid.
         if ids != None: self._id = np.asarray(ids)
-        else: self._id = None
-        self._x        = None
-        self._y        = None
-        self._mag      = None
-        self._status   = None
-        self._specrow  = None
-        self._primary  = None
-        self._indexmap = None
-        self._weights  = None
+        else: self._id = None  ## source IDs -note: prop. w\ underscore is `ID`
+        self._x        = None  ## input x coordinates
+        self._y        = None  ## input y coordinates
+        self._mag      = None  ## broadband magnitudes
+        self._status   = None  ## status of source in analysis [-1, 4]
+        self._specrow  = None  ## row containing spectrum in `data`-property
+        self._primary  = None  ## primary component of the source
+        self._indexmap = None  ## map from specrow to index
+        self._weights  = None  ## map from specrow to relative magnitude
 
-        self.values    = None ## for later usage of IFU coordinates
+        self.values    = None  ## for later usage of IFU coordinates
 
         ## IDs must be present
         if data != None:
@@ -96,7 +134,7 @@ class Sources(CoordinateTransformation, object):
                     self.__dict__["_{0}".format(name)]\
                         = data[[name]].view(data[name].dtype).reshape(-1,)
 
-            ## include specrow, status, primary
+            ## include `specrow`, `status`, `primary` if available
             if "specrow" in data.dtype.names: self.setSpecrow(data["specrow"])
             if "status" in data.dtype.names: self.setStatus(data["status"])
             if "primary" in data.dtype.names: self.setPrimary(data["primary"])
@@ -104,7 +142,12 @@ class Sources(CoordinateTransformation, object):
         super(Sources, self).__init__()
 
 
+###############################################################################
+##                   Definitions of the various properties,                  ##
+##                   and the methods to create & acces them                  ##
+###############################################################################
 
+## __getitem__- and __setitem__-methods for the various properties:
     def getID(self):
         return self._id
 
@@ -114,13 +157,13 @@ class Sources(CoordinateTransformation, object):
         value = np.asarray(value, dtype=np.float32)
         
         if not value.size == self.nsrc and value.ndim==1:
-            logging.error("Cannot set `x', data has invalid shape.")
+            logging.error("Cannot set `x`, data has invalid shape.")
         else:
             self._x = value
 
     def getX(self):
         if self._x == None:
-            logging.error("Requested attribute `x' not specified.")
+            logging.error("Requested attribute `x` not specified.")
         return self._x
             
 
@@ -129,13 +172,13 @@ class Sources(CoordinateTransformation, object):
         value = np.asarray(value, dtype=np.float32)
         
         if not value.size == self.nsrc and value.ndim==1:
-            logging.error("Cannot set `y', data has invalid shape.")
+            logging.error("Cannot set `y`, data has invalid shape.")
         else:
             self._y = value
 
     def getY(self):
         if self._y == None:
-            logging.error("Requested attribute `y' not specified.")
+            logging.error("Requested attribute `y` not specified.")
         return self._y
 
 
@@ -144,16 +187,16 @@ class Sources(CoordinateTransformation, object):
         value = np.asarray(value, dtype=np.int16)
         
         if not value.size == self.nsrc and value.ndim==1:
-            logging.error("Cannot set `y', data has invalid shape.")
+            logging.error("Cannot set `y`, data has invalid shape.")
         else:
             self._status = value
             if self._specrow==None:
-                if not (self._status==1).any(): self.makeSpecrow(unique=True)
+                if not (self._status<2).any(): self.makeSpecrow(unique=True)
                 elif self._primary != None: self.makeSpecrow(unique=False)
-
+                    
     def getStatus(self):
         if self._status == None:
-            logging.error("Requested attribute `status' not specified.")
+            logging.error("Requested attribute `status` not specified.")
         return self._status
 
 
@@ -162,7 +205,7 @@ class Sources(CoordinateTransformation, object):
         value = np.asarray(value, dtype=np.int32)
         
         if not value.size == self.nsrc and value.ndim==1:
-            logging.error("Cannot set `primary', data has invalid shape.")
+            logging.error("Cannot set `primary`, data has invalid shape.")
         else:
             self._primary = value
             if self._status != None and self._specrow==None:
@@ -170,7 +213,7 @@ class Sources(CoordinateTransformation, object):
 
     def getPrimary(self):
         if self._primary == None:
-            logging.error("Requested attribute `primary' not specified.")
+            logging.error("Requested attribute `primary` not specified.")
         return self._primary
 
 
@@ -179,13 +222,13 @@ class Sources(CoordinateTransformation, object):
         value = np.asarray(value, dtype=np.float32)
         
         if not value.size == self.nsrc and value.ndim==1:
-            logging.error("Cannot set `mag', data has invalid shape.")
+            logging.error("Cannot set `mag`, data has invalid shape.")
         else:
             self._mag = value
             
     def getMag(self):
         if self._mag == None:
-            logging.error("Requested attribute `mag' not specified.")
+            logging.error("Requested attribute `mag` not specified.")
         return self._mag
 
             
@@ -194,32 +237,32 @@ class Sources(CoordinateTransformation, object):
         value = np.asarray(value, dtype=np.int16)
         
         if not value.size == self.nsrc and value.ndim==1:
-            logging.error("Cannot set `specrow', data has invalid shape.")
+            logging.error("Cannot set `specrow`, data has invalid shape.")
         elif self._specrow != None:
-            logging.error("Cannot set `specrow' as it has been previously set.")
+            logging.error("Cannot set `specrow` as it has been previously set.")
         else:
             self._specrow = value
-            self.makeIndexmap()
-            self.makeWeights()
+            self.makeIndexmap() ## create dictionaries to link `specrow` to
+            self.makeWeights()  ## source indices and magnitudes. 
 
             
     def getSpecrow(self):
         if self._specrow == None:
-            logging.error("Requested attribute `specrow' not specified.")
+            logging.error("Requested attribute `specrow` not specified.")
         return self._specrow
 
 
 
     def getIndexmap(self):
         if self._indexmap == None:
-            logging.error("Requested attribute `indexmap' not specified.")
+            logging.error("Requested attribute `indexmap` not specified.")
         return self._indexmap
 
 
 
     def getWeights(self):
         if self._weights == None:
-            logging.error("Requested attribute `weights' not specified.")
+            logging.error("Requested attribute `weights` not specified.")
         return self._weights
 
 
@@ -240,20 +283,33 @@ class Sources(CoordinateTransformation, object):
     primary  = property(getPrimary, setPrimary, None,
                        "The primary source in the component.")
     indexmap = property(getIndexmap, None, None,
-                        "Mapping from `specrow'-property to index.")
+                        "Mapping from `specrow`-property to index.")
     weights  = property(getWeights, None, None,
                         "Relative magnitudes of sources in a component.")
 
 
     def makeSpecrow(self, unique):
+        """
+        Method that is wrapped around the __setitem__-method of `specrow`.
+        It is designed to automatically assign a `specrow`-entry to every
+        source in the catalog.
 
+        Parameters
+        ----------
+        unique : boolean
+            Flag indicating whether all sources have their own spectrum (T)
+            or whether some sources share a spectrum (F).
+        """
         if unique:
             value = np.arange(self.nsrc, dtype=np.int16)
         else:
             value = (self._id==self._primary).cumsum()-1
             for i in xrange(self._id.size):
-                if self._status[i] == 1:
-                    j=i
+                if self._status[i] == 1: ## Find spectrum of primary component
+                    j=i                  
+                    ## Following loop necessary since initially assigned
+                    ## primary component might be secondary component o
+                    ## another source.
                     while self._primary[j]!=self._id[j]:
                         j = np.where(self._id==self._primary[j])[0][0]
                     value[i] = value[j]
@@ -264,8 +320,8 @@ class Sources(CoordinateTransformation, object):
 
         
     def makeIndexmap(self):
-        ## `indexmap' is a dictionary mapping the `specrow' (keys) to the
-        ## index/indices (values) in the `sources'-table
+        ## `indexmap` is a dictionary mapping the `specrow` (keys) to the
+        ## index/indices (values) in the `sources`-table
         self._indexmap = {}
         for i in xrange(self.ncmp):
             self._indexmap[i] = np.where(self._specrow==i)[0]
@@ -273,10 +329,10 @@ class Sources(CoordinateTransformation, object):
 
 
     def makeWeights(self):
-        ## `weights' is a dictionary mapping the `specrow' (keys) to the
+        ## `weights` is a dictionary mapping the `specrow` (keys) to the
         ## relative magnitudes (values) of its component(s)
         if self._mag == None:
-            logging.warning("Property `mag' not set, assuming equal weights.")
+            logging.warning("Property `mag` not set, assuming equal weights.")
 
         self._weights = {}
         for row, ind in self._indexmap.iteritems():
@@ -291,39 +347,62 @@ class Sources(CoordinateTransformation, object):
 
     @property
     def ncmp(self):
+        """
+        The number of components (i.e. independent spectra) in the catalogue.
+        """
         if self._specrow == None: return None
         else: return self._specrow.max()+1
 
 
     @property
     def hasSky(self):
+        """
+        Flag indicating whether a sky component is included in the catalog.
+        """
         if self._status == None: return False
         return (self._status==4).any()
     
     @property
     def skyRow(self):
+        """
+        Returns the row of the sky spectrum (if any, otherwise returns None)
+        """
         if not self.hasSky or self._specrow==None: return None
         else: return self._specrow[np.where(self.status==4)[0][0]]
 
     
     @property
     def hasUnres(self):
+        """
+        Flag indicating whether a unresolved component is included in the
+        catalog.
+        """
         if self._status == None: return False
         return (self._status==0).any()
 
     @property
     def unresRow(self):
+        """
+        Returns the row of the spectrum of the unresolved component (if any,
+        otherwise returns None)
+        """
         if not self.hasUnres or self._specrow==None: return None
         else: return self._specrow[np.where(self.status==0)[0][0]]
             
 
     @property
     def psfIndices(self):
+        """
+        Returns the indices of the sources that are  used to determine the
+        PSF (i.e. sources whose `status` is 3).
+        """
         return np.arange(self.nsrc, dtype=np.int32)[self.status==3]
 
 
     def info(self):
-        
+        """
+        Print out some information about the loaded source catalogue.
+        """
         try:
             logging.debug("Current structure of loaded Sources-instance:")
             logging.debug(" Component:   IDs (& mags):")
@@ -347,12 +426,46 @@ class Sources(CoordinateTransformation, object):
         if self.verifyTrans:
             CoordinateTransformation.info(self)
 
+
+
 ###############################################################################
 ##              Methods dealing with the spectra of the sources              ##
 ###############################################################################
     def loadSpectra(self, data, sigma=None, hdu=False, crval=1., cdelt=1.,
                     crpix=1, ctype="AWAV"):
-             
+        """
+        Load the spectra for all sources in the catalogue. The method might
+        also be used to provide an empty array that is filled later.
+
+        Properties
+        ----------
+        data : array_like or pyfits ImageHDU-instance, shape=(`ncmp`, k)
+            The spectra to be loaded, given either as ian image-like FITS-HDU
+            or a plain array.
+        sigma : array_like or pyfits ImageHDU-instance, same shape as `data`
+                optional
+            Uncertainties associated with the spectra provided as `data`.
+            Must be same type (i.e. HDU or array)  as `data`.
+        hdu : boolean, optional
+            Flag indicating whether `data` (and `sigma` if provided) is an
+            HDU or an array.
+        crval : float, optional
+            The wavelength at the reference pixel. Note that the value might
+            be overwritten in case `hdu` is True and the keyword `CRVAL1` is
+            found in the FITS-header of `data`.
+        cdelt : float, optional
+            The dispersion of the spectra (per spectral pixel). Note that the
+            value might be overwritten in case `hdu` is True and the keyword
+            `CDELT1` is found in the FITS-header of `data`.
+        crpix : int, optional
+            The reference pixel. Note that the value might be overwritten in
+            case `hdu` is True and the keyword `CRPIX1` is found in the FITS-
+            header of `data`.
+        ctype : string, optional
+            The wavelength type of the spectra. Note that the value might be
+            overwritten in case `hdu` is True and the keyword `CTYPE1` is
+            found in the FITS-header of `data`.
+        """
         if self.ncmp == None:
             logging.error("No assigment of sources to spectra performed.")
        
@@ -383,13 +496,23 @@ class Sources(CoordinateTransformation, object):
                 logging.error("Spectra and sigma arrays have different shapes.")
         else:
             self.sigma = np.zeros(self.data.shape, dtype=np.float32)
-
-        self.ndisp = self.data.shape[1]
+            ## create empty `sigma`-spectra if none provided.
+            
+        self.ndisp = self.data.shape[1] ## length of dispersion axis
 
         
 
     def provideNames(self):
+        """
+        Short routine to provide the IDs/names of the independent components
+        in the loaded catalogue as a QStringList to the `InspectFitData`-class
+        of PampelMuse.
 
+        Returns
+        -------
+        names : QStringList
+           The names of the coomponents
+        """
         ownSpec = np.in1d(self.status, np.arange(2,4))
 
         self.names   = QtCore.QStringList(self.ID[ownSpec].astype("|S6"))
@@ -407,7 +530,23 @@ class Sources(CoordinateTransformation, object):
 
 
     def viewSpectrum(self, name=None, ID=None):
+        """
+        Return the spectrum corresponding to a provided ID or name of the
+        component.
         
+        Parameters
+        ----------
+        name : string, optional
+           The name of the requested component. Note that if `name` is not
+           provided, `ID` must be given.
+        ID : int, optional
+           The ID of the requested component. Note that if ID` is not
+           provided, `name` must be given.
+
+        Returns
+        -------
+        The requested spectrum.
+        """
         if name==None and ID==None:
             logging.error("Either name or ID must be provided.")
             return
@@ -424,7 +563,11 @@ class Sources(CoordinateTransformation, object):
 ###############################################################################
     @property
     def Fit(self):
-
+        """
+        Return True or False depending on whether any of the parameters that
+        deal with the source coordinates (incl. coord. transf.) are free fit
+        parameters. 
+        """
         if "poly" in self.__dict__ and "free" in self.__dict__:
             
             if self.free.any() and not self.poly.all():
@@ -432,19 +575,52 @@ class Sources(CoordinateTransformation, object):
             elif self.poly.all():
                 return False
 
-        return CoordinateTransformation.Fit
+        return super(Sources, self).Fit
 
 
 
     def loadIFUCoords(self, data=None, ids=None, index=slice(None),free=False):
-        ## idea to provide additional parameters to load only certain
-        ## slices from HDUs to restrict memory usage.
-        ## index can be either an integer or a slice()-object
-        ## IMPORTANT: index-lists of boolean-lists are not supported!
+        """
+        Provide the IFU coordinates for an individual source, a subset of
+        source or the entire catalogue.
+        The coordinates might be loaded for an individual image or more images.
+        Note however that this `index` selection is currently limited by the
+        fact that the `ValueArray` can only handle integers or `slice`-
+        instances.
+        The method tries to obtain the IFU coordinates in different ways and
+        (in the following order):
+        (1) Directly, if `data` is not None
+        (2) Using the coord. transf., if a valid one is available.
+        (3) Reading the coordinates from a previously provided (using the
+            `loadPositionsHDU`-method) FITS-ImageHDU.
+        Additionally, the method check whether polynomial fits to the IFU
+        coordinates exists as a FITS-ImageHDU.
+
+        The routine will prepare two instance of `ValueArray`, named `xvalues`
+        and `yvalues` that will contain the coordinates.
+
+        Parameters
+        ----------
+        data : array_like, shape=(2, len(`ids`), len(`index`)), optional
+            The IFU coordinates. If none are provided, the routine will try to
+            use a valid coord. transf. or ImageHDU-instance.
+        ids : array_like, 1dim., optional
+            The IDs of the sources for which the IFU coordinates should be
+            loaded. If none are provided, the `method` will  try to use the
+            entire source catalogue.
+        index : integer or `slice`-instance, optional
+            The index/indices of the images for which the IFU coordinates
+            should  be loaded. IMPORTANT: index-lists of boolean-lists are not
+            currently supported!
+        free : bool, optional
+            Whether the provided IFU coordinates are free fit parameters. Only
+            used if `data` is not None.
+        """
+
 
         if not isinstance(index, slice):
             if np.asarray(index).shape == (): index = slice(index, index+1, 1)
-            else: logging.error("`index' must be slice or integer, not {0}"\
+            else: logging.error("`index` must be slice or integer, not {0}"\
                                     .format(type(index)))
 
         if data != None:
@@ -462,10 +638,10 @@ class Sources(CoordinateTransformation, object):
 
             data = np.atleast_3d(data)
             if data.shape[0] != 2:
-                logging.error("Provided `data' has invalid shape.")
+                logging.error("Provided `data` has invalid shape.")
                 return
             if data.shape[1] != len(self.ifuID):
-                logging.error("`data'-shape incompatible with no. of IDs.")
+                logging.error("`data`-shape incompatible with no. of IDs.")
                 return
 
             self.xdata = np.resize(data[0], (2,)+data[0].shape)
@@ -560,7 +736,20 @@ class Sources(CoordinateTransformation, object):
 
 
     def calcTrans(self, index=slice(None)):
+        """
+        Calculate/Initialize a new coordinate transformation using the input
+        coordinates and the IFU coordinates. For this method to work, the
+        properties `x` and `y` must have been defined and the method
+        `loadIFUCoordinates` must have been called previously. The method will
+        then use those two sets of input-coordinates to create a new instance
+        of the `CoordinateTransformation`-superclass.
 
+        Parameters
+        ----------
+        index : int or `slice`-instance, optional
+            The image(s) for which the coordinate transformation should be
+            calcluated. The default is to use the entire cube.
+        """
         if self._x == None or self._y == None:
             logging.error("Cannot determine coordinate transformation:")
             logging.error("   No input coordinates available.")
@@ -610,12 +799,33 @@ class Sources(CoordinateTransformation, object):
 
 
     def loadPositionsHDU(self, name):
+        """
+        Load a pyfits `PrimaryHDU`- or `ImageHDU`-instance that contains IFU
+        coordinates for the sources in the catalog (or a subset of them). The
+        HDU must contain a 3dim. data-cube with shape 2 x Nsources x Ndisp.
 
+        If only a subset of all sources in the catalog have IFU coordinates
+        stored in th HDU, the hierarch keywords `PAMPELMUSE POSITIONS ID<i>`
+        should be present, giving the ID of the source stored in row i.
+
+        The method will automatically check whether the HDU contains data or
+        polynomial fits, using hierarch-keyword `PAMPELMUSE POSITIONS POLY`
+        (or keyword `ISFITTED`).
+        
+        Note that in order to  save memory, the method will not actually load
+        the data into memory. It will only provide the method
+        `loadIFUCoordinates` with the necessary information to do so.
+
+        Parameters
+        ----------
+        name : a pyfits `PrimaryHDU`- or `ImageHDU`-instance
+            The HDU instance containing the coordinates.
+        """
         ## need to provide nameID and polyFitID
         ## look for hierarch-keywords "PAMPELMUSE POSITIONS ID{i}"
 
         if "EXTNAME" in name.header:
-            logging.info("Reading IFU coords. from HDU '{0}'.".format(\
+            logging.info("Reading IFU coords. from HDU `{0}`.".format(\
                     name.header["EXTNAME"]))
         else:
             logging.info("Reading IFU coords. from unnamed HDU.")
@@ -690,7 +900,7 @@ class Sources(CoordinateTransformation, object):
                      commonSlope=False):
 
         if commonSlope:
-            logging.warning("Flag `commonSlope' not yet supported.")
+            logging.warning("Flag `commonSlope` not yet supported.")
 
         if not coord in ["x", "y"]: return
         else: i = ["x", "y"].index(coord)

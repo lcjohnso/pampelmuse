@@ -76,6 +76,10 @@ import logging, os, sys, time
 import numpy as np, pyfits
 from scipy.sparse.linalg import lsqr
 from scipy import sparse, optimize
+from multiprocessing import cpu_count
+from multiprocessing import Pool
+
+from PyQt4 import QtCore, QtGui
 
 ##  required PampelMuse-routines
 from pampelmuse.graphics.fitting_gui import FittingGui
@@ -83,7 +87,8 @@ from pampelmuse.graphics.fitting_gui import FittingGui
 ## provided to the respective methods of `StarFit`.
 
 
-class StarFit(FittingGui):
+
+class StarFit(object):
     """
     `StarFit' is the core-routine of PampelMuse.  It uses a catalog of input
     sources, created e.g. using the dedicated `INITFIT`-script to analyse a
@@ -100,7 +105,7 @@ class StarFit(FittingGui):
     proceedes to the red and blue. This is done because usually the highest
     signal is expected near the center of the observed wavelength range.
     """
-    def __init__(self, dataFits, sigmaFits, maskFits=None, parent=None):
+    def __init__(self, dataFits, sigmaFits, maskFits=None, **kwargs):
         """
         Initialize an instance of the `StarFit'-class.
     
@@ -123,11 +128,7 @@ class StarFit(FittingGui):
             The newly created instance
         """
 
-        super(StarFit, self).__init__(parent)
-
-        self.BUSY     = False ## possible states of the fitting loop 
-        self.FINISHED = False ## not defined in FittingGui-class
-
+        super(StarFit, self).__init__(**kwargs)
 
         self.dataFits  = dataFits
         self.sigmaFits = sigmaFits
@@ -208,7 +209,7 @@ class StarFit(FittingGui):
         
 
     def __call__(self, fitRad=None, Ntrack=10, lastFitIndex=None,
-                 asSmallIFU=False, clip=5., jumpStart=False):
+                 asSmallIFU=False, ncpu=1, clip=5., **kwargs):
         """
         Execute (i.e start or continue) the fitting process. For each image of
         the datacube, the following steps are performed:
@@ -272,49 +273,29 @@ class StarFit(FittingGui):
 
         self.asSmallIFU = asSmallIFU
 
-        self.show() ## start GUI that controls fitting process
+        if ncpu == None: self.ncpu = cpu_count()
+        else: self.ncpu = int(ncpu)
+        logging.info("Starting analysis using {0} CPU(s).".format(self.ncpu))
 
-        if jumpStart:
-            self.startIt()
+        self.timeout()
+
 
     
     def timeout(self):
-        """
-        Method is called every time the `FittingGui`-instance encounters a
-        `timeout`. Depending on the current status of the fitting routine, 
-        the method calls the appropriate methods to analyze it.
-        """
-        if not self.STARTED:
-            return
 
-        if self.BUSY:
-            return
+        while self.i < self.specPix:
 
-        if self.ABORTED:
-            logging.warning("Fit stopped on user request.")
-            self.timer.stop()
-            self.close()
-    
-        if self.PAUSED:
-            self.sBar.showMessage("PAUSED")
-            return
+            self.jj = (self.specPix>>1) - 1 - int(self.i/2) \
+                + self.i*np.mod(self.i, 2) + np.mod(self.specPix, 2)
+            ## jj is a counter that starts at the central spectral pixel
+            ## and proceeds simultaneoulsy to the red and blue end.
 
-        self.jj = (self.specPix>>1) - 1 - int(self.i/2) \
-            + self.i*np.mod(self.i, 2) + np.mod(self.specPix, 2)
-        ## jj is a counter that starts at the central spectral pixel
-        ## and proceeds simultaneoulsy to the red and blue end.
-
-        if self.i == self.specPix: ## if data-cubbe is entirely analysed
-            self.timer.stop()
-            self.save = True
-            self.close()
-        else: ## update information in GUI
             self.prefixString = "[{0:0{1}d}/{2}]".format(\
                 self.i, int(np.log10(self.specPix))+1, self.specPix)
-            self.sBar.showMessage("{0} Analyzing slice #{1}".format(\
-                    self.prefixString, self.jj))
 
+            logging.info("{0} Starting fit.".format(self.prefixString))
             self.iterFitImage()
+
             self.i += 1
 
 
@@ -329,9 +310,6 @@ class StarFit(FittingGui):
         the uncertainties associated with the fluces once the analysis is
         completed.
         """
-
-        ## change state of routine to indicate a fit is carried out
-        self.BUSY = True
 
         ## update parameter initial guesses (if any):
         self.updatePars() 
@@ -359,8 +337,6 @@ class StarFit(FittingGui):
             
         else:
             self.mask = np.ones(self.data.shape, dtype='bool')
- 
-        self.dataCanvas.addImage(self.data.reshape(self.spatShape))
 
         ## fit PSF/positions if requested
         if self.psf.Fit or self.sources.Fit:
@@ -387,14 +363,12 @@ class StarFit(FittingGui):
             else:
                 self.fitPSF_largeIFU()
  
-        ## fit fluxes
-        self.sBar.showMessage("{0} Fitting fluxes".format(self.prefixString))
-
+        ## (Final) fit of fluxes:
         ## (re)calculate matrices 
         self.Apsf = self.fillMatrix(radius=self.psfRad)
 ##         self.Afit = self.fillMatrix(radius=self.fitRad)
 
-        ##  fit
+        ## fit
         bestFit = lsqr(self.Apsf, self.current)
         self.sources.data[:,self.jj] += bestFit[0]
 
@@ -407,26 +381,12 @@ class StarFit(FittingGui):
         ## get uncertainties
         self.sources.sigma[..., self.jj] = \
             1./np.sqrt(self.Apsf.multiply(self.Apsf).sum(axis=0))
-
-        ## create 2dim. residuals for plotting
-        if self.hasMask:
-            resi1d = np.zeros((self.spatPix,), dtype='float32')
-            resi1d[self.pixMap>-1] = self.current
-            self.resi2d = (resi1d*self.sigma).reshape(self.spatShape)
-        else:
-            self.resi2d = (self.current*self.sigma).reshape(self.spatShape)
-            
-        self.resiCanvas.addImage(self.resi2d)
-            
+           
         ## update inventory of last fits
         self.lastFittedImas.append(self.jj)
         if len(self.lastFittedImas)>2*self.Ntrack:
             self.lastFittedImas.remove(self.lastFittedImas[0])
  
-        self.pBar.setValue(100.*float(self.i+1)/self.specPix)
-
-        self.BUSY = False ## change status to indicste fit is completed
-
 
 
     @property
@@ -481,12 +441,38 @@ class StarFit(FittingGui):
             least-squares fit to determine the source fluxes.
         """
 
+        ## Initialize parallelization (if requested)
+        if self.ncpu > 1:
+
+            pool    = Pool(self.ncpu)
+            threads = []
+
+            for i in xrange(self.sources.ncmp):
+                if i == self.sources.unresRow and not calcUnres: continue
+                if i == self.sources.skyRow: continue
+
+                for j in xrange(len(self.sources.indexmap[i])):
+                    k = (self.sources.ifuSelect==self.sources.indexmap[i][j])\
+                        .argmax()
+
+                    x_c=self.sources.xvalues[k, self.jj*self.fullPosFit]
+                    y_c=self.sources.yvalues[k, self.jj*self.fullPosFit]
+                    mag=self.sources.weights[i][j]
+
+                    threads.append(pool.apply_async(\
+                            self.PSF,
+                            args=(self.spatShape, x_c, y_c, mag, radius, 1, 0)))
+
+            pool.close()
+            pool.join()
+
         coeffs   = np.array([], dtype='float32')  ## PSF coefficents
         indices0 = np.array([], dtype='int32')    ## row indices
         indices1 = np.array([], dtype='int32')    ## column indices
 
-        for i in xrange(self.sources.ncmp): ## iterate over `specrow`
+        n = 0
 
+        for i in xrange(self.sources.ncmp):
             if i==self.sources.unresRow and not calcUnres:
                 ## if unresolved component should  not be recalculated,
                 ## add existing one to data.
@@ -501,33 +487,39 @@ class StarFit(FittingGui):
                 indices1[-nValues:] = i*np.ones((nValues,), dtype='int32')
                 continue
 
-            nValuesCmp = 0
-            k = 0
-            for j in self.sources.indexmap[i]:
+            if i == self.sources.skyRow: ## add constant sky component
+                nValues = self.spatPix
 
-                if i==self.sources.skyRow: ## add constant sky component
+                coeffs.resize(coeffs.size+nValues)
+                indices0.resize(indices0.size+nValues)
+                indices1.resize(indices1.size+nValues)
 
-                    nValues    = self.spatPix
-                    newCoeffs  = np.ones(self.spatPix, dtype="float32")
-                    newCoeffs /= self.spatPix
-                    newIndices = np.arange(self.spatPix, dtype="int32")
-            
-                else: ## add resolved component using the current PSF
+                coeffs[-nValues:]   = \
+                    np.ones(nValues, dtype=np.float32)/(nValues*self.sigma)
+                indices0[-nValues:] = np.arange(nValues, dtype=np.int32)
+                indices1[-nValues:] = i*np.ones(nValues, dtype=np.int32)
+                continue
 
-                    l = (self.sources.ifuSelect==j).argmax()
-                    ## the index of the source in the IFU coord-array
+            nValuesCmp = 0                
+            for j in xrange(len(self.sources.indexmap[i])):
+
+                if self.ncpu > 1:
+                    psf_ij = threads[n].get()
+                    n += 1
+                else:
+                    k = (self.sources.ifuSelect==self.sources.indexmap[i][j])\
+                        .argmax()
+                    x_c=self.sources.xvalues[k, self.jj*self.fullPosFit]
+                    y_c=self.sources.yvalues[k, self.jj*self.fullPosFit]
+                    mag=self.sources.weights[i][j]
 
                     psf_ij = self.PSF(\
-                        size=self.spatShape,
-                        x_c=self.sources.xvalues[l,self.jj*self.fullPosFit],
-                        y_c=self.sources.yvalues[l,self.jj*self.fullPosFit],
-                        mag=self.sources.weights[i][k], maxrad=radius,
-                        return_sparse=True, as_sparse_matrix=False)
+                          size=self.spatShape, x_c=x_c, y_c=y_c, mag=mag,
+                          return_sparse=True, as_sparse_matrix=False)
 
-                    nValues    = psf_ij[0].size
-                    newCoeffs  = psf_ij[0]
-                    newIndices = psf_ij[1][1] + self.spatShape[1]*psf_ij[1][0]
-
+                nValues    = psf_ij[0].size
+                newCoeffs  = psf_ij[0]
+                newIndices = psf_ij[1][1] + self.spatShape[1]*psf_ij[1][0]
 
                 if nValues > 0: ## resize arrays and add new data
                     coeffs.resize(coeffs.size+nValues)
@@ -541,7 +533,7 @@ class StarFit(FittingGui):
                     indices1[-nValues:] = i*np.ones((nValues,), dtype='int32')
 
                     nValuesCmp += nValues
-                k += 1
+
             if nValuesCmp == 0 and doLog:
                 logging.error(\
                     "[@{0}] Component #{1} entirely outside FoV.".format(\
@@ -586,72 +578,50 @@ class StarFit(FittingGui):
         fitFlags[2:-1] = self.psf.free&(self.psf.poly==False)
         fitFlags[-1]   = True
 
-        ## create working copy of `current'-array. Required since the
-        ## definition of `current' (using an @property-method) does not
-        ## work with in-place operations like `+=' or `-='.
-        self._current = np.copy(self.current)
+        ## Initialize parallelization (if requested)
+        if self.ncpu > 1:
+            pool    = Pool(self.ncpu)
+            threads = []
 
-        ## loop over all PSF sources; add source to residuals, fit resulting
-        ##  array and subtract source again.
+        ## Loop over all PSF sources; add source to residuals, fit resulting
+        ## array and subtract source again.
         j    = 0
         kPSF = np.nonzero(\
             self.sources.ifuSelect[:,np.newaxis]==self.sources.psfIndices)[0]
 
+        ## Fill parameter array for fit
         for i in self.sources.psfIndices:
-            k = kPSF[j]
-            ## Index of PSF source in IFU coordinate arrays
-
-            self.sBar.showMessage(\
-                "{0} Fitting PSF to Source #{1} ({2}/{3})".format(\
-                    self.prefixString, self.sources.ID[i], j+1,
-                    len(self.sources.psfIndices)))
+            k = kPSF[j]  ## Index of PSF source in IFU coordinate arrays
 
             allPars[0,j]    = self.sources.xvalues[k, self.jj*self.fullPosFit]
             allPars[1,j]    = self.sources.yvalues[k, self.jj*self.fullPosFit]
             allPars[2:-1,j] = self.psf.values[:,self.jj]
-            allPars[-1,j]   = self.sources.data[i, self.jj]
+            allPars[-1,j]   = self.sources.data[self.sources.specrow[i],self.jj]
 
-            ## get current PSF estimate of source and add it to residuals
-            psf_i = self.PSF(size=self.spatShape, x_c=allPars[0,j],
-                             y_c=allPars[1,j], mag=0., maxrad=self.psfRad,
-                             return_sparse=True, as_sparse_matrix=False)
-            psfIndices = psf_i[1][1] + self.spatShape[1]*psf_i[1][0]
-            psfCoeffs  = psf_i[0]/self.sigma[psfIndices]
+            if self.ncpu > 1: threads.append(pool.apply_async(\
+                    self.multiWrap,
+                    args=(np.copy(allPars[:,j]), fitFlags)))
+            j += 1
 
-            if self.hasMask:
-                mappedIndices = self.pixMap[psfIndices]
-                used          = (mappedIndices > -1)
-                self._current[mappedIndices[used]] \
-                    += psfCoeffs[used]*allPars[-1,j]
-            else:
-                self._current[psfIndices] += psfCoeffs*allPars[-1,j]
+        if self.ncpu > 1: ## only for parallelization
+            pool.close()
+            pool.join()
 
-            ## fit PSF
-            self.BAD = False ## a flag indicating if a PSF parameter was
-                             ## fitted with an invalid value (e.g. beta<=1)
+        ## Fit sources
+        j = 0
+        for i in self.sources.psfIndices:
+            if self.ncpu > 1: allPars[fitFlags,j] = threads[j].get()
+            else: allPars[fitFlags, j] = self.multiWrap(allPars[:,j], fitFlags)
 
-            bestFit_j = optimize.fmin(\
-                func=self.fitOnePSF,
-                x0=allPars[fitFlags,j],
-                args=(allPars[fitFlags==False,j],fitFlags),
-                disp=False)
-            if not self.BAD: ##  only update data if fit was valid
-                allPars[fitFlags,j] = bestFit_j
-
-
-            ## subtract PSF again
-            if self.hasMask:
-                self._current[mappedIndices[used]]\
-                    -= psfCoeffs[used]*allPars[-1,j]
-            else:
-                self._current[psfIndices] -= psfCoeffs*allPars[-1,j]
             j += 1            
+
 
         if self.sources.Fit: ## update coordinates/coordinate transformation
 
             if self.fullPosFit:
-                self.sources.xvalues[kPSF, self.jj] = allPars[0]
-                self.sources.yvalues[kPSF, self.jj] = allPars[1]
+                for k in kPSF:
+                    self.sources.xvalues[k, self.jj] = allPars[0,k]
+                    self.sources.yvalues[k, self.jj] = allPars[1,k]
 
             else:
                 self.sources.ctValues[...,self.jj] = self.sources.quickFit(\
@@ -668,7 +638,40 @@ class StarFit(FittingGui):
 
 
 
-    def fitOnePSF(self, x0, fixedPars, fitFlags):
+    def multiWrap(self, allPars, fitFlags):
+
+        ## get current PSF estimate of source and add it to residuals
+        psf_i = self.PSF(size=self.spatShape, x_c=allPars[0], y_c=allPars[1],
+                         mag=0., maxrad=self.psfRad, return_sparse=True,
+                         as_sparse_matrix=False)
+        psfIndices = psf_i[1][1] + self.spatShape[1]*psf_i[1][0]
+        psfCoeffs  = psf_i[0]/self.sigma[psfIndices]
+        _current   = np.copy(self.current)
+        if self.hasMask:
+            mappedIndices = self.pixMap[psfIndices]
+            used          = (mappedIndices > -1)
+            _current[mappedIndices[used]] += psfCoeffs[used]*allPars[-1]
+        else:
+            _current[psfIndices] += psfCoeffs*allPars[-1]
+
+        ## fit PSF 
+        self.BAD = False ## a flag indicating if a PSF parameter was
+                         ## fitted with an invalid value (e.g. beta<=1)
+
+        bestFit_j = optimize.fmin(\
+            func=self.fitOnePSF,
+            x0=allPars[fitFlags],
+            args=(allPars[fitFlags==False], fitFlags, _current),
+            disp=False)
+
+        if not self.BAD: ##  only update data if fit was valid
+            return bestFit_j
+        else:
+            return allPars[fitFlags]
+
+
+
+    def fitOnePSF(self, x0, fixedPars, fitFlags, data):
         """
         The optimization routine that is passed to the `fmin'-routine of the
         `scipy.optimize'-package. During each iteration, a PSF array is created,
@@ -718,9 +721,9 @@ class StarFit(FittingGui):
             mappedIndices = self.pixMap[psfIndices]
             used          = (mappedIndices > -1)
 
-            err = self._current[mappedIndices[used]]-psfCoeffs[used]*psfPars[-1]
+            err = data[mappedIndices[used]]-psfCoeffs[used]*psfPars[-1]
         else:
-            err  = self._current[psfIndices]-psfCoeffs*psfPars[-1]
+            err = data[psfIndices]-psfCoeffs*psfPars[-1]
 
         return (err*err).sum()
 
@@ -744,6 +747,8 @@ class StarFit(FittingGui):
         fitPars[:self.sources.npars] = self.sources.ctValues[...,self.jj]
         fitPars[self.sources.npars:] = self.psf.values[...,self.jj]
 
+        NCPU = self.ncpu
+        self.ncpu = 1
 
         ## Fit position parameters
         if self.sources.Fit:
@@ -751,8 +756,8 @@ class StarFit(FittingGui):
             fitFlags[:self.sources.npars] \
                 = self.sources.ctFree&(self.sources.ctPoly==False)
 
-            self.sBar.showMessage(\
-                "{0} Fitting positions".format(self.prefixString))
+##             self.sBar.showMessage(\
+##                 "{0} Fitting positions".format(self.prefixString))
 
             fitPars[fitFlags] =  optimize.fmin(\
                 func=self.fitMultiPSF,
@@ -769,7 +774,7 @@ class StarFit(FittingGui):
             fitFlags[self.sources.npars:] \
                 = self.psf.free&(self.psf.poly==False)
             
-            self.sBar.showMessage("{0} Fitting PSF".format(self.prefixString))
+##             self.sBar.showMessage("{0} Fitting PSF".format(self.prefixString))
 
             fitPars[fitFlags] = optimize.fmin(\
                 func=self.fitMultiPSF,
@@ -784,6 +789,7 @@ class StarFit(FittingGui):
             self.PSF = self.psf(index=self.jj, osradius=self.osRadius,
                                 osfactor=self.osFactor)
 
+        self.ncpu = NCPU
 
 
     def fitMultiPSF(self, x0, fixedPars, fitFlags):
@@ -899,4 +905,111 @@ class StarFit(FittingGui):
 
 
 
+class QStarFit(StarFit, FittingGui):
 
+
+    def __init__(self, **kwargs):
+
+        super(QStarFit, self).__init__(**kwargs)
+
+        self.BUSY     = False ## possible states of the fitting loop 
+        self.FINISHED = False ## not defined in FittingGui-class
+
+
+
+    def __call__(self, jumpStart=False, **kwargs):
+
+        super(QStarFit, self).__call__(**kwargs)
+
+        ## start GUI that controls fitting process
+        super(QStarFit, self).show()
+
+        if jumpStart:
+            super(QStarFit, self).startIt()
+
+
+
+    def timeout(self):
+        """
+        Method is called every time the `FittingGui`-instance encounters a
+        `timeout`. Depending on the current status of the fitting routine, 
+        the method calls the appropriate methods to analyze it.
+        """
+        if not self.STARTED:
+            return
+
+        if self.BUSY:
+            return
+
+        if self.ABORTED:
+            logging.warning("Fit stopped on user request.")
+            self.timer.stop()
+            self.close()
+    
+        if self.PAUSED:
+            self.sBar.showMessage("PAUSED")
+            return
+
+        self.jj = (self.specPix>>1) - 1 - int(self.i/2) \
+            + self.i*np.mod(self.i, 2) + np.mod(self.specPix, 2)
+        ## jj is a counter that starts at the central spectral pixel
+        ## and proceeds simultaneoulsy to the red and blue end.
+
+        if self.i == self.specPix: ## if data-cube is entirely analysed
+            self.timer.stop()
+            self.save = True
+            self.close()
+        else: ## update information in GUI
+            self.prefixString = "[{0:0{1}d}/{2}]".format(\
+                self.i, int(np.log10(self.specPix))+1, self.specPix)
+            self.sBar.showMessage("{0} Analyzing slice #{1}".format(\
+                    self.prefixString, self.jj))
+
+            self.iterFitImage()
+
+            self.i += 1
+
+
+
+    def iterFitImage(self):
+        """
+        The method is called for every slice of the datacube by the `timeout`-
+        method. It is basically a wrapper that calls all the necessary
+        routines required to analyze an individual slice from the datacube.
+        It is also used to load the data section from the HDUs that is
+        currently analysed, update the information in the GUI and calculate
+        the uncertainties associated with the fluces once the analysis is
+        completed.
+        """
+
+        ## change state of routine to indicate a fit is carried out
+        self.BUSY = True
+
+        self.sBar.showMessage("{0} Fitting fluxes".format(self.prefixString))
+
+        super(QStarFit, self).iterFitImage()
+
+        ## plot image that has been fitted
+        self.dataCanvas.addImage(self.data.reshape(self.spatShape))
+
+        ## create 2dim. residuals for plotting
+        if self.hasMask:
+            resi1d = np.zeros((self.spatPix,), dtype='float32')
+            resi1d[self.pixMap>-1] = self.current
+            self.resi2d = (resi1d*self.sigma).reshape(self.spatShape)
+        else:
+            self.resi2d = (self.current*self.sigma).reshape(self.spatShape)
+            
+        self.resiCanvas.addImage(self.resi2d)
+
+        self.pBar.setValue(100.*float(self.i+1)/self.specPix)
+
+        self.BUSY = False ## change status to indicste fit is completed
+
+
+###############################################################################
+##             self.sBar.showMessage(\
+##                 "{0} Fitting PSF to Source #{1} ({2}/{3})".format(\
+##                     self.prefixString, self.sources.ID[i], j+1,
+##                     len(self.sources.psfIndices)))
+##             QtGui.QApplication.processEvents()

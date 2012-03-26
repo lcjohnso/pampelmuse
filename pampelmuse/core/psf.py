@@ -16,9 +16,11 @@ CHANGELOG
                       fit parameters or have been replaced by a polynomial
                       fit.)
 2012/03/08, v0.2.1.0, some debugging wrt. polynomial fitting of parameters
+2012/03/20, v0.3.0.0, replaced lambda-functions to initialize PSF since those
+                      do not work with multithreading.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.2.0.1"
+__version__ = "0.3.0.0"
 
 import logging, os
 import numpy as np, pyfits
@@ -33,7 +35,7 @@ PROFILES  = {"moffat": ["beta", "fwhm", "e", "theta"],
              "gauss":  [        "fwhm", "e", "theta"]}
 
 
-class PSF:
+class PSF(object):
 
     def makeNewPSF(self, profile, **kwargs):
 
@@ -47,8 +49,7 @@ class PSF:
 
         self.psftype = profile
 
-        self.backup  = False
-        
+        self.backup  = False        
         self.unsavedPSF = True
 
         self.initStructure()
@@ -273,8 +274,6 @@ class PSF:
 
         self.lockSize = True
 
-        self.defineFunction()
-
 
         
     def delValues(self):
@@ -299,24 +298,24 @@ class PSF:
 
 
 
-    def defineFunction(self):
+    def Moffat(self, index, osfactor=5, osradius=2):
 
-        if self.psftype == "moffat":
-            self.function = lambda index, osfactor=5, osradius=2: Moffat(\
-                beta =self.values[0,index],
-                fwhm =self.values[1,index],
-                e    =self.values[2,index],
-                theta=self.values[3,index],
-                osfactor=osfactor,
-                osradius=osradius)
+        return Moffat(beta =self.values[0,index],
+                      fwhm =self.values[1,index],
+                      e    =self.values[2,index],
+                      theta=self.values[3,index],
+                      osfactor=osfactor,
+                      osradius=osradius)
 
-        elif self.psftype == "gauss":
-            self.function = lambda index, osfactor=5, osradius=2: Gaussian(\
-                fwhm =self.values[0,index],
-                e    =self.values[1,index],
-                theta=self.values[2,index],
-                osfactor=osfactor,
-                osradius=osradius)
+
+
+    def Gaussian(self, index, osfactor=5, osradius=2):
+
+        return Gaussian(fwhm =self.values[0,index],
+                        e    =self.values[1,index],
+                        theta=self.values[2,index],
+                        osfactor=osfactor,
+                        osradius=osradius)
 
 
 
@@ -337,7 +336,10 @@ class PSF:
                     self.values.size))
             return None
 
-        return self.function(index=index, osradius=osradius, osfactor=osfactor)
+        if self.psftype == "moffat": return self.Moffat(\
+            index=index,osradius=osradius,osfactor=osfactor)
+        elif self.psfType == "gauss": return self.Gaussian(\
+            index=index,osradius=osradius,osfactor=osfactor)
 
 
 

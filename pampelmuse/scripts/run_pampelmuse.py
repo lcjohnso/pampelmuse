@@ -28,9 +28,11 @@ v0.2.0.1 -2012/02/12 - slightly modified formatting of the logging-messages.
 v0.2.1.1 -2012/02/12 - fixed bug in format-string of logging-messages.
 v0.3.0.0 -2012/03/01 - added new script SUBTRES to subtract the contribution
                        of the (resolved) stars from a datacube.
+v0.4.0.0 -2012/03/19 - modified check of PRM-file structure so that files
+                       created using INITFIT version >=0.4.0.0 pass it.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.3.0.0"
+__version__ = "0.4.0.0"
 
 import argparse, logging, os, re, sys
 import pyfits
@@ -251,13 +253,21 @@ logging.basicConfig(format="%(asctime)s[%(levelname)-8s]: %(message)s",
 
 ## check whether provided prm-file can be used with current PampelMuse-version.
 if args.func.func_name in ["cubefit", "polyfit"]:
-    prmInfo = pyfits.getheader("{0}.prm.fits".format(args.prefix), "SOURCES")
+    prmFile = pyfits.open("{0}.prm.fits".format(args.prefix))
     try:
-        prmStructure = prmInfo["PRMSTRUC"]
+        VersionString = prmFile[0].header["PAMPELMUSE INITFIT VERSION"]
+        prmStructure = 3
+##         if re.match("v([0-9]+)\.([0-9]+)\.([0-9]+)\.([0-9]+)",VersionString):
+##             groups = re.match("v([0-9]+)\.([0-9]+)\.([0-9]+)\.([0-9]+)",
+##                               VersionString)
     except KeyError:
-        prmStructure  = 1
+        VersionString = "0.0"
+        try:
+            prmStructure = prmFile["SOURCES"].header["PRMSTRUC"]
+        except KeyError:
+            prmStructure  = 1
 
-    if prmStructure < 2:
+    if prmStructure < 2 and VersionString < "0.4":
         logging.critical("Provided PRM-file not compliant with current")
         logging.critical("PampelMuse-version. Run")
         logging.critical("      'PampelMuse {0} UPDATEPRM'".format(args.prefix))
@@ -265,4 +275,5 @@ if args.func.func_name in ["cubefit", "polyfit"]:
 
         sys.exit()
 
+    prmFile.close()
 args.func(args)  ## execute the connected function

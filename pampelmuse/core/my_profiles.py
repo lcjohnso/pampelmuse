@@ -105,7 +105,7 @@ from pampelmuse.functions.ima_arith import paste_area
 
 
 """The Moffat Profile"""
-class Moffat:
+class Moffat(object):
     """
     The functional form of the Moffat profile is:
 
@@ -394,7 +394,7 @@ class Moffat:
 
 
 """The Sersic profile"""
-class Sersic:
+class Sersic(object):
     """
     The functional form of the Moffat profile is:
 
@@ -640,7 +640,7 @@ class Sersic:
 
 
 """The Gaussian Profile"""
-class Gaussian:
+class Gaussian(object):
     """
     The functional form of the Gaussian profile is:
 

@@ -29,9 +29,10 @@ CHANGELOG:
 2012/03/16, v0.4.0.0, modified the code to use the dedicated `PSF`-class
                       defined by PampelMuse. Also adapted the current
                       version number to the version number of PampelMuse.
+2012/03/19, v0.4.0.1, removed a remaining print-command used for debugging.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.4.0.0"
+__version__ = "0.4.0.1"
 import logging, sys
 import numpy as np, pyfits
 from matplotlib.mlab import griddata
@@ -285,7 +286,7 @@ class AperPhoto:
             if self.mask !=  None:
                 if self.maskFITS: mask_i = (self.mask.section[i]==0)
                 else: mask_i  = (self.mask[i] == 0)
-                print mask_i.sum(), self.mask.section[i]
+
             if self.dataFITS: data_i = self.data.section[i]
             else:  data_i = np.copy(self.data[i])
 
@@ -328,6 +329,7 @@ class AperPhoto:
                                   
                     if aboveCut.sum() > 3:
                         logging.debug("      Moments:")
+                        print X[selPix_ji][aboveCut], Y[selPix_ji][aboveCut]
                         moments = self._measureMoments(selData_ji[aboveCut],
                                                        X=X[selPix_ji][aboveCut],
                                                        Y=Y[selPix_ji][aboveCut])

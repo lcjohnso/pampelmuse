@@ -42,9 +42,10 @@ CHANGELOG:
                       StoreParam). Still need to implement a few things.
 2012/03/17, v0.4.0.0, this version makes full use of the new structure that
                       uses the `Sources`- and `PSF`-classes.
+2012/03/23, v0.4.0.1, some minor changes.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.4.0.0"
+__version__ = "0.4.0.1"
 import datetime, os, sys, logging
 import numpy as np, pyfits
 from scipy import interpolate, sparse
@@ -86,7 +87,7 @@ def initfit(arguments):
 ###### List of required definitions: #################
     prefix   = arguments.prefix                     ##
     cfpfile  = arguments.sourcelist                 ##
-######  Photometry information:                     ##
+###### Photometry information:                      ##
     passband = arguments.config["PASSBAND"]         ##
     pixScale = arguments.config["PIXSCALE"]         ## 
 ###### Source selection process:                    ##
@@ -115,19 +116,25 @@ def initfit(arguments):
     logging.info("Reading photometry results from file `{0}'".format(cfpfile))
 
     cfpResults = np.genfromtxt(cfpfile, names=True, dtype=None)
-    if useunres: select = cfpResults['mag']<unreslim
-    else:        select = cfpResults['mag']<reslim
+
+    if passband in cfpResults.dtype.names: magColName = passband
+    elif "mag" in cfpResults.dtype.names: magColName = "mag"
+    else: logging.error(\
+        "Cannot find mags, missing field `{0}` or `mag`.".format(passband))
+
+    if useunres: select = cfpResults[magColName]<unreslim
+    else:        select = cfpResults[magColName]<reslim
 
     if globsky:
         ids = np.r_[cfpResults['id'][select], -1]
         x   = np.r_[cfpResults['x'][select], 0]
         y   = np.r_[cfpResults['y'][select], 0]
-        mag = np.r_[cfpResults['mag'][select], 0]
+        mag = np.r_[cfpResults[magColName][select], 0]
     else:
         ids = cfpResults['id'][select]
         x   = cfpResults['x'][select]
         y   = cfpResults['y'][select]
-        mag = cfpResults['mag'][select]
+        mag = cfpResults[magColName][select]
 
     x -= x[ids>=0].min()
     y -= y[ids>=0].min()
@@ -301,7 +308,7 @@ def initfit(arguments):
     ##  0 - unresolved
     ## -1 - excluded
 
-    status  = -1*np.ones((sources.nsrc,), dtype=np.int16)
+    status  = -np.ones((sources.nsrc,), dtype=np.int16)
     primary = np.zeros((sources.nsrc,), dtype=np.int32)
 
     logging.info("Results of source selection:")
@@ -317,7 +324,6 @@ def initfit(arguments):
                     status[i]  = 1
                     primary[i] = brighterID[i]
                 else:
-                    ## TBD: check is source is useful PSF source 
                     status[i]  = 2
                     primary[i] = sources.ID[i]
             else:
@@ -342,8 +348,9 @@ def initfit(arguments):
                 status[i]  = 0
                 primary[i] = -2
 
-    sources.status  = status
     sources.primary = primary
+    sources.status  = status
+
 
     ## create dummy data: every spectrum is empty
     sources.loadSpectra(data=np.zeros((sources.ncmp, ndisp), dtype=np.float32),

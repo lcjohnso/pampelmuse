@@ -17,10 +17,11 @@ length=2, containing value and polynomial fit (if any).
 CHANGELOG
 ---------
 v0.1.0.0, 2012/03/05
-
+v0.2.0.0, 2012/03/20, added methoods to allow `ValueArray`-instances to be
+                      pickled.
 """
 __author__  = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.1.0.0"
+__version__ = "0.2.0.0"
 import logging
 import numpy as np
 
@@ -128,6 +129,23 @@ class ValueArray(np.ndarray):
                        indices[1])
 
         return np.ndarray.__getitem__(self, indices)
+
+
+    def __reduce__(self):
+        object_state = list(np.ndarray.__reduce__(self))
+        subclass_state = (self.free, self.poly)
+        object_state[2] = (object_state[2],subclass_state)
+        return tuple(object_state)
+    
+
+    def __setstate__(self,state):
+        nd_state, own_state = state
+        np.ndarray.__setstate__(self,nd_state)
+        
+        free, poly = own_state
+        self.free = free
+        self.poly = poly
+
 
 
 if __name__ == "__main__":

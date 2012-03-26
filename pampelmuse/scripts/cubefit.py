@@ -33,19 +33,19 @@ CHANGELOG
                       are now added to  the header of the PRM-file. Removed
                       possibility to create residual cube, instead skript
                       SUBTRES of PampelMuse can be used to do that.
+2012/03/23, v0.4.0.0, coompleted implementation of `Sources`-class. Added
+                      parameters for parallelization and disabling Qt-usage.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.3.1.1"
+__version__ = "0.4.0.0"
 import datetime, logging, os, sys
 import numpy as np, pyfits
-from PyQt4 import QtCore, QtGui
+## PyQt4 loaded, only later on request
 
 ## required PampelMuse-packages
-from pampelmuse.core.fit_array import StarFit
+from pampelmuse.core.fit_array import StarFit, QStarFit
 from pampelmuse.core.sources import Sources
 from pampelmuse.core.psf import PSF
-## from pampelmuse.core.positions import Positions
-## from pampelmuse.core.spectra import Spectra
 
 
 def cubefit(arguments):
@@ -62,6 +62,8 @@ def cubefit(arguments):
     dobackup = arguments.config["DOBACKUP"]               ##
 ##     storeRes = arguments.config["STORERES"]               ##
     jumpStart= arguments.config["JUMPSTART"]              ##
+    useQt    = arguments.config["USEQT"]                  ##
+    cpuCount = arguments.config["CPUCOUNT"]               ##
     ########################################################
 
 
@@ -136,8 +138,6 @@ def cubefit(arguments):
     psf.makeValues()
     psf.info()
 
-##     prmFile.close() ## finished reading source catalog.
-
 
     ## open datacubes & check consistency
     logging.info("Checking data cubes.")
@@ -161,29 +161,30 @@ def cubefit(arguments):
 
     ## start fitting process:
     logging.info("Starting fit process.")
-    app  = QtGui.QApplication(sys.argv)
 
-    fitter = StarFit(dataFits=dataFits[0], sigmaFits=sigmaFits[0],
-                     maskFits=maskFits[0])
+    if useQt:
+        from PyQt4 import QtCore, QtGui
+        app    = QtGui.QApplication(sys.argv)
+        fitter = QStarFit(dataFits=dataFits[0], sigmaFits=sigmaFits[0],
+                          maskFits=maskFits[0])
+    else:
+        fitter = StarFit(dataFits=dataFits[0], sigmaFits=sigmaFits[0],
+                         maskFits=maskFits[0])
 
     fitter.provideSources(sources, fullPosFit=fullPosFit)
 
     fitter.providePSF(psf=psf, psfRad=psfRad)
         
     fitter(fitRad=fitRad, lastFitIndex=lastFitIndex, asSmallIFU=smallIFU,
-           jumpStart=jumpStart)
+           jumpStart=jumpStart, ncpu=cpuCount)
 
-    app.exec_()
-
-
-    if not fitter.save:
-        sys.exit()
+    if useQt:
+        app.exec_()
+        if not fitter.save:
+            sys.exit()
         
     logging.info("Saving results.")
 
-    ## collect fitting results
-##     prmFile  = pyfits.open("{0}.prm.fits".format(prefix), mode='update')
-##     extNames = [prmFile[i].name for i in xrange(len(prmFile))]
 
     ## store spectra
     dataHDU, sigmaHDU = sources.makeSpecHDU(makeSigma=True)
@@ -244,25 +245,4 @@ def cubefit(arguments):
     prmFile[0].header.update("hierarch PAMPELMUSE CUBEFIT PSFRAD", psfRad)
 
     prmFile.flush()
-
-
-##     cubeShape = (dataFits[0].header['NAXIS3'],
-##                  dataFits[0].header['NAXIS2'],
-##                  dataFits[0].header['NAXIS1'])
-##     if storeRes and fitter.i == sources.ndisp:
-## 
-##         resCube = np.zeros(cubeShape, dtype="float32")
-## 
-##         for i in xrange(sources.ndisp):
-##             
-##             jj = (sources.ndisp>>1) - 1 - int(i/2) + i*np.mod(i, 2) + np.mod(sources.ndisp, 2)
-## 
-##             resCube[jj] = pyfits.getdata("{0}.res{1}.fits".format(prefix, i))
-##             os.system("rm {0}.res{1}.fits".format(prefix, i))
-## 
-##         resHDU = pyfits.PrimaryHDU(resCube)
-##         if os.path.exists("{0}.res.fits".format(prefix)):
-##             os.remove("{0}.res.fits".format(prefix))
-##             logging.warning("Existing residual cube has been overwritten.")
-##         resHDU.writeto("{0}.res.fits".format(prefix))
 
