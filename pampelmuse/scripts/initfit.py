@@ -43,9 +43,12 @@ CHANGELOG:
 2012/03/17, v0.4.0.0, this version makes full use of the new structure that
                       uses the `Sources`- and `PSF`-classes.
 2012/03/23, v0.4.0.1, some minor changes.
+2012/04/16, v0.5.0.0, updated source selection; inlcuded possibility for
+                      automated source selection using expected confusion
+                      limit.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.4.0.1"
+__version__ = "0.5.0.0"
 import datetime, os, sys, logging
 import numpy as np, pyfits
 from scipy import interpolate, sparse
@@ -95,11 +98,12 @@ def initfit(arguments):
     aperRad  = arguments.config["APERRAD"]          ##
     apernois = arguments.config["APERNOIS"]         ##
     reslim   = arguments.config["RESLIM"]           ##
+    updateRL = arguments.config["UPDATERL"]         ##
+    confDens = arguments.config["CONFDENS"]         ##
     snrcut   = arguments.config["SNRCUT"]           ##
     binrad   = arguments.config["BINRAD"]           ##
     useunres = arguments.config["USEUNRES"]         ##
-    unreslim = arguments.config["UNRESLIM"]         ##
-##     ewidth   = arguments.config["EWIDTH"]        ## not used anymore
+    unresbin = arguments.config["UNRESBIN"]         ##
     globsky  = arguments.config["GLOBSKY"]          ##
 ###### Source positions:                            ##
     posFit   = arguments.config["POSFIT"]           ##
@@ -115,26 +119,38 @@ def initfit(arguments):
     ## get results from crowded-field photometry, initialize sources
     logging.info("Reading photometry results from file `{0}'".format(cfpfile))
 
-    cfpResults = np.genfromtxt(cfpfile, names=True, dtype=None)
+    cfpResults = np.genfromtxt(cfpfile, names=True, dtype=None, comments="#")
 
     if passband in cfpResults.dtype.names: magColName = passband
     elif "mag" in cfpResults.dtype.names: magColName = "mag"
     else: logging.error(\
         "Cannot find mags, missing field `{0}` or `mag`.".format(passband))
 
-    if useunres: select = cfpResults[magColName]<unreslim
-    else:        select = cfpResults[magColName]<reslim
+##     if useunres: select = cfpResults[magColName]<unreslim
+##     else:        select = cfpResults[magColName]<reslim
+## 
+##     if globsky:
+##         ids = np.r_[cfpResults['id'][select], -1]
+##         x   = np.r_[cfpResults['x'][select], 0]
+##         y   = np.r_[cfpResults['y'][select], 0]
+##         mag = np.r_[cfpResults[magColName][select], 0]
+##     else:
+##         ids = cfpResults['id'][select]
+##         x   = cfpResults['x'][select]
+##         y   = cfpResults['y'][select]
+##         mag = cfpResults[magColName][select]
 
     if globsky:
-        ids = np.r_[cfpResults['id'][select], -1]
-        x   = np.r_[cfpResults['x'][select], 0]
-        y   = np.r_[cfpResults['y'][select], 0]
-        mag = np.r_[cfpResults[magColName][select], 0]
+        ids = np.r_[cfpResults['id'], -1]
+        x   = np.r_[cfpResults['x'], 0]
+        y   = np.r_[cfpResults['y'], 0]
+        mag = np.r_[cfpResults[magColName], 0]
     else:
-        ids = cfpResults['id'][select]
-        x   = cfpResults['x'][select]
-        y   = cfpResults['y'][select]
-        mag = cfpResults[magColName][select]
+        ids = cfpResults['id']
+        x   = cfpResults['x']
+        y   = cfpResults['y']
+        mag = cfpResults[magColName]
+
 
     x -= x[ids>=0].min()
     y -= y[ids>=0].min()
@@ -275,17 +291,20 @@ def initfit(arguments):
     ## Source selection process 
     logging.info("Selecting sources to be used in PSF fitting.")
 
-    ## get IFU coordinates for all (resolved) sources
+    ## get IFU coordinates for all (point) sources
     sources.loadIFUCoords()
 
     ## Position in Fov/distance to edge of FoV
     edgeDist = sources.edgeDist(fovShape=dataIma.shape)
 
     ## Photometric calibration:
-    srcFlux = (10**(-0.4*sources.mag[sources.ifuSelect][edgeDist>0])).sum()
+    magPS = sources.mag[sources.ifuSelect]
+
+    srcFlux = (10**(-0.4*magPS[edgeDist>0])).sum()
     magZ    = -2.5*np.log10(srcFlux/dataIma.sum())
     logging.info("Estimated photometric zeropoint ({0}): {1:.2f}".format(\
             passband, float(magZ)))
+
 
     ## distance to next brighter source
     distToBrighter, brighterID = sources.distToBrighter()
@@ -294,8 +313,9 @@ def initfit(arguments):
     signalToNoise = sources.signalToNoise(psf=prof, magZ=magZ, sigma=sigmaIma,
                                           r=psfRad)
     ##  modify S/N of sources close to brighter neighbor:
-    close = distToBrighter<(0.75*fwhm)
-    signalToNoise[close] /= 0.75*fwhm/distToBrighter[close]
+    close = distToBrighter<fwhm
+
+    signalToNoise[close] *= (1.+0.9*np.log10(distToBrighter[close]/fwhm))
 
     if not smallifu:
         shoulderDrop = sources.shoulderDrop(r=psfRad)
@@ -307,6 +327,21 @@ def initfit(arguments):
     ##  1 - resolved, but next to brighter source
     ##  0 - unresolved
     ## -1 - excluded
+
+    ## Determine confusion limit, update parameter if requested
+    mcut = magPS[edgeDist>0].min()
+    while True:
+        mcut += 0.1
+        if (magPS[edgeDist>0]<mcut).sum() > confDens*dataIma.size/(fwhm*fwhm):
+            break
+        if signalToNoise[edgeDist>0][magPS[edgeDist>0]>mcut].max() < snrcut:
+            logging.info("No stars below m_{0}={1:.1f} pass S/N-cut.".format(\
+                    passband, mcut))
+            break
+    logging.info("Estimated confusion limit: m_{0}={1:.1f}".format(\
+            passband, mcut))
+    if updateRL: reslim = mcut
+    if useunres: unreslim = reslim+unresbin
 
     status  = -np.ones((sources.nsrc,), dtype=np.int16)
     primary = np.zeros((sources.nsrc,), dtype=np.int32)
@@ -467,10 +502,14 @@ def initfit(arguments):
     primaryHDU.header.update("hierarch PAMPELMUSE INITFIT VERSION", __version__)
     primaryHDU.header.update("hierarch PAMPELMUSE INITFIT PASSBAND", passband)
     primaryHDU.header.update("hierarch PAMPELMUSE INITFIT RESLIM", reslim)
+    primaryHDU.header.update("hierarch PAMPELMUSE INITFIT UPDATERL", updateRL)
+    primaryHDU.header.update("hierarch PAMPELMUSE INITFIT CONFDENS", confDens)
     primaryHDU.header.update("hierarch PAMPELMUSE INITFIT SNRCUT", snrcut)
     primaryHDU.header.update("hierarch PAMPELMUSE INITFIT BINRAD", binrad)
     primaryHDU.header.update("hierarch PAMPELMUSE INITFIT USEUNRES", useunres)
-    primaryHDU.header.update("hierarch PAMPELMUSE INITFIT UNRESLIM", unreslim)
+    if useunres:
+        primaryHDU.header.update("hierarch PAMPELMUSE INITFIT UNRESLIM",
+                                 unreslim)
     primaryHDU.header.update("hierarch PAMPELMUSE INITFIT GLOBSKY", globsky)
 
     sourceHDU  = sources.makeSourceHDU()

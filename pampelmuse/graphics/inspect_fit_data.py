@@ -18,9 +18,10 @@ CHANGELOG
                       is inserted after `POSITIONS'.
 2012/03/03, v0.3.0.2, added some HIERARCH-keys to the header of the updated
                       PampelMuse PRM-file.
+2012/04/13, v0.3.0.3, added Keyborad-shortcuts to "Plot"- and "Fit"-buttons.
 """
 __author__  = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.3.0.2"
+__version__ = "0.3.0.3"
 import datetime, logging, sys
 import numpy as np, pyfits
 from PyQt4 import QtCore, QtGui
@@ -138,7 +139,7 @@ class InspectFitData(QtGui.QMainWindow):
 
         self.rowSelect = QtGui.QComboBox()
 
-        self.plotButton =  QtGui.QPushButton("Plot")
+        self.plotButton =  QtGui.QPushButton("&Plot")
 
         dataToolbar.addWidget(self.hduLabel)
         dataToolbar.addWidget(self.hduSelect)
@@ -162,7 +163,7 @@ class InspectFitData(QtGui.QMainWindow):
         self.binSelect = QtGui.QSpinBox()
         self.binSelect.setRange(1, 10)
 
-        self.fitButton = QtGui.QPushButton("Fit")
+        self.fitButton = QtGui.QPushButton("&Fit")
 
         fitToolbar.addWidget(self.degLabel)
         fitToolbar.addWidget(self.degSelect)

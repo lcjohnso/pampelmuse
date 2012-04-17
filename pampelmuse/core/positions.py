@@ -23,9 +23,10 @@ CHANGELOG
 2012/03/16, v0.4.0.0, some major updates to the `CoordinateTransformation'-
                       class; the` Positions'-class was deleted; some
                       documentation has been added.
+2012/03/28, v0.4.1.0, some debugging in `calcTrans`-method.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.4.0.0"
+__version__ = "0.4.1.0"
 import logging
 import numpy as np, pyfits
 from PyQt4 import QtCore
@@ -265,9 +266,10 @@ class CoordinateTransformation(object):
             "Determined coord. transf. for {0} image(s).".format(ndisp))
 
         logging.info("Best-fit parameters:")
-        for name in self.parameters:
-            logging.info("   {0} = {1:8.3f}".format(\
-                    name, self.value[name].mean()))
+        for i in xrange(len(self.parameters)):
+            name = self.parameters[i]
+            logging.info(\
+                "   {0} = {1:8.3f}".format(name, self.ctData[0,i].mean()))
 
         logging.info("Offsets of individual sources:")
         logging.info("       ID     dx     dy")
@@ -278,8 +280,8 @@ class CoordinateTransformation(object):
 
             logging.info("   {0:6d}  {1:+5.2f}  {2:+5.2f}".format(\
                     int(inCoords['id'][J]),
-                    float((x[i]-outCoordArr[0,K]).mean(axis=-1)),
-                    float((y[i]-outCoordArr[1,K]).mean(axis=-1))))
+                    float((x[i]-outCoordArr[0,i]).mean(axis=-1)),
+                    float((y[i]-outCoordArr[1,i]).mean(axis=-1))))
 
 
 

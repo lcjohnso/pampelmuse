@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='ISO-8859-1'?>
 <?xml-stylesheet type="text/xsl" href="PMstyle.xsl"?>
-<configuration xmlns="http://www.tobedefined.com/pampelmuse" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" timestamp="2012-03-23T16:26:22Z" xsi:schemaLocation="http://www.tobedefined.com/pampelmuse PMschema.xsd">
+<configuration xmlns="http://www.tobedefined.com/pampelmuse" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" timestamp="2012-04-17T09:41:35Z" xsi:schemaLocation="http://www.tobedefined.com/pampelmuse PMschema.xsd">
  <!-- <parameter inuse="1">
   <name>FITRAD</name>
   <value dtype="float">3.0</value>
@@ -69,7 +69,7 @@
   <value dtype="float">16.0</value>
   <comment>The magnitude down to which stars can possibly be resolved in the datacube.</comment>
   <updated timestamp="2011-08-31T08:13:37Z">Appended parameter RESLIM to configuration file.</updated>
- </parameter>
+ </parameter><parameter category="2sel"><name>UPDATERL</name><value dtype="bool">True</value><comment>If UPDATERL-flag is set, PampelMuse will determine the confusion limit and update RESLIM accordingly.</comment><updated timestamp="2012-04-16T16:49:15Z">Appended parameter UPDATERL to configuration file.</updated></parameter><parameter category="2sel"><name>CONFDENS</name><value dtype="float">0.4</value><comment>The confusion limit, i.e the number of stars per resultion element. A resolution element is defined as the FWHM \[pixel\] of the PSF squared. Only used if UPDATERL-flag is set.</comment><updated timestamp="2012-04-16T16:52:59Z">Appended parameter CONFDENS to configuration file.</updated></parameter>
  <parameter category="2sel">
   <name>SNRCUT</name>
   <value dtype="float">3.0</value>
@@ -93,25 +93,19 @@
   <value dtype="bool">False</value>
   <comment>Flag indicates whether the contribution from the unresolved sources should be included as an additional component in the analysis.</comment>
   <updated timestamp="2011-09-01T16:28:29Z">Appended parameter USEUNRES to configuration file.</updated>
- </parameter>
- <parameter category="2sel">
- <name>UNRESLIM</name>
-  <value dtype="float">20.0</value>
-  <comment>Only has an effect if USEUNRES is enabled. In that case the contribution from the unresolved sources is estimated only for sources with magnitudes brighter than UNRESLIM.</comment>
-  <updated timestamp="2011-09-01T19:34:55Z">Appended parameter UNRESLIM to configuration file.</updated>
- </parameter>
- <parameter category="2sel">
-  <name>EWIDTH</name>
-  <value dtype="float">3.0</value>
-  <comment>Only has an effect if USEUNRES is enabled. In that case, EWIDTH specifies the maximum distance of a considered source outside the FoV to the edge of the FoV [in spaxels].</comment>
-  <updated timestamp="2011-09-01T19:40:58Z">Appended parameter EWIDTH to configuration file.</updated>
- </parameter>
+ </parameter><parameter category="2sel"><name>UNRESBIN</name><value dtype="float">2.0</value><comment>Only has an effect if USEUNRES is enabled. In that case the contribution of the sources in the magnitude interval of width UNRESBIN below the confusion limit is combined in an unresolved stellar component</comment><updated timestamp="2012-04-16T16:45:23Z">Appended parameter UNRESBIN to configuration file.</updated></parameter>
  <parameter category="0general">
   <name>SMALLIFU</name>
   <value dtype="bool">True</value>
   <comment>This flag defines how the determination of the PSF and the coordinate transformation is performed during the fit. If SMALLIFU is enabled, all sources are used for this purpose (recommended for IFUs with a small number of spatial pixels), otherwise bright, isolated stars are used (recommended for MUSE)</comment>
   <updated timestamp="2011-11-28T19:37:02Z">Appended parameter SMALLIFU to configuration file.</updated>
- </parameter><parameter category="0general"><name>DOBACKUP</name><value dtype="bool">False</value><comment>If DOBACKUP-flag is set, input values will not be deleted but moved to backup-HDUs in the PRM-file</comment><updated timestamp="2011-12-05T21:17:42Z">Appended parameter DOBACKUP to configuration file.</updated></parameter><parameter category="0general"><name>STORERES</name><value dtype="bool">False</value><comment>If the STORERES-flag is set, a datacube with the residuals of the fit will be stored.</comment><updated timestamp="2011-12-08T15:59:13Z">Appended parameter STORERES to configuration file.</updated></parameter>
+ </parameter>
+ <parameter category="0general">
+  <name>DOBACKUP</name>
+  <value dtype="bool">False</value>
+  <comment>If DOBACKUP-flag is set, input values will not be deleted but moved to backup-HDUs in the PRM-file</comment>
+  <updated timestamp="2011-12-05T21:17:42Z">Appended parameter DOBACKUP to configuration file.</updated>
+ </parameter>
  <parameter category="3fit">
   <name>FITRAD</name>
   <value dtype="float">3.0</value>
@@ -164,4 +158,16 @@
   <comment>Flag indicates whether the fit starts directly or after presseing the START-button</comment>
   <updated timestamp="2012-02-13T21:21:21Z">Appended parameter JUMPSTART to configuration file.</updated>
  </parameter>
-<parameter category="0gen"><name>USEQT</name><value dtype="bool">True</value><comment>Flag indicating whether Qt loaded to provide a graphical  interface for the analysis. Requires a system with PyQt4. Note that currently parallelization does not work with Qt.</comment><updated timestamp="2012-03-23T16:23:10Z">Appended parameter USEQT to configuration file.</updated></parameter><parameter category="0gen"><name>CPUCOUNT</name><value dtype="int">1</value><comment>The number of CPUs PampelMuse should use in the parallelized parts of the analysis. Set CPUCOUNT to -1 to use all available CPUs.</comment><updated timestamp="2012-03-23T16:26:22Z">Appended parameter CPUCOUNT to configuration file.</updated></parameter></configuration>
+ <parameter category="0gen">
+  <name>USEQT</name>
+  <value dtype="bool">True</value>
+  <comment>Flag indicating whether Qt loaded to provide a graphical  interface for the analysis. Requires a system with PyQt4. Note that currently parallelization does not work with Qt.</comment>
+  <updated timestamp="2012-03-23T16:23:10Z">Appended parameter USEQT to configuration file.</updated>
+ </parameter>
+ <parameter category="0gen">
+  <name>CPUCOUNT</name>
+  <value dtype="int">1</value>
+  <comment>The number of CPUs PampelMuse should use in the parallelized parts of the analysis. Set CPUCOUNT to -1 to use all available CPUs.</comment>
+  <updated timestamp="2012-03-23T16:26:22Z">Appended parameter CPUCOUNT to configuration file.</updated>
+ </parameter>
+<parameter category="4sub"><name>SUBUNRES</name><value dtype="bool">False</value><comment>If this flag is set, the contribution of the unresolved component will be subtracted when running the SUBTRES-script of PampelMuse.</comment><updated timestamp="2012-04-17T09:41:14Z">Appended parameter SUBUNRES to configuration file.</updated></parameter><parameter category="4sub"><name>SUBSKY</name><value dtype="bool">False</value><comment>If this flag is set, the contribution of the sky will be subtracted when running the SUBTRES-script of PampelMuse.</comment><updated timestamp="2012-04-17T09:41:35Z">Appended parameter SUBSKY to configuration file.</updated></parameter></configuration>

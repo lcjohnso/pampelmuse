@@ -10,9 +10,11 @@ CHANGELOG
 2012/03/01, v0.1.0.0
 2012/03/02, v0.1.1.0, fixed bug that code crashed if header key PMFITIND
                       was missing.
+2012/04/17, v0.2.0.0, added `SUBSKY` and `SUBUNRES`-parameters to PampelMuse
+                      configuration.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.1.1.0"
+__version__ = "0.2.0.0"
 import datetime, logging, os, sys
 import numpy as np, pyfits
 
@@ -32,8 +34,8 @@ def subtres(arguments):
     ## List of required definitions: #######################
     prefix   = arguments.prefix                           ##
     psfRad   = arguments.config["PSFRAD"]                 ##
-    subtSky  = False
-    subtUnRes= False
+    subtSky  = arguments.config["SUBSKY"]                 ##
+    subtUnRes= arguments.config["SUBUNRES"]               ##
     copyHead = True
     ########################################################
 
