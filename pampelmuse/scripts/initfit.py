@@ -46,9 +46,14 @@ CHANGELOG:
 2012/04/16, v0.5.0.0, updated source selection; inlcuded possibility for
                       automated source selection using expected confusion
                       limit.
+2012/04/17, v0.5.1.0, newer versions of scipy (later than `0.8.0`(?)) make
+                      scipy.interpolate.UnivariateSpline.__call__ return a
+                      float instead of an nd_array when only one value is
+                      requested. This lead to IndexErrors when running
+                      INITFIT.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.5.0.0"
+__version__ = "0.5.1.0"
 import datetime, os, sys, logging
 import numpy as np, pyfits
 from scipy import interpolate, sparse
@@ -221,8 +226,8 @@ def initfit(arguments):
     for i in xrange(ndisp):
         wave_i = crval+i*cdelt
         if wave_i > fMin and wave_i < fMax:
-            dataIma  += dataHDU.section[i]*f(wave_i)[0]
-            sigmaIma += sigmaHDU.section[i]*f(wave_i)[0]
+            dataIma  += dataHDU.section[i]*f(wave_i)## [0]
+            sigmaIma += sigmaHDU.section[i]*f(wave_i)## [0]
     dataIma  /= filtercurve["tp"].sum()
     sigmaIma /= filtercurve["tp"].sum()
 
