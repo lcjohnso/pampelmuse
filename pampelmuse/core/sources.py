@@ -15,9 +15,11 @@ The routine is heavily used by all the main scripts of PampelMuse.
 CHANGELOG:
 ----------
 2012/03/07, v0.1.0.0, preliminary version completed 
+2012/04/20, v0.2.0.0, implemented a first version of fitting the same slope to
+                      all source IFU coordinates.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.1.0.0"
+__version__ = "0.2.0.0"
 import logging
 import numpy as np, pyfits
 try: from PyQt4 import QtCore ## check if PyQt is available 
@@ -900,7 +902,24 @@ class Sources(CoordinateTransformation, object):
                      commonSlope=False):
 
         if commonSlope:
-            logging.warning("Flag `commonSlope` not yet supported.")
+##             logging.warning("Flag `commonSlope` not yet supported.")
+            logging.warning("Fitting a common slope still in testing phase.")
+
+            ## source used for creating mean slope
+            used = (self.status[self.ifuSelect]>1)\
+                &(self.status[self.ifuSelect]<4)
+           
+            if coord == "x":  meanCoord = np.average(\
+                self.xdata[0, used] \
+                    - self.xdata[0,used].mean(axis=-1)[:,np.newaxis],
+                    axis=0)
+            else: meanCoord = np.average(\
+                self.ydata[0, used] \
+                    - self.ydata[0,used].mean(axis=-1)[:,np.newaxis],
+                    axis=0)
+            meanCoordFit = StepPolyFit(meanCoord, order=order, bins=bins,
+                                       mask=mask)
+            xCoord = np.arange(meanCoord.size, dtype=np.float32)
 
         if not coord in ["x", "y"]: return
         else: i = ["x", "y"].index(coord)
@@ -910,10 +929,24 @@ class Sources(CoordinateTransformation, object):
 
         k = 1
         for j in indices2Fit:
-            if coord == "x": self.xdata[1,j] = StepPolyFit(\
-                self.xdata[0,j], order=order, bins=bins, mask=mask)
-            else: self.ydata[1,j] = StepPolyFit(\
-                self.ydata[0,j], order=order, bins=bins, mask=mask)
+            if coord == "x":
+                if commonSlope:
+                    polPars = np.polyfit(xCoord, self.xdata[0,j]-meanCoordFit,
+                                         deg=1)
+                    self.xdata[1,j] = meanCoordFit + np.polyval(\
+                        polPars, xCoord)
+                else:
+                    self.xdata[1,j] = StepPolyFit(\
+                        self.xdata[0,j], order=order, bins=bins, mask=mask)
+            else:
+                if commonSlope:
+                    polPars = np.polyfit(xCoord, self.ydata[0,j]-meanCoordFit,
+                                         deg=1)
+                    self.ydata[1,j] = meanCoordFit + np.polyval(\
+                        polPars, xCoord)
+                else:
+                    self.ydata[1,j] = StepPolyFit(\
+                        self.ydata[0,j], order=order, bins=bins, mask=mask)
             self.poly[i,j] = True
             logging.debug("Polyn. fit to source #{0} [{1}/{2}]".format(\
                     self.ifuID[j], k, len(indices2Fit)))
