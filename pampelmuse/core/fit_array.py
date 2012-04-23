@@ -372,6 +372,11 @@ class StarFit(object):
         bestFit = lsqr(self.Apsf, self.current)
         self.sources.data[:,self.jj] += bestFit[0]
 
+##      Test whether not subtracting sources before fit makes a difference
+##         bestFit = lsqr(self.Apsf, (self.data/self.sigma)[self.mask])
+##         self.sources.data[:,self.jj] = bestFit[0]
+
+
         ##  some logging
         logging.debug("[@{0}] Chi**2 of final fit: {1:.1f}".format(\
                 self.jj, bestFit[4]**2))

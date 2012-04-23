@@ -12,9 +12,11 @@ CHANGELOG
                       was missing.
 2012/04/17, v0.2.0.0, added `SUBSKY` and `SUBUNRES`-parameters to PampelMuse
                       configuration.
+2012/04/22, v0.2.1.0, bugfix: replaced `ndisp` with `size` when calling
+                              `resizeStructure`
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.2.0.0"
+__version__ = "0.2.1.0"
 import datetime, logging, os, sys
 import numpy as np, pyfits
 
@@ -72,7 +74,7 @@ def subtres(arguments):
     elif 'POSPARS' in extNames:
         logging.info("Reading 'POSPARS' HDU.")
         sources.readTransHDU(prmFile["POSPARS"], backup=False)
-        sources.resizeStructure(ndisp=sources.ndisp)
+        sources.resizeStructure(size=sources.ndisp)
         sources.makeValues()
         sources.info()
 

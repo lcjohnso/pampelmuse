@@ -17,9 +17,12 @@ CHANGELOG:
 2012/03/07, v0.1.0.0, preliminary version completed 
 2012/04/20, v0.2.0.0, implemented a first version of fitting the same slope to
                       all source IFU coordinates.
+2012/04/23, v0.2.1.0, bugfix: masked regions were not properly used in a
+                              `commonSlope`-fit in method `fitIFUCoords`.
+                              
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.2.0.0"
+__version__ = "0.2.1.0"
 import logging
 import numpy as np, pyfits
 try: from PyQt4 import QtCore ## check if PyQt is available 
@@ -909,14 +912,10 @@ class Sources(CoordinateTransformation, object):
             used = (self.status[self.ifuSelect]>1)\
                 &(self.status[self.ifuSelect]<4)
            
-            if coord == "x":  meanCoord = np.average(\
-                self.xdata[0, used] \
-                    - self.xdata[0,used].mean(axis=-1)[:,np.newaxis],
-                    axis=0)
-            else: meanCoord = np.average(\
-                self.ydata[0, used] \
-                    - self.ydata[0,used].mean(axis=-1)[:,np.newaxis],
-                    axis=0)
+            if coord == "x":  meanCoord = np.average(self.xdata[0, used] \
+                    - self.xdata[0,used].mean(axis=-1)[:,np.newaxis], axis=0)
+            else: meanCoord = np.average(self.ydata[0, used] \
+                    - self.ydata[0,used].mean(axis=-1)[:,np.newaxis], axis=0)
             meanCoordFit = StepPolyFit(meanCoord, order=order, bins=bins,
                                        mask=mask)
             xCoord = np.arange(meanCoord.size, dtype=np.float32)
@@ -931,7 +930,8 @@ class Sources(CoordinateTransformation, object):
         for j in indices2Fit:
             if coord == "x":
                 if commonSlope:
-                    polPars = np.polyfit(xCoord, self.xdata[0,j]-meanCoordFit,
+                    polPars = np.polyfit(xCoord[mask],
+                                         (self.xdata[0,j]-meanCoordFit)[mask],
                                          deg=1)
                     self.xdata[1,j] = meanCoordFit + np.polyval(\
                         polPars, xCoord)
@@ -940,7 +940,8 @@ class Sources(CoordinateTransformation, object):
                         self.xdata[0,j], order=order, bins=bins, mask=mask)
             else:
                 if commonSlope:
-                    polPars = np.polyfit(xCoord, self.ydata[0,j]-meanCoordFit,
+                    polPars = np.polyfit(xCoord[mask],
+                                         (self.ydata[0,j]-meanCoordFit)[mask],
                                          deg=1)
                     self.ydata[1,j] = meanCoordFit + np.polyval(\
                         polPars, xCoord)
