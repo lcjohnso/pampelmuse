@@ -91,9 +91,11 @@ v0.8.0.2, 2011/11/11 - updated calculation and inserting of oversampling region
                        for Moffat profile
 v0.8.0.3, 2012/02/01 - replaced math with numpy. added logging module. Included
                        handler for beta<=1. in Moffat profile.
+v0.8.1.3, 2012/05/02 - bugfix in class `Gaussian`: former versions tried to
+                       modify attribute `std` in-place.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.8.0.3"
+__version__ = "0.8.1.3"
 
 import logging
 import numpy as np
@@ -805,7 +807,7 @@ class Gaussian(object):
 
 
             ## modify shape parameters
-            self.std *= self.osf
+            self.fwhm *= self.osf
             self.sigma_0 /= (self.osf)**2
             self.maxrad *= self.osf
 
@@ -813,7 +815,7 @@ class Gaussian(object):
             carray = np.fromfunction(self._draw, csize, dtype='float32')
             
             ## undo changes on shape parameters
-            self.std /= self.osf
+            self.fwhm /= self.osf
             self.sigma_0 *= (self.osf)**2
             self.maxrad /= self.osr
 

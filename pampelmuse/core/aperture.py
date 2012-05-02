@@ -30,9 +30,10 @@ CHANGELOG:
                       defined by PampelMuse. Also adapted the current
                       version number to the version number of PampelMuse.
 2012/03/19, v0.4.0.1, removed a remaining print-command used for debugging.
+2012/04/24, v0.4.0.2, again...
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.4.0.1"
+__version__ = "0.4.0.2"
 import logging, sys
 import numpy as np, pyfits
 from matplotlib.mlab import griddata
@@ -329,7 +330,7 @@ class AperPhoto:
                                   
                     if aboveCut.sum() > 3:
                         logging.debug("      Moments:")
-                        print X[selPix_ji][aboveCut], Y[selPix_ji][aboveCut]
+
                         moments = self._measureMoments(selData_ji[aboveCut],
                                                        X=X[selPix_ji][aboveCut],
                                                        Y=Y[selPix_ji][aboveCut])
