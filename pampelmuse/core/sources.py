@@ -19,10 +19,11 @@ CHANGELOG:
                       all source IFU coordinates.
 2012/04/23, v0.2.1.0, bugfix: masked regions were not properly used in a
                               `commonSlope`-fit in method `fitIFUCoords`.
-                              
+2012/05/03, v0.2.2.0, code crashed if the `primary` component of a source had
+                      `status` -1. Now such sources are excluded as well.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.2.1.0"
+__version__ = "0.2.2.0"
 import logging
 import numpy as np, pyfits
 try: from PyQt4 import QtCore ## check if PyQt is available 
@@ -316,8 +317,20 @@ class Sources(CoordinateTransformation, object):
                     ## primary component might be secondary component o
                     ## another source.
                     while self._primary[j]!=self._id[j]:
+
+                        ## exclude source if primary source has status -1.
+                        if not (self._id==self.primary[j]).any():
+                            logging.error(\
+                                "No `primary` counterpart for source #{0}"\
+                                    .format(self._id[i]))
+                            logging.error("Source #{0} excluded".format(\
+                                    self._id[i]))
+                            self.status[i] = -1
+                            break
+
                         j = np.where(self._id==self._primary[j])[0][0]
                     value[i] = value[j]
+
             value[self._status==0] = value.max()+1
 
         self.setSpecrow(value)
