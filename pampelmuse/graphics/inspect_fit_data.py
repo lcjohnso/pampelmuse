@@ -19,9 +19,11 @@ CHANGELOG
 2012/03/03, v0.3.0.2, added some HIERARCH-keys to the header of the updated
                       PampelMuse PRM-file.
 2012/04/13, v0.3.0.3, added Keyborad-shortcuts to "Plot"- and "Fit"-buttons.
+2012/05/14, v0.3.1.3, bugfix: previous versions crashed if the results where
+                              saved and no source coordinates had been fitted.
 """
 __author__  = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.3.0.3"
+__version__ = "0.3.1.3"
 import datetime, logging, sys
 import numpy as np, pyfits
 from PyQt4 import QtCore, QtGui
@@ -565,8 +567,9 @@ class InspectFitData(QtGui.QMainWindow):
 
             newPosHDU   = self.sources.makeCoordinatesHDU(polyFit=True)
             
-            try: self.HDUList["POSITIONS"] = newPosHDU
-            except: self.HDUList.insert(4, newPosHDU)
+            if newPosHDU != None:
+                try: self.HDUList["POSITIONS"] = newPosHDU
+                except: self.HDUList.insert(4, newPosHDU)
 
             update=True
 
