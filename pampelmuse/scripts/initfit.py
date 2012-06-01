@@ -51,9 +51,12 @@ CHANGELOG:
                       float instead of an nd_array when only one value is
                       requested. This lead to IndexErrors when running
                       INITFIT.
+2012/06/01, v0.5.2.0, bugfix: earlier versions crashed if during the
+                              determination of the confusion limit the maximum
+                              magnitude depth of the photometry was reached.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.5.1.0"
+__version__ = "0.5.2.0"
 import datetime, os, sys, logging
 import numpy as np, pyfits
 from scipy import interpolate, sparse
@@ -338,6 +341,10 @@ def initfit(arguments):
     while True:
         mcut += 0.1
         if (magPS[edgeDist>0]<mcut).sum() > confDens*dataIma.size/(fwhm*fwhm):
+            break
+        if not (magPS[edgeDist>0]>mcut).any():
+            logging.info("No stars below m_{0}={1:.1f} detected.".format(\
+                    passband, mcut))
             break
         if signalToNoise[edgeDist>0][magPS[edgeDist>0]>mcut].max() < snrcut:
             logging.info("No stars below m_{0}={1:.1f} pass S/N-cut.".format(\

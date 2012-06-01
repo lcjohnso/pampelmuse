@@ -31,12 +31,15 @@ CHANGELOG:
                       version number to the version number of PampelMuse.
 2012/03/19, v0.4.0.1, removed a remaining print-command used for debugging.
 2012/04/24, v0.4.0.2, again...
+2012/06/01, v0.4.1.2, removed interpolation of masked values since it was not
+                      stable. Instead, masked pixels are now excluded from all
+                      calculations.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.4.0.2"
+__version__ = "0.4.1.2"
 import logging, sys
 import numpy as np, pyfits
-from matplotlib.mlab import griddata
+## from matplotlib.mlab import griddata
 
 ## required PampelMuse-packages
 ## None required, instance of the `PSF`-class provided
@@ -178,18 +181,30 @@ class AperPhoto:
         logging.info("Found {0} valid sources.".format(self.Nsources))
 
         ## prepare data array, check whether array or HDU provided
-        if len(data.shape) == 3:
-            self.data    = data
-            if isinstance(self.data, (pyfits.PrimaryHDU, pyfits.ImageHDU)):
-                self.dataFITS = True
-            else:
-                self.dataFITS = False
-            self.Nimages = self.data.shape[0]
+        if isinstance(data, (pyfits.PrimaryHDU, pyfits.ImageHDU)):
+            self.dataFITS = True
         else:
-            self.data     = data.reshape((1,data.shape[0], data.shape[1]))
             self.dataFITS = False
-            self.Nimages  = 1
-        self.spatpix = self.data.shape[1:]
+
+        if self.dataFITS:
+            ndim = data.header["NAXIS"]
+            self.spatpix = (data.header["NAXIS2"], data.header["NAXIS1"])
+        else:
+            ndim = data.ndim
+            self.spatpix = data.shape[-2:]
+
+        if ndim == 3:
+            self.data = data
+        else:
+            if self.dataFITS:
+                self.data = data.data.reshape((1,) + self.spatpix)
+            else:
+                self.data = data.reshape((1,)+self.spatpix)
+            self.dataFITS = False
+
+        if self.dataFITS: self.Nimages = self.data.header["NAXIS3"]
+        else: self.Nimages = self.data.shape[0]
+
         logging.info("Input data is {0}D, with {1} spectral pixels."\
                          .format(2+(self.Nimages>1),  self.Nimages))
 
@@ -199,9 +214,10 @@ class AperPhoto:
             self.maskFITS = True
         else:
             self.maskFITS = False
-        if self.mask != None:
-            if self.mask.shape != self.data.shape:
-                logging.critical("Data and mask have different shapes.")
+
+##         if self.mask != None:
+##             if self.mask.shape != self.data.shape:
+##                 logging.critical("Data and mask have different shapes.")
 
         ## prepare record array that will contains output.
         self.results = np.zeros(self.Nsources+1, dtype=[\
@@ -284,21 +300,26 @@ class AperPhoto:
             logging.info("Aperture spectrophotometry - image #{0}/{1})".format(\
                     i+1, self.Nimages))
 
-            if self.mask !=  None:
-                if self.maskFITS: mask_i = (self.mask.section[i]==0)
-                else: mask_i  = (self.mask[i] == 0)
-
             if self.dataFITS: data_i = self.data.section[i]
             else:  data_i = np.copy(self.data[i])
 
             ##  if mask provided, interpolate masked values
-            if self.mask != None:
-                logging.debug("   Implementing mask.")
-                data_i = griddata(Y[mask_i], X[mask_i], data_i[mask_i], Y, X)
+            if self.mask !=  None:
+                if self.maskFITS: mask_i = self.mask.section[i].astype(np.bool)
+                else: mask_i = self.mask[i]
+            else:
+                mask_i = np.zeros(self.spatpix, dtype=np.bool)
 
+##                 if not psf:
+##                     logging.debug("   Implementing mask.")
+##                     x_mask = X[mask_i]
+##                     y_mask = Y[mask_i]
+
+                    
             ##  estimate global background value.
             logging.debug("   Determining global background")
-            self.backval, self.backstd = self._estGlobalBG(data_i)
+            self.backval, self.backstd = self._estGlobalBG(\
+                data_i-data_i*mask_i)
             self.results['spectrum'][self.Nsources,i] = self.backval
             logging.debug("   Value={0:.3f}/pixel".format(self.backval))
 
@@ -309,19 +330,22 @@ class AperPhoto:
 
                 ## estimate local background (if requested)
                 if localBG:
-                    backval_ji,backstd_ji = self._estLocalBG(data_i,curID=curID)
-                    logging.debug("      Background: {0}/pixel (local)".format(\
-                            backval_ji))
+                    backval_ji,backstd_ji = self._estLocalBG(\
+                        data_i-data_i*mask_i, curID=curID)
+                    logging.debug("      Background: {0}/pixel (local)"\
+                                      .format(backval_ji))
 
                 ## otherwise use global background
                 else:
                     backval_ji,backstd_ji = self.backval,self.backstd
-                    logging.debug("      Background: {0}/pixel (glob.)".format(\
-                            backval_ji)) 
+                    logging.debug("      Background: {0}/pixel (glob.)"\
+                                      .format(backval_ji)) 
 
                 ## Get array for calculations
                 selPix_ji  = self.annuSelect(ids=curID, r_min=0,
                                              r_max=self.rAper)
+                selPix_ji[mask_i] = False
+
                 selData_ji = np.copy(data_i[selPix_ji]) - backval_ji
 
                 ## Moment calculation:
@@ -363,7 +387,7 @@ class AperPhoto:
                     corr = 1.
 
                 self.results['spectrum'][j][i] = selData_ji.sum()/corr
-                logging.debug("Flux: {0}counts".format(\
+                logging.debug("      Flux: {0}counts".format(\
                         self.results['spectrum'][j][i]))
 
         return self.results
