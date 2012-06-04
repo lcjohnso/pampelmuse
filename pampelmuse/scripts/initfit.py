@@ -54,9 +54,11 @@ CHANGELOG:
 2012/06/01, v0.5.2.0, bugfix: earlier versions crashed if during the
                               determination of the confusion limit the maximum
                               magnitude depth of the photometry was reached.
+2012/06/04, v0.5.3.0, bugfix: `POSFIT'-parameter was not used properly together
+                              with `SMALLIFU=False`; positions were not fitted
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.5.2.0"
+__version__ = "0.5.3.0"
 import datetime, os, sys, logging
 import numpy as np, pyfits
 from scipy import interpolate, sparse
@@ -461,6 +463,9 @@ def initfit(arguments):
             sources.loadIFUCoords(data=np.rollaxis(ifuCoords, 1, 0),
                                   ids=aperResults["id"][stars])
             sources.calcTrans()
+            if posFit == 1:   sources.ctFree[2:] = True
+            elif posFit == 2: sources.ctFree[:] = True
+
 
             ##  determine FWHM, E and THETA
             logging.info("Approximating PSF from measured moments.")
