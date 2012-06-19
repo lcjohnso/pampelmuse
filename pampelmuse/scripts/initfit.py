@@ -56,9 +56,13 @@ CHANGELOG:
                               magnitude depth of the photometry was reached.
 2012/06/04, v0.5.3.0, bugfix: `POSFIT'-parameter was not used properly together
                               with `SMALLIFU=False`; positions were not fitted
+2012/06/19, v0.6.0.0, changed code to make it compatible with update PSF
+                      profile classes. Now, if the FWHM is determined from the
+                      data, the `Profile-class property is updated instead of
+                      the respective PSF parameter.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.5.3.0"
+__version__ = "0.6.0.0"
 import datetime, os, sys, logging
 import numpy as np, pyfits
 from scipy import interpolate, sparse
@@ -172,10 +176,13 @@ def initfit(arguments):
 
 
     ## initialize PSF
-    if psfType == "moffat":  psfArgs = ["theta", "e", "fwhm", "beta"]
-    elif psfType == "gauss": psfArgs = ["theta", "e", "fwhm"]
+    if psfType == "moffat": psfArgs = ["theta", "e", "Mfwhm", "beta"]
+    elif psfType == "gauss": psfArgs = ["Gtheta", "e", "fwhm"]
+    elif psfType == "lorentz": psfArgs = ["Ltheta", "e", "fwhm"]
+    elif psfType == "gaumoff": psfArgs = ["Gfwhm", "beta", "Mfwhm", "Mfrac",
+                                          "e", "fwhm"]
 
-    psf = PSF() ## PSF used for analysisa
+    psf = PSF() ## PSF used in analysis
     psf.makeNewPSF(profile=psfType)
 
     ## check which PSF parameters should be fitted and add parameters
@@ -281,14 +288,14 @@ def initfit(arguments):
     if valid.sum() < 4:
         logging.warn("Skipping FWHM measurement - too few sources ({0})"\
                          .format(valid.sum()))
-        fwhm = psf.values[psf.parameters.index("fwhm"),:].mean(axis=-1)
+##         fwhm = psf.values[psf.parameters.index("fwhm"),:].mean(axis=-1)
     else:
-        fwhm = 0.5*(identified['fwhm_x'][valid].mean() \
-                        + identified['fwhm_y'][valid].mean())
-        logging.info("Estimated FWHM (Gaussian): {0:.1f}pixel".format(fwhm))
-        psf.values[psf.parameters.index("fwhm"),:] =  fwhm
+        psf.fwhm = 0.5*(identified['fwhm_x'][valid].mean() \
+                            + identified['fwhm_y'][valid].mean())
+        logging.info("Estimated Seeing FWHM: {0:.1f}pixel".format(fwhm))
+##         psf.values[psf.parameters.index("fwhm"),:] =  fwhm
         ## NOTE: will only write FWHM to values if FWHM is fitted
-
+        ##       CHANGED: Parameter not updated, only class-property `fwhm`
 
     ## determine coordinate transformation using identified sources
     sources.loadIFUCoords(\
@@ -323,9 +330,9 @@ def initfit(arguments):
     signalToNoise = sources.signalToNoise(psf=prof, magZ=magZ, sigma=sigmaIma,
                                           r=psfRad)
     ##  modify S/N of sources close to brighter neighbor:
-    close = distToBrighter<fwhm
+    close = distToBrighter<psf.fwhm
 
-    signalToNoise[close] *= (1.+0.9*np.log10(distToBrighter[close]/fwhm))
+    signalToNoise[close] *= (1.+0.9*np.log10(distToBrighter[close]/psf.fwhm))
 
     if not smallifu:
         shoulderDrop = sources.shoulderDrop(r=psfRad)
@@ -342,7 +349,8 @@ def initfit(arguments):
     mcut = magPS[edgeDist>0].min()
     while True:
         mcut += 0.1
-        if (magPS[edgeDist>0]<mcut).sum() > confDens*dataIma.size/(fwhm*fwhm):
+        if (magPS[edgeDist>0]<mcut).sum() > confDens*dataIma.size \
+                /(psf.fwhm*psf.fwhm):
             break
         if not (magPS[edgeDist>0]>mcut).any():
             logging.info("No stars below m_{0}={1:.1f} detected.".format(\
@@ -369,7 +377,7 @@ def initfit(arguments):
             primary[i] = sources.ID[i]
         elif sources.mag[i] <= reslim:
             if signalToNoise[i] > snrcut:
-                if distToBrighter[i] < binrad*fwhm:
+                if distToBrighter[i] < binrad*psf.fwhm:
                     status[i]  = 1
                     primary[i] = brighterID[i]
                 else:
@@ -378,7 +386,7 @@ def initfit(arguments):
             else:
                 if edgeDist[i] < 0:
                     continue
-                if distToBrighter[i] < 2*binrad*fwhm:
+                if distToBrighter[i] < 2*binrad*psf.fwhm:
                     status[i]  = 1
                     primary[i] = brighterID[i]
                 else:
@@ -393,7 +401,7 @@ def initfit(arguments):
                                      int(status[i])))
             
         elif useunres:
-            if sources.mag[i]<=unreslim and edgeDist[i]>-fwhm:
+            if sources.mag[i]<=unreslim and edgeDist[i]>-psf.fwhm:
                 status[i]  = 0
                 primary[i] = -2
 
@@ -422,7 +430,7 @@ def initfit(arguments):
             
             if sources.status[i] == 2 \
                     and sources.mag[i] <= (reslim-3) \
-                    and edgeDist[i] > fwhm \
+                    and edgeDist[i] > psf.fwhm \
                     and shoulderDrop[i] < apernois:
 
                 sources.status[i] = 3
@@ -486,7 +494,7 @@ def initfit(arguments):
             
             ## FWHM
             fwhm = np.sqrt(8.*np.log(2))*np.mean(A, axis=0)
-            psf.values[psf.parameters.index("fwhm")] = fwhm
+##             psf.values[psf.parameters.index("fwhm")] = fwhm
             logging.info("   Mean FWHM: {0:.2f}pix.".format(fwhm.mean()))
 
             ## Ellipticity

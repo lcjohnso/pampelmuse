@@ -93,48 +93,32 @@ v0.8.0.3, 2012/02/01 - replaced math with numpy. added logging module. Included
                        handler for beta<=1. in Moffat profile.
 v0.8.1.3, 2012/05/02 - bugfix in class `Gaussian`: former versions tried to
                        modify attribute `std` in-place.
+v0.9.0.0, 2012/06/19 - major update wrt. to structure of the defined classes:
+                       All inherit from super-class `Profile`. Generic
+                       properties  such as `e`, `theta` or the pixel-distance
+                       array are defined in `Profile` so for each individual
+                       PSF function only the specific shape parameters (e.g
+                       beta for a `Moffat`) need to be specified.
+                       Also added options to use a Lorentzian PSF-profile or a
+                       combination of Moffat and Gauss.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.8.1.3"
+__version__ = "0.9.0.0"
 
 import logging
 import numpy as np
 from scipy import special, sparse
 
 ## required PampelMuse-packages
-from pampelmuse.functions.ima_arith import paste_area
+## from pampelmuse.functions.ima_arith import paste_area
 
 
 
-"""The Moffat Profile"""
-class Moffat(object):
-    """
-    The functional form of the Moffat profile is:
+class Profile(object):
 
-        M(x, y) = SIGMA0*(1. + (r(x,y)/RD)**2)**-BETA)
-
-    with: r(x,y) = SQRT(u(x,y)**2 + (v(x,y)/(1.-E))**2)
-          u(x,y) = (x-XC)*SIN(THETA)-(y-YC)*COS(THETA)
-          v(x,y) = (y-YC)*SIN(THETA)+(x-XC)*COS(THETA)
-          RD     = FWHM /(2.*SQRT(2**(1./BETA) -1.))
-          SIGMA0 = (BETA-1.)*FLUX/(PI*(RD**2)*(1.-E))
-          FLUX   = -2.5*LOG10(MAG)
-
-    The properties of the Moffat profile can be altered using the following
-    set of parameters: E, THETA, FWHM, BETA (shape); XC, YC (center); MAG
-    (brightness).
-    Sizes are always assumed to be pixel-based (not arcsec, nm, ...)
-    """
-    def __init__(self, beta, fwhm, e=0., theta=0., osfactor=10, osradius=2):
+    def __init__(self, e=0, theta=0, osfactor=10, osradius=2, seeing=None,
+                 **kwargs):
         """
-        Initialize an instance of the Moffat-class.
-
-        Parameters:
-        -----------
-        beta : float
-            The beta parameter of the Moffat profile.
-        fwhm : float
-            The fwhm of the Moffat profile.
         e : float, optional
             The ellipticity of the moffat profile.
         theta : float, optional
@@ -150,10 +134,12 @@ class Moffat(object):
             The 'flux-calculation by oversampling' is performed for every
             pixel within a distance <=`osradius` towards the center of the
             profile.
+        seeing : float, optional
+            A measure for the FWHM of the profile, in spatial pixels. If none
+            is provided, the routine will estimate one using the parameters
+            of the chosen profile.
         """
-        self.beta  = beta
-        self.fwhm  = fwhm 
-        self.e     = e
+        self.e     = abs(e)
         self.theta = theta
         self.osr   = osradius
         if not self.osr > 0:
@@ -161,33 +147,64 @@ class Moffat(object):
         else:
             self.osf = osfactor
 
-        if self.beta <= 1.:
-            logging.error("Value of beta ({0:.2f}) out of valid range [>1]."\
-                              .format(float(self.beta)))
-            logging.error("Using beta=2.5 instead.")
-            self.beta=2.5
+        self._fwhm = seeing
 
 
-    ## effective radius
-    @property
-    def r_d(self): 
-        return  self.fwhm /(2. *np.sqrt(2**(1. /self.beta) -1.))
+    def get_fwhm(self):
+        """
+        Obtain the seeing FWHM
+        """
+        return self._fwhm
+
+    def set_fwhm(self, value):
+        """
+        Specify the seeing FWHM
+
+        Parameters:
+        -----------
+        value : float
+            The FWHM in spatial pixels.
+        """
+        self._fwhm = value
+    
+    fwhm = property(get_fwhm, set_fwhm, None, "The seeing FWHM")
 
 
-    ## central surface brightness for mag=0 (i.e. flux=1)
-    @property
-    def _sigma_0(self):
-        return (self.beta-1.)/(np.pi*(self.r_d**2)*(1.-self.e))
+
+    def make_array(self, R, **kwargs):
+        """
+        Method that calculates the actual intensity profile. Note that this
+        method is mainly a place-holder for the `make_array`-methods of the
+        individual sub-classes.
+
+        Parameters:
+        -----------
+        R : array_like
+            The array of pixel distances with respect to the center of the
+            profile.
+
+        Returns:
+        --------
+        result : zero value integer
+            The return value is only used so that the method is fully
+            compatible with the `make_array`-methods of the individual
+            sub-classes.
+        """
+
+        assert not hasattr(super(Profile, self), 'make_array')
+        ## make sure no `make_array`-method is "hidden" behind this one.
+        ## (following recommondation from:
+        ## http://rhettinger.wordpress.com/2011/05/26/super-considered-super/)
+
+        return 0
 
 
 
     def __call__(self, size, x_c, y_c, mag, maxrad=np.inf,
-                 return_sparse=False, as_sparse_matrix=True):
+                 return_sparse=False, as_sparse_matrix=True, **kwargs):
         """
-        A function call is used to actually fill an array of given size.
-        The centroid position and magnitude of the profile must be
-        provided.
-        Numpy's fromfunction-method is used to call the `_draw`-method. 
+        A function call is used to actually fill an array of given size. The
+        centroid position and magnitude of the profile must be provided.
         If an oversampling-region is defined, the profile in it is
         calculated separately and inserted into the full array afterwards.
 
@@ -229,15 +246,13 @@ class Moffat(object):
             non-zero values and respective pixel coordinates or a sparse
             coo-matrix of same `size` is returned.
         """
-        self.size  = size
-        self.x_c   = x_c
-        self.y_c   = y_c
-        self.flux  = 10**(-0.4*mag)
-        self.maxrad = maxrad
-        self.sparse = return_sparse
+        self.size     = size
+        self.x_c      = x_c
+        self.y_c      = y_c
+        self.flux     = 10**(-0.4*mag)
+        self.maxrad   = maxrad
+        self.sparse   = return_sparse
         self.asmatrix = as_sparse_matrix
-
-        self.sigma_0 = self.flux*self._sigma_0
 
         ## select sub-array around profile center (if requested)
         if self.maxrad != None:
@@ -268,7 +283,7 @@ class Moffat(object):
         _V = (_Y-self._y_c)*np.sin(self.theta)+(_X-self._x_c)*np.cos(self.theta)
         _R = np.sqrt(_U**2 + (_V/(1. - self.e))**2)
 
-        self.array = self.sigma_0*(1. + (_R/self.r_d)**2)**(-self.beta)
+        self.array = self.make_array(_R, **kwargs)
 
         if self.osf != 1:
     
@@ -290,9 +305,8 @@ class Moffat(object):
                 _Ros= np.sqrt(_Uos**2 + (_Vos/(1. - self.e))**2)
 
                 self.array[ctrsel] \
-                    = (self.sigma_0/(self.osf**2)\
-                           *(1. + (_Ros/self.r_d)**2)**(-self.beta))\
-                    .sum(axis=1)
+                    = (self.make_array(_Ros,**kwargs)/(self.osf**2)).sum(axis=1)
+
 
         if self.sparse:
             if self.asmatrix:
@@ -306,97 +320,109 @@ class Moffat(object):
                                   shape=self.size)\
                     .todense())
 
- 
-##         ##  calculate profile
-##         self.array =np.fromfunction(self._draw, self._size, dtype='float32')
-##         print time.time() - t0
-## 
-##         if self.osf != 1: ## take care of oversampling region
-##             csize = ((2*self.osr+1)*self.osf, (2*self.osr+1)*self.osf)
-## 
-##             x_n = int(round(self._x_c))
-##             y_n = int(round(self._y_c))
-## 
-##             self._x_c += (self.osr - x_n)
-##             self._y_c += (self.osr - y_n)
-## 
-##             self._x_c *= self.osf
-##             self._y_c *= self.osf
-## 
-##             self._x_c += 0.5*(self.osf-1.)
-##             self._y_c += 0.5*(self.osf-1.)
-## 
-##             ## modify shape parameters
-##             self.r_d *= self.osf
-##             self.sigma_0 /= (self.osf**2)
-## 
-##             self.maxrad = (self.osr+np.sqrt(0.5))*self.osf
-## 
-##             ## calculate profile
-##             carray = np.fromfunction(self._draw, csize, dtype='float32')
-## 
-##             ## undo changes to shape parameters
-##             self.r_d /= self.osf
-##             self.sigma_0 *= (self.osf**2)
-## 
-##             self.maxrad = maxrad
-## 
-##             ## resample and insert
-##             s1_size = (2*self.osr+1, (2*self.osr+1)*self.osf, self.osf)
-##             s2_size = (2*self.osr+1, 2*self.osr+1, self.osf)
-##             step1 = np.sum(np.reshape(carray, s1_size, 'C'), axis=2)
-##             step2 = np.sum(np.reshape(step1, s2_size, 'F'), axis=2)
-## 
-##             Y, X = np.indices(step2.shape)
-##             SEL = (np.sqrt((X-self._x_c)**2 + (Y-self._y_c)**2) <= self.osr)\
-##                 &((X-self.osr+x_n)>=0)&((X-self.osr+x_n)<self._size[1])\
-##                 &((Y-self.osr+y_n)>=0)&((Y-self.osr+y_n)<self._size[0])
-## 
-##             if SEL.any():
-##                 self.array[Y[SEL]+y_n-self.osr, X[SEL]+x_n-self.osr] \
-##                     = step2[Y[SEL], X[SEL]]
-## 
-## ##             self.array = paste_area(step2, self._size, (self.osr, self.osr),
-## ##                                     (x_n, y_n), out_array=self.array)
-## 
-##         ## return requested output
-##         if (self.sparse or self.maxrad != np.inf):
-##             Y, X = np.indices(self._size)
-## 
-##             _valid   = (self.array.flatten()!=0.)
-##             profdata = (self.array.flatten()[_valid], (Y.flatten()[_valid]+ys,
-##                                                        X.flatten()[_valid]+xs))
-## 
-##             if self.sparse:
-##                 if self.asmatrix:
-##                     return sparse.coo_matrix(profdata, shape=self.size)
-##                 else:
-##                     return profdata
-##             else:
-##                 return np.array(sparse.coo_matrix(\
-##                         profdata, shape=self.size).todense())
-## 
-##         else:
-##             return self.array
 
 
 
-    def _draw(self, y, x): ## changed x & y to "correct" numpy axis-swapping 
+"""The Moffat Profile"""
+class Moffat(Profile):
+    """
+    The functional form of the Moffat profile is:
+
+        M(x, y) = SIGMA0*(1. + (r(x,y)/RD)**2)**-BETA)
+
+    with: r(x,y) = SQRT(u(x,y)**2 + (v(x,y)/(1.-E))**2)
+          u(x,y) = (x-XC)*SIN(THETA)-(y-YC)*COS(THETA)
+          v(x,y) = (y-YC)*SIN(THETA)+(x-XC)*COS(THETA)
+          RD     = FWHM /(2.*SQRT(2**(1./BETA) -1.))
+          SIGMA0 = (BETA-1.)*FLUX/(PI*(RD**2)*(1.-E))
+          FLUX   = -2.5*LOG10(MAG)
+
+    The properties of the Moffat profile can be altered using the following
+    set of parameters: E, THETA, FWHM, BETA (shape); XC, YC (center); MAG
+    (brightness).
+    Sizes are always assumed to be pixel-based (not arcsec, nm, ...)
+    """
+    def __init__(self, beta, Mfwhm=None, Mfrac=1, **kwargs):
         """
-        method to fill array with profile, called via np.fromfunction
+        Initialize an instance of the Moffat-class.
+
+        Parameters:
+        -----------
+        beta : float
+            The beta parameter of the Moffat profile.
+        Mfwhm : float, optional
+            The fwhm of the Moffat profile. For backwards compatibility, the
+            parameter is optional if `kwargs` includes a key `fwhm`.
+        Mfrac : float, optional.
+            The fractional flux in the profile. A value !=1 makes only sense
+            if the PSF is modeled from more than one profile.
+
+        All other parameters provided as `kwargs` are passed on to the call
+        of the `Profile` super-class.
         """
-        u =(x-self._x_c)*np.sin(self.theta)-(y-self._y_c)*np.cos(self.theta)
-        v =(y-self._y_c)*np.sin(self.theta)+(x-self._x_c)*np.cos(self.theta)
+        self.beta  = beta
 
-        r = np.sqrt(u**2 + (v/(1. - self.e))**2)
+        if self.beta <= 1.:
+            logging.error("Value of beta ({0:.2f}) out of valid range [>1]."\
+                              .format(float(self.beta)))
+            logging.error("Using beta=2.5 instead.")
+            self.beta=2.5
 
-        return np.where(r>self.maxrad, 
-                        0, self.sigma_0*(1. + (r/self.r_d)**2)**(-self.beta))
+
+        if Mfwhm != None:
+            self.Mfwhm = Mfwhm 
+        else:
+            assert kwargs.has_key("fwhm"), "No FWHM for Moffat profile found."
+            self.Mfwhm = kwargs["fwhm"]
+
+        self.Mfrac = Mfrac
+            
+        super(Moffat, self).__init__(**kwargs)
+
+        if super(Moffat, self).get_fwhm() == None:
+            super(Moffat, self).set_fwhm(self.Mfwhm)
+
+
+
+    ## effective radius
+    @property
+    def r_d(self): 
+        return  self.Mfwhm /(2. *np.sqrt(2**(1. /self.beta) -1.))
+
+
+
+    ## central surface brightness for mag=0 (i.e. flux=1)
+    @property
+    def Msigma_0(self):
+        return self.Mfrac*(self.beta-1.)/(np.pi*(self.r_d**2)*(1.-self.e))
+    
+
+
+    def make_array(self, R, **kwargs):
+        """
+        Method that calculates the actual intensity profile of the defined
+        Moffat-profile.
+
+        Parameters:
+        -----------
+        R : array_like
+            The array of pixel distances with respect to the center of the
+            profile.
+
+        Returns:
+        --------
+        result : array_like, same size as R
+            The normalized intensity in each pixel according to the defined
+            profile.
+        """
+        return super(Moffat, self).make_array(R, **kwargs) \
+            + self.flux*self.Msigma_0*(1. + (R/self.r_d)**2)**(-self.beta)
+
 
 
 
 """The Sersic profile"""
-class Sersic(object):
+class Sersic(Profile):
     """
     The functional form of the Moffat profile is:
 
@@ -417,7 +443,7 @@ class Sersic(object):
     (brightness).
     Sizes are always assumed to be pixel-based (not arcsec, nm, ...)
     """
-    def __init__(self, n, r_e, e=0., theta=0., osfactor=10, osradius=2):
+    def __init__(self, n, r_e, Sfrac=1, **kwargs):
         """
         Initialize an instance of the Sersic-class.
 
@@ -427,41 +453,36 @@ class Sersic(object):
             The Sersic index of the profile.
         r_e : float
             The effective radius of the Sersic profile.
-        e : float, optional
-            The ellipticity of the Sersic profile.
-        theta : float, optional
-            The position angle of the Sersic profile; given in radian and
-            counted from the y-axis (= first axis in 2dim. numpy arrays) in
-            ccw-direction
-        osfactor : integer, optional
-            Each pixel within `osradius` is divided into `osfactor`x`osfactor`-
-            subpixels. For each subpixel, the integrated flux is calculated,
-            the flux within each parent pixel then is the sum of the flux in
-            the enclosed subpixels.
-        osradius : float, optional
-            The 'flux-calculation by oversampling' is performed for every pixel
-            within a distance <=`osradius` towards the center of the profile.
+        Sfrac : float, optional.
+            The fractional flux in the profile. A value !=1 makes only sense
+            if the PSF is modeled from more than one profile.
+
+        All other parameters provided as `kwargs` are passed on to the call
+        of the `Profile` super-class.
         """
 
         self.n     = n
         self.r_e   = r_e
-        self.e     = e
-        self.theta = theta
-        self.osr   = osradius
-        if not self.osr > 0:
-            self.osf = 1
-        else:
-            self.osf = osfactor
 
-        self._get_kappa()
-        self._sigma_e = 1./(2*np.pi*(r_e**2)*np.exp(self.kappa)*n*
-                            (self.kappa)**(-2.*n)*special.gamma(2.*n)*(1.-e))
+        self.Sfrac = Sfrac
 
-        
+        super(Sersic, self).__init__(**kwargs)
 
-    def _get_kappa(self):
+        if super(Sersic, self).get_fwhm() == None:
+            super(Sersic, self).set_fwhm(2.355*self.r_e)
+
+
+    @property
+    def Ssigma_e(self):
+        return self.Sfrac/(2*np.pi*(self.r_e**2)*np.exp(self.kappa)*self.n\
+                               *(self.kappa)**(-2.*self.n)\
+                               *special.gamma(2.*self.n)*(1.-self.e))
+
+
+    @property
+    def kappa(self):
         init = 1.9992*self.n - 0.3271
-        self.kappa = self.__newton_it(init)
+        return self.__newton_it(init)
         
 
 
@@ -483,166 +504,32 @@ class Sersic(object):
 
 
 
-    def __call__(self, size, x_c, y_c, mag, maxrad=np.inf,
-                 return_sparse=False, as_sparse_matrix=True):
+    def make_array(self, R, **kwargs):
         """
-        A function call is used to actually fill an array of given size. The
-        centroid position and magnitude of the profile must be provided.
-        Numpy's fromfunction-method is used to call the `_draw`-method. 
-        If an oversampling-region is defined, the profile in it is calculated
-        separately and inserted into the full array afterwards.
+        Method that calculates the actual intensity profile of the defined
+        Sersic-profile.
 
-        Parameters
-        ----------
-        size : tuple
-            The shape of the array on which the profile will be calculated.
-            Note that `size` should be given as (y_size, x_size). 
-        x_c : float
-            The center of the profile in x-direction (i.e. second axis in
-            a 2dim. numpy array)
-        y_c : float
-            The center of the profile in y-direction (i.e. first axis in
-            a 2dim. numpy array)
-        mag : float
-            The integrated magnitude of the profile. mag=0. will result
-            in a normalized profile.
-        maxrad : None or float, optional
-            To calculate the profile only out to a certain radius, set
-            `maxrad` to the desired value. All other pixels will be set to
-            zero. By default, the profile is calculated on the whole array.
-            Note that for `e`>0, the profile will also be calculated within
-            an ellipse. In this case, `maxrad` gives the semimajor axis of
-            the ellipse.
-        return_sparse : boolean, optional
-            Flag indicating whether the full array (i.e. a dense matrix, the
-            default) or only the non-zero values (i.e. a sparse matrix, see
-            `as_sparse_matrix` for details) should be returned. 
-        as_sparse_matrix : boolean, optional
-           Only used if `return_sparse` is enabled. Flag indicates whether a
-           sparse coo-matrix is returned or a tuple containing the (non-zero)
-           data and the corresponding pixel coordinates.
+        Parameters:
+        -----------
+        R : array_like
+            The array of pixel distances with respect to the center of the
+            profile.
 
-        Returns
-        -------
-        array : nd_array, tuple or sparse coo-matrix
-            Depending on the `return_sparse`- and `as_sparse_matrix`- flags,
-            either a numpy array of shape `size`, a tuple containing the
-            non-zero values and respective pixel coordinates or a sparse
-            coo-matrix of same `size` is returned.
+        Returns:
+        --------
+        result : array_like, same size as R
+            The normalized intensity in each pixel according to the defined
+            profile.
         """
+        return super(Sersic, self).make_array(R, **kwargs) \
+            + self.flux*self.Ssigma_e \
+            *np.exp(-self.kappa*((R/self.r_e)**(1/self.n)-1))
 
-        self.size  = size
-        self.x_c   = x_c
-        self.y_c   = y_c
-        self.flux  = 10**(-0.4*mag)
-
-        self.sigma_e = self.flux*self._sigma_e
-
-        self.maxrad = maxrad
-        self.sparse = return_sparse
-        self.asmatrix = as_sparse_matrix
-
-        ## select sub-array around profile center (if requested)
-        if self.maxrad != None:
-            xdef = abs(np.arange(self.size[1])-self.x_c)<=self.maxrad
-            ydef = abs(np.arange(self.size[0])-self.y_c)<=self.maxrad
-
-            xs = xdef.argmax()
-            ys = ydef.argmax()
-
-            self._size = (ydef.sum(), xdef.sum())
-
-        else:
-            xs = 0
-            ys = 0
-
-            self._size = self.size
-
-        ## central coordinates on sub-array
-        self._x_c  = self.x_c - xs
-        self._y_c  = self.y_c - ys
-
-        ##  calculate profile
-        self.array =np.fromfunction(self._draw, self._size, dtype='float32')
-
-        if self.osf != 1: ## take care of oversampling region
-            csize = ((2*self.osr+1)*self.osf, (2*self.osr+1)*self.osf)
-
-            x_n = int(round(self._x_c))
-            y_n = int(round(self._y_c))
-
-            self._x_c += (self.osr - x_n)
-            self._y_c += (self.osr - y_n)
-
-            self._x_c *= self.osf
-            self._y_c *= self.osf
-
-            self._x_c += 0.5*(self.osf-1.)
-            self._y_c += 0.5*(self.osf-1.)
-
-            ## modify shape parameters
-            self.r_e *= self.osf
-            self.sigma_e /= (self.osf)**2
-            self.maxrad *= self.osf
-
-            ## calculate profile
-            carray = np.fromfunction(self._draw, csize, dtype='float32')
-
-            ## undo changes to shape parameters
-            self.r_e /= self.osf
-            self.sigma_e *= (self.osf**2)
-            self.maxrad /= self.osf
-
-            ## resample and insert
-            s1_size = (2*self.osr+1, (2*self.osr+1)*self.osf, self.osf)
-            s2_size = (2*self.osr+1, 2*self.osr+1, self.osf)
-            step1 = np.sum(np.reshape(carray, s1_size, 'C'), axis=2)
-            step2 = np.sum(np.reshape(step1, s2_size, 'F'), axis=2)
-
-            self.array = paste_area(step2, self._size, (self.osr, self.osr),
-                                    (x_n, y_n), out_array=self.array)
-
-
-        ## return requested output
-        if (self.sparse or self.maxrad != np.inf):
-            Y, X = np.indices(self._size)
-
-            _valid   = (self.array.flatten()!=0.)
-            profdata = (self.array.flatten()[_valid], (Y.flatten()[_valid]+ys,
-                                                       X.flatten()[_valid]+xs))
-
-            if self.sparse:
-                if self.asmatrix:
-                    return sparse.coo_matrix(profdata, shape=self.size)
-                else:
-                    return profdata
-            else:
-                return np.array(sparse.coo_matrix(\
-                        profdata, shape=self.size).todense())
-
-        else:
-            return self.array
-
-
-
-    def _draw(self, y, x):
-        """
-        method to fill array with profile, called via numpy.fromfunction
-        """
-        u =(x-self._x_c)*np.sin(self.theta)-(y-self._y_c)*np.cos(self.theta)
-        v =(y-self._y_c)*np.sin(self.theta)+(x-self._x_c)*np.cos(self.theta)
-
-        r = np.sqrt(u**2 + (v/(1. - self.e))**2)
-
-        return np.where(\
-            r>self.maxrad, 
-            0,
-            self.sigma_e*np.exp(-self.kappa*((r/self.r_e)**(1/self.n)-1)))
 
 
 
 """The Gaussian Profile"""
-class Gaussian(object):
+class Gaussian(Profile):
     """
     The functional form of the Gaussian profile is:
 
@@ -660,208 +547,221 @@ class Gaussian(object):
      E, THETA, FWHM (shape); XC, YC (center); MAG (brightness).
     Sizes are always assumed to be pixel-based (not arcsec, nm, ...)
     """
-    def __init__(self, fwhm, e=0., theta=0., osfactor=10, osradius=2):
+    def __init__(self, Gfwhm=None, Gfrac=1, **kwargs):
         """
-        Initialize an instance of the Sersic-class.
+        Initialize an instance of the Gaussian-class.
 
         Parameters:
         -----------
-        fwhm : float
-            The FWHM of the Gaussian profile.
-        e : float, optional
-            The ellipticity of the Gaussian profile.
-        theta : float, optional
-            The position angle of the Gaussian profile; given in radian and
-            counted from the y-axis (= first axis in 2dim. numpy arrays) in
-            ccw-direction
-        osfactor : integer, optional
-            Each pixel within `osradius` is divided into `osfactor` times 
-            `osfactor` subpixels. For each subpixel, the integrated flux is
-            calculated, the flux within each parent pixel then is the sum of
-            the flux in the enclosed subpixels.
-        osradius : float, optional
-            The 'flux-calculation by oversampling' is performed for every
-            pixel within a distance <=`osradius` towards the center of the
-            profile.
+        Gfwhm : float, optional
+            The FWHM of the Gaussian profile. For backwards compatibility, the
+            parameter is optional if `kwargs` includes a key `fwhm`.
+        Gfrac : float, optional.
+            The fractional flux in the profile. A value !=1 makes only sense
+            if the PSF is modeled from more than one profile.
+
+        All other parameters provided as `kwargs` are passed on to the call
+        of the `Profile` super-class.
         """
-        self.fwhm  = fwhm
-        self.e     = e
-        self.theta = theta
-        self.osr   = osradius
-        if not self.osr > 0:
-            self.osf = 1
+        if Gfwhm != None:
+            self.Gfwhm  = Gfwhm
         else:
-            self.osf = osfactor
+            assert kwargs.has_key("fwhm"), "No FWHM for Gaussian profile found."
+            self.Gfwhm  = kwargs["fwhm"]
+
+        self.Gfrac = Gfrac
+
+        super(Gaussian, self).__init__(**kwargs)
+
+        if super(Gaussian, self).get_fwhm() == None:
+            super(Gaussian, self).set_fwhm(self.Gfwhm)
+
 
 
     ## The standard deviation
     @property
     def std(self):
-        return self.fwhm / np.sqrt(8.*np.log(2.))
-               
+        return self.Gfwhm / np.sqrt(8.*np.log(2.))
+            
+   
  
     ## The central surface brightness for mag=0 (i.e. flux=1)
     @property
-    def _sigma_0(self):
-        return 1./(2.*np.pi*(self.std**2)*(1.-self.e))
+    def Gsigma_0(self):
+        return self.Gfrac/(2.*np.pi*(self.std**2)*(1.-self.e))
 
 
 
-    def __call__(self, size, x_c, y_c, mag, maxrad=np.inf,
-                 return_sparse=False, as_sparse_matrix=True):
+    def make_array(self, R, **kwargs):
         """
-        A function call is used to actually fill an array of given size. The
-        centroid position and magnitude of the profile must be provided.
-        Numpy's fromfunction-method is used to call the `_draw`-method. 
-        If an oversampling-region is defined, the profile in it is
-        calculated separately and inserted into the full array afterwards.
+        Method that calculates the actual intensity profile of the defined
+        Gaussian-profile.
 
-        Parameters
-        ----------
-        size : tuple
-            The shape of the array on which the profile will be calculated.
-            Note that `size` should be given as (y_size, x_size). 
-        x_c : float
-            The center of the profile in x-direction (i.e. second axis in
-            a 2dim. numpy array)
-        y_c : float
-            The center of the profile in y-direction (i.e. first axis in
-            a 2dim. numpy array)
-        mag : float
-            The integrated magnitude of the profile. mag=0. will result
-            in a normalized profile.
-        maxrad : None or float, optional
-            To calculate the profile only out to a certain radius, set
-            `maxrad` to the desired value. All other pixels will be set to
-            zero. By default, the profile is calculated on the whole array.
-            Note that for `e`>0, the profile will also be calculated within
-            an ellipse. In this case, `maxrad` gives the semimajor axis of
-            the ellipse.
-        return_sparse : boolean, optional
-            Flag indicating whether the full array (i.e. a dense matrix,
-            the default) or only the non-zero values (i.e. a sparse matrix,
-            see `as_sparse_matrix` for details) should be returned. 
-        as_sparse_matrix : boolean, optional
-           Only used if `return_sparse` is enabled. Flag indicates whether a
-           sparse coo-matrix is returned or a tuple containing the
-           (non-zero) data and the corresponding pixel coordinates.
+        Parameters:
+        -----------
+        R : array_like
+            The array of pixel distances with respect to the center of the
+            profile.
 
-        Returns
-        -------
-        array : nd_array, tuple or sparse coo-matrix
-            Depending on the `return_sparse`- and `as_sparse_matrix`- flags,
-            either a numpy array of shape `size`, a tuple containing the
-            non-zero values and respective pixel coordinates or a sparse
-            coo-matrix of same `size` is returned.
+        Returns:
+        --------
+        result : array_like, same size as R
+            The normalized intensity in each pixel according to the defined
+            profile.
         """
-        self.size  = size
-        self.x_c   = x_c
-        self.y_c   = y_c
-        self.flux  = 10**(-0.4*mag)
+        return super(Gaussian, self).make_array(R, **kwargs) \
+            + self.flux*self.Gsigma_0*np.exp(-(R**2)/(2.*(self.std**2)))
 
-        self.sigma_0 = self.flux*self._sigma_0
-
-        self.maxrad = maxrad
-        self.sparse = return_sparse
-        self.asmatrix = as_sparse_matrix
-
-        ## select sub-array around profile center (if requested)
-        if self.maxrad != None:
-            xdef = abs(np.arange(self.size[1])-self.x_c)<=self.maxrad
-            ydef = abs(np.arange(self.size[0])-self.y_c)<=self.maxrad
-
-            xs = xdef.argmax()
-            ys = ydef.argmax()
-
-            self._size = (ydef.sum(), xdef.sum())
-
-        else:
-            xs = 0
-            ys = 0
-
-            self._size = self.size
-
-
-        ## central coordinates on sub-array
-        self._x_c  = self.x_c - xs
-        self._y_c  = self.y_c - ys
-
-
-        ##  calculate profile
-        self.array = np.fromfunction(self._draw, self._size, dtype='float32')
-
-        if self.osf != 1: ## take care of oversampling region
-            csize = ((2*self.osr+1)*self.osf, (2*self.osr+1)*self.osf)
-
-            x_n = int(round(self._x_c))
-            y_n = int(round(self._y_c))
-
-            self._x_c += (self.osr - x_n)
-            self._y_c += (self.osr - y_n)
-
-            self._x_c *= self.osf
-            self._y_c *= self.osf
-
-            self._x_c += 0.5*(self.osf-1.)
-            self._y_c += 0.5*(self.osf-1.)
-
-
-            ## modify shape parameters
-            self.fwhm *= self.osf
-            self.sigma_0 /= (self.osf)**2
-            self.maxrad *= self.osf
-
-            ##  calculate profile
-            carray = np.fromfunction(self._draw, csize, dtype='float32')
-            
-            ## undo changes on shape parameters
-            self.fwhm /= self.osf
-            self.sigma_0 *= (self.osf)**2
-            self.maxrad /= self.osr
-
-            ## resample and insert profile
-            s1_size = (2*self.osr+1, (2*self.osr+1)*self.osf, self.osf)
-            s2_size = (2*self.osr+1, 2*self.osr+1, self.osf)
-            step1 = np.sum(np.reshape(carray, s1_size, 'C'), axis=2)
-            step2 = np.sum(np.reshape(step1, s2_size, 'F'), axis=2)
         
-            self.array = paste_area(step2, self._size, (self.osr, self.osr),
-                                    (x_n, y_n), out_array=self.array)
-            
 
-        ## return requested output
-        if (self.sparse or self.maxrad != np.inf):
-            Y, X = np.indices(self._size)
+"""The Lorentz Profile"""
+class Lorentz(Profile):
+    """
+    The functional form of the Lorentz profile is:
 
-            _valid   = (self.array.flatten()!=0.)
+        L(x, y) = SIGMA0/(r(x, y)**2 + (FWHM/2)**2)
 
-            profdata = (self.array.flatten()[_valid], (Y.flatten()[_valid]+ys,
-                                                       X.flatten()[_valid]+xs))
+    with: r(x,y) = SQRT(u(x,y)**2 + (v(x,y)/(1.-E))**2)
+          u(x,y) = (x-XC)*SIN(THETA)-(y-YC)*COS(THETA)
+          v(x,y) = (y-YC)*SIN(THETA)+(x-XC)*COS(THETA)
+          SIGMA0 = FLUX/(PI*(1.-E)*LN(1+(2.*RMAX/FWHM)**2)
+          FLUX   = -2.5*LOG10(MAG)
 
-            if self.sparse:
-                if self.asmatrix:
-                    return sparse.coo_matrix(profdata, shape=self.size)
-                else:
-                    return profdata
-            else:
-                return np.array(sparse.coo_matrix(\
-                        profdata, shape=self.size).todense())
+    The properties of the Lorentz profile can be altered using the
+    following set of parameters:
+     E, THETA, FWHM (shape); XC, YC (center); MAG (brightness).
+    Sizes are always assumed to be pixel-based (not arcsec, nm, ...)
+    
+    NOTE: The 2dim. integral over the Lorentz function diverges. For this
+          reason, a maximum radius RMAX must always be defined.
+          If high spectrophotometric accuracy is required, the usage of a
+          Lorentzian is not recommended.
+    """
+    def __init__(self, Lfwhm=None, Lfrac=1, rmax=100, **kwargs):
+        """
+        Initialize an instance of the Gaussian-class.
 
+        Parameters:
+        -----------
+        Lfwhm : float, optional
+            The FWHM of the Lorentz profile. For convenience, the
+            parameter is optional if `kwargs` includes a key `fwhm`.
+        Lfrac : float, optional.
+            The fractional flux in the profile. A value !=1 makes only sense
+            if the PSF is modeled from more than one profile.
+
+        All other parameters provided as `kwargs` are passed on to the call
+        of the `Profile` super-class.
+        """
+        if Lfwhm != None:
+            self.Lfwhm = Lfwhm
         else:
-            return self.array
+            assert kwargs.has_key("fwhm"), "No FWHM for Lorentz profile found."
+            self.Lfwhm = kwargs["fwhm"]
+
+        if rmax == -1: self.rmax= 10.*self.Lfwhm
+        else: self.rmax = rmax
+
+        self.Lfrac =  Lfrac
+
+        super(Lorentz, self).__init__(**kwargs)
+
+        if super(Lorentz, self).get_fwhm() == None:
+            super(Lorentz, self).set_fwhm(self.Lfwhm)
+
+
+    @property
+    def Lsigma_0(self):
+        return self.Lfrac\
+            /(np.pi*(1.-self.e)*np.log(1.+(2.*self.rmax/self.Lfwhm)**2))
 
 
 
-    def _draw(self, y, x):
+    def make_array(self, R, **kwargs):
         """
-        method to fill array with profile, called via np.fromfunction
+        Method that calculates the actual intensity profile of the defined
+        Lorentz-profile.
+
+        Parameters:
+        -----------
+        R : array_like
+            The array of pixel distances with respect to the center of the
+            profile.
+
+        Returns:
+        --------
+        result : array_like, same size as R
+            The normalized intensity in each pixel according to the defined
+            profile.
         """
-        u =(x-self._x_c)*np.sin(self.theta)-(y-self._y_c)*np.cos(self.theta)
-        v =(y-self._y_c)*np.sin(self.theta)+(x-self._x_c)*np.cos(self.theta)
+        return super(Lorentz, self).make_array(R, **kwargs) \
+            + self.flux*self.Lsigma_0/(R**2 + (self.Lfwhm/2.)**2)
 
-        r = np.sqrt(u**2 + (v/(1. - self.e))**2)
 
-        return np.where(r>self.maxrad,
-                        0.,
-                        self.sigma_0*np.exp(-(r**2)/(2.*(self.std**2)))
-                           )
+
+"""The combined Moffat & Gaussian Profile"""
+class GauMoff(Moffat, Gaussian):
+    """
+    Create a PSF that is a sum of a Moffat and Gaussian profile.
+    Please consult the individual classes for more information on the
+    functional forms of the profiles.
+
+    A note about the inheritance of super-classes:
+    `GauMoff` inherits first from `Moffat`, then from `Gaussian`. This means
+    that `super`-calls are delegated first to `Moffat`, then to `Gaussian`
+    and finally to `Profile` (and `object`). This assures that e.g both the
+    `Moffat.make_array`- and Gaussian.make_array`-methods are called.
+
+    """
+    def __init__(self, Gfwhm,  beta, Mfwhm, Mfrac, **kwargs):
+        """
+        Initialize an instance of the Moffat&Gaussian-class.
+
+        Parameters:
+        -----------
+        Gfwhm : float
+            The fwhm of the Gaussian profile
+        beta : float
+            The beta parameter of the Moffat profile.
+        Mfwhm : float, optional
+            The fwhm of the Moffat profile.
+        Mfrac : float, optional.
+            The fractional flux in the Moffat-profile. The fractional flux
+            in the Gaussian profile will then be 1-`Mfrac`.
+
+        All other parameters provided as `kwargs` are passed on to the call
+        of the `Profile` super-class.
+        """
+
+
+        kwargs["Gfwhm"] = Gfwhm
+        kwargs["Gfrac"] = 1.-Mfrac
+
+        kwargs["beta"]  = beta
+        kwargs["Mfwhm"] = Mfwhm
+        kwargs["Mfrac"] = Mfrac
+
+        super(GauMoff, self).__init__(**kwargs)
+
+
+
+    def make_array(self, R, **kwargs):
+        """
+        Method that calculates the actual intensity profile of the combined
+        Moffat- & Gaussian-profile.
+
+        Parameters:
+        -----------
+        R : array_like
+            The array of pixel distances with respect to the center of the
+            profile.
+
+        Returns:
+        --------
+        result : array_like, same size as R
+            The normalized intensity in each pixel according to the defined
+            profile.
+        """
+        return super(GauMoff, self).make_array(R, **kwargs)
+
+

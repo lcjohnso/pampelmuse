@@ -18,21 +18,25 @@ CHANGELOG
 2012/03/08, v0.2.1.0, some debugging wrt. polynomial fitting of parameters
 2012/03/20, v0.3.0.0, replaced lambda-functions to initialize PSF since those
                       do not work with multithreading.
+2012/06/19, v0.4.0.0, modified the code so that it is compatible with the
+                      changed definition of the PSF profiles.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.3.0.0"
+__version__ = "0.4.0.0"
 
 import logging, os
 import numpy as np, pyfits
 from PyQt4 import QtCore
 
 ## required PampelMuse-packages
-from pampelmuse.core.my_profiles import Gaussian, Moffat
+from pampelmuse.core.my_profiles import Gaussian, Moffat, Lorentz, GauMoff
 from pampelmuse.functions.step_poly_fit import StepPolyFit
 from pampelmuse.core.value_array import ValueArray
 
-PROFILES  = {"moffat": ["beta", "fwhm", "e", "theta"],
-             "gauss":  [        "fwhm", "e", "theta"]}
+PROFILES  = {"moffat":  [         "beta", "Mfwhm",          "e", "theta"],
+             "gauss":   ["Gfwhm",                           "e", "theta"],
+             "lorentz": ["Lfwhm",                           "e", "theta"],
+             "gaumoff": ["Gfwhm", "beta", "Mfwhm", "Mfrac", "e", "theta"]}
 
 
 class PSF(object):
@@ -137,6 +141,9 @@ class PSF(object):
 
     def addParameter(self, name, value, freepar=False, isfitted=False,
                      polyfit=None):
+
+        if name == "fwhm": ## adapr nwe parameter naming convention
+            name = "{0}fwhm".format(str.upper(self.profile))
 
         if not name in self.missing:
             logging.error("Cannot add parameter: '{0}' not missing.".format(\
@@ -301,7 +308,7 @@ class PSF(object):
     def Moffat(self, index, osfactor=5, osradius=2):
 
         return Moffat(beta =self.values[0,index],
-                      fwhm =self.values[1,index],
+                      Mfwhm=self.values[1,index],
                       e    =self.values[2,index],
                       theta=self.values[3,index],
                       osfactor=osfactor,
@@ -311,12 +318,34 @@ class PSF(object):
 
     def Gaussian(self, index, osfactor=5, osradius=2):
 
-        return Gaussian(fwhm =self.values[0,index],
+        return Gaussian(Gfwhm=self.values[0,index],
                         e    =self.values[1,index],
                         theta=self.values[2,index],
                         osfactor=osfactor,
                         osradius=osradius)
 
+
+
+    def Lorentz(self, index, osfactor=5, osradius=2):
+
+        return Lorentz(Lfwhm=self.values[0,index],
+                       e    =self.values[1,index],
+                       theta=self.values[2,index],
+                       osfactor=osfactor,
+                       osradius=osradius)
+
+
+
+    def GauMoff(self, index, osfactor=5, osradius=2):
+
+        return GauMoff(Gfwhm=self.values[0, index],
+                       beta =self.values[1, index],
+                       Mfwhm=self.values[2, index],
+                       Mfrac=self.values[3, index],
+                       e    =self.values[4, index],
+                       theta=self.values[5, index],
+                       osfactor=osfactor,
+                       osradius=osradius)
 
 
     def  __call__(self, index=0, osradius=2, osfactor=5):
@@ -338,8 +367,13 @@ class PSF(object):
 
         if self.psftype == "moffat": return self.Moffat(\
             index=index,osradius=osradius,osfactor=osfactor)
-        elif self.psfType == "gauss": return self.Gaussian(\
+        elif self.psftype == "lorentz": return self.Lorentz(\
             index=index,osradius=osradius,osfactor=osfactor)
+        elif self.psftype == "gauss": return self.Gaussian(\
+            index=index,osradius=osradius,osfactor=osfactor)
+        elif self.psftype == "gaumoff": return self.GauMoff(\
+            index=index,osradius=osradius,osfactor=osfactor)
+
 
 
 

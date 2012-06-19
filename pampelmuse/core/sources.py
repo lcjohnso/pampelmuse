@@ -21,9 +21,11 @@ CHANGELOG:
                               `commonSlope`-fit in method `fitIFUCoords`.
 2012/05/03, v0.2.2.0, code crashed if the `primary` component of a source had
                       `status` -1. Now such sources are excluded as well.
+2012/06/16, v0.2.3.0, bugfix that caused problems when no coordinate
+                      transformation was used.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.2.2.0"
+__version__ = "0.2.3.0"
 import logging
 import numpy as np, pyfits
 try: from PyQt4 import QtCore ## check if PyQt is available 
@@ -593,8 +595,11 @@ class Sources(CoordinateTransformation, object):
             elif self.poly.all():
                 return False
 
-        return super(Sources, self).Fit
+        elif self.verifyTrans:
+            return super(Sources, self).Fit
 
+        else:
+            return True
 
 
     def loadIFUCoords(self, data=None, ids=None, index=slice(None),free=False):
@@ -830,7 +835,7 @@ class Sources(CoordinateTransformation, object):
         polynomial fits, using hierarch-keyword `PAMPELMUSE POSITIONS POLY`
         (or keyword `ISFITTED`).
         
-        Note that in order to  save memory, the method will not actually load
+        Note that in order to save memory, the method will not actually load
         the data into memory. It will only provide the method
         `loadIFUCoordinates` with the necessary information to do so.
 
