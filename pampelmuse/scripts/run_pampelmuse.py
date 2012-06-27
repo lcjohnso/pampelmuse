@@ -30,14 +30,44 @@ v0.3.0.0 -2012/03/01 - added new script SUBTRES to subtract the contribution
                        of the (resolved) stars from a datacube.
 v0.4.0.0 -2012/03/19 - modified check of PRM-file structure so that files
                        created using INITFIT version >=0.4.0.0 pass it.
+v0.5.0.0 -2012/06/26 - added new script ADDWCS that can be used to add WCS
+                       information to the header of the IFS datacube.
+                       Also updated the help-text.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.4.0.0"
+__version__ = "0.5.0.0"
 
+
+print """
+            ,;:.    PampelMuse, version {0:17}    ,;:.    
+           (::;;)   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   (::;;)
+            `;:'    (c) {1:32}    `;:'
+""".format(__version__, __author__)
+
+
+## IMPORT REQUIRED PYTHON MODULES ##############################################
 import argparse, logging, os, re, sys
 import pyfits
 
-## required PampelMuse-packages
+## check if all dependencies are fulfilled: ####################################
+
+use_addwcs=True
+try: ## check if astLib is available
+    from astLib import astCoords
+except ImportError:
+    logging.warning("Cannot import module `astLib`.")
+    logging.warning("Script ADDWCS cannot be used.")
+    use_addwcs = False
+
+try: ## check if pyraf available
+    from pyraf.iraf import images
+except ImportError:
+    logging.error("Cannot import module `pyraf`.")
+    logging.warning("Script ADDWCS cannot be used.")
+    use_addwcs = False
+
+
+## required PampelMuse-packages ################################################
 from pampelmuse.config import xml_interact
 
 ## the PampelMuse-scripts
@@ -47,6 +77,7 @@ from pampelmuse.scripts.polyfit import polyfit
 from pampelmuse.scripts.extract import get_pixpos
 from pampelmuse.scripts.updateprm import updateprm
 from pampelmuse.scripts.subtres import subtres
+if use_addwcs: from pampelmuse.scripts.addwcs import addwcs
 
 
 CONFIGPATH = os.path.expandvars("$pampelmuse_path/config/")
@@ -90,8 +121,7 @@ class GetValuesFromFile(argparse.Action):
 
 
 
-PMparser = argparse.ArgumentParser(prog="PampelMuse",
-                                   description="""
+PMparser = argparse.ArgumentParser(prog="PampelMuse", description="""
 PampelMuse is a routine to extract stellar spectra from IFU data by usage of
 PSF fitting techniques. It is designed for the analysis of IFU observations
 of crowded-stellar fields. As the name suggests, it was originally intended
@@ -99,21 +129,15 @@ to serve  as an analysis tool for the MUSE-IFU. Yet, PampelMuse is designed
 in a generic way and should be able to analyze data coming from similar IFUs
 as well.
 """)
-PMparser.add_argument("prefix", type=str,
-                      help="""
-                            The prefix common to all FITS-files required by
-                            PampelMuse. The naming of the files should be
-                            according to the following scheme:
-                            * <prefix>.dat.fits - the datacube,
-                              required by routines INITFIT and CUBEFIT
-                            * <prefix>.err.fits - the sigma-cube,
-                              required by routines INITFIT and CUBEFIT
-                            * <prefix>.msk.fits - a bad-pixel mask (optional),
-                              used by routine CUBEFIT if provided
-                            * <prefix>.prm.fits - the parameter file of the fit,
-                              provided by INITFIT, required by CUBEFIT and
-                              POLYFIT and EXTRACT
-                            """)
+PMparser.add_argument("prefix", type=str, help="""
+The prefix common to all FITS-files required by PampelMuse. The naming of the
+files should be according to the following scheme:\n
+* PREFIX.dat.fits - the datacube, required by routines INITFIT and CUBEFIT\n
+* PREFIX.err.fits - the sigma-cube, required by routines INITFIT and CUBEFIT\n
+* PREFIX.msk.fits - a bad-pixel mask (optional), used by routine CUBEFIT if
+                    provided\n
+* PREFIX.prm.fits - the parameter file of the fit, provided by INITFIT,
+                    required by CUBEFIT, POLYFIT and EXTRACT.""")
 
 ## Note: 'fromfile' and 'fromline' share the same dest 'parameter'. However,
 ##       since they are in a 'mutually exclusive group' and their 'default'
@@ -122,15 +146,13 @@ PMparser.add_argument("prefix", type=str,
 group = PMparser.add_mutually_exclusive_group(required=False)
 group.add_argument("--fromfile", type=argparse.FileType('r'),
                    action=GetValuesFromFile, dest="parameter",
-                   default=argparse.SUPPRESS,
-                   help="""
+                   default=argparse.SUPPRESS, help="""
 Update configuration using the parameters provided in an ASCII-file: One
 parameter per line, name and value separated by '=', lines starting with '#'
 are ignored""")
 group.add_argument("--fromline", type=str, nargs=1,
                    action=GetValuesFromLine, dest="parameter",
-                   default=argparse.SUPPRESS,
-                   help="""
+                   default=argparse.SUPPRESS, help="""
 Update configuration using the parameters provided in the command line,
 following '--fromline'-string. Again, name and value must be separated
 by '=' (no whitespace!). Individual parameters  must be comma-separated.""")
@@ -138,8 +160,7 @@ by '=' (no whitespace!). Individual parameters  must be comma-separated.""")
 PMsubparsers = PMparser.add_subparsers(title='Available routines')
 
 
-CFparser = PMsubparsers.add_parser("CUBEFIT",
-                                   help="""
+CFparser = PMsubparsers.add_parser("CUBEFIT", help="""
 The routine is used for the actual PSF-fitting process. It must be provided
 with apropriate input data (created e.g using INITFIT). By default, all the
 parameter that have an impact on the fitting process are read from the
@@ -149,8 +170,7 @@ the configuration on the fly. Check the option-list for details.
 CFparser.set_defaults(func=cubefit)
 
 
-IFparser = PMsubparsers.add_parser("INITFIT",
-                                   help="""
+IFparser = PMsubparsers.add_parser("INITFIT", help="""
 The routine is used to prepare the datacube for the PSF fitting process.
 It takes as input the datacube and an ASCII-table containing the results
 from the crowded-field photometry. The different processing steps are
@@ -159,17 +179,15 @@ b) Aperture spectrophotometry of the previously identified sources.
 c) Generation of an input catalogue containing intitial guessse of the
    spectra and the positions of the stars.
 """)
-IFparser.add_argument("sourcelist", type=str,
-                      help="""
-ASCII-file containing the results from crowded-field  photometry. Lines
-starting with '#' are considered comments. Unless otherwise specified
-(using the CFPCOLS-parameter of the configuration), the routine assumes
-the following structure: <ID>  <XPOS>  <YPOS>  <MAG> ... (per line)""")
+IFparser.add_argument("sourcelist", type=str, help="""
+ASCII-file containing the results from crowded-field photometry. Lines
+starting with '#' are considered comments. The first columns should contain
+the names of the columns. The routine will look for columns named `id`, `x`,
+`y` and <PASSBAND> as specified in the configuration.""")
 IFparser.set_defaults(func=initfit)
 
 
-PFparser = PMsubparsers.add_parser("POLYFIT",
-                                   help="""
+PFparser = PMsubparsers.add_parser("POLYFIT", help="""
 Calling this routine will display a GUI that allows for a visual inspection
 of the fit-results (in the <prefix>.prm.fits-file). The GUI can also be used
 to fit polynomials to the parameters of the PSF and/or source transformation
@@ -180,13 +198,12 @@ use the polynomial fits.
 PFparser.set_defaults(func=polyfit)
 
 
-EXparser = PMsubparsers.add_parser("EXTRACT",
-                                   help="""
+EXparser = PMsubparsers.add_parser("EXTRACT", help="""
 Routine calculates the pixel positions of the sources that have been extracted
 from a datacube. The list of extracted sources is stored as an ASCII-file
 under >prefix>.src.dat.""")
 EXparser.add_argument("--addcoords", type=str, help="""
-A simple ASCII-file that contains the ID and new x and y posisions for at
+A simple ASCII-file that contains the ID and new x and y positions for at
 least 4 from the source catalog. If such a file is provided, the routine
 will determine the coordinate transformation into the new coordiante system
 and also store the list of sources with the additional coordinates in a
@@ -194,26 +211,33 @@ separate ASCII-file named <prefix>.add.dat.""")
 EXparser.set_defaults(func=get_pixpos)
 
 
-XFparser = PMsubparsers.add_parser("UPDATEPRM",
-                                  help="""
+XFparser = PMsubparsers.add_parser("UPDATEPRM", help="""
 The routine can be used to change the structure of a prm-file created by a 
 PampelMuse-version < 0.2.0.0 so that the file is compliant with any newer
 PampelMuse-version""")
 XFparser.set_defaults(func=updateprm)
 
-SRparser = PMsubparsers.add_parser("SUBTRES",
-                                  help="""
+
+SRparser = PMsubparsers.add_parser("SUBTRES", help="""
 The routine is designed to subtract the contribution of the (resolved) stars
 from a datacube. To this aim, it uses a PampelMuse PRM-file along with the
 corresponding datacube.""")
 SRparser.set_defaults(func=subtres)
 
-
-print """
-            ,;:.    PampelMuse, version {0:17}    ,;:.    
-           (::;;)   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   (::;;)
-            `;:'    (c) {1:32}    `;:'
-""".format(__version__, __author__)
+if use_addwcs:
+    AWparser = PMsubparsers.add_parser("ADDWCS", help="""
+The routine can be used to add WCS information to the header of the IFS data
+after sources have been identified. To this aim, besides the data a catalogue
+must be present that contains the IDs of the sources and columns `RA` and
+`Dec`.\n
+Note that this routine requires `pyraf` and `astLib` to be available on the
+system. Otherwise it won't work.""")
+    AWparser.add_argument("sourcelist", type=str, help="""
+ASCII-file containing the results from crowded-field photometry. Lines
+starting with '#' are considered comments. The first columns should contain
+the names of the columns. The routine will look for columns named `id`, `RA`
+and `Dec`.""")
+    AWparser.set_defaults(func=addwcs)
 
 
 args = PMparser.parse_args()
