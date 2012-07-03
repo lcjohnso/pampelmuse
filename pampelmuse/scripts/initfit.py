@@ -60,9 +60,11 @@ CHANGELOG:
                       profile classes. Now, if the FWHM is determined from the
                       data, the `Profile-class property is updated instead of
                       the respective PSF parameter.
+2012/07/03, v0.6.0.1, modified logging so that a warning is triggered if two
+                      sources have basically the same coordinates.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.6.0.0"
+__version__ = "0.6.0.1"
 import datetime, os, sys, logging
 import numpy as np, pyfits
 from scipy import interpolate, sparse
@@ -290,7 +292,7 @@ def initfit(arguments):
                          .format(valid.sum()))
 ##         fwhm = psf.values[psf.parameters.index("fwhm"),:].mean(axis=-1)
     else:
-        psf.fwhm = 0.5*(identified['fwhm_x'][valid].mean() \
+        prof.fwhm = 0.5*(identified['fwhm_x'][valid].mean() \
                             + identified['fwhm_y'][valid].mean())
         logging.info("Estimated Seeing FWHM: {0:.1f}pixel".format(fwhm))
 ##         psf.values[psf.parameters.index("fwhm"),:] =  fwhm
@@ -325,14 +327,19 @@ def initfit(arguments):
 
     ## distance to next brighter source
     distToBrighter, brighterID = sources.distToBrighter()
+    if (distToBrighter < 1e-5).any:
+        for i in (distToBrighter < 1e-5).nonzero()[0]:
+            logging.warning("Source #{0} might be double.".format(\
+                    sources.ID[i]))
+
 
     ## signal-to-noise
     signalToNoise = sources.signalToNoise(psf=prof, magZ=magZ, sigma=sigmaIma,
                                           r=psfRad)
     ##  modify S/N of sources close to brighter neighbor:
-    close = distToBrighter<psf.fwhm
-
-    signalToNoise[close] *= (1.+0.9*np.log10(distToBrighter[close]/psf.fwhm))
+    close = distToBrighter<prof.fwhm
+    
+    signalToNoise[close] *= (1.+0.9*np.log10(distToBrighter[close]/prof.fwhm))
 
     if not smallifu:
         shoulderDrop = sources.shoulderDrop(r=psfRad)
@@ -350,7 +357,7 @@ def initfit(arguments):
     while True:
         mcut += 0.1
         if (magPS[edgeDist>0]<mcut).sum() > confDens*dataIma.size \
-                /(psf.fwhm*psf.fwhm):
+                /(prof.fwhm*prof.fwhm):
             break
         if not (magPS[edgeDist>0]>mcut).any():
             logging.info("No stars below m_{0}={1:.1f} detected.".format(\
@@ -377,7 +384,7 @@ def initfit(arguments):
             primary[i] = sources.ID[i]
         elif sources.mag[i] <= reslim:
             if signalToNoise[i] > snrcut:
-                if distToBrighter[i] < binrad*psf.fwhm:
+                if distToBrighter[i] < binrad*prof.fwhm:
                     status[i]  = 1
                     primary[i] = brighterID[i]
                 else:
@@ -386,7 +393,7 @@ def initfit(arguments):
             else:
                 if edgeDist[i] < 0:
                     continue
-                if distToBrighter[i] < 2*binrad*psf.fwhm:
+                if distToBrighter[i] < 2*binrad*prof.fwhm:
                     status[i]  = 1
                     primary[i] = brighterID[i]
                 else:
@@ -401,7 +408,7 @@ def initfit(arguments):
                                      int(status[i])))
             
         elif useunres:
-            if sources.mag[i]<=unreslim and edgeDist[i]>-psf.fwhm:
+            if sources.mag[i]<=unreslim and edgeDist[i]>-prof.fwhm:
                 status[i]  = 0
                 primary[i] = -2
 
@@ -430,7 +437,7 @@ def initfit(arguments):
             
             if sources.status[i] == 2 \
                     and sources.mag[i] <= (reslim-3) \
-                    and edgeDist[i] > psf.fwhm \
+                    and edgeDist[i] > prof.fwhm \
                     and shoulderDrop[i] < apernois:
 
                 sources.status[i] = 3

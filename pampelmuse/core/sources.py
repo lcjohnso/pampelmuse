@@ -23,9 +23,12 @@ CHANGELOG:
                       `status` -1. Now such sources are excluded as well.
 2012/06/16, v0.2.3.0, bugfix that caused problems when no coordinate
                       transformation was used.
+2012/06/12, v0.2.4.0, bugfix: previous update replaced an `if`-statement by
+                              `elif` in property `Fit`. This resulted in a
+                              fixed coord. transformation even if `posvar`>0.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.2.3.0"
+__version__ = "0.2.4.0"
 import logging
 import numpy as np, pyfits
 try: from PyQt4 import QtCore ## check if PyQt is available 
@@ -589,13 +592,12 @@ class Sources(CoordinateTransformation, object):
         parameters. 
         """
         if "poly" in self.__dict__ and "free" in self.__dict__:
-            
             if self.free.any() and not self.poly.all():
                 return True
             elif self.poly.all():
                 return False
 
-        elif self.verifyTrans:
+        if self.verifyTrans:
             return super(Sources, self).Fit
 
         else:

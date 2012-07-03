@@ -21,9 +21,12 @@ CHANGELOG
 2012/04/13, v0.3.0.3, added Keyborad-shortcuts to "Plot"- and "Fit"-buttons.
 2012/05/14, v0.3.1.3, bugfix: previous versions crashed if the results where
                               saved and no source coordinates had been fitted.
+2012/07/03, v0.3.2.3, bugfix: previous versions did not properly grab the names
+                              of the PSF and coord. trans. parameters (did not
+                              use `provideParNames` method).
 """
 __author__  = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.3.1.3"
+__version__ = "0.3.2.3"
 import datetime, logging, sys
 import numpy as np, pyfits
 from PyQt4 import QtCore, QtGui
@@ -361,15 +364,13 @@ class InspectFitData(QtGui.QMainWindow):
         self.curHDU  = self.hduMap[str(name)]
         self.curProp = str(name)
 
-        self.rowSelect.clear()        
-        if name in ["Coord. Trans.", "PSF"]:
-            self.rowSelect.addItems(\
-                self.HDUList[self.curHDU].data.field("name"))
-        elif name == "Spectra":
-            self.rowSelect.addItems(self.sourceList["Spectra"])
-        elif name in ["x Positions", "y Positions"]:
+        self.rowSelect.clear()  
+
+        if name in ["x Positions", "y Positions"]:
             self.rowSelect.addItems(self.sourceList["Positions"])
-        
+        else:
+            self.rowSelect.addItems(self.sourceList[str(name)])
+              
 
 
     def _updatePlotData(self):
@@ -390,13 +391,13 @@ class InspectFitData(QtGui.QMainWindow):
                 = self.sources.getIFUCoords(coord="y", ID=int(self.curRowName))
             
         elif self.curProp == "PSF":
-            i = self.psf.parameters.index(self.curRowName)
+            i = self.psf.parameters.index(str(self.curRowName))
             self.yData = self.psf.data[0,i]
             if self.psf.poly[i]: self.yFit = self.psf.data[1,i]
             else: self.yFit = None
 
         elif self.curProp == "Coord. Trans.":
-            i = self.sources.parameters.index(self.curRowName)
+            i = self.sources.parameters.index(str(self.curRowName))
             self.yData = self.sources.ctData[0,i]
             if self.sources.ctPoly[i]: self.yFit = self.sources.ctData[1,i]
             else: self.yFit = None

@@ -20,6 +20,8 @@ CHANGELOG
                       do not work with multithreading.
 2012/06/19, v0.4.0.0, modified the code so that it is compatible with the
                       changed definition of the PSF profiles.
+2012/07/03, v0.4.1.0, bugfix: renaming of old `fwhm`-parameter did not work
+                              in previous versions.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
 __version__ = "0.4.0.0"
@@ -142,8 +144,8 @@ class PSF(object):
     def addParameter(self, name, value, freepar=False, isfitted=False,
                      polyfit=None):
 
-        if name == "fwhm": ## adapr nwe parameter naming convention
-            name = "{0}fwhm".format(str.upper(self.profile))
+        if name == "fwhm": ## adapt new parameter naming convention
+            name = "{0}fwhm".format(str.upper(self.psftype[0]))
 
         if not name in self.missing:
             logging.error("Cannot add parameter: '{0}' not missing.".format(\
