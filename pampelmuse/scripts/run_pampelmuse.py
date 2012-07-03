@@ -33,9 +33,12 @@ v0.4.0.0 -2012/03/19 - modified check of PRM-file structure so that files
 v0.5.0.0 -2012/06/26 - added new script ADDWCS that can be used to add WCS
                        information to the header of the IFS datacube.
                        Also updated the help-text.
+v0.5.0.1 -2012/07/03 - slighly modified logging-initialization because calling
+                       `logging.basicConfig` has no effect after a log-message
+                       has been triggered.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.5.0.0"
+__version__ = "0.5.0.1"
 
 
 print """
@@ -48,6 +51,10 @@ print """
 ## IMPORT REQUIRED PYTHON MODULES ##############################################
 import argparse, logging, os, re, sys
 import pyfits
+
+## initialize logging
+logging.basicConfig(format="%(asctime)s[%(levelname)-8s]: %(message)s",
+                    datefmt='%m/%d/%Y %H:%M:%S', level=logging.WARNING)
 
 ## check if all dependencies are fulfilled: ####################################
 
@@ -264,15 +271,14 @@ if "parameter" in args:
 
 args.config = cfg_interface.get_all()  ## read configuration
 
-## set up logging:
+
+## set up log level:
 LOGLEVELS   = {0:logging.CRITICAL,
                1:logging.ERROR,
                2:logging.WARNING,
                3:logging.INFO,
                4:logging.DEBUG}
-logging.basicConfig(format="%(asctime)s[%(levelname)-8s]: %(message)s",
-                    datefmt='%m/%d/%Y %H:%M:%S',
-                    level=LOGLEVELS[args.config["VERBOSE"]])
+logging.getLogger().setLevel(LOGLEVELS[args.config["VERBOSE"]])
     
 
 ## check whether provided prm-file can be used with current PampelMuse-version.
