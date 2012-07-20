@@ -70,9 +70,11 @@ v0.4.1.0, 2012/03/17, fixed major bug with regard to preparation of sparse
                       columns.
 v0.4.1.1, 2012/07/19, added option to iteratively improve the solution also
                       for individual layers.
+v0.4.2.1, 2012/07/19, changed the convergence criterion for the individual
+                      layers to use the median instead of the max. flux change.
 """
 __author__  = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.4.1.1"
+__version__ = "0.4.2.1"
 
 import logging, os, sys, time
 import numpy as np, pyfits
@@ -363,7 +365,7 @@ class StarFit(object):
             self.sources.data[:,self.jj] += bestFit[0]
 
             ## determine relative change in fluxes
-            delta_flux = bestFit[0]/self.sources.data[:,self.jj]
+            delta_flux = (bestFit[0]/self.sources.data[:,self.jj])
 
             ## some logging
             logging.debug("[@{0}] Chi**2 of current fit: {1:.1f}".format(\
@@ -371,7 +373,7 @@ class StarFit(object):
             logging.debug("[@{0}] Relative changes in fluxes: {1}".format(\
                     self.jj, delta_flux))
 
-            if abs(np.median(delta_flux)) < 1e-3:
+            if np.median(abs(delta_flux)) < 1e-3:
                 break
 
             ## fit PSF/positions if requested            
