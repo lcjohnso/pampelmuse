@@ -371,7 +371,7 @@ class StarFit(object):
             logging.debug("[@{0}] Relative changes in fluxes: {1}".format(\
                     self.jj, delta_flux))
 
-            if abs(delta_flux.max()) < 1e-3:
+            if abs(np.median(delta_flux)) < 1e-3:
                 break
 
             ## fit PSF/positions if requested            
