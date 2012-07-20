@@ -24,6 +24,8 @@ CHANGELOG
                       class; the` Positions'-class was deleted; some
                       documentation has been added.
 2012/03/28, v0.4.1.0, some debugging in `calcTrans`-method.
+2012/07/15, no new version or any changes, just thought about some ideas to
+            update the fit of the source postions.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
 __version__ = "0.4.1.0"
@@ -119,7 +121,7 @@ class CoordinateTransformation(object):
     parameters = ["A", "B", "C", "D"]
 
 
-    def __init__(self):
+    def __init__(self, fixed_scale=False):
         """
         Intialize an instance of the `CoordinateTransformation`-class. The
         __init__-method does not take any input arguments, it just defines
@@ -134,6 +136,20 @@ class CoordinateTransformation(object):
                               ## convenient access to ctData.
         self.npars    = len(self.parameters) ## no. of parameters
  
+##         self._fixed_scale = fixed_scale
+## 
+##     
+##     fixed_scale = property(set_fixed, get_fixed,
+##                            "Flag indicating whether `A' and `B' are fixed")
+## 
+##     def get_fixed(self):
+##         return self._fixed_scale
+## 
+##     def set_fixed(self, value):
+##         if not value in [True, False]:
+##             logging.error("`Fixed scale'-parameter must be boolean.")
+##         else:
+##             self._fixed_scale = value
 
 
     def makeNewTrans(self, **kwargs):
@@ -259,6 +275,7 @@ class CoordinateTransformation(object):
 
         for i in xrange(self.npars):
             self.addParameter(name=self.parameters[i], value=coordTrans[i])
+
 
 
         ## Only logging from this line

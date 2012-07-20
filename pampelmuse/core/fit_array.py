@@ -47,7 +47,7 @@ v0.2.0.0, 2012/01/30, modified code so that it can handle the updated
                       positions are handled. Also started adding possibility
                       to fit individual source position. This is not working
                       yet.
-v0.2.0.1, 2012/02/01, not usign the `fitRad'-variable anymore since in certain
+v0.2.0.1, 2012/02/01, not using the `fitRad'-variable anymore since in certain
                       situation is caused an unstable behavior of the routine.
                       The `psfRad'-variable is used for all fits instead. 
 v0.2.0.2, 2012/02/13, added parameter `jumpStart' to allow starting a fit
@@ -68,9 +68,11 @@ v0.4.0.0, 2012/03/16, completed implementation of the dedicated PampelMuse-
 v0.4.1.0, 2012/03/17, fixed major bug with regard to preparation of sparse
                       matrix, in some cases sources were put into the wrong
                       columns.
+v0.4.1.1, 2012/07/19, added option to iteratively improve the solution also
+                      for individual layers.
 """
 __author__  = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.4.1.0"
+__version__ = "0.4.1.1"
 
 import logging, os, sys, time
 import numpy as np, pyfits
@@ -209,7 +211,7 @@ class StarFit(object):
         
 
     def __call__(self, fitRad=None, Ntrack=10, lastFitIndex=None,
-                 asSmallIFU=False, ncpu=1, clip=5., **kwargs):
+                 asSmallIFU=False, ncpu=1, maxiter=20, clip=5., **kwargs):
         """
         Execute (i.e start or continue) the fitting process. For each image of
         the datacube, the following steps are performed:
@@ -238,6 +240,8 @@ class StarFit(object):
             Flag indicating whether the data will be handled as comming from
             a small or a large IFU. This parameter controls how the PSF and/
             or positions are fitted.
+        maxiter : int, optional
+            The maximum number of iterations per image. The default is 20.
         clip : float, optional
             All pixels whose values devite by more than `clip' times SIGMA are
             masked. SIGMA is the standard deviation of the residuals between
@@ -259,6 +263,8 @@ class StarFit(object):
             self.i = lastFitIndex
 
         self.Ntrack         = Ntrack
+        self.maxiter        = maxiter
+
         self.lastFittedImas = []
 
         ## recover last processed images from previous fit (if any)
@@ -338,54 +344,55 @@ class StarFit(object):
         else:
             self.mask = np.ones(self.data.shape, dtype='bool')
 
-        ## fit PSF/positions if requested
-        if self.psf.Fit or self.sources.Fit:
 
-            ## create model matrix
+        n_iter = 0 ##  Number of iterations
+            
+        while True: ## Start iteration
+            
+            ## create model matrix & update noise values
             self.Apsf = self.fillMatrix(radius=self.psfRad)
-            ## create fit matrix
-##             self.Afit = self.fillMatrix(radius=self.fitRad)
-
-            ## initial fit of fluxes
-            bestFit = lsqr(self.Apsf, self.current)
-            self.sources.data[:,self.jj] += bestFit[0]
-
-            ## some logging
-            logging.debug("[@{0}] Chi**2 of initial fit: {1:.1f}".format(\
-                    self.jj, bestFit[4]**2))
-            logging.debug("[@{0}] Relative changes in fluxes: {1}".format(\
-                    self.jj, bestFit[0]/self.sources.data[:,self.jj]))
-
-
-            ## PSF/positions fit
-            if self.asSmallIFU:
-                self.fitPSF_smallIFU()
-            else:
-                self.fitPSF_largeIFU()
- 
-        ## (Final) fit of fluxes:
-        ## (re)calculate matrices 
-        self.Apsf = self.fillMatrix(radius=self.psfRad)
-##         self.Afit = self.fillMatrix(radius=self.fitRad)
-
-        ## fit
-        bestFit = lsqr(self.Apsf, self.current)
-        self.sources.data[:,self.jj] += bestFit[0]
+            self.sources.sigma[...,self.jj] = \
+                1./np.sqrt(self.Apsf.multiply(self.Apsf).sum(axis=0))
 
 ##      Test whether not subtracting sources before fit makes a difference
 ##         bestFit = lsqr(self.Apsf, (self.data/self.sigma)[self.mask])
 ##         self.sources.data[:,self.jj] = bestFit[0]
+            
+            ## initial fit of fluxes
+            bestFit = lsqr(self.Apsf, self.current)
+            self.sources.data[:,self.jj] += bestFit[0]
 
+            ## determine relative change in fluxes
+            delta_flux = bestFit[0]/self.sources.data[:,self.jj]
 
-        ##  some logging
-        logging.debug("[@{0}] Chi**2 of final fit: {1:.1f}".format(\
-                self.jj, bestFit[4]**2))
-        logging.debug("[@{0}] Relative changes in fluxes: {1}".format(\
-                self.jj, bestFit[0]/self.sources.data[:,self.jj]))
+            ## some logging
+            logging.debug("[@{0}] Chi**2 of current fit: {1:.1f}".format(\
+                    self.jj, bestFit[4]**2))
+            logging.debug("[@{0}] Relative changes in fluxes: {1}".format(\
+                    self.jj, delta_flux))
 
-        ## get uncertainties
-        self.sources.sigma[..., self.jj] = \
-            1./np.sqrt(self.Apsf.multiply(self.Apsf).sum(axis=0))
+            if abs(delta_flux.max()) < 1e-3:
+                break
+
+            ## fit PSF/positions if requested            
+            if self.psf.Fit or self.sources.Fit:
+            
+                if n_iter > self.maxiter:
+                    logging.warning("[@{0}] Max. number of iterations reached."\
+                                        .format(self.jj))
+                    break
+
+                logging.info("[@{0}] Iteration {1} (of max. {2})".format(\
+                        self.jj, n_iter, self.maxiter))
+                 
+                ## PSF/positions fit
+                if self.asSmallIFU: self.fitPSF_smallIFU()
+                else: self.fitPSF_largeIFU()
+
+                n_iter += 1
+
+            else:
+                break
            
         ## update inventory of last fits
         self.lastFittedImas.append(self.jj)
