@@ -77,7 +77,7 @@ v0.4.1.3, 2012/07/23, modified counting of iterations so that they start from
 v0.4.1.4, 2012/07/24, included handling of missing PyQt4-library.
 """
 __author__  = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.4.2.1"
+__version__ = "0.4.1.4"
 
 import logging, os, sys, time
 import numpy as np, pyfits
@@ -385,7 +385,7 @@ class StarFit(object):
             self.sources.data[:,self.jj] += bestFit[0]
 
             ## determine relative change in fluxes
-            delta_flux = (bestFit[0]/self.sources.data[:,self.jj])
+            delta_flux = bestFit[0]/self.sources.data[:,self.jj]
 
             ## some logging
             logging.debug("[@{0}] Chi**2 of current fit: {1:.1f}".format(\
@@ -393,7 +393,7 @@ class StarFit(object):
             logging.debug("[@{0}] Relative changes in fluxes: {1}".format(\
                     self.jj, delta_flux))
 
-            if np.median(abs(delta_flux)) < 1e-3:
+            if abs(np.median(delta_flux)) < 1e-3:
                 break
 
             ## fit PSF/positions if requested            
