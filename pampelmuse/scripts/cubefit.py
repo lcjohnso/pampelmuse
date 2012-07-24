@@ -35,17 +35,22 @@ CHANGELOG
                       SUBTRES of PampelMuse can be used to do that.
 2012/03/23, v0.4.0.0, coompleted implementation of `Sources`-class. Added
                       parameters for parallelization and disabling Qt-usage.
+2012/07/24, v0.5.0.0, adapted the code so that it now runs without issues if
+                      PyQt4 and/or matplotlib ar not available.
 """
-__author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.4.0.0"
+__author__  = "Sebastian Kamann (skamann@aip.de)"
+__version__ = "0.5.0.0"
 import datetime, logging, os, sys
 import numpy as np, pyfits
-## PyQt4 loaded, only later on request
 
 ## required PampelMuse-packages
-from pampelmuse.core.fit_array import StarFit, QStarFit
+from pampelmuse.core.fit_array import StarFit
 from pampelmuse.core.sources import Sources
 from pampelmuse.core.psf import PSF
+
+## IMPORTANT:
+## PyQt4 and QStarFit are only load later if requested and dependencies
+## fulfilled
 
 
 def cubefit(arguments):
@@ -164,6 +169,7 @@ def cubefit(arguments):
 
     if useQt:
         from PyQt4 import QtCore, QtGui
+        from pampelmuse.core.qfit_array import QStarFit
         app    = QtGui.QApplication(sys.argv)
         fitter = QStarFit(dataFits=dataFits[0], sigmaFits=sigmaFits[0],
                           maskFits=maskFits[0])

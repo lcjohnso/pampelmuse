@@ -37,9 +37,11 @@ v0.5.0.1 -2012/07/03 - slighly modified logging-initialization because calling
                        `logging.basicConfig` has no effect after a log-message
                        has been triggered.
 v0.5.0.2 -2012/07/24 - added handling for cases where PyQt4 is not available.
+v0.5.1.2 -2012/07/24 - some bugfixing wrt availability checks. Now we also
+                       chek for matplotlib support.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.5.0.2"
+__version__ = "0.5.1.2"
 
 
 print """
@@ -74,21 +76,30 @@ except ImportError:
     logging.warning("Script ADDWCS cannot be used.")
     use_addwcs = False
 
+## check whether dependencies for graphical backends are fufilled
+graphics = True
 try:
     from PyQt4 import QtCore, QtGui
-    use_qt = True
 except ImportError:
     logging.error("Cannot load `PyQt4`-moodules")
+    graphics = False
+try:
+    import matplotlib.pyplot
+except ImportError:
+    logging.error("Cannot load `matplotlib`-moodules")
+    graphics = False
+if not graphics:
     logging.warning("Scripts INITFIT and POLYFIT cannot be used.")
-    use_qt = False
+
+
 
 ## required PampelMuse-packages ################################################
 from pampelmuse.config import xml_interact
 
 ## the PampelMuse-scripts
-if use_qt: from pampelmuse.scripts.initfit import initfit
+if graphics: from pampelmuse.scripts.initfit import initfit
 from pampelmuse.scripts.cubefit import cubefit
-if use_qt: from pampelmuse.scripts.polyfit import polyfit
+if graphics: from pampelmuse.scripts.polyfit import polyfit
 from pampelmuse.scripts.extract import get_pixpos
 from pampelmuse.scripts.updateprm import updateprm
 from pampelmuse.scripts.subtres import subtres
@@ -184,7 +195,7 @@ the configuration on the fly. Check the option-list for details.
 """)
 CFparser.set_defaults(func=cubefit)
 
-if use_qt:
+if graphics:
     IFparser = PMsubparsers.add_parser("INITFIT", help="""
 The routine is used to prepare the datacube for the PSF fitting process.
 It takes as input the datacube and an ASCII-table containing the results
@@ -201,7 +212,7 @@ the names of the columns. The routine will look for columns named `id`, `x`,
 `y` and <PASSBAND> as specified in the configuration.""")
     IFparser.set_defaults(func=initfit)
 
-if use_qt:
+if graphics:
     PFparser = PMsubparsers.add_parser("POLYFIT", help="""
 Calling this routine will display a GUI that allows for a visual inspection
 of the fit-results (in the <prefix>.prm.fits-file). The GUI can also be used
@@ -258,8 +269,8 @@ and `Dec`.""")
 args = PMparser.parse_args()
 
 ##  make sure PyQt4-dependencies are handled properly:
-if not use_qt:
-    args.parameters["USEQT"] = False
+if not graphics:
+    args.parameter["USEQT"] = "0"
 
 ## open configuration file, update if necessary
 cfg_interface = xml_interact.ModifyConfig("{0}PMparams.xml".format(CONFIGPATH),

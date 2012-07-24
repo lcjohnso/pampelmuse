@@ -75,9 +75,17 @@ v0.4.1.2, 2012/07/19, changed the convergence criterion for the individual
 v0.4.1.3, 2012/07/23, modified counting of iterations so that they start from
                       one instead of zero.
 v0.4.1.4, 2012/07/24, included handling of missing PyQt4-library.
+v0.5.0.0, 2012/07/24, moved `QStarFit` into a separate file because otherwise
+                      the class-dependencies were always checked (even if only
+                      `StarFit` was loaded) and the code crashed if matplotlib
+                      and/or PyQt4 were missing.
+                      Also fixed a bug in the teration scheme on individual
+                      layers: Earlier the absolute value of the median flux
+                      changes was used instead of the median of the absolute
+                      flux changes.
 """
 __author__  = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.4.1.4"
+__version__ = "0.5.0.0"
 
 import logging, os, sys, time
 import numpy as np, pyfits
@@ -85,16 +93,6 @@ from scipy.sparse.linalg import lsqr
 from scipy import sparse, optimize
 from multiprocessing import cpu_count
 from multiprocessing import Pool
-
-try:
-    from PyQt4 import QtCore, QtGui
-except ImportError:
-    logging.warning("`PyQt4`-dependecies are not fulfilled.")
-
-##  required PampelMuse-routines
-from pampelmuse.graphics.fitting_gui import FittingGui
-## No need to load `Sources` and `PSF`-classes since instances of them are
-## provided to the respective methods of `StarFit`.
 
 
 
@@ -393,7 +391,7 @@ class StarFit(object):
             logging.debug("[@{0}] Relative changes in fluxes: {1}".format(\
                     self.jj, delta_flux))
 
-            if abs(np.median(delta_flux)) < 1e-3:
+            if np.median(abs(delta_flux)) < 1e-3:
                 break
 
             ## fit PSF/positions if requested            
@@ -938,111 +936,3 @@ class StarFit(object):
 
 
 
-class QStarFit(StarFit, FittingGui):
-
-
-    def __init__(self, **kwargs):
-
-        super(QStarFit, self).__init__(**kwargs)
-
-        self.BUSY     = False ## possible states of the fitting loop 
-        self.FINISHED = False ## not defined in FittingGui-class
-
-
-
-    def __call__(self, jumpStart=False, **kwargs):
-
-        super(QStarFit, self).__call__(**kwargs)
-
-        ## start GUI that controls fitting process
-        super(QStarFit, self).show()
-
-        if jumpStart:
-            super(QStarFit, self).startIt()
-
-
-
-    def timeout(self):
-        """
-        Method is called every time the `FittingGui`-instance encounters a
-        `timeout`. Depending on the current status of the fitting routine, 
-        the method calls the appropriate methods to analyze it.
-        """
-        if not self.STARTED:
-            return
-
-        if self.BUSY:
-            return
-
-        if self.ABORTED:
-            logging.warning("Fit stopped on user request.")
-            self.timer.stop()
-            self.close()
-    
-        if self.PAUSED:
-            self.sBar.showMessage("PAUSED")
-            return
-
-        self.jj = (self.specPix>>1) - 1 - int(self.i/2) \
-            + self.i*np.mod(self.i, 2) + np.mod(self.specPix, 2)
-        ## jj is a counter that starts at the central spectral pixel
-        ## and proceeds simultaneoulsy to the red and blue end.
-
-        if self.i == self.specPix: ## if data-cube is entirely analysed
-            self.timer.stop()
-            self.save = True
-            self.close()
-        else: ## update information in GUI
-            self.prefixString = "[{0:0{1}d}/{2}]".format(\
-                self.i, int(np.log10(self.specPix))+1, self.specPix)
-            self.sBar.showMessage("{0} Analyzing slice #{1}".format(\
-                    self.prefixString, self.jj))
-
-            self.iterFitImage()
-
-            self.i += 1
-
-
-
-    def iterFitImage(self):
-        """
-        The method is called for every slice of the datacube by the `timeout`-
-        method. It is basically a wrapper that calls all the necessary
-        routines required to analyze an individual slice from the datacube.
-        It is also used to load the data section from the HDUs that is
-        currently analysed, update the information in the GUI and calculate
-        the uncertainties associated with the fluces once the analysis is
-        completed.
-        """
-
-        ## change state of routine to indicate a fit is carried out
-        self.BUSY = True
-
-        self.sBar.showMessage("{0} Fitting fluxes".format(self.prefixString))
-
-        super(QStarFit, self).iterFitImage()
-
-        ## plot image that has been fitted
-        self.dataCanvas.addImage(self.data.reshape(self.spatShape))
-
-        ## create 2dim. residuals for plotting
-        if self.hasMask:
-            resi1d = np.zeros((self.spatPix,), dtype='float32')
-            resi1d[self.pixMap>-1] = self.current
-            self.resi2d = (resi1d*self.sigma).reshape(self.spatShape)
-        else:
-            self.resi2d = (self.current*self.sigma).reshape(self.spatShape)
-            
-        self.resiCanvas.addImage(self.resi2d)
-
-        self.pBar.setValue(100.*float(self.i+1)/self.specPix)
-
-        self.BUSY = False ## change status to indicste fit is completed
-
-
-###############################################################################
-##             self.sBar.showMessage(\
-##                 "{0} Fitting PSF to Source #{1} ({2}/{3})".format(\
-##                     self.prefixString, self.sources.ID[i], j+1,
-##                     len(self.sources.psfIndices)))
-##             QtGui.QApplication.processEvents()
