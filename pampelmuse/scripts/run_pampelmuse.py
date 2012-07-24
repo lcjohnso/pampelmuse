@@ -36,9 +36,10 @@ v0.5.0.0 -2012/06/26 - added new script ADDWCS that can be used to add WCS
 v0.5.0.1 -2012/07/03 - slighly modified logging-initialization because calling
                        `logging.basicConfig` has no effect after a log-message
                        has been triggered.
+v0.5.0.2 -2012/07/24 - added handling for cases where PyQt4 is not available.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.5.0.1"
+__version__ = "0.5.0.2"
 
 
 print """
@@ -73,14 +74,21 @@ except ImportError:
     logging.warning("Script ADDWCS cannot be used.")
     use_addwcs = False
 
+try:
+    from PyQt4 import QtCore, QtGui
+    use_qt = True
+except ImportError:
+    logging.error("Cannot load `PyQt4`-moodules")
+    logging.warning("Scripts INITFIT and POLYFIT cannot be used.")
+    use_qt = False
 
 ## required PampelMuse-packages ################################################
 from pampelmuse.config import xml_interact
 
 ## the PampelMuse-scripts
-from pampelmuse.scripts.initfit import initfit
+if use_qt: from pampelmuse.scripts.initfit import initfit
 from pampelmuse.scripts.cubefit import cubefit
-from pampelmuse.scripts.polyfit import polyfit
+if use_qt: from pampelmuse.scripts.polyfit import polyfit
 from pampelmuse.scripts.extract import get_pixpos
 from pampelmuse.scripts.updateprm import updateprm
 from pampelmuse.scripts.subtres import subtres
@@ -103,7 +111,7 @@ class GetValuesFromLine(argparse.Action):
                 raise IOError, "Bad parameter definition in line: {0}"\
                         .format(val)
             name, value = val.split("=")
-            outdict[name] = value
+            outdict[name.upper()] = value
         setattr(namespace, self.dest, outdict)
 
 
@@ -123,7 +131,7 @@ class GetValuesFromFile(argparse.Action):
                         raise IOError, "Bad parameter definition in file '{0}'"\
                             .format(values.name)+": {0}".format(line)
                     name, value = line.split("=")
-                    outdict[name] = value
+                    outdict[name.upper()] = value
         setattr(namespace, self.dest, outdict)
 
 
@@ -176,8 +184,8 @@ the configuration on the fly. Check the option-list for details.
 """)
 CFparser.set_defaults(func=cubefit)
 
-
-IFparser = PMsubparsers.add_parser("INITFIT", help="""
+if use_qt:
+    IFparser = PMsubparsers.add_parser("INITFIT", help="""
 The routine is used to prepare the datacube for the PSF fitting process.
 It takes as input the datacube and an ASCII-table containing the results
 from the crowded-field photometry. The different processing steps are
@@ -186,15 +194,15 @@ b) Aperture spectrophotometry of the previously identified sources.
 c) Generation of an input catalogue containing intitial guessse of the
    spectra and the positions of the stars.
 """)
-IFparser.add_argument("sourcelist", type=str, help="""
+    IFparser.add_argument("sourcelist", type=str, help="""
 ASCII-file containing the results from crowded-field photometry. Lines
 starting with '#' are considered comments. The first columns should contain
 the names of the columns. The routine will look for columns named `id`, `x`,
 `y` and <PASSBAND> as specified in the configuration.""")
-IFparser.set_defaults(func=initfit)
+    IFparser.set_defaults(func=initfit)
 
-
-PFparser = PMsubparsers.add_parser("POLYFIT", help="""
+if use_qt:
+    PFparser = PMsubparsers.add_parser("POLYFIT", help="""
 Calling this routine will display a GUI that allows for a visual inspection
 of the fit-results (in the <prefix>.prm.fits-file). The GUI can also be used
 to fit polynomials to the parameters of the PSF and/or source transformation
@@ -202,7 +210,7 @@ with. The results of the fitting process are stored in the <prefix>.prm.fits-
 file. If the modified file is fed to the CUBEFIT-routine, PampelMuse will
 use the polynomial fits. 
 """)
-PFparser.set_defaults(func=polyfit)
+    PFparser.set_defaults(func=polyfit)
 
 
 EXparser = PMsubparsers.add_parser("EXTRACT", help="""
@@ -249,6 +257,9 @@ and `Dec`.""")
 
 args = PMparser.parse_args()
 
+##  make sure PyQt4-dependencies are handled properly:
+if not use_qt:
+    args.parameters["USEQT"] = False
 
 ## open configuration file, update if necessary
 cfg_interface = xml_interact.ModifyConfig("{0}PMparams.xml".format(CONFIGPATH),

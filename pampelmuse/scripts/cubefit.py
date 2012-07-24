@@ -57,10 +57,10 @@ def cubefit(arguments):
     ## List of required definitions: #######################
     prefix   = arguments.prefix                           ##
     fitRad   = arguments.config["FITRAD"]                 ##
+    maxIter  = arguments.config["MAXITER"]                ##
     psfRad   = arguments.config["PSFRAD"]                 ##
     smallIFU = arguments.config["SMALLIFU"]               ##
     dobackup = arguments.config["DOBACKUP"]               ##
-##     storeRes = arguments.config["STORERES"]               ##
     jumpStart= arguments.config["JUMPSTART"]              ##
     useQt    = arguments.config["USEQT"]                  ##
     cpuCount = arguments.config["CPUCOUNT"]               ##
@@ -176,7 +176,7 @@ def cubefit(arguments):
     fitter.providePSF(psf=psf, psfRad=psfRad)
         
     fitter(fitRad=fitRad, lastFitIndex=lastFitIndex, asSmallIFU=smallIFU,
-           jumpStart=jumpStart, ncpu=cpuCount)
+           jumpStart=jumpStart, ncpu=cpuCount, maxiter=maxIter)
 
     if useQt:
         app.exec_()

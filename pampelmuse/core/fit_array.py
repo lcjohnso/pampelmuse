@@ -70,8 +70,11 @@ v0.4.1.0, 2012/03/17, fixed major bug with regard to preparation of sparse
                       columns.
 v0.4.1.1, 2012/07/19, added option to iteratively improve the solution also
                       for individual layers.
-v0.4.2.1, 2012/07/19, changed the convergence criterion for the individual
+v0.4.1.2, 2012/07/19, changed the convergence criterion for the individual
                       layers to use the median instead of the max. flux change.
+v0.4.1.3, 2012/07/23, modified counting of iterations so that they start from
+                      one instead of zero.
+v0.4.1.4, 2012/07/24, included handling of missing PyQt4-library.
 """
 __author__  = "Sebastian Kamann (skamann@aip.de)"
 __version__ = "0.4.2.1"
@@ -83,7 +86,10 @@ from scipy import sparse, optimize
 from multiprocessing import cpu_count
 from multiprocessing import Pool
 
-from PyQt4 import QtCore, QtGui
+try:
+    from PyQt4 import QtCore, QtGui
+except ImportError:
+    logging.warning("`PyQt4`-dependecies are not fulfilled.")
 
 ##  required PampelMuse-routines
 from pampelmuse.graphics.fitting_gui import FittingGui
@@ -265,7 +271,17 @@ class StarFit(object):
             self.i = lastFitIndex
 
         self.Ntrack         = Ntrack
-        self.maxiter        = maxiter
+
+        self.maxiter        = int(maxiter)
+        if self.psf.Fit==False and self.sources.Fit==False:
+            self.maxiter = 1
+
+        if self.maxiter > 1:
+            logging.info("Maximum iterations per layer: {0}".format(\
+                    self.maxiter))
+        else:
+            logging.info("No iteration on individual layers performed.")
+            self.maxiter = 1
 
         self.lastFittedImas = []
 
@@ -347,10 +363,14 @@ class StarFit(object):
             self.mask = np.ones(self.data.shape, dtype='bool')
 
 
-        n_iter = 0 ##  Number of iterations
+        n_iter = 1 ##  Number of iterations
             
         while True: ## Start iteration
             
+            if self.maxiter > 1:
+                logging.info("[@{0}] Iteration {1} (of max. {2})".format(\
+                        self.jj, n_iter, self.maxiter))
+
             ## create model matrix & update noise values
             self.Apsf = self.fillMatrix(radius=self.psfRad)
             self.sources.sigma[...,self.jj] = \
@@ -378,23 +398,22 @@ class StarFit(object):
 
             ## fit PSF/positions if requested            
             if self.psf.Fit or self.sources.Fit:
-            
-                if n_iter > self.maxiter:
-                    logging.warning("[@{0}] Max. number of iterations reached."\
-                                        .format(self.jj))
-                    break
 
-                logging.info("[@{0}] Iteration {1} (of max. {2})".format(\
-                        self.jj, n_iter, self.maxiter))
-                 
                 ## PSF/positions fit
                 if self.asSmallIFU: self.fitPSF_smallIFU()
                 else: self.fitPSF_largeIFU()
 
-                n_iter += 1
+##             else:
+##                 break
 
-            else:
-                break
+            n_iter += 1
+            
+            if n_iter > self.maxiter:
+                if self.maxiter > 1:
+                    logging.warning("[@{0}] Max. number of iterations reached."\
+                                        .format(self.jj))
+                    break
+                 
            
         ## update inventory of last fits
         self.lastFittedImas.append(self.jj)
