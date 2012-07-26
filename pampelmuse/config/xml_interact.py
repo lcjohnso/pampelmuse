@@ -58,6 +58,9 @@ CHANGELOG:
 2012/07/24, v0.4.0.0, significantly modified the code. It now used `xml`
                       instead of lxml because it is a standard python library.
                       Also included logging module.
+2012/07/26, v0.4.0.1, modfied findall command in l384 because including an
+                      attribute in the search won't work for earlier
+                      xml-versions.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
 __version__ = "0.4.0.0"
@@ -377,7 +380,9 @@ class ModifyConfig:
             dtype = re.findall(r"(^<type)( ')([a-z0-9]*.[a-z0-9]*)('>)",
                                str(type(value)))[0][2]
 
-            thevalue = theparam.findall("./{0}value[@dtype]".format(self.ns))
+##             thevalue = theparam.findall("./{0}value[@dtype]".format(self.ns))
+##             including attributes only works in latest versions of xml
+            thevalue = theparam.findall("./{0}value".format(self.ns))
             assert len(thevalue)==1
 
             vindex = list(theparam).index(thevalue[0])
