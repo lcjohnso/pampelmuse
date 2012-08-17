@@ -26,9 +26,12 @@ CHANGELOG:
 2012/06/12, v0.2.4.0, bugfix: previous update replaced an `if`-statement by
                               `elif` in property `Fit`. This resulted in a
                               fixed coord. transformation even if `posvar`>0.
+2012/08/07, v0.2.5.0, bugfix: in previous versions the preparation of `specrow`
+                              did not work when a source had ID 0 but was
+                              excluded later on. Then specrow=0 was missing.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.2.4.0"
+__version__ = "0.2.5.0"
 import logging
 import numpy as np, pyfits
 try: from PyQt4 import QtCore ## check if PyQt is available 
@@ -314,7 +317,9 @@ class Sources(CoordinateTransformation, object):
         if unique:
             value = np.arange(self.nsrc, dtype=np.int16)
         else:
-            value = (self._id==self._primary).cumsum()-1
+##             logging.debug("{0}".format(str(self._id)))
+##             logging.debug("{0}".format(str(self._primary)))
+            value = ((self._id==self._primary)&(self._status>-1)).cumsum()-1
             for i in xrange(self._id.size):
                 if self._status[i] == 1: ## Find spectrum of primary component
                     j=i                  
@@ -337,7 +342,7 @@ class Sources(CoordinateTransformation, object):
                     value[i] = value[j]
 
             value[self._status==0] = value.max()+1
-
+##             logging.debug("{0}".format(str(value)))
         self.setSpecrow(value)
 
 
@@ -348,6 +353,7 @@ class Sources(CoordinateTransformation, object):
         self._indexmap = {}
         for i in xrange(self.ncmp):
             self._indexmap[i] = np.where(self._specrow==i)[0]
+##         logging.debug("{0}".format(str(self._indexmap)))
 
 
 

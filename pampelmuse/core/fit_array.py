@@ -566,6 +566,7 @@ class StarFit(object):
                     nValuesCmp += nValues
 
             if nValuesCmp == 0 and doLog:
+                print self.dataFits.name, self.dataFits.fileinfo()
                 logging.error(\
                     "[@{0}] Component #{1} entirely outside FoV.".format(\
                         self.jj, self.sources.ID[self.sources.indexmap[i][0]]))
