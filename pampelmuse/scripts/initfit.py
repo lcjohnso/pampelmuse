@@ -62,9 +62,10 @@ CHANGELOG:
                       the respective PSF parameter.
 2012/07/03, v0.6.0.1, modified logging so that a warning is triggered if two
                       sources have basically the same coordinates.
+2012/09/03, v0.6.1.1, bugfix: replaced 'fwhm' by 'prof.fwhm' in line 298.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.6.0.1"
+__version__ = "0.6.1.1"
 import datetime, os, sys, logging
 import numpy as np, pyfits
 from scipy import interpolate, sparse
@@ -294,7 +295,7 @@ def initfit(arguments):
     else:
         prof.fwhm = 0.5*(identified['fwhm_x'][valid].mean() \
                             + identified['fwhm_y'][valid].mean())
-        logging.info("Estimated Seeing FWHM: {0:.1f}pixel".format(fwhm))
+        logging.info("Estimated Seeing FWHM: {0:.1f}pixel".format(prof.fwhm))
 ##         psf.values[psf.parameters.index("fwhm"),:] =  fwhm
         ## NOTE: will only write FWHM to values if FWHM is fitted
         ##       CHANGED: Parameter not updated, only class-property `fwhm`

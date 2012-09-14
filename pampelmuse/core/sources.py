@@ -29,9 +29,12 @@ CHANGELOG:
 2012/08/07, v0.2.5.0, bugfix: in previous versions the preparation of `specrow`
                               did not work when a source had ID 0 but was
                               excluded later on. Then specrow=0 was missing.
+2012/09/03, v0.2.5.1, rewrote method `distToBrighter` with a loop because
+                      previous calculation caused heavy memory usage when many
+                      sources were in the list.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.2.5.0"
+__version__ = "0.2.5.1"
 import logging
 import numpy as np, pyfits
 try: from PyQt4 import QtCore ## check if PyQt is available 
@@ -1001,10 +1004,22 @@ class Sources(CoordinateTransformation, object):
         y   = self.ydata[0].mean(axis=-1)
         mag = self._mag[self.ifuSelect]
 
-        dist = np.sqrt((x-x[:,np.newaxis])**2 + (y-y[:,np.newaxis])**2)
-        dist[(mag-mag[:,np.newaxis])<=0] = 99.
+        mindist = np.zeros(x.shape, dtype=np.float32)
+        nearsrc = np.zeros(x.shape, dtype=self.ifuID.dtype)
 
-        return (dist.min(axis=0), self.ifuID[dist.argmin(axis=0)])
+        for i in xrange(x.size):
+            dist_i =np.sqrt((x-x[i])**2 + (y-y[i])**2)
+            dist_i[(mag-mag[i])>=0] = 99.
+
+            mindist[i] = dist_i.min()
+            nearsrc[i] = self.ifuID[dist_i.argmin()]
+
+        return (mindist, nearsrc)
+
+##         dist = np.sqrt((x-x[:,np.newaxis])**2 + (y-y[:,np.newaxis])**2)
+##         dist[(mag-mag[:,np.newaxis])<=0] = 99.
+## 
+##         return (dist.min(axis=0), self.ifuID[dist.argmin(axis=0)])
 
 
 

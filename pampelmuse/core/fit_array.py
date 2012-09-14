@@ -83,9 +83,12 @@ v0.5.0.0, 2012/07/24, moved `QStarFit` into a separate file because otherwise
                       layers: Earlier the absolute value of the median flux
                       changes was used instead of the median of the absolute
                       flux changes.
+v0.5.0.1, 2012/09/07, included break-statement in iterative fit loop to leave
+                      loop after initial flux fit if both PSF and positions
+                      remain fixed.
 """
 __author__  = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.5.0.0"
+__version__ = "0.5.0.1"
 
 import logging, os, sys, time
 import numpy as np, pyfits
@@ -401,8 +404,8 @@ class StarFit(object):
                 if self.asSmallIFU: self.fitPSF_smallIFU()
                 else: self.fitPSF_largeIFU()
 
-##             else:
-##                 break
+            else:
+                break
 
             n_iter += 1
             
