@@ -63,9 +63,12 @@ CHANGELOG:
 2012/07/03, v0.6.0.1, modified logging so that a warning is triggered if two
                       sources have basically the same coordinates.
 2012/09/03, v0.6.1.1, bugfix: replaced 'fwhm' by 'prof.fwhm' in line 298.
+2012/10/09, v0.6.1.2, minor change when determining resolution limit: using
+                      last magnitude sampled above critical source density
+                      instead of first sampled one below.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.6.1.1"
+__version__ = "0.6.1.2"
 import datetime, os, sys, logging
 import numpy as np, pyfits
 from scipy import interpolate, sparse
@@ -359,6 +362,7 @@ def initfit(arguments):
         mcut += 0.1
         if (magPS[edgeDist>0]<mcut).sum() > confDens*dataIma.size \
                 /(prof.fwhm*prof.fwhm):
+            mcut -= 0.1
             break
         if not (magPS[edgeDist>0]>mcut).any():
             logging.info("No stars below m_{0}={1:.1f} detected.".format(\

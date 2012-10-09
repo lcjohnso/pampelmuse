@@ -86,9 +86,10 @@ v0.5.0.0, 2012/07/24, moved `QStarFit` into a separate file because otherwise
 v0.5.0.1, 2012/09/07, included break-statement in iterative fit loop to leave
                       loop after initial flux fit if both PSF and positions
                       remain fixed.
+v0.5.1.1, 2012/10/09, bugfix: code still used iteration even if `maxiter`=1
 """
 __author__  = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.5.0.1"
+__version__ = "0.5.1.1"
 
 import logging, os, sys, time
 import numpy as np, pyfits
@@ -413,7 +414,7 @@ class StarFit(object):
                 if self.maxiter > 1:
                     logging.warning("[@{0}] Max. number of iterations reached."\
                                         .format(self.jj))
-                    break
+                break
                  
            
         ## update inventory of last fits
