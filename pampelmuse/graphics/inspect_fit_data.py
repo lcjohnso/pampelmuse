@@ -35,7 +35,7 @@ from PyQt4 import QtCore, QtGui
 from pampelmuse.graphics.dynamic_plot_canvas import DynamicPlotCanvas
 from pampelmuse.core.psf import PSF
 from pampelmuse.core.sources import Sources
-
+from pampelmuse.core.instruments import Pmas, Argus
 
 
 class InspectFitData(QtGui.QMainWindow):
@@ -287,6 +287,20 @@ class InspectFitData(QtGui.QMainWindow):
         self.updateHistory(historyString)
 
 
+        ## Check which instrument is being used
+        if "PAMPELMUSE IFU" in self.HDUList[0].header.keys():
+            instrument = self.HDUList[0].header["PAMPELMUSE IFU"]
+        else:
+            instrument = ""
+        if instrument == "pmas":
+            self.instrument = Pmas()
+        elif instrument == "argus":
+            self.instrument = Argus()
+        else:
+            logging.error("No valid instrument specifier found.")
+            logging.warning("Some functionalities may not work.")
+            self.instrument = None
+
         ## Handle source spectra ###############################################
         if not "SOURCES" in self.extNames:
             logging.critical("Input is not a valid PampelMuse PRM-file.")
@@ -295,7 +309,8 @@ class InspectFitData(QtGui.QMainWindow):
             logging.critical("Input is not a valid PampelMuse PRM-file.")
             logging.critical("No HDU named 'SPECTRA' detected.")
 
-        self.sources = Sources(data=self.HDUList["SOURCES"], hdu=True)
+        self.sources = Sources(data=self.HDUList["SOURCES"], hdu=True,
+                               instrument=self.instrument)
         self.sources.loadSpectra(data=self.HDUList["SPECTRA"], hdu=True)
 
         self.sourceList = {}

@@ -37,6 +37,8 @@ __author__ = "Sebastian Kamann (skamann@aip.de)"
 __version__ = "0.2.5.1"
 import logging
 import numpy as np, pyfits
+from numpy.polynomial import Chebyshev
+
 try: from PyQt4 import QtCore ## check if PyQt is available 
 except ImportError: pass
 
@@ -84,7 +86,7 @@ class Sources(CoordinateTransformation, object):
       way, it can also access any coordinate transformation that might be in
       use.
     """
-    def __init__(self, data=None, hdu=False, ids=None):
+    def __init__(self, data=None, hdu=False, ids=None, instrument=None):
         """
         Initialize a new instance of the `Sources`-class.
 
@@ -102,6 +104,15 @@ class Sources(CoordinateTransformation, object):
             A 1dim. array containing the source IDs that should be used to
             initialize the scene. All other propperties must be defined
             afterwards.
+        instrument : instance of pampelmuse.core.instruments.Instrument-class or
+                     None, optional
+            If a class-instance is provided, it will be used to identify bad
+            spaxels, determine the exact shape of the FoV and the location of
+            sources within or outside the FoV.
+            E.g., if FLAMES/ARGUS is used, the missing edges and fibres outside
+            the CCD will be correctly identified. If instrument=None, the routine
+            will work with a rectangular FoV of size 22x14.
+
 
         Returns
         -------
@@ -155,6 +166,13 @@ class Sources(CoordinateTransformation, object):
             if "specrow" in data.dtype.names: self.setSpecrow(data["specrow"])
             if "status" in data.dtype.names: self.setStatus(data["status"])
             if "primary" in data.dtype.names: self.setPrimary(data["primary"])
+
+
+        ## "Initialize" instrument
+        self.instrument = instrument
+        if self.instrument is None:
+            logging.warning("No information on used instrument avaialable.")
+
 
         super(Sources, self).__init__()
 
@@ -930,53 +948,104 @@ class Sources(CoordinateTransformation, object):
           
 
 
-    def fitIFUCoords(self, ids, coord, order, bins, mask=None,
+    def fitIFUCoords(self, ids, coord, order, bins=1, mask=None, function="step",
                      commonSlope=False):
+        """
+        Method to fit the source positions as a function of wavelength. Two basic
+        modes are supported currently:
+        (a) fit a polynomial individually to each position (still the default)
+        (b) find a polynomial fit for all resolved sources and shift it along the
+            selected axis to obtain a position for each source (recommended)
+        
+        Parameters
+        ----------
+        ids : array_like or None
+            The ID[s] of the sources that should be fitted. Use None to fit all\
+            sources.
+        coord : either 'x' or 'y'
+            The spatial coordinate for which the fit should be performed
+        order : int
+            The order of the polynomial used to perform the fit
+        bins : int, optional
+            The number of bins in case a step-polynomial is used as fitting
+            function
+        mask : array_like or None, optional
+            An optional bad-pixel mask. If specified, must have as many pixels as
+            spectral pixels are available. Good pixels should be set to True, bad
+            ones to False.
+        function : string, optional
+            The fitting function that should be used. Currently a step-polynomial
+            (step) or a Chebyshev polynomial (chebyshev) are supported.
+        commonSlope : boolean, optional
+            Flag indicating whether a common polynomial should be used to model
+            the wavelength dependency of all sources.
+        """
 
-        if commonSlope:
-##             logging.warning("Flag `commonSlope` not yet supported.")
-            logging.warning("Fitting a common slope still in testing phase.")
-
-            ## source used for creating mean slope
-            used = (self.status[self.ifuSelect]>1)\
-                &(self.status[self.ifuSelect]<4)
-           
-            if coord == "x":  meanCoord = np.average(self.xdata[0, used] \
-                    - self.xdata[0,used].mean(axis=-1)[:,np.newaxis], axis=0)
-            else: meanCoord = np.average(self.ydata[0, used] \
-                    - self.ydata[0,used].mean(axis=-1)[:,np.newaxis], axis=0)
-            meanCoordFit = StepPolyFit(meanCoord, order=order, bins=bins,
-                                       mask=mask)
-            xCoord = np.arange(meanCoord.size, dtype=np.float32)
-
+        ## check the coordinate that should be fitted
         if not coord in ["x", "y"]: return
         else: i = ["x", "y"].index(coord)
-
+        
+        ## find the indices of the source(s) to be fitted
         if ids==None: indices2Fit = np.arange(self.ifuID.size, dtype=np.int32)
         else: indices2Fit = matchOnID(self.ifuID, np.atleast_1d(ids))
 
+        ## create pseudo-mask if None provided
+        if mask == None:
+            mask = np.ones((self.ndisp,), dtype=np.bool)
+
+        ## determine 'mean' coordinate if option 'commonSlope' selected
+        if commonSlope:
+
+            ## sources used for creating mean slope are those with status 2 or 3
+            used = (self.status[self.ifuSelect]>1)&(self.status[self.ifuSelect]<4)
+
+            ## if "instrument" is known, then only use pixels within FoV to deter-
+            ## mine common slope.
+            if self.instrument!= None:
+                used = used&self.instrument.infov(\
+                    self.ydata[0,:].mean(axis=-1), self.xdata[0,:].mean(axis=-1))
+           
+            if coord == "x": 
+                meanCoord = np.mean(self.xdata[0, used], axis=0)                
+            else:
+                meanCoord = np.mean(self.ydata[0, used], axis=0)
+
+            wCoord = np.arange(meanCoord.size, dtype=np.float32)
+
+            if function == "step":
+                meanCoordFit = StepPolyFit(meanCoord, order=order, bins=bins,
+                                           mask=mask)
+            elif function == "chebyshev":
+                cfit = Chebyshev.fit(wCoord[mask], meanCoord[mask], order)
+                meanCoordFit = cfit(wCoord)
+
+        ## loop over selected sources and get their polynomial coordinate fits
         k = 1
         for j in indices2Fit:
             if coord == "x":
                 if commonSlope:
-                    polPars = np.polyfit(xCoord[mask],
-                                         (self.xdata[0,j]-meanCoordFit)[mask],
-                                         deg=1)
-                    self.xdata[1,j] = meanCoordFit + np.polyval(\
-                        polPars, xCoord)
-                else:
+                    offset = np.polyfit(\
+                        wCoord[mask], (self.xdata[0,j]-meanCoordFit)[mask], deg=0)
+                    self.xdata[1,j] = meanCoordFit + np.polyval(offset, wCoord)
+                elif function == "step":
                     self.xdata[1,j] = StepPolyFit(\
                         self.xdata[0,j], order=order, bins=bins, mask=mask)
+                elif function == "chebyshev":
+                    cfit = Chebyshev.fit(wCoord[mask], self.xdata[0,j,mask], order)
+                    self.xdata[1,j] = cfit(wCoord)
+
             else:
                 if commonSlope:
-                    polPars = np.polyfit(xCoord[mask],
-                                         (self.ydata[0,j]-meanCoordFit)[mask],
-                                         deg=1)
-                    self.ydata[1,j] = meanCoordFit + np.polyval(\
-                        polPars, xCoord)
-                else:
+                    offset = np.polyfit(\
+                        wCoord[mask], (self.ydata[0,j]-meanCoordFit)[mask], deg=0)
+                    self.ydata[1,j] = meanCoordFit + np.polyval(offset, wCoord)
+                elif function == "step":
                     self.ydata[1,j] = StepPolyFit(\
                         self.ydata[0,j], order=order, bins=bins, mask=mask)
+                elif function == "chebyshev":
+                    cfit = Chebyshev.fit(wCoord[mask], self.ydata[0,j,mask], order)
+                    self.ydata[1,j] = cfit(wCoord)
+
             self.poly[i,j] = True
             logging.debug("Polyn. fit to source #{0} [{1}/{2}]".format(\
                     self.ifuID[j], k, len(indices2Fit)))
@@ -990,6 +1059,8 @@ class Sources(CoordinateTransformation, object):
     def edgeDist(self, fovShape):
         logging.info("Determining position of sources in IFU FoV.")
 
+##         if self.instrument is not None:
+            
         return np.min([self.xdata[0].mean(axis=-1),
                        self.ydata[0].mean(axis=-1),
                        fovShape[1]-1-self.xdata[0].mean(axis=-1),

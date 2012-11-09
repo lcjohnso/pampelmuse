@@ -79,6 +79,7 @@ from pampelmuse.graphics.ident_sources import IdentSources
 from pampelmuse.core.aperture import AperPhoto
 from pampelmuse.core.sources import Sources
 from pampelmuse.core.psf import PSF
+from pampelmuse.core.instruments import Pmas, Argus
 
 
 
@@ -110,6 +111,8 @@ def initfit(arguments):
 ###### List of required definitions: #################
     prefix   = arguments.prefix                     ##
     cfpfile  = arguments.sourcelist                 ##
+###### General information ###########################
+    ifu      = arguments.config["IFU"]              ##
 ###### Photometry information:                      ##
     passband = arguments.config["PASSBAND"]         ##
     pixScale = arguments.config["PIXSCALE"]         ## 
@@ -206,7 +209,18 @@ def initfit(arguments):
 
 
     ## open FITS-files:
-    logging.info("Reading IFS data: ")
+    logging.info("Reading IFS data...")
+
+    ## Initialize instance of instrument-class
+    if ifu == "pmas":
+        logging.info("Selected instrument is PMAS.")
+        sources.instrument = Pmas()
+    elif ifu == "argus":
+        logging.info("Selected instrument is FLAMES/ARGUS.")
+        sources.instrument = Argus()
+    else:
+        logging.warning("No valid instrument specifier provided.")
+        sources.instrument = None
 
     ## data
     dataHDU = pyfits.open("{0}.dat.fits".format(prefix))[0]
