@@ -1,3 +1,20 @@
+"""
+INSTRUMENTS
+===========
+The classes defined in this class are supposed to provide support in handling
+instrument -pecific characteristics: dead fibers, holes in FoV,
+non-rectangular FoV
+The idea is to define a sub-class of the class 'Instruments' for every IFU that
+should be supported. Currently PMAS/Larr and FLAMES/ARGUS are included.
+
+CHANGELOG:
+----------
+2012/11/09, v0.1.0.0, preliminary version completed, support for PMAS/Larr
+                      and FLAMES/ARGUS
+
+"""
+__author__ = "Sebastian Kamann (skamann@aip.de)"
+__version__ = "0.1.0.0"
 import logging
 import numpy as np
 from scipy.spatial import distance
@@ -66,7 +83,7 @@ class Instruments(object):
         return (self.dist2spax(x, y)<=self.maxoff).any(axis=0)
 
 
-    def edgedist(self, x, y):
+    def dist2edge(self, x, y, metric="euclidean"):
 
         edist = distance.cdist(self.edgepix, np.vstack((x, y)).T,
                               metric=metric).min(axis=0)

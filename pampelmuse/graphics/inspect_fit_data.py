@@ -24,9 +24,13 @@ CHANGELOG
 2012/07/03, v0.3.2.3, bugfix: previous versions did not properly grab the names
                               of the PSF and coord. trans. parameters (did not
                               use `provideParNames` method).
+2012/11/10, v0.4.0.0, included usage of new 'Instruments'-class. Added option
+                      to specify the type of polynomial that is used in the
+                      fit (step polynomial, Chebyshev)
+
 """
 __author__  = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.3.2.3"
+__version__ = "0.4.0.0"
 import datetime, logging, sys
 import numpy as np, pyfits
 from PyQt4 import QtCore, QtGui
@@ -156,8 +160,16 @@ class InspectFitData(QtGui.QMainWindow):
         fitToolbar = self.addToolBar("Fitting")
         fitToolbar.setObjectName("FitToolBar")
 
+        ## Drop-down menu for fitting functions
+        self.fctLabel  = QtGui.QLabel("<b>Polynomial:</b> ")
+        self.fctLabel.setFont(QtGui.QFont("Helvetica",12))
+        self.fctSelect = QtGui.QComboBox()
+        self.fctSelect.addItem("Step")
+        self.fctSelect.addItem("Chebyshev")
+        self.fctSelect.setFont(QtGui.QFont("Helvetica", 12))
+
         ## Spin box for selecting degree of polynomial
-        self.degLabel  = QtGui.QLabel("<b>Polynomial:</b> Order: ", self)
+        self.degLabel  = QtGui.QLabel(" - Order: ", self)
         self.degLabel.setFont(QtGui.QFont("Helvetica", 12))
         self.degSelect = QtGui.QSpinBox()
         self.degSelect.setRange(0, 10)
@@ -170,6 +182,8 @@ class InspectFitData(QtGui.QMainWindow):
 
         self.fitButton = QtGui.QPushButton("&Fit")
 
+        fitToolbar.addWidget(self.fctLabel)
+        fitToolbar.addWidget(self.fctSelect)
         fitToolbar.addWidget(self.degLabel)
         fitToolbar.addWidget(self.degSelect)
         fitToolbar.addWidget(self.binLabel)
@@ -181,8 +195,8 @@ class InspectFitData(QtGui.QMainWindow):
         self.fitAll = True
         fitAllAction.setChecked(True) ## default is to fit pos. simultaneously
         self.commonSlope=False
-        commonSlopeAction.setChecked(False) ##  default is that fits to
-                                            ## positions have different slopes
+        commonSlopeAction.setChecked(True) ## default is that fits to
+                                           ## positions have same slopes
 
         ## Interaction with data:
         self.hduMap = {}
@@ -451,9 +465,9 @@ class InspectFitData(QtGui.QMainWindow):
             logging.error("Please select data to fit first.")
             return
 
+        function = str(self.fctSelect.currentText())
         order = int(self.degSelect.value())
         bins  = int(self.binSelect.value())
-
 
         if self.curProp == "Spectra":
             logging.warning("Fitting spectra is not supported.")
@@ -462,7 +476,8 @@ class InspectFitData(QtGui.QMainWindow):
 
         elif self.curProp == "PSF":
             self.psf.polyFitParameter(name=self.curRowName, order=order,
-                                      bins=bins, mask=self.mask)
+                                      bins=bins, mask=self.mask,
+                                      function=function.lower())
             self._updatePlotData()
 
         elif self.curProp in ["x Positions", "y Positions"]:
@@ -475,7 +490,7 @@ class InspectFitData(QtGui.QMainWindow):
 
             self.sources.fitIFUCoords(\
                 ids=ids, coord=coord, order=order, bins=bins, mask=self.mask,
-                commonSlope=self.commonSlope)
+                function=function.lower(), commonSlope=self.commonSlope)
             self._updatePlotData()
                 
         elif self.curProp == "Coord. Trans.":

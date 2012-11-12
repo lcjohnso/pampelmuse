@@ -22,12 +22,17 @@ CHANGELOG
                       changed definition of the PSF profiles.
 2012/07/03, v0.4.1.0, bugfix: renaming of old `fwhm`-parameter did not work
                               in previous versions.
+2012/11/10, v0.4.1.1, added option to use Chebyshev polynomials in method
+                      'polyFitparameter'
 """
+
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.4.0.0"
+__version__ = "0.4.1.1"
 
 import logging, os
 import numpy as np, pyfits
+from numpy.polynomial import Chebyshev, Legendre
+
 from PyQt4 import QtCore
 
 ## required PampelMuse-packages
@@ -379,7 +384,7 @@ class PSF(object):
 
 
 
-    def polyFitParameter(self, name, order, bins, mask=None):
+    def polyFitParameter(self, name, order, bins, mask=None, function="step"):
 
         if not self.lockSize:
             self.makeValues()
@@ -390,8 +395,15 @@ class PSF(object):
         
         i = self.parameters.index(name)
 
-        self.data[1,i] = StepPolyFit(self.data[0,i,:], order=order, bins=bins,
-                                     mask=mask)
+        if function == "step":
+            self.data[1,i] = StepPolyFit(self.data[0,i,:], order=order, 
+                                         bins=bins, mask=mask)
+        elif function == "chebyshev":
+            wCoord = np.arange(self.data[0,i].size, dtype=np.float32)
+
+            cfit = Chebyshev.fit(wCoord[mask], self.data[0,i,:][mask], order)
+            self.data[1,i] = cfit(wCoord)
+
         self.poly[i]   = True
         
         self.unsavedPSF = True

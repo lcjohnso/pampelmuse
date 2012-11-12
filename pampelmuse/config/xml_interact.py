@@ -61,9 +61,10 @@ CHANGELOG:
 2012/07/26, v0.4.0.1, modfied findall command in l384 because including an
                       attribute in the search won't work for earlier
                       xml-versions.
+2012/11/09, v0.4.1.0, fixed two bugs caused by misspelling of variables.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.4.0.0"
+__version__ = "0.4.1.0"
 import datetime, logging, os, re, string, sys
 from xml.etree import ElementTree
 from xml.dom.minidom import parseString
@@ -115,7 +116,7 @@ def transform_string(thestring, dtype, abort_on_exception=True):
         
     else:
         logging.warning("Unknown datatype encountered:{0}".format(dtype))
-        if raise_on_exception:
+        if abort_on_exception:
             raise IOError, "Unknown datatype encountered:{0}".format(dtype)
         else:
             return None
@@ -294,7 +295,7 @@ class ModifyConfig:
             self.ptree.getroot().insert(index, new_param)
             self.pnames.insert(index, new_name)
         else:
-            self.pname.append(new_name)
+            self.pnames.append(new_name)
 
         logging.info("Added parameter '{0} to configuration'".format(new_name))
         

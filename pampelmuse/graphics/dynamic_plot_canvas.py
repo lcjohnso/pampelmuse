@@ -8,24 +8,26 @@ CHANGELOG:
 ----------
 2012/01/25, v0.0.1.1, added some documentation. Fixed bug that sometimes the
                       vertical line indicating the current cursor position did
-                      not disappear upon updating  the data to be plotted. 
+                      not disappear upon updating  the data to be plotted.
+2012/01/25, v0.0.1.2, modified the dimensions of the plot to make it fit better
+                      into the surrounding frame.
 """
-__author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.0.1.1"
+__author__  = "Sebastian Kamann (skamann@aip.de)"
+__version__ = "0.0.1.2"
 
 import matplotlib.pyplot
 import numpy as np
 from PyQt4 import QtCore
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
-
+matplotlib.pyplot.rcParams["axes.linewidth"]=1.5
 
 class DynamicPlotCanvas(FigureCanvas):
 
-    def __init__(self, parent=None, width=8, height=4, dpi=100):
+    def __init__(self, parent=None, width=9, height=5, dpi=100):
 
         self.fig  = Figure(figsize=(width, height), dpi=dpi)
-        self.axes = self.fig.add_axes((0.12, 0.12, 0.85, 0.85))
+        self.axes = self.fig.add_axes((0.12, 0.12, 0.85, 0.80))
 
         FigureCanvas.__init__(self, self.fig)
         self.setParent(parent)

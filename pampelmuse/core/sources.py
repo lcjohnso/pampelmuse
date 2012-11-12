@@ -32,12 +32,19 @@ CHANGELOG:
 2012/09/03, v0.2.5.1, rewrote method `distToBrighter` with a loop because
                       previous calculation caused heavy memory usage when many
                       sources were in the list.
+2012/11/10, v0.3.0.0, when creating a Sources instances, it is now possible to
+                      provide an instance of the new Instrument-class to handle
+                      instrument-specific characteristics.
+                      changed behavior of fitIFUCoords (sources now have same
+                      slope if resp. option is used), added option for fitting
+                      Chebyshev-polynomial and added some documentation.
+2012/11/11, v0.3.0.1, removed remaining print-command used for debugging.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.2.5.1"
+__version__ = "0.3.0.1"
 import logging
 import numpy as np, pyfits
-from numpy.polynomial import Chebyshev
+from numpy.polynomial import Chebyshev, Legendre
 
 try: from PyQt4 import QtCore ## check if PyQt is available 
 except ImportError: pass
@@ -102,16 +109,16 @@ class Sources(CoordinateTransformation, object):
             (if `data` is provided).
         ids : array_like
             A 1dim. array containing the source IDs that should be used to
-            initialize the scene. All other propperties must be defined
+            initialize the scene. All other properties must be defined
             afterwards.
-        instrument : instance of pampelmuse.core.instruments.Instrument-class or
-                     None, optional
+        instrument : instance of pampelmuse.core.instruments.Instrument-class
+                     or None, optional
             If a class-instance is provided, it will be used to identify bad
             spaxels, determine the exact shape of the FoV and the location of
             sources within or outside the FoV.
-            E.g., if FLAMES/ARGUS is used, the missing edges and fibres outside
-            the CCD will be correctly identified. If instrument=None, the routine
-            will work with a rectangular FoV of size 22x14.
+            E.g., if FLAMES/ARGUS is used, the missing edges and fibres
+            outside the CCD will be correctly identified. If instrument=None,
+            the routine will work with a rectangular FoV of size 22x14.
 
 
         Returns
@@ -948,14 +955,15 @@ class Sources(CoordinateTransformation, object):
           
 
 
-    def fitIFUCoords(self, ids, coord, order, bins=1, mask=None, function="step",
-                     commonSlope=False):
+    def fitIFUCoords(self, ids, coord, order, bins=1, mask=None,
+                     function="step", commonSlope=False):
         """
-        Method to fit the source positions as a function of wavelength. Two basic
-        modes are supported currently:
+        Method to fit the source positions as a function of wavelength. Two
+        basic modes are supported currently:
         (a) fit a polynomial individually to each position (still the default)
-        (b) find a polynomial fit for all resolved sources and shift it along the
-            selected axis to obtain a position for each source (recommended)
+        (b) find a polynomial fit for all resolved sources and shift it along
+            the selected axis to obtain a position for each source
+            (recommended)
         
         Parameters
         ----------
@@ -970,17 +978,18 @@ class Sources(CoordinateTransformation, object):
             The number of bins in case a step-polynomial is used as fitting
             function
         mask : array_like or None, optional
-            An optional bad-pixel mask. If specified, must have as many pixels as
-            spectral pixels are available. Good pixels should be set to True, bad
-            ones to False.
+            An optional bad-pixel mask. If specified, must have as many pixels
+            as spectral pixels are available. Good pixels should be set to
+            True, bad ones to False.
         function : string, optional
-            The fitting function that should be used. Currently a step-polynomial
-            (step) or a Chebyshev polynomial (chebyshev) are supported.
+            The fitting function that should be used. Currently a
+            step-polynomial (step) or a Chebyshev polynomial (chebyshev) are
+            supported.
         commonSlope : boolean, optional
             Flag indicating whether a common polynomial should be used to model
             the wavelength dependency of all sources.
         """
-
+        
         ## check the coordinate that should be fitted
         if not coord in ["x", "y"]: return
         else: i = ["x", "y"].index(coord)
@@ -988,6 +997,9 @@ class Sources(CoordinateTransformation, object):
         ## find the indices of the source(s) to be fitted
         if ids==None: indices2Fit = np.arange(self.ifuID.size, dtype=np.int32)
         else: indices2Fit = matchOnID(self.ifuID, np.atleast_1d(ids))
+
+        ##  prepare wavelength coordinate
+        wCoord = np.arange(self.ndisp, dtype=np.float32)
 
         ## create pseudo-mask if None provided
         if mask == None:
@@ -997,20 +1009,19 @@ class Sources(CoordinateTransformation, object):
         if commonSlope:
 
             ## sources used for creating mean slope are those with status 2 or 3
-            used = (self.status[self.ifuSelect]>1)&(self.status[self.ifuSelect]<4)
+            used = (self.status[self.ifuSelect]>1)\
+                &(self.status[self.ifuSelect]<4)
 
-            ## if "instrument" is known, then only use pixels within FoV to deter-
-            ## mine common slope.
+            ## if "instrument" is known, then only use pixels within FoV to
+            ## determine common slope.
             if self.instrument!= None:
                 used = used&self.instrument.infov(\
-                    self.ydata[0,:].mean(axis=-1), self.xdata[0,:].mean(axis=-1))
+                    self.ydata[0,:].mean(axis=-1),self.xdata[0,:].mean(axis=-1))
            
             if coord == "x": 
                 meanCoord = np.mean(self.xdata[0, used], axis=0)                
             else:
                 meanCoord = np.mean(self.ydata[0, used], axis=0)
-
-            wCoord = np.arange(meanCoord.size, dtype=np.float32)
 
             if function == "step":
                 meanCoordFit = StepPolyFit(meanCoord, order=order, bins=bins,
@@ -1025,27 +1036,27 @@ class Sources(CoordinateTransformation, object):
             if coord == "x":
                 if commonSlope:
                     offset = np.polyfit(\
-                        wCoord[mask], (self.xdata[0,j]-meanCoordFit)[mask], deg=0)
+                        wCoord[mask],(self.xdata[0,j]-meanCoordFit)[mask],deg=0)
                     self.xdata[1,j] = meanCoordFit + np.polyval(offset, wCoord)
                 elif function == "step":
                     self.xdata[1,j] = StepPolyFit(\
                         self.xdata[0,j], order=order, bins=bins, mask=mask)
                 elif function == "chebyshev":
-                    cfit = Chebyshev.fit(wCoord[mask], self.xdata[0,j,mask], order)
+                    cfit =Chebyshev.fit(wCoord[mask],self.xdata[0,j,mask],order)
                     self.xdata[1,j] = cfit(wCoord)
 
             else:
                 if commonSlope:
                     offset = np.polyfit(\
-                        wCoord[mask], (self.ydata[0,j]-meanCoordFit)[mask], deg=0)
+                        wCoord[mask],(self.ydata[0,j]-meanCoordFit)[mask],deg=0)
                     self.ydata[1,j] = meanCoordFit + np.polyval(offset, wCoord)
                 elif function == "step":
                     self.ydata[1,j] = StepPolyFit(\
                         self.ydata[0,j], order=order, bins=bins, mask=mask)
                 elif function == "chebyshev":
-                    cfit = Chebyshev.fit(wCoord[mask], self.ydata[0,j,mask], order)
+                    cfit =Chebyshev.fit(wCoord[mask],self.ydata[0,j,mask],order)
                     self.ydata[1,j] = cfit(wCoord)
-
+                    
             self.poly[i,j] = True
             logging.debug("Polyn. fit to source #{0} [{1}/{2}]".format(\
                     self.ifuID[j], k, len(indices2Fit)))
@@ -1056,16 +1067,35 @@ class Sources(CoordinateTransformation, object):
 ################################################################################
 ##              Source selection methods/properties                           ##
 ################################################################################
-    def edgeDist(self, fovShape):
+    def edgeDist(self, fovShape=(16,16)):
+        """
+        Determine the distance of each source included in the scene to the
+        edges of the FoV.
+
+        Parameters
+        ----------
+        fovShape : array_like, optional
+           The x- & y-size of the FoV. Only used if not Instrument-class
+           instance is being used.
+
+        Returns
+        -------
+        dist2bright : nd_array
+            A 1dim. array containing the distance of each source to the edge
+            of the FoV. Negative distances are used for sources outside the
+            FoV
+        """
         logging.info("Determining position of sources in IFU FoV.")
 
-##         if self.instrument is not None:
-            
-        return np.min([self.xdata[0].mean(axis=-1),
-                       self.ydata[0].mean(axis=-1),
-                       fovShape[1]-1-self.xdata[0].mean(axis=-1),
-                       fovShape[0]-1-self.ydata[0].mean(axis=-1)],
-                      axis=0)
+        if self.instrument is not None:
+            return self.instrument.dist2edge(self.ydata[0].mean(axis=-1),
+                                             self.xdata[0].mean(axis=-1))
+        else:
+            return np.min([self.xdata[0].mean(axis=-1),
+                           self.ydata[0].mean(axis=-1),
+                           fovShape[1]-1-self.xdata[0].mean(axis=-1),
+                           fovShape[0]-1-self.ydata[0].mean(axis=-1)],
+                          axis=0)
 
 
     def distToBrighter(self):
@@ -1114,6 +1144,27 @@ class Sources(CoordinateTransformation, object):
 
 
     def signalToNoise(self, psf, magZ, sigma, r=5):
+        """
+        Calculate the S/N ratio of all stars in the scene.
+
+        Parameters
+        ----------
+        psf : a pampelmuse.core.psf.PSF instance
+            Required to determine the flux distribution across the FoV
+        magZ : float
+            The magnitude zeropoint, i.e., the magnitude of a source that
+            contributes 1count/layer
+        sigma : nd_array
+            The average uncertainties in the individual spaxels.
+        r : float, optional
+            The radius out to which the PSF profile is calculated.
+            
+        Returns
+        -------
+        snRatios : nd_array
+            A 1dim. array containing the S/N-ratio for each source
+
+        """
         logging.info("Determining Signal-to-Noise of sources.")
 
         x   = self.xdata[0].mean(axis=-1)
@@ -1123,16 +1174,24 @@ class Sources(CoordinateTransformation, object):
         snRatios = np.zeros(self.ifuSelect.shape, dtype=np.float32)
         for i in xrange(snRatios.size):
 
-            profile = psf(size=sigma.shape, x_c=x[i], y_c=y[i],
-                          mag=0., maxrad=r, return_sparse=True,
-                          as_sparse_matrix=True)
+            ##  calculate PSF profile
+            _profile = psf(size=sigma.shape, x_c=x[i], y_c=y[i],
+                           mag=0., maxrad=r, return_sparse=True,
+                           as_sparse_matrix=True)
+            
+            ## remove "empty"-pixels if instance of Instrument-class is
+            ## available
+            if self.instrument != None:
+                profile = (np.asarray(_profile.todense())/sigma)[\
+                    self.instrument.fovmask]
+            else:
+                profile = np.asarray(_profile.todense())/sigma
 
             ## get flux
             flx = 10**(-0.4*(mag[i]-magZ))
 
             ## PSF array must be converted to a numpy array before calculation
-            snRatios[i] = flx*np.sqrt(\
-                ((np.asarray(profile.todense())/sigma)**2).sum())
+            snRatios[i] = flx*np.sqrt((profile**2).sum())
 
         return snRatios
 

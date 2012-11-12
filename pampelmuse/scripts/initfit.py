@@ -66,9 +66,11 @@ CHANGELOG:
 2012/10/09, v0.6.1.2, minor change when determining resolution limit: using
                       last magnitude sampled above critical source density
                       instead of first sampled one below.
+2012/11/09, v0.7.0.0, improved handling of instrument-specific features
+                      (missing spaxels, non-rectangular FoV, ...) by the code.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.6.1.2"
+__version__ = "0.7.0.0"
 import datetime, os, sys, logging
 import numpy as np, pyfits
 from scipy import interpolate, sparse
@@ -355,9 +357,13 @@ def initfit(arguments):
     signalToNoise = sources.signalToNoise(psf=prof, magZ=magZ, sigma=sigmaIma,
                                           r=psfRad)
     ##  modify S/N of sources close to brighter neighbor:
-    close = distToBrighter<prof.fwhm
-    
+    close = distToBrighter<prof.fwhm    
     signalToNoise[close] *= (1.+0.9*np.log10(distToBrighter[close]/prof.fwhm))
+
+    ##  penalize S/N of sources outside FoV:
+    outside = edgeDist<0
+    signalToNoise[outside] *= np.exp(-(edgeDist[outside]/prof.fwhm)**2)
+
 
     if not smallifu:
         shoulderDrop = sources.shoulderDrop(r=psfRad)
@@ -395,7 +401,7 @@ def initfit(arguments):
     primary = np.zeros((sources.nsrc,), dtype=np.int32)
 
     logging.info("Results of source selection:")
-    logging.info("       ID    mag     S/N  d_bright  status")
+    logging.info("       ID   mag   S/N  d_bright  d_edge  status")
     for i in xrange(sources.nsrc):
         
         if sources.ID[i] < 0:
@@ -419,11 +425,13 @@ def initfit(arguments):
                     status[i]  = 2
                     primary[i] = sources.ID[i]
 
-            logging.info("   {0:6d}  {1:5.2f}  {2:6.1f}  {3:8.2f}  {4:6d}"\
+            logging.info(\
+                "   {0:6d}  {1:5.2f}  {2:5.1f}  {3:5.2f}  {4:5.2f}  {5:6d}"\
                              .format(int(sources.ID[i]),
                                      float(sources.mag[i]),
                                      float(signalToNoise[i]),
                                      float(distToBrighter[i]),
+                                     float(edgeDist[i]),
                                      int(status[i])))
             
         elif useunres:
@@ -550,6 +558,7 @@ def initfit(arguments):
     primaryHDU.header.update(\
         "hierarch PAMPELMUSE INITFIT UTC",
         datetime.datetime.utcnow().strftime("%y-%m-%d %H:%M:%S"))
+    primaryHDU.header.update("hierarch PAMPELMUSE IFU", str(ifu))
     primaryHDU.header.update("hierarch PAMPELMUSE INITFIT VERSION", __version__)
     primaryHDU.header.update("hierarch PAMPELMUSE INITFIT PASSBAND", passband)
     primaryHDU.header.update("hierarch PAMPELMUSE INITFIT RESLIM", reslim)
