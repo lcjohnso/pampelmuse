@@ -14,16 +14,18 @@ CHANGELOG
                       configuration.
 2012/04/22, v0.2.1.0, bugfix: replaced `ndisp` with `size` when calling
                               `resizeStructure`
+2012/11/20, v0.3.0.0, included 'Instruments'-class so that dead or non-existent
+                      spaxels are excluded from the computation
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.2.1.0"
+__version__ = "0.3.0.0"
 import datetime, logging, os, sys
 import numpy as np, pyfits
 
 ## required PampelMuse-packages
 from pampelmuse.core.sources import Sources
 from pampelmuse.core.psf import PSF
-
+from pampelmuse.core.instruments import Pmas, Argus
 
 
 
@@ -57,12 +59,28 @@ def subtres(arguments):
         logging.warning("PRM-file does not contain results of successful fit.")
 
 
+    ## Check if information on used instrumen available
+    if "PAMPELMUSE IFU" in prmFile[0].header.keys():
+        instrument = prmFile[0].header["PAMPELMUSE IFU"]
+    else:
+        instrument = ""
+    if instrument == "pmas":
+        instrument = Pmas()
+    elif instrument == "argus":
+        instrument = Argus()
+    else:
+        logging.error("No valid instrument specifier found.")
+        logging.warning("Some functionalities may not work.")
+        instrument = None
+
+
     ## CREATE ARRAYS THAT CONTAIN PARAMETERS USED IN THE FIT
     ## Collect information about sources
 
     ## Spectra
     logging.info("Obtaining source spectra.")
-    sources = Sources(data=prmFile["SOURCES"],  hdu=True)
+    sources = Sources(data=prmFile["SOURCES"],  hdu=True,
+                      instrument=instrument)
     sources.loadSpectra(data=prmFile["SPECTRA"], hdu=True)
                  
     ## Positions
@@ -103,8 +121,8 @@ def subtres(arguments):
     data = dataFits[0].data ## load full(!) cube into memory.
 
     for i in xrange(dataFits[0].header['NAXIS3']):
-        logging.info(\
-            "Handling slice #{0} [{1:.1f}%].".format(i, (100.*i)/sources.ndisp))
+        logging.info("Handling slice #{0} [{1:.1f}%].".format(\
+                i, (100.*i)/sources.ndisp))
         
         ## initialize PSF
         psf_i = psf(index=i)
@@ -129,12 +147,20 @@ def subtres(arguments):
                         flux_k = sources.data[j,i]
                         mag_k  = sources.weights[j][k]
 
-                        data[i] -= flux_k*psf_i(\
-                            size=cubeShape[1:], x_c=x_k, y_c=y_k, mag=mag_k,
-                            maxrad=psfRad)
+                        if sources.instrument == None:
+                            data[i] -= flux_k*psf_i(\
+                                size=cubeShape[1:], x_c=x_k, y_c=y_k, mag=mag_k,
+                                maxrad=psfRad)
+                        else:
+                            data[i] -= flux_k*psf_i(\
+                                size=cubeShape[1:], x_c=x_k, y_c=y_k, mag=mag_k,
+                                maxrad=psfRad)*sources.instrument.fovmask
 
             elif subtSky:
-                data[i] -= sources.data[j,i]
+                if sources.instrument == None:
+                    data[i] -= sources.data[j,i]
+                else:
+                    data[i] -= sources.data[j,i]*sources.instrument.fovmask
 
     prmFile.close() ## finished reading source catalog.
 
