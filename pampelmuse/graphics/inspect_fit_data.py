@@ -27,10 +27,12 @@ CHANGELOG
 2012/11/10, v0.4.0.0, included usage of new 'Instruments'-class. Added option
                       to specify the type of polynomial that is used in the
                       fit (step polynomial, Chebyshev)
-
+2013/02/04, v0.5.0.0, now using wavelength as x-axis instead of pixels. Added
+                      labels to x- and y-axes. Polynomial fits are now displayed
+                      as solid red lines.
 """
 __author__  = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.4.0.0"
+__version__ = "0.5.0.0"
 import datetime, logging, sys
 import numpy as np, pyfits
 from PyQt4 import QtCore, QtGui
@@ -61,7 +63,7 @@ class InspectFitData(QtGui.QMainWindow):
 
         ## Initialize plot that will contain current fit.
         self.dataPlot.addData(name='fit', xData=[], yData=[],
-                              ls='--', c='g', lw=1.5, marker='None')
+                              ls='--', c='r', lw=1.8, marker='None')
 
         plotWidget = QtGui.QWidget()
         plotWidget.setMinimumSize(600,200)
@@ -327,6 +329,12 @@ class InspectFitData(QtGui.QMainWindow):
                                instrument=self.instrument)
         self.sources.loadSpectra(data=self.HDUList["SPECTRA"], hdu=True)
 
+        ## create wavelength array:
+        self.wave  = np.arange(self.sources.ndisp,  dtype=np.float64)
+        self.wave -= (self.sources.crpix-1)
+        self.wave *= self.sources.cdelt
+        self.wave += self.sources.crval
+
         self.sourceList = {}
         self.sourceList["Spectra"] = self.sources.provideNames()
 
@@ -410,35 +418,40 @@ class InspectFitData(QtGui.QMainWindow):
         if self.curProp == "Spectra":
             self.yFit  = None
             self.yData = self.sources.viewSpectrum(name=self.curRowName)
+            yLabel = r"$f_\lambda\,[\mathrm{counts}/\mathrm{layer}]$"
 
         elif self.curProp == "x Positions":
             self.yData, self.yFit \
                 = self.sources.getIFUCoords(coord="x", ID=int(self.curRowName))
-         
+            yLabel = r"$x\,[\mathrm{spaxel}]$"
+
         elif self.curProp == "y Positions":
             self.yData, self.yFit \
                 = self.sources.getIFUCoords(coord="y", ID=int(self.curRowName))
-            
+            yLabel = r"$y\,[\mathrm{spaxel}]$"
+
         elif self.curProp == "PSF":
             i = self.psf.parameters.index(str(self.curRowName))
             self.yData = self.psf.data[0,i]
             if self.psf.poly[i]: self.yFit = self.psf.data[1,i]
             else: self.yFit = None
+            yLabel=None
 
         elif self.curProp == "Coord. Trans.":
             i = self.sources.parameters.index(str(self.curRowName))
             self.yData = self.sources.ctData[0,i]
             if self.sources.ctPoly[i]: self.yFit = self.sources.ctData[1,i]
             else: self.yFit = None
+            yLabel=None
 
         ## update plot
-        self.xData = np.arange(self.yData.size)
-
-        self.dataPlot.updateData(name='data',xData=self.xData,yData=self.yData)
+        self.dataPlot.updateData(name='data',xData=self.wave,yData=self.yData,
+                                 xLabel=r"$\lambda\,[\mathrm{\AA}]$",
+                                 yLabel=yLabel)
 
         if self.yFit != None:
             self.dataPlot.updateData(\
-                name='fit', xData=self.xData, yData=np.copy(self.yFit))
+                name='fit', xData=self.wave, yData=np.copy(self.yFit))
         else:
             self.dataPlot.updateData(name='fit', xData=[], yData=[])
 
@@ -523,10 +536,10 @@ class InspectFitData(QtGui.QMainWindow):
 
 
     def modifyMask(self, limits, mask):
-
-        iMin = max(0, int(limits[0]))
-        iMax = min(int(limits[1])+1, self.mask.shape[0])
-
+##         print limits, mask
+        iMin = np.argmin(abs(self.wave-limits[0])) ## max(0, int(limits[0]))
+        iMax = np.argmin(abs(self.wave-limits[1])) ## min(int(limits[1])+1, self.mask.shape[0])
+        
         self.mask[iMin:iMax] = (mask==False)
 
         self.plotMask()
@@ -543,13 +556,13 @@ class InspectFitData(QtGui.QMainWindow):
             if "mask{0}".format(i) in self.dataPlot.thePlots.keys():
                 self.dataPlot.updateData(\
                     name="mask{0}".format(i),
-                    xData=self.xData[maskStart[i]:maskEnd[i]],
+                    xData=self.wave[maskStart[i]:maskEnd[i]],
                     yData=self.yData[maskStart[i]:maskEnd[i]])
         
             else:
                 self.dataPlot.addData(\
                     name="mask{0}".format(i),
-                    xData=self.xData[maskStart[i]:maskEnd[i]],
+                    xData=self.wave[maskStart[i]:maskEnd[i]],
                     yData=self.yData[maskStart[i]:maskEnd[i]],
                     ls='-', c='w', marker='None', alpha=0.5)
 

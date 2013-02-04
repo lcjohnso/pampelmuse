@@ -12,9 +12,10 @@ CHANGELOG:
 2012/11/09, v0.1.0.0, preliminary version completed, support for PMAS/Larr
                       and FLAMES/ARGUS
 
+2013/02/02, v0.1.1.0, bugfix in PMAS class: replaced int16 with np.int16
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.1.0.0"
+__version__ = "0.1.1.0"
 import logging
 import numpy as np
 from scipy.spatial import distance
@@ -98,8 +99,8 @@ class Pmas(Instruments):
 
         ## initialize transformation from (x,y)-coords to spaxels
         transform = np.vstack((\
-                np.mod(np.arange(256, dtype=int16), 16),
-                np.arange(256, dtype=int16)//16)).T
+                np.mod(np.arange(256, dtype=np.int16), 16),
+                np.arange(256, dtype=np.int16)//16)).T
 
         ## all pixels at the edge of the fov 
         edgepix = np.vstack((\

@@ -39,9 +39,11 @@ v0.5.0.1 -2012/07/03 - slighly modified logging-initialization because calling
 v0.5.0.2 -2012/07/24 - added handling for cases where PyQt4 is not available.
 v0.5.1.2 -2012/07/24 - some bugfixing wrt availability checks. Now we also
                        chek for matplotlib support.
+v0.6.0.0 -2012/12/23 - added routine SHOTNOI that estimates the shot noise in a
+                       datacube.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.5.1.2"
+__version__ = "0.6.0.0"
 
 
 print """
@@ -103,6 +105,7 @@ if graphics: from pampelmuse.scripts.polyfit import polyfit
 from pampelmuse.scripts.extract import get_pixpos
 from pampelmuse.scripts.updateprm import updateprm
 from pampelmuse.scripts.subtres import subtres
+from pampelmuse.scripts.shotnoi import shotnoi
 if use_addwcs: from pampelmuse.scripts.addwcs import addwcs
 
 
@@ -249,6 +252,18 @@ The routine is designed to subtract the contribution of the (resolved) stars
 from a datacube. To this aim, it uses a PampelMuse PRM-file along with the
 corresponding datacube.""")
 SRparser.set_defaults(func=subtres)
+
+
+SNparser = PMsubparsers.add_parser("SHOTNOI", help="""
+Determine shot noise in each spatial pixel of a datacube befor and after the
+resolved sources have been deblended. This routine will only work for
+successfully analysed cubes.""")
+SNparser.add_argument("sourcelist", type=str, nargs="?", help="""
+Optional ASCII-file containing the results from crowded-field photometry. Lines
+starting with '#' are considered comments. The first columns should contain
+the names of the columns. The routine will look for columns named `id`, `x`,
+`y` and <PASSBAND> as specified in the configuration.""")
+SNparser.set_defaults(func=shotnoi)
 
 if use_addwcs:
     AWparser = PMsubparsers.add_parser("ADDWCS", help="""

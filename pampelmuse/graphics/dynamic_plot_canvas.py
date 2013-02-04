@@ -11,9 +11,11 @@ CHANGELOG:
                       not disappear upon updating  the data to be plotted.
 2012/01/25, v0.0.1.2, modified the dimensions of the plot to make it fit better
                       into the surrounding frame.
+2013/02/04, v0.1.0.0, added possibility to add/update x- and y-labels. Minor
+                      changes to how canvas/axes are plotted. 
 """
 __author__  = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.0.1.2"
+__version__ = "0.1.0.0"
 
 import matplotlib.pyplot
 import numpy as np
@@ -27,7 +29,7 @@ class DynamicPlotCanvas(FigureCanvas):
     def __init__(self, parent=None, width=9, height=5, dpi=100):
 
         self.fig  = Figure(figsize=(width, height), dpi=dpi)
-        self.axes = self.fig.add_axes((0.12, 0.12, 0.85, 0.80))
+        self.axes = self.fig.add_axes((0.12, 0.14, 0.85, 0.80))
 
         FigureCanvas.__init__(self, self.fig)
         self.setParent(parent)
@@ -51,10 +53,17 @@ class DynamicPlotCanvas(FigureCanvas):
         
         self.axes.minorticks_on()
 
+        for line in self.axes.xaxis.get_ticklines() \
+                + self.axes.yaxis.get_ticklines() \
+                + self.axes.xaxis.get_minorticklines() \
+                + self.axes.yaxis.get_minorticklines():
+            line.set_markeredgewidth(1.5)
+
         self.draw()
 
 
-    def updateData(self, name, xData=None, yData=None):
+    def updateData(self, name, xData=None, yData=None, xLabel=None,
+                   yLabel=None):
 
         if xData==None and yData==None:
             return
@@ -68,6 +77,12 @@ class DynamicPlotCanvas(FigureCanvas):
 
         self.axes.axes.relim()
         self.axes.autoscale_view(tight=False)
+
+        if xLabel != None:
+            self.axes.set_xlabel(xLabel, fontsize=20)
+
+        if yLabel != None:
+            self.axes.set_ylabel(yLabel, fontsize=20)
 
         self.draw()
 

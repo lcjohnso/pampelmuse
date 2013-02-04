@@ -1,3 +1,17 @@
+"""
+DYNAMIC_IMA_CANVAS
+==================
+Class that is used to plot a FITS-image. It also provides some basic
+functionality to overplot data onto the image or change the cuts.
+
+CHANGELOG:
+----------
+2013/02/03 - v0.2.0.0, started to add documentation and increased the size of
+                       the circles used to indicate data points.
+"""
+__author__ = "Sebastian Kamann (skamann@aip.de)"
+__version__ = "0.2.0.0"
+
 import matplotlib.pyplot
 import numpy as np
 from PyQt4 import QtCore
@@ -167,8 +181,8 @@ class DynamicImaCanvas(FigureCanvas):
         ## apropriate methods
         self.allData = np.ma.array(data)
 
-        self.sizes = (10**(-0.2*(self.allData['mag']\
-                                     -max(self.allData['mag']))))
+        self.sizes = 10.*(10**(-0.2*(self.allData['mag']\
+                                         -max(self.allData['mag']))))
         self.sizes[self.sizes<1]=1.
 
         self.facecolors = self.allData.size*['none'] 
