@@ -335,7 +335,7 @@ class Moffat(Profile):
           v(x,y) = (y-YC)*SIN(THETA)+(x-XC)*COS(THETA)
           RD     = FWHM /(2.*SQRT(2**(1./BETA) -1.))
           SIGMA0 = (BETA-1.)*FLUX/(PI*(RD**2)*(1.-E))
-          FLUX   = -2.5*LOG10(MAG)
+          FLUX   = 10**(-0.4*MAG)
 
     The properties of the Moffat profile can be altered using the following
     set of parameters: E, THETA, FWHM, BETA (shape); XC, YC (center); MAG
@@ -613,6 +613,10 @@ class Gaussian(Profile):
             + self.flux*self.Gsigma_0*np.exp(-(R**2)/(2.*(self.std**2)))
 
         
+    def Dgfwhm(self):
+        
+
+
 
 """The Lorentz Profile"""
 class Lorentz(Profile):
@@ -713,7 +717,7 @@ class GauMoff(Moffat, Gaussian):
     `Moffat.make_array`- and Gaussian.make_array`-methods are called.
 
     """
-    def __init__(self, Gfwhm,  beta, Mfwhm, Mfrac, **kwargs):
+    def __init__(self, Gfwhm, beta, Mfwhm, Mfrac, **kwargs):
         """
         Initialize an instance of the Moffat&Gaussian-class.
 

@@ -27,7 +27,7 @@ import numpy as np, pyfits
 ## required PampelMuse-packages
 from pampelmuse.core.sources import Sources
 from pampelmuse.core.positions import CoordinateTransformation
-from pampelmuse.core.psf import PSF
+from pampelmuse.core.psf import PsfAttributes
 
 def shotnoi(arguments):
 
@@ -126,7 +126,7 @@ def shotnoi(arguments):
 
 
     ## PSF
-    psf = PSF()
+    psf = PsfAttributes()
     if "PSFPARS" in extNames: ##  check if HDU exists
         logging.info("Reading 'PSFPARS' HDU.")
 

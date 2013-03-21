@@ -53,6 +53,7 @@ except ImportError: pass
 from pampelmuse.core.positions import CoordinateTransformation
 from pampelmuse.functions.step_poly_fit import StepPolyFit
 from pampelmuse.core.value_array import ValueArray
+from pampelmuse.core.instruments import Argus, Pmas
 
 
 def matchOnID(parent, child):
@@ -176,9 +177,23 @@ class Sources(CoordinateTransformation, object):
 
 
         ## "Initialize" instrument
-        self.instrument = instrument
-        if self.instrument is None:
-            logging.warning("No information on used instrument avaialable.")
+        if isinstance(instrument, (Argus, Pmas)):
+            self.instrument = instrument
+            logging.info("Selected instrument is '{0}'.".format(\
+                    instrument.name))
+        elif isinstance(instrument, str):
+            if instrument == "pmas":
+                logging.info("Selected instrument is PMAS.")
+                self.instrument = Pmas()
+            elif instrument == "argus":
+                logging.info("Selected instrument is FLAMES/ARGUS.")
+                self.instrument = Argus()
+        else:
+            logging.warning("No valid instrument specifier provided.")
+            self.instrument = Instrument()
+
+##         if self.instrument is None:
+##             logging.warning("No information on used instrument avaialable.")
 
 
         super(Sources, self).__init__()
@@ -391,15 +406,26 @@ class Sources(CoordinateTransformation, object):
         if self._mag == None:
             logging.warning("Property `mag` not set, assuming equal weights.")
 
-        self._weights = {}
-        for row, ind in self._indexmap.iteritems():
+        self._weights = np.zeros((self.nsrc,), dtype=np.float64)
+        
+        for i in xrange(self.nsrc):
+            same_specrow = (self._specrow==self._specrow[i])
             if self._mag != None:
-                self._weights[row] = self._mag[ind] \
-                    + 2.5*np.log10((10**(-0.4*self._mag[ind])).sum())
+                self._weights[i] = self._mag[i] + 2.5*np.log10(\
+                    (10**(-0.4*self._mag[same_specrow])).sum())
             else:
-                n = len(ind)
-                self._weights[row] \
-                    = np.asarray(n*[2.5*np.log10(n)], dtype=np.float32)
+                self._weights[i] = 2.5*np.log10(same_specrow.size)
+
+
+##         self._weights = {}
+##         for row, ind in self._indexmap.iteritems():
+##             if self._mag != None:
+##                 self._weights[row] = self._mag[ind] \
+##                     + 2.5*np.log10((10**(-0.4*self._mag[ind])).sum())
+##             else:
+##                 n = len(ind)
+##                 self._weights[row] \
+##                     = np.asarray(n*[2.5*np.log10(n)], dtype=np.float32)
 
 
     @property
@@ -450,7 +476,7 @@ class Sources(CoordinateTransformation, object):
     @property
     def psfIndices(self):
         """
-        Returns the indices of the sources that are  used to determine the
+        Returns the indices of the sources that are used to determine the
         PSF (i.e. sources whose `status` is 3).
         """
         return np.arange(self.nsrc, dtype=np.int32)[self.status==3]
@@ -464,18 +490,36 @@ class Sources(CoordinateTransformation, object):
             logging.debug("Current structure of loaded Sources-instance:")
             logging.debug(" Component:   IDs (& mags):")
 
-            for row, ind in self.indexmap.iteritems():
-                logString = " {0:10d}".format(int(row))
-                j = 0
-            
-                for i in ind:
-                    logString += "   {0} ({1:.2f})".format(\
-                        int(self._id[i]), float(self._weights[row][j]))
-                    j +=1
-                    if not np.mod(j, 2):
+            for i in xrange(self.specrow.max()+1):
+                logString = " {0:10d}".format(i)
+   
+                slc = np.where(self.specrow==i)[0]
+
+                for j in xrange(slc.size):
+                    logString += "   {0:6d} ({1:.2f})".format(\
+                        int(self._id[slc[j]]),
+                        float(abs(self._weights[slc[j]])))
+
+                    if not np.mod(j+1, 2):
                         logging.debug(logString)
                         logString = 11*" "
-                if np.mod(j, 2)>0: logging.debug(logString)
+                        
+                if np.mod(j, 2)==0: logging.debug(logString)
+                
+             
+
+##             for row, ind in self.indexmap.iteritems():
+##                 logString = " {0:10d}".format(int(row))
+##                 j = 0
+##             
+##                 for i in ind:
+##                     logString += "   {0} ({1:.2f})".format(\
+##                         int(self._id[i]), float(self._weights[row][j]))
+##                     j +=1
+##                     if not np.mod(j, 2):
+##                         logging.debug(logString)
+##                         logString = 11*" "
+##                 if np.mod(j, 2)>0: logging.debug(logString)
         except AttributeError:
             logging.warning("Some source properties are not set.")
             return
@@ -641,13 +685,13 @@ class Sources(CoordinateTransformation, object):
     def loadIFUCoords(self, data=None, ids=None, index=slice(None),free=False):
         """
         Provide the IFU coordinates for an individual source, a subset of
-        source or the entire catalogue.
+        sources or the entire catalogue.
         The coordinates might be loaded for an individual image or more images.
         Note however that this `index` selection is currently limited by the
         fact that the `ValueArray` can only handle integers or `slice`-
         instances.
-        The method tries to obtain the IFU coordinates in different ways and
-        (in the following order):
+        The method tries to obtain the IFU coordinates in different ways (and
+        in the following order):
         (1) Directly, if `data` is not None
         (2) Using the coord. transf., if a valid one is available.
         (3) Reading the coordinates from a previously provided (using the
@@ -1088,8 +1132,8 @@ class Sources(CoordinateTransformation, object):
         logging.info("Determining position of sources in IFU FoV.")
 
         if self.instrument is not None:
-            return self.instrument.dist2edge(self.ydata[0].mean(axis=-1),
-                                             self.xdata[0].mean(axis=-1))
+            return self.instrument.dist2edge(self.xdata[0].mean(axis=-1),
+                                             self.ydata[0].mean(axis=-1))
         else:
             return np.min([self.xdata[0].mean(axis=-1),
                            self.ydata[0].mean(axis=-1),
@@ -1143,7 +1187,7 @@ class Sources(CoordinateTransformation, object):
 
 
 
-    def signalToNoise(self, psf, magZ, sigma, r=5):
+    def signalToNoise(self, class_psf, magZ, sigma, r=5):
         """
         Calculate the S/N ratio of all stars in the scene.
 
@@ -1167,33 +1211,54 @@ class Sources(CoordinateTransformation, object):
         """
         logging.info("Determining Signal-to-Noise of sources.")
 
-        x   = self.xdata[0].mean(axis=-1)
-        y   = self.ydata[0].mean(axis=-1)
-        mag = self._mag[self.ifuSelect]
+##         x   = self.xdata[0].mean(axis=-1)
+##         y   = self.ydata[0].mean(axis=-1)
+##         mag = self._mag[self.ifuSelect]
 
         snRatios = np.zeros(self.ifuSelect.shape, dtype=np.float32)
-        for i in xrange(snRatios.size):
 
-            ##  calculate PSF profile
-            _profile = psf(size=sigma.shape, x_c=x[i], y_c=y[i],
-                           mag=0., maxrad=r, return_sparse=True,
-                           as_sparse_matrix=True)
+        i=0
+        for psf in class_psf:
+##         for i in xrange(snRatios.size):
             
-            ## remove "empty"-pixels if instance of Instrument-class is
-            ## available
-            if self.instrument != None:
-                profile = (np.asarray(_profile.todense())/sigma)[\
-                    self.instrument.fovmask]
-            else:
-                profile = np.asarray(_profile.todense())/sigma
+            assert psf.src_id==self.ID[i], "Source IDs do not match PSF IDs."
+
+            src_mag = psf.mag            
+            flx = 10**(-0.4*(src_mag-magZ))
+
+            psf.mag = 0.
+            spaxel, psf_contrib = psf.get_flux()
 
             ## get flux
-            flx = 10**(-0.4*(mag[i]-magZ))
+            snRatios[i] = flx*np.sqrt(((psf_contrib/sigma[spaxel])**2).sum())
 
-            ## PSF array must be converted to a numpy array before calculation
-            snRatios[i] = flx*np.sqrt((profile**2).sum())
+            ## recover initial star magnitude for PSF
+            psf.mag = src_mag
+
+            i += 1
 
         return snRatios
+
+
+
+##             ##  calculate PSF profile
+## ##             _profile = psf(size=sigma.shape, x_c=x[i], y_c=y[i],
+## ##                            mag=0., maxrad=r, return_sparse=True,
+## ##                            as_sparse_matrix=True)
+##             
+##             ## remove "empty"-pixels if instance of Instrument-class is
+##             ## available
+##             if self.instrument != None:
+##                 profile = (np.asarray(_profile.todense())/sigma)[\
+##                     self.instrument.fovmask]
+##             else:
+##                 profile = np.asarray(_profile.todense())/sigma
+## 
+## 
+##             ## PSF array must be converted to a numpy array before calculation
+##             snRatios[i] = flx*np.sqrt((profile**2).sum())
+## 
+##         return snRatios
 
 
 

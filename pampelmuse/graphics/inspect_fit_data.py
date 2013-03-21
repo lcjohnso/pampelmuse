@@ -39,7 +39,7 @@ from PyQt4 import QtCore, QtGui
 
 ##  required PampelMuse-packages
 from pampelmuse.graphics.dynamic_plot_canvas import DynamicPlotCanvas
-from pampelmuse.core.psf import PSF
+from pampelmuse.core.psf import PsfAttributes
 from pampelmuse.core.sources import Sources
 from pampelmuse.core.instruments import Pmas, Argus
 
@@ -380,7 +380,7 @@ class InspectFitData(QtGui.QMainWindow):
 
         ## Handle PSF ##########################################################
         if "PSFPARS" in self.extNames:
-            self.psf = PSF()
+            self.psf = PsfAttributes()
             self.psf.readFitsHDU(self.HDUList["PSFPARS"])
 
             self.hduSelect.addItem("PSF")

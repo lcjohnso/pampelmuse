@@ -79,8 +79,9 @@ from PyQt4 import QtGui
 ## required PampelMuse routines
 from pampelmuse.graphics.ident_sources import IdentSources
 from pampelmuse.core.aperture import AperPhoto
+from pampelmuse.core.new_profiles import Gaussian,Moffat
 from pampelmuse.core.sources import Sources
-from pampelmuse.core.psf import PSF
+from pampelmuse.core.psf import PsfAttributes
 from pampelmuse.core.instruments import Pmas, Argus
 
 
@@ -176,59 +177,108 @@ def initfit(arguments):
         y   = cfpResults['y']
         mag = cfpResults[magColName]
 
-
     x -= x[ids>=0].min()
     y -= y[ids>=0].min()
 
-    sources     = Sources(ids=ids)
+    ## Initialize instance of instrument-class
+    if ifu == "pmas":
+        logging.info("Selected instrument is PMAS.")
+        instrument = Pmas()
+    elif ifu == "argus":
+        logging.info("Selected instrument is FLAMES/ARGUS.")
+        instrument = Argus()
+    else:
+        logging.warning("No valid instrument specifier provided.")
+        instrument = None
+
+    ## Initialiize sources-class
+    sources     = Sources(ids=ids, instrument=instrument)
     sources.x   = x
     sources.y   = y
     sources.mag = mag
 
 
     ## initialize PSF
-    if psfType == "moffat": psfArgs = ["theta", "e", "Mfwhm", "beta"]
-    elif psfType == "gauss": psfArgs = ["Gtheta", "e", "fwhm"]
-    elif psfType == "lorentz": psfArgs = ["Ltheta", "e", "fwhm"]
-    elif psfType == "gaumoff": psfArgs = ["Gfwhm", "beta", "Mfwhm", "Mfrac",
-                                          "e", "fwhm"]
+    if psfType == "moffat":
+        PSF = Moffat
+        PSF.set_beta(psfPars[0])
+        PSF.set_fwhm(psfPars[1])
+    elif psfType == "gauss":
+        PSF = Gaussian
+        PSF.set_fwhm(psfPars[0])
+    PSF.set_e(psfPars[-2])
+    PSF.set_theta(psfPars[-1])
 
-    psf = PSF() ## PSF used in analysis
-    psf.makeNewPSF(profile=psfType)
+##     elif psfType == "lorentz": psfArgs = ["Ltheta", "e", "fwhm"]
+##     elif psfType == "gaumoff": psfArgs = ["Gfwhm", "beta", "Mfwhm", "Mfrac",
+##                                           "e", "fwhm"]
+
+    psf_attributes = PsfAttributes() ## PSF used in analysis
+    psf_attributes.makeNewPSF(profile=psfType)
 
     ## check which PSF parameters should be fitted and add parameters
-    n = len(psfArgs)
-    for arg in psfArgs:
+    n = len(psf_attributes.parameters)
+    for arg in psf_attributes.parameters[::-1]:
         if psfFit >= 2**n:
             psfFit -= 2**n
-            psf.addParameter(name=arg, value=psfPars[n-1], freepar=True)
+            psf_attributes.addParameter(\
+                name=arg, value=psfPars[n-1], freepar=True)
         else:
-            psf.addParameter(name=arg, value=psfPars[n-1], freepar=False)
+            psf_attributes.addParameter(\
+                name=arg, value=psfPars[n-1], freepar=False)
         n -= 1
 
-    psf.makeValues()
-    psf.info()
+    psf_attributes.makeValues()
+    psf_attributes.info()
 
 
     ## open FITS-files:
     logging.info("Reading IFS data...")
-
-    ## Initialize instance of instrument-class
-    if ifu == "pmas":
-        logging.info("Selected instrument is PMAS.")
-        sources.instrument = Pmas()
-    elif ifu == "argus":
-        logging.info("Selected instrument is FLAMES/ARGUS.")
-        sources.instrument = Argus()
-    else:
-        logging.warning("No valid instrument specifier provided.")
-        sources.instrument = None
-
+        
     ## data
-    dataHDU = pyfits.open("{0}.dat.fits".format(prefix))[0]
-    cdelt = dataHDU.header['CDELT3']
-    crval = dataHDU.header['CRVAL3']
-    ndisp = dataHDU.header['NAXIS3']
+    dataFile = pyfits.open("{0}.dat.fits".format(prefix))
+
+    ## check if calibration HDU for ARGUS exists
+    if sources.instrument.name == "argus":
+        try:
+            setup_index = dataFile.index_of("FIBER_SETUP")
+            sources.instrument.read_fiber_setup(hdu=dataFile[setup_index])
+        except KeyError:
+            logging.warning("No HDU with fibre setup found for ARGUS data.")
+    
+    ## open data HDU
+    dataHDU  = dataFile[0]
+    ndim     = dataHDU.header["NAXIS"]
+    if sources.instrument == None and ndim!=3:
+        logging.error("Data must be 3dim. unlesss instrument specified.")
+        assert ndim==3, "Expected 3dim. datacube, got {0}dim".format(ndim)
+
+    if ndim == 3:
+        laxis = 0 ## Wavelength (lambda) axis
+        spats = (dataHDU.header["NAXIS1"], dataHDU.header["NAXIS2"])
+                  ## spatial shape
+        cdelt = dataHDU.header['CDELT3']
+        crval = dataHDU.header['CRVAL3']
+        try:
+            ctype = dataHDU.header["CTYPE3"]
+        except KeyError:
+            ctype = "Angstrom"
+        ndisp = dataHDU.header['NAXIS3']
+    else:
+        laxis = 1
+        spats = (sources.instrument.nspaxel,)
+        cdelt = dataHDU.header['CDELT{0}'.format(\
+                sources.instrument.spectral_axis)]
+        crval = dataHDU.header['CRVAL{0}'.format(\
+                sources.instrument.spectral_axis)]
+        try:
+            ctype = dataHDU.header["CTYPE{0}".format(\
+                    sources.instrument.spectral_axis)]
+        except KeyError:
+            ctype = "Angstrom"
+        ndisp = dataHDU.header['NAXIS{0}'.format(\
+                sources.instrument.spectral_axis)]
+
     logging.info("   {0}.dat.fits - OK".format(prefix))
 
     ## sigma
@@ -243,6 +293,7 @@ def initfit(arguments):
         maskHDU = None
         logging.info("   {0}.msk.fits - Not found".format(prefix))
 
+
     ## collapse data-cube to image in the provided photometric filter
     logging.info("Creating mock {0}-band image from datacube.".format(passband))
     filtercurve = np.genfromtxt(os.path.join(DATAPATH, passband), usecols=(0,1),
@@ -254,14 +305,25 @@ def initfit(arguments):
     fMax = filtercurve["wl"].max()
 
     ## make loop to avoid extensive use of memory for large data-cubes
-    dataIma  = np.zeros((dataHDU.header["NAXIS2"], dataHDU.header["NAXIS1"]),
-                        dtype=np.float32)
+    dataIma  = np.zeros(spats, dtype=np.float32)
     sigmaIma = np.zeros(dataIma.shape, dtype=np.float32)
     for i in xrange(ndisp):
         wave_i = crval+i*cdelt
+        if ctype == "nm": wave_i *= 10
         if wave_i > fMin and wave_i < fMax:
-            dataIma  += dataHDU.section[i]*f(wave_i)## [0]
-            sigmaIma += sigmaHDU.section[i]*f(wave_i)## [0]
+            if ndim==3 :
+                dataHDU.section[i]*f(wave_i)
+                sigmaHDU.section[i]*f(wave_i)
+            elif sources.instrument.spectral_axis==2:
+                dataIma  += sources.instrument.get_science(\
+                    dataHDU.section[i]*f(wave_i))
+                sigmaIma += sources.instrument.get_science(\
+                        sigmaHDU.section[i]*f(wave_i))
+            else:
+                dataIma  += sources.instrument.get_science(\
+                    dataHDU.section[:,i]*f(wave_i))
+                sigmaIma += sources.instrument.get_science(\
+                    sigmaHDU.section[:,i]*f(wave_i))
     dataIma  /= filtercurve["tp"].sum()
     sigmaIma /= filtercurve["tp"].sum()
 
@@ -272,18 +334,20 @@ def initfit(arguments):
     ## have a flux of 1000 counts and a peak-S/N of roughly 10
     logging.info("Creating mock image from photometry sources.")
 
+    PSF.set_size(\
+        (int((sources.y.max()/pixScale)+1), int((sources.x.max()/pixScale)+1)))
+    PSF.set_A(1./pixScale)
     MZERO     = reslim + 7.5
-    size      = (int((sources.y.max()/pixScale)+1),
-                 int((sources.x.max()/pixScale)+1))
-    identIma  = np.zeros(size, dtype='float32')
-    prof      = psf(index=0)
+
+    identIma  = np.zeros(PSF.size, dtype='float32')
     for i in xrange(sources.nsrc):
         if sources.ID[i] < 0: continue 
-        identIma += prof(size=size, x_c=sources.x[i]/pixScale,
-                         y_c=sources.y[i]/pixScale, mag=(sources.mag[i]-MZERO),
-                         maxrad=10, return_sparse=True, as_sparse_matrix=True)\
-                         .todense()
-    identIma += np.random.normal(loc=0., scale=10, size=size)
+
+        psf = PSF(Xc=sources.x[i], Yc=sources.y[i], mag=sources.mag[i],
+                  src_id=sources.ID[i], maxrad=10.)
+        identIma[psf.y[psf.used], psf.x[psf.used]] += psf.f*10**(0.4*MZERO)
+
+    identIma += np.random.normal(loc=0., scale=10, size=PSF.size)
 
     ## start source identification GUI to identify bright(est) stars
     logging.info("Preparing GUI for source identification"),
@@ -297,27 +361,32 @@ def initfit(arguments):
     pickData["y"] /= pixScale
 
     app  = QtGui.QApplication(sys.argv)
-    identifier = IdentSources(grabIma=dataIma, pickIma=identIma,
-                              pickData=pickData)
+    if ndim==2:
+        identifier = IdentSources(\
+            grabIma=sources.instrument.make_grid(dataIma, fill_value=0.,),
+            pickIma=identIma, pickData=pickData)
+    else:
+        identifier = IdentSources(grabIma=dataIma, pickIma=identIma,
+                                  pickData=pickData)
     identifier.show()
     app.exec_()
 
     identified = identifier.getResults()
 
 
-    ## adjust PSF FWHM (only if >=4 sources have a valid FWHM measurement)
-    valid = (identified["fwhm_x"]>0)&(identified["fwhm_y"]>0)
-    if valid.sum() < 4:
-        logging.warn("Skipping FWHM measurement - too few sources ({0})"\
-                         .format(valid.sum()))
-##         fwhm = psf.values[psf.parameters.index("fwhm"),:].mean(axis=-1)
-    else:
-        prof.fwhm = 0.5*(identified['fwhm_x'][valid].mean() \
-                            + identified['fwhm_y'][valid].mean())
-        logging.info("Estimated Seeing FWHM: {0:.1f}pixel".format(prof.fwhm))
-##         psf.values[psf.parameters.index("fwhm"),:] =  fwhm
-        ## NOTE: will only write FWHM to values if FWHM is fitted
-        ##       CHANGED: Parameter not updated, only class-property `fwhm`
+##     ## adjust PSF FWHM (only if >=4 sources have a valid FWHM measurement)
+##     valid = (identified["fwhm_x"]>0)&(identified["fwhm_y"]>0)
+##     if valid.sum() < 4:
+##         logging.warn("Skipping FWHM measurement - too few sources ({0})"\
+##                          .format(valid.sum()))
+## ##         fwhm = psf.values[psf.parameters.index("fwhm"),:].mean(axis=-1)
+##     else:
+##         prof.fwhm = 0.5*(identified['fwhm_x'][valid].mean() \
+##                             + identified['fwhm_y'][valid].mean())
+##         logging.info("Estimated Seeing FWHM: {0:.1f}pixel".format(prof.fwhm))
+## ##         psf.values[psf.parameters.index("fwhm"),:] =  fwhm
+##         ## NOTE: will only write FWHM to values if FWHM is fitted
+##         ##       CHANGED: Parameter not updated, only class-property `fwhm`
 
     ## determine coordinate transformation using identified sources
     sources.loadIFUCoords(\
@@ -326,6 +395,18 @@ def initfit(arguments):
     sources.calcTrans()
     if posFit == 1: sources.ctFree[2:] = True
     elif posFit == 2: sources.ctFree[:] = True
+
+    ## add coordinate transformation to PSF
+    i=0
+    for prm in sources.parameters:
+        getattr(PSF, "set_{0}".format(prm))(sources.ctValues[i,0])
+        i+=1
+
+    ## adapt PSF to IFU array
+    if sources.instrument != None:
+        PSF.set_transform(sources.instrument.transform)
+    else:
+        PSF.set_size(spats)
 
     ## Source selection process 
     logging.info("Selecting sources to be used in PSF fitting.")
@@ -354,15 +435,15 @@ def initfit(arguments):
 
 
     ## signal-to-noise
-    signalToNoise = sources.signalToNoise(psf=prof, magZ=magZ, sigma=sigmaIma,
-                                          r=psfRad)
+    signalToNoise = sources.signalToNoise(class_psf=PSF, magZ=magZ,
+                                          sigma=sigmaIma, r=psfRad)
     ##  modify S/N of sources close to brighter neighbor:
-    close = distToBrighter<prof.fwhm    
-    signalToNoise[close] *= (1.+0.9*np.log10(distToBrighter[close]/prof.fwhm))
+    close = distToBrighter<PSF.fwhm    
+    signalToNoise[close] *= (1.+0.9*np.log10(distToBrighter[close]/PSF.fwhm))
 
     ##  penalize S/N of sources outside FoV:
     outside = edgeDist<0
-    signalToNoise[outside] *= np.exp(-(edgeDist[outside]/prof.fwhm)**2)
+    signalToNoise[outside] *= np.exp(-(edgeDist[outside]/PSF.fwhm)**2)
 
 
     if not smallifu:
@@ -381,7 +462,7 @@ def initfit(arguments):
     while True:
         mcut += 0.1
         if (magPS[edgeDist>0]<mcut).sum() > confDens*dataIma.size \
-                /(prof.fwhm*prof.fwhm):
+                /(PSF.fwhm*PSF.fwhm):
             mcut -= 0.1
             break
         if not (magPS[edgeDist>0]>mcut).any():
@@ -409,7 +490,7 @@ def initfit(arguments):
             primary[i] = sources.ID[i]
         elif sources.mag[i] <= reslim:
             if signalToNoise[i] > snrcut:
-                if distToBrighter[i] < binrad*prof.fwhm:
+                if distToBrighter[i] < binrad*PSF.fwhm:
                     status[i]  = 1
                     primary[i] = brighterID[i]
                 else:
@@ -418,7 +499,7 @@ def initfit(arguments):
             else:
                 if edgeDist[i] < 0:
                     continue
-                if distToBrighter[i] < 2*binrad*prof.fwhm:
+                if distToBrighter[i] < 2*binrad*PSF.fwhm:
                     status[i]  = 1
                     primary[i] = brighterID[i]
                 else:
@@ -435,7 +516,7 @@ def initfit(arguments):
                                      int(status[i])))
             
         elif useunres:
-            if sources.mag[i]<=unreslim and edgeDist[i]>-prof.fwhm:
+            if sources.mag[i]<=unreslim and edgeDist[i]>-PSF.fwhm:
                 status[i]  = 0
                 primary[i] = -2
 
@@ -464,7 +545,7 @@ def initfit(arguments):
             
             if sources.status[i] == 2 \
                     and sources.mag[i] <= (reslim-3) \
-                    and edgeDist[i] > prof.fwhm \
+                    and edgeDist[i] > PSF.fwhm \
                     and shoulderDrop[i] < apernois:
 
                 sources.status[i] = 3
@@ -491,6 +572,7 @@ def initfit(arguments):
  
         make_aper = AperPhoto(data=dataHDU, centers=aperData, mask=maskHDU)
         
+        ## !!! NEEDS TO  BE UPDATED !!!
         aperResults = make_aper.aper_photo(rAper=aperRad, psf=psf,
                                            calcMoments=True, thresh=3.,
                                            localBG=True)
@@ -518,9 +600,9 @@ def initfit(arguments):
             xy = aperResults[["xy"]][stars].view(np.float32)\
                 .reshape(stars.sum(), -1)
 
-            psf.delValues()
-            psf.resizeStructure(ndisp=x2.shape[1])
-            psf.makeValues()
+            psf_attributes.delValues()
+            psf_attributes.resizeStructure(ndisp=x2.shape[1])
+            psf_attributes.makeValues()
 
             ## get A, B:
             A = np.sqrt((x2+y2)/2.+np.sqrt(((x2-y2)/2.)**2+xy**2))
@@ -528,19 +610,20 @@ def initfit(arguments):
             
             ## FWHM
             fwhm = np.sqrt(8.*np.log(2))*np.mean(A, axis=0)
-##             psf.values[psf.parameters.index("fwhm")] = fwhm
+##             psf_attributes.values[psf_attributes.parameters.index("fwhm")] = fwhm
             logging.info("   Mean FWHM: {0:.2f}pix.".format(fwhm.mean()))
 
             ## Ellipticity
             e    = 1. - np.mean(np.where(B!=0, A/B, 1.), axis=0)
-            psf.values[psf.parameters.index("e")] = e
+            psf_attributes.values[psf_attributes.parameters.index("e")] = e
             logging.info("   Mean ellipticity: {0:.2f}".format(e.mean()))
         
             ## Position angle
             theta  = np.where(x2!=y2, 0.5*np.arctan(2*xy/(x2-y2)), 0.)
             theta -= (-1)**(theta<0)*np.pi/4.
             theta += (-1)**(xy>0)*np.pi/4.
-            psf.values[psf.parameters.index("theta")] = theta.mean(axis=0)
+            psf_attributes.values[psf_attributes.parameters.index("theta")] \
+                = theta.mean(axis=0)
             logging.info(\
                 "   Mean position angle: {0:.2f}rad.".format(theta.mean()))
 
@@ -575,7 +658,7 @@ def initfit(arguments):
     sourceHDU  = sources.makeSourceHDU()
     spectraHDU = sources.makeSpecHDU(makeSigma=False)
     posparsHDU = sources.makeTransHDU(includePolyFit=False)
-    psfparsHDU = psf.makePSFHDU(includePolyFit=False)
+    psfparsHDU = psf_attributes.makePSFHDU(includePolyFit=False)
 
     HDUList = pyfits.HDUList([primaryHDU, sourceHDU, spectraHDU, posparsHDU,
                               psfparsHDU])

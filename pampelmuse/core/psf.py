@@ -36,17 +36,19 @@ from numpy.polynomial import Chebyshev, Legendre
 from PyQt4 import QtCore
 
 ## required PampelMuse-packages
-from pampelmuse.core.my_profiles import Gaussian, Moffat, Lorentz, GauMoff
+## from pampelmuse.core.my_profiles import Gaussian, Moffat, Lorentz, GauMoff
+## from pampelmuse.core.new_profiles import Moffat, Gaussian
 from pampelmuse.functions.step_poly_fit import StepPolyFit
 from pampelmuse.core.value_array import ValueArray
 
-PROFILES  = {"moffat":  [         "beta", "Mfwhm",          "e", "theta"],
-             "gauss":   ["Gfwhm",                           "e", "theta"],
-             "lorentz": ["Lfwhm",                           "e", "theta"],
-             "gaumoff": ["Gfwhm", "beta", "Mfwhm", "Mfrac", "e", "theta"]}
+PROFILES  = {"moffat":  [         "beta", "fwhm",          "e", "theta"],
+             "gauss":   ["fwhm",                           "e", "theta"],
+##              "lorentz": ["Lfwhm",                           "e", "theta"],
+##              "gaumoff": ["Gfwhm", "beta", "Mfwhm", "Mfrac", "e", "theta"],
+             }
 
 
-class PSF(object):
+class PsfAttributes(object):
 
     def makeNewPSF(self, profile, **kwargs):
 
@@ -149,8 +151,8 @@ class PSF(object):
     def addParameter(self, name, value, freepar=False, isfitted=False,
                      polyfit=None):
 
-        if name == "fwhm": ## adapt new parameter naming convention
-            name = "{0}fwhm".format(str.upper(self.psftype[0]))
+##         if name == "fwhm": ## adapt new parameter naming convention
+##             name = "{0}fwhm".format(str.upper(self.psftype[0]))
 
         if not name in self.missing:
             logging.error("Cannot add parameter: '{0}' not missing.".format(\
@@ -312,47 +314,47 @@ class PSF(object):
 
 
 
-    def Moffat(self, index, osfactor=5, osradius=2):
-
-        return Moffat(beta =self.values[0,index],
-                      Mfwhm=self.values[1,index],
-                      e    =self.values[2,index],
-                      theta=self.values[3,index],
-                      osfactor=osfactor,
-                      osradius=osradius)
-
-
-
-    def Gaussian(self, index, osfactor=5, osradius=2):
-
-        return Gaussian(Gfwhm=self.values[0,index],
-                        e    =self.values[1,index],
-                        theta=self.values[2,index],
-                        osfactor=osfactor,
-                        osradius=osradius)
-
-
-
-    def Lorentz(self, index, osfactor=5, osradius=2):
-
-        return Lorentz(Lfwhm=self.values[0,index],
-                       e    =self.values[1,index],
-                       theta=self.values[2,index],
-                       osfactor=osfactor,
-                       osradius=osradius)
-
-
-
-    def GauMoff(self, index, osfactor=5, osradius=2):
-
-        return GauMoff(Gfwhm=self.values[0, index],
-                       beta =self.values[1, index],
-                       Mfwhm=self.values[2, index],
-                       Mfrac=self.values[3, index],
-                       e    =self.values[4, index],
-                       theta=self.values[5, index],
-                       osfactor=osfactor,
-                       osradius=osradius)
+##     def Moffat(self, index, osfactor=5, osradius=2):
+## 
+##         return Moffat(beta =self.values[0,index],
+##                       Mfwhm=self.values[1,index],
+##                       e    =self.values[2,index],
+##                       theta=self.values[3,index],
+##                       osfactor=osfactor,
+##                       osradius=osradius)
+## 
+## 
+## 
+##     def Gaussian(self, index, osfactor=5, osradius=2):
+## 
+##         return Gaussian(Gfwhm=self.values[0,index],
+##                         e    =self.values[1,index],
+##                         theta=self.values[2,index],
+##                         osfactor=osfactor,
+##                         osradius=osradius)
+## 
+## 
+## 
+##     def Lorentz(self, index, osfactor=5, osradius=2):
+## 
+##         return Lorentz(Lfwhm=self.values[0,index],
+##                        e    =self.values[1,index],
+##                        theta=self.values[2,index],
+##                        osfactor=osfactor,
+##                        osradius=osradius)
+## 
+## 
+## 
+##     def GauMoff(self, index, osfactor=5, osradius=2):
+## 
+##         return GauMoff(Gfwhm=self.values[0, index],
+##                        beta =self.values[1, index],
+##                        Mfwhm=self.values[2, index],
+##                        Mfrac=self.values[3, index],
+##                        e    =self.values[4, index],
+##                        theta=self.values[5, index],
+##                        osfactor=osfactor,
+##                        osradius=osradius)
 
 
     def  __call__(self, index=0, osradius=2, osfactor=5):

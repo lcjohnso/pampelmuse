@@ -46,7 +46,7 @@ import numpy as np, pyfits
 ## required PampelMuse-packages
 from pampelmuse.core.fit_array import StarFit
 from pampelmuse.core.sources import Sources
-from pampelmuse.core.psf import PSF
+from pampelmuse.core.psf import PsfAttributes
 
 ## IMPORTANT:
 ## PyQt4 and QStarFit are only load later if requested and dependencies
@@ -93,8 +93,16 @@ def cubefit(arguments):
 
 ###### CREATE ARRAYS THAT CONTAIN PARAMETERS USED IN THE FIT ##################
     ## Collect information about sources/create Sources-instance
-    logging.info("Obtaining information about sources in the field.")
-    sources = Sources(data=prmFile["SOURCES"], hdu=True)
+    logging.info("Obtaining information on sources in the field.")
+
+    ## check which instrument has been used
+    try:
+        instrument = prmFile[0].header["PAMPELMUSE IFU"]
+    except KeyError:
+        instrument = None
+
+    sources = Sources(data=prmFile["SOURCES"], hdu=True,
+                      instrument=instrument)
 
     ## Spectra
     logging.info("Obtaining source spectra.")
@@ -129,37 +137,76 @@ def cubefit(arguments):
             fullPosFit=True
 
     ## PSF
-    psf = PSF()
+    psf_attributes = PsfAttributes()
     if "PSFPARS" in extNames: ##  check if HDU exists
         logging.info("Reading 'PSFPARS' HDU.")
-        psf.readFitsHDU(prmFile["PSFPARS"])
+        psf_attributes.readFitsHDU(prmFile["PSFPARS"])
 
     else: ## otherwise, assume Gaussian, round with FWHM=3.0pixel
         logging.warning("No HDU 'PSFPARS' found. Assuming Gaussian PSF.")
 
-        psf.makeNewPSF(profile="gauss", fwhm=3.0, e=0., theta=0.)
+        psf_attributes.makeNewPSF(profile="gauss", fwhm=3.0, e=0., theta=0.)
 
-    psf.resizeStructure(ndisp=sources.ndisp)
-    psf.makeValues()
-    psf.info()
+    psf_attributes.resizeStructure(ndisp=sources.ndisp)
+    psf_attributes.makeValues()
+    psf_attributes.info()
 
 
     ## open datacubes & check consistency
-    logging.info("Checking data cubes.")
+    logging.info("Checking data cubes...")
     dataFits  = pyfits.open('{0}.dat.fits'.format(prefix))
-    if dataFits[0].header['NAXIS3'] != sources.ndisp:
+
+    ## check if calibration HDU for ARGUS exists
+    if sources.instrument.name == "argus":
+        try:
+            setup_index = dataFits.index_of("FIBER_SETUP")
+            sources.instrument.read_fiber_setup(hdu=dataFits[setup_index])
+        except KeyError:
+            logging.warning("No HDU with fibre setup found for ARGUS data.")
+ 
+    ndim     = dataFits[0].header["NAXIS"]
+
+    if sources.instrument == None:
+        if ndim!=3:
+            logging.error("Data must be 3dim. unlesss instrument specified.")
+            assert ndim==3, "Expected 3dim. datacube, got {0}dim".format(ndim)
+        else:
+            ## initialize transformation for 'Instrument'-class
+            xdim = dataFits[0].header['NAXIS1']
+            ydim = dataFits[0].header['NAXIS2']
+
+            x = np.mod(np.arange(xdim*ydim, dtype=np.int16), xdim)
+            y = np.arange(xdim*ydim, dtype=np.int16)//xdim
+
+            sources.instrument.transform = np.vstack((y,x)).T
+
+    if ndim == 3:
+        ndisp = dataFits[0].header['NAXIS3']
+    else:
+        ndisp = dataFits[0].header['NAXIS{0}'.format(\
+                sources.instrument.spectral_axis)]
+
+    if ndisp != sources.ndisp:
         logging.critical("Data-cube and PRM-file have incompatible dimensions.")
 
     sigmaFits = pyfits.open('{0}.err.fits'.format(prefix))
-    if sigmaFits[0].header['NAXIS3'] != sources.ndisp:
-        logging.critical(\
-            "Sigma-cube and PRM-file have incompatible dimensions.")
+    for key in ["NAXIS"]+["NAXIS{0}".format(i) for i in xrange(1, ndim)]:
+        if sigmaFits[0].header[key] != dataFits[0].header[key]:
+            logging.critical(\
+                "Uncertainties and data have incompatible dimensions.")
+            assert sigmaFits[0].header[key]==dataFits[0].header[key], \
+                "Uncertainties and data have incompatible dimensions."
 
     if os.path.exists("{0}.msk.fits".format(prefix)):
         maskFits = pyfits.open('{0}.msk.fits'.format(prefix))
-        if maskFits[0].header['NAXIS3'] != sources.ndisp:
-            logging.critical(\
-                "Mask-cube and PRM-file have incompatible dimensions.")
+        for key in ["NAXIS"]+["NAXIS{0}".format(i) for i in xrange(1, ndim)]:
+            if maskFits[0].header[key] != dataFits[0].header[key]:
+                logging.critical(\
+                    "Mask and data have incompatible dimensions.")
+                assert sigmaFits[0].header[key]==dataFits[0].header[key], \
+                    "Mask and data have incompatible dimensions."
+
+
     else:
         maskFits = [None]
 
@@ -172,14 +219,18 @@ def cubefit(arguments):
         from pampelmuse.core.qfit_array import QStarFit
         app    = QtGui.QApplication(sys.argv)
         fitter = QStarFit(dataFits=dataFits[0], sigmaFits=sigmaFits[0],
-                          maskFits=maskFits[0])
+                          maskFits=maskFits[0], sources=sources,
+                          psf_attributes=psf_attributes, maxrad=psfRad,
+                          osradius=2, osfactor=5)
     else:
         fitter = StarFit(dataFits=dataFits[0], sigmaFits=sigmaFits[0],
-                         maskFits=maskFits[0])
+                         maskFits=maskFits[0], sources=sources,
+                         psf_attributes=psf_attributes, maxrad=psfRad,
+                         osradius=2, osfactor=5)
 
-    fitter.provideSources(sources, fullPosFit=fullPosFit)
-
-    fitter.providePSF(psf=psf, psfRad=psfRad)
+##     fitter.provideSources(sources, fullPosFit=fullPosFit)
+## 
+##     fitter.providePSF(psf=psf, psfRad=psfRad)
         
     fitter(fitRad=fitRad, lastFitIndex=lastFitIndex, asSmallIFU=smallIFU,
            jumpStart=jumpStart, ncpu=cpuCount, maxiter=maxIter)
