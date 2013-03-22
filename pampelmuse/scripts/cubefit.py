@@ -228,10 +228,6 @@ def cubefit(arguments):
                          psf_attributes=psf_attributes, maxrad=psfRad,
                          osradius=2, osfactor=5)
 
-##     fitter.provideSources(sources, fullPosFit=fullPosFit)
-## 
-##     fitter.providePSF(psf=psf, psfRad=psfRad)
-        
     fitter(fitRad=fitRad, lastFitIndex=lastFitIndex, asSmallIFU=smallIFU,
            jumpStart=jumpStart, ncpu=cpuCount, maxiter=maxIter)
 
@@ -282,11 +278,11 @@ def cubefit(arguments):
 
 
     ## store PSF (only if it as been fitted)
-    if psf.Fit:
+    if psf_attributes.Fit:
         if "PSFPARS" in extNames:
-            prmFile["PSFPARS"] = psf.makePSFHDU()
+            prmFile["PSFPARS"] = psf_attributes.makePSFHDU()
         else:
-            prmFile.insert(5, psf.makePSFHDU())
+            prmFile.insert(5, psf_attributes.makePSFHDU())
 
     ## write/update header of primary HDU
     prmFile[0].header.update(\

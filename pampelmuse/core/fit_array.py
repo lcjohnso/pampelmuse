@@ -86,9 +86,11 @@ v0.5.1.1, 2012/10/09, bugfix: code still used iteration even if `maxiter`=1
 v0.6.0.0, 2013/03/20, major updates to the code so that it is compatible with
                       the new way of handling the PSF during the analysis via
                       the 'pampelmuse.core.new_profiles'-class.
+v0.6.1.0, 2013/03/22, some bugfixing wrt. handling of unresolved component in
+                      the PSF/positions fit.
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.6.0.0"
+__version__ = "0.6.10"
 
 import logging, os, sys, time
 import numpy as np, pyfits
@@ -571,20 +573,21 @@ class StarFit(object):
             i += 1
             j  = self.sources.specrow[i]
 
-            if j == self.sources.unresRow and not calcUnres and not unres_added:
+            if j == self.sources.unresRow and not calcUnres: 
+                if not unres_added:
                 ## if unresolved component should not be recalculated,
                 ## add existing one to data.
-                nValues = self.unresIndices.size
+                    nValues = self.unresIndices.size
 
-                coeffs.resize(coeffs.size+nValues)
-                indices0.resize(indices0.size+nValues)
-                indices1.resize(indices1.size+nValues)
-
-                coeffs[-nValues:]   = self.unresCoeffs
-                indices0[-nValues:] = self.unresIndices
-                indices1[-nValues:] = j*np.ones(nValues, dtype=np.int32)
-
-                unres_added = True
+                    coeffs.resize(coeffs.size+nValues)
+                    indices0.resize(indices0.size+nValues)
+                    indices1.resize(indices1.size+nValues)
+                    
+                    coeffs[-nValues:]   = self.unresCoeffs
+                    indices0[-nValues:] = self.unresIndices
+                    indices1[-nValues:] = j*np.ones(nValues, dtype=np.int32)
+                    
+                    unres_added = True
 
                 continue
 
@@ -996,6 +999,7 @@ class StarFit(object):
             i += 1
             ii = self.sources.specrow[i]
             if ii==self.sources.skyRow: continue
+            if ii==self.sources.unresRow: continue
             for j in xrange(len(x0)):
                 jacob[j, psf.used] -= self.sources.data[ii,self.jj]\
                     *getattr(psf, "diff_{0}".format(names[j]))

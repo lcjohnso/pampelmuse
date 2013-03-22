@@ -2,10 +2,13 @@
 INSTRUMENTS
 ===========
 The classes defined in this script are supposed to provide support in handling
-instrument -pecific characteristics: dead fibers, holes in FoV,
-non-rectangular FoV
+instrument-specific characteristics: dead fibers, holes in FoV,
+non-rectangular FoV, ...
 The idea is to define a sub-class of the class 'Instruments' for every IFU that
-should be supported. Currently PMAS/Larr and FLAMES/ARGUS are included.
+should be supported. Everything that is instrument-specific should be handled
+in those classes so that the other routines of PampelMuse do not need to be
+updated every time support for a new instrument is added. Currently PMAS/Larr
+and FLAMES/ARGUS are included.
 
 CHANGELOG:
 ----------
@@ -13,9 +16,11 @@ CHANGELOG:
                       and FLAMES/ARGUS
 
 2013/02/02, v0.1.1.0, bugfix in PMAS class: replaced int16 with np.int16
+2013/03/22, v0.2.0.0, significantly updated functionality of the individual
+                      classes; also added documentation.
 """
-__author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.1.1.0"
+__author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
+__version__ = "0.2.0.0"
 import logging, re
 import numpy as np
 from scipy.spatial import distance
@@ -24,49 +29,74 @@ from scipy.interpolate import griddata
 
 
 class Instrument(object):
-
+    """
+    The Instrument class can be used with any IFU that has quadratic spaxels
+    aranged on a rectangular grid with unity filling factor. It also serves as
+    super-class for all instrument specific sub-classes defined.
+    """
     name = None
 
-    _transform = None
-    _edgepix = None
+    _transform = None ## will contain the transformation from spaxels to x&y
+    _edgepix = None ## will contain the indices of the spaxels that define
+                    ## the edge of the field of view.
 
-    _sky_fibers = []
-    _cal_fibers = []
+    _sky_fibers = []  ## The indices of the sky fibers
+    _cal_fibers = []  ## The indices of the calibration fibers
 
-    spectral_axis = 1
-    shape = None
+    spectral_axis = 1 ## The index of the spectral axis; NOTE that numpy
+                      ## swaps the axes, so spectral_axis=1 corresponds
+                      ## to the second axis in numpy notation
+    shape = None ## will contain the spatial shape of the field of view
     
     def __init__(self, transform=None, edgepix=None, badspax=[],
                  maxoff=np.sqrt(0.5), **kwargs):
+        """
+        Initialize an instance of the Instrument-class
         
+        Parameters
+        ----------
+        transform : nd_array
+            Can be an array of shape (2, n_spaxel) that gives the y- and x-
+            coordinates of the spaxels. Note that following the numpy counting,
+            the first axis is the y-axis. If transform=None, it can be
+            specified after initialization.
+        edgepix : nd_array, optional
+            Can be a boolean array with shape (n_spaxel,) that is set to True
+            for each spaxel at the edge of the field of view. If edgepix=None,
+            it can be specified after initialization.
+        badspax : array_like, optional
+            A list containing the indices of dead spaxels.
+        maxoff : float, optional
+            The maximum distance of a position in the (x,y)-plane to the
+            centre of a spaxel that is considered inside the field of view.
+            The default value of sqrt(0.5) assumes a filling factor of unity.
+        """
+
         self.maxoff = maxoff
 
         self.set_transform(transform)
         
         self.set_edgepix(edgepix)
 
-        ## check if specified bad spaxels are okay
-        if len(badspax) > 0 and (np.asarray(badspax)>=self.nspaxel).any():
-            logging.warning("At least one 'badspax' out of valid range:")
-            logging.warning("   n_spaxel={0}, badspax={1}".format(\
-                    int(self.nspaxel), badspax))
+        ## Handle bad spaxels (dead fibers)
+        self.badspax = badspax
+        for spax in badspax:
+            logging.info("Excluding spaxel #{0}.".format(spax))
 
-        ## A one-dimensional boolean array with a length equal to the number
-        ## of spaxel that is True if the spaxel is bad and False otherwise
-        self.badspax = np.zeros((self.nspaxel,), dtype=np.bool)
+        ## self.badspax was a one-dimensional boolean array with a length
+        ## equal to the number of spaxel that is True if the spaxel is bad and
+        ## False otherwise
+
+
 
         ## a 2dim. boolean array that is True if a valid pixel is located at
         ## position (x,y) and False otherwise
-        self.fovmask = np.zeros(tuple(self.transform.max(axis=0)+1),
-                                 dtype=np.bool)
+##         self.fovmask = np.zeros(tuple(self.transform.max(axis=0)+1),
+##                                 dtype=np.bool)
 
         ## fill the two boolean arrays just initialized
-        for i in xrange(self.nspaxel):
-            if i in badspax:
-                logging.info("Excluding spaxel #{0}.".format(i))
-                self.badspax[i] = True
-                continue
-            self.fovmask[self.transform[i,0], self.transform[i,1]] = True
+##         for i in xrange(self.nspaxel):
+##             self.fovmask[self.transform[i,0], self.transform[i,1]] = True
 
 
     def set_transform(self, value):
