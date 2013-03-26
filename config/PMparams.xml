@@ -1,4 +1,4 @@
-<?xml version="1.0" ?><?xml-stylesheet type="text/xsl" href="PMstyle.xsl"?><ns0:configuration timestamp="2012-11-09T21:44:59Z" xmlns:ns0="http://www.tobedefined.com/pampelmuse" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.tobedefined.com/pampelmuse PMschema.xsd">
+<?xml version="1.0" ?><?xml-stylesheet type="text/xsl" href="PMstyle.xsl"?><ns0:configuration timestamp="2013-03-26T15:29:18Z" xmlns:ns0="http://www.tobedefined.com/pampelmuse" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.tobedefined.com/pampelmuse PMschema.xsd">
  
  <ns0:parameter category="1pho">
   <ns0:name>CFPCOLS</ns0:name>
@@ -72,13 +72,13 @@
   <ns0:comment>If DOBACKUP-flag is set, input values will not be deleted but moved to backup-HDUs in the PRM-file</ns0:comment>
   <ns0:updated timestamp="2011-12-05T21:17:42Z">Appended parameter DOBACKUP to configuration file.</ns0:updated>
  </ns0:parameter>
- <ns0:parameter category="3fit">
+ <ns0:parameter category="3fit" inuse="0">
   <ns0:name>FITRAD</ns0:name>
   <ns0:value dtype="float">3.0</ns0:value>
   <ns0:comment>The fitting radius (given in spatial pixels) defines the circular area around a source used in the PSF fit of that source</ns0:comment>
   <ns0:updated timestamp="2011-10-25T13:45:43Z">Appended parameter FITRAD to configuration file.</ns0:updated>
- </ns0:parameter>
- <ns0:parameter category="3fit">
+ <ns0:updated timestamp="2013-03-26T14:12:04Z">Changed default value of parameter FITRAD to 3.0 (was 3.0)</ns0:updated><ns0:updated timestamp="2013-03-26T14:12:04Z">Disabled usage of parameter.</ns0:updated></ns0:parameter>
+ <ns0:parameter category="3fit"><ns0:name>LAYERRNG</ns0:name><ns0:value dtype="tuple">(0, -1)</ns0:value><ns0:comment>The spectral range of the datacube that should be analysed, given as the indices of the first and the last layer in that range. By default, the whole cube is analysed.</ns0:comment><ns0:updated timestamp="2013-03-26T14:10:43Z">Appended parameter LAYERRNG to configuration file.</ns0:updated></ns0:parameter><ns0:parameter category="3fit">
   <ns0:name>PSFRAD</ns0:name>
   <ns0:value dtype="float">10.0</ns0:value>
   <ns0:comment>The radius out to which the PSF of a source will be defined. Should be large enough to avoid annuli of flux around the brighter sources in the residuals</ns0:comment>

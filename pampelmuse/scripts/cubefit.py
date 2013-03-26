@@ -37,9 +37,11 @@ CHANGELOG
                       parameters for parallelization and disabling Qt-usage.
 2012/07/24, v0.5.0.0, adapted the code so that it now runs without issues if
                       PyQt4 and/or matplotlib ar not available.
+2013/03/26, v0.6.0.0, modified the code in order to implement the new way of
+                      calculating the PSF profiles.
 """
 __author__  = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.5.0.0"
+__version__ = "0.6.0.0"
 import datetime, logging, os, sys
 import numpy as np, pyfits
 
@@ -63,6 +65,7 @@ def cubefit(arguments):
     prefix   = arguments.prefix                           ##
     fitRad   = arguments.config["FITRAD"]                 ##
     maxIter  = arguments.config["MAXITER"]                ##
+    layerRng = arguments.config["LAYERRNG"]               ##
     psfRad   = arguments.config["PSFRAD"]                 ##
     smallIFU = arguments.config["SMALLIFU"]               ##
     dobackup = arguments.config["DOBACKUP"]               ##
@@ -82,13 +85,13 @@ def cubefit(arguments):
     except KeyError: fitStatus = "NOT STARTED"
     
     if fitStatus == "STOPPED":
-        try: lastFitIndex = prmFile[0].header['PAMPELMUSE CUBEFIT LASTSLICE']
+        try: lastFitIndex = prmFile[0].header['PAMPELMUSE CUBEFIT LASTLAYER']
         except KeyError: lastFitIndex = None
     else:
         lastFitIndex = None
 
     if lastFitIndex != None:
-        logging.info("Continuing previously paused fit, current slice: {0}"\
+        logging.info("Continuing previously paused fit, current layer: {0}"\
                          .format(lastFitIndex))
 
 ###### CREATE ARRAYS THAT CONTAIN PARAMETERS USED IN THE FIT ##################
@@ -101,8 +104,7 @@ def cubefit(arguments):
     except KeyError:
         instrument = None
 
-    sources = Sources(data=prmFile["SOURCES"], hdu=True,
-                      instrument=instrument)
+    sources = Sources(data=prmFile["SOURCES"], hdu=True, instrument=instrument)
 
     ## Spectra
     logging.info("Obtaining source spectra.")
@@ -117,7 +119,7 @@ def cubefit(arguments):
 
 
     ## Positions
-    logging.info("Obtaining information about source coordinates")
+    logging.info("Obtaining information about source coordinates.")
     fullPosFit=False
 
     if "POSITIONS" in extNames:
@@ -186,8 +188,8 @@ def cubefit(arguments):
         ndisp = dataFits[0].header['NAXIS{0}'.format(\
                 sources.instrument.spectral_axis)]
 
-    if ndisp != sources.ndisp:
-        logging.critical("Data-cube and PRM-file have incompatible dimensions.")
+    if ndisp < sources.ndisp:
+        logging.critical("Datacube and PRM-file have incompatible dimensions.")
 
     sigmaFits = pyfits.open('{0}.err.fits'.format(prefix))
     for key in ["NAXIS"]+["NAXIS{0}".format(i) for i in xrange(1, ndim)]:
@@ -228,8 +230,9 @@ def cubefit(arguments):
                          psf_attributes=psf_attributes, maxrad=psfRad,
                          osradius=2, osfactor=5)
 
-    fitter(fitRad=fitRad, lastFitIndex=lastFitIndex, asSmallIFU=smallIFU,
-           jumpStart=jumpStart, ncpu=cpuCount, maxiter=maxIter)
+    fitter(layerRange=layerRng, fitRad=fitRad, lastFitIndex=lastFitIndex,
+           asSmallIFU=smallIFU, jumpStart=jumpStart, ncpu=cpuCount,
+           maxiter=maxIter)
 
     if useQt:
         app.exec_()
@@ -293,7 +296,7 @@ def cubefit(arguments):
         prmFile[0].header.update("hierarch PAMPELMUSE CUBEFIT STATUS","STOPPED")
     else:
         prmFile[0].header.update("hierarch PAMPELMUSE CUBEFIT STATUS","SUCCESS")
-    prmFile[0].header.update("hierarch PAMPELMUSE CUBEFIT LASTSLICE", fitter.i)
+    prmFile[0].header.update("hierarch PAMPELMUSE CUBEFIT LASTLAYER", fitter.i)
     prmFile[0].header.update("hierarch PAMPELMUSE CUBEFIT SMALLIFU", smallIFU)
     prmFile[0].header.update("hierarch PAMPELMUSE CUBEFIT PSFRAD", psfRad)
 

@@ -88,9 +88,11 @@ v0.6.0.0, 2013/03/20, major updates to the code so that it is compatible with
                       the 'pampelmuse.core.new_profiles'-class.
 v0.6.1.0, 2013/03/22, some bugfixing wrt. handling of unresolved component in
                       the PSF/positions fit.
+v0.6.1.1, 2013/03/26, included an option to fit only a subset of all layers in
+                      method __call__
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.6.10"
+__version__ = "0.6.1.1"
 
 import logging, os, sys, time
 import numpy as np, pyfits
@@ -245,8 +247,8 @@ class StarFit(object):
 
         
 
-    def __call__(self, Ntrack=10, lastFitIndex=None, asSmallIFU=False, ncpu=1,
-                 maxiter=20, clip=5., **kwargs):
+    def __call__(self, layerRange=(0,-1), Ntrack=10, lastFitIndex=None,
+                 asSmallIFU=False, ncpu=1, maxiter=20, clip=5., **kwargs):
         """
         Execute the fitting process. If a previous analysis of the same data
         was interrupted, it might be resumed. For each layer of the provided
@@ -263,6 +265,9 @@ class StarFit(object):
         
         Parameters
         ----------
+        layerRange : tuple
+            The indices of the first and last layer of the spectral range to
+            be analysed. By default, the whole cube is analysed.
         Ntrack :  integer, optional
             In case the PSF and/or the source positions are fitted, the 
             routine will update the initial guesses of the parameters that
@@ -289,13 +294,23 @@ class StarFit(object):
         self.clip    = clip    ## efficiency of bad pixel masking
                                ## WARNING: Has no effect yet.
 
+        self.layerRange = layerRange
+        if layerRange[0]>=0: self.firstLayer = layerRange[0]
+        else: self.fistLayer = self.specPix + layerRange[0]
+        if layerRange[1]>=0: self.lastLayer = layerRange[1]
+        else: self.lastLayer = self.specPix + layerRange[1]
+        self.Nlayer = self.lastLayer-self.firstLayer
+        
+        logging.info("Requested range to be analysed: {0}-{1}".format(\
+                self.firstLayer,self.lastLayer))
+
         ## check where to start
         if lastFitIndex == None:
             self.i = 0    ## iterator over all layers
         else:
             self.i = lastFitIndex
 
-        self.Ntrack         = Ntrack
+        self.Ntrack = Ntrack
 
         ## Number of iterations per layer. Note that no iteration is needed
         ## if only fluxes are fitted
@@ -319,8 +334,8 @@ class StarFit(object):
         while j < self.i:
             if j >= 0:
                 self.lastFittedImas.append(\
-                    (self.specPix>>1) - 1 - int(j/2) + j*np.mod(j, 2)\
-                        + np.mod(self.specPix, 2)
+                    self.firstLayer + (self.Nlayer>>1) - 1 - int(j/2) \
+                        + j*np.mod(j, 2) + np.mod(self.Nlayer, 2)
                     )
             j += 1
 
@@ -344,17 +359,17 @@ class StarFit(object):
         """
 
         ## loop over all layers in a datacube
-        while self.i < self.specPix:
+        while self.i < self.Nlayer:
 
             ## jj is a counter that starts at the central spectral pixel
             ## and proceeds simultaneoulsy to the red and blue end.
-            self.jj = (self.specPix>>1) - 1 - int(self.i/2) \
-                + self.i*np.mod(self.i, 2) + np.mod(self.specPix, 2)
+            self.jj = self.firstLayer + (self.Nlayer>>1) - 1 - int(self.i/2) \
+                + self.i*np.mod(self.i, 2) + np.mod(self.Nlayer, 2)
 
             ## A common prefix used for all logging messages related to the
             ## analysis of the current layer.
             self.prefixString = "[{0:0{1}d}/{2}]".format(\
-                self.i, int(np.log10(self.specPix))+1, self.specPix)
+                self.i, int(np.log10(self.Nlayer))+1, self.Nlayer)
 
             ## call fitting routine
             logging.info("{0} Starting fit.".format(self.prefixString))

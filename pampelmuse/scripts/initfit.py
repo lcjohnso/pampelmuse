@@ -68,9 +68,11 @@ CHANGELOG:
                       instead of first sampled one below.
 2012/11/09, v0.7.0.0, improved handling of instrument-specific features
                       (missing spaxels, non-rectangular FoV, ...) by the code.
+2013/03/26, v0.8.0.0, major modifications done to the code in order to
+                      implement new way of calculating the PSF profiles.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.7.0.0"
+__version__ = "0.8.0.0"
 import datetime, os, sys, logging
 import numpy as np, pyfits
 from scipy import interpolate, sparse
@@ -345,7 +347,10 @@ def initfit(arguments):
 
         psf = PSF(Xc=sources.x[i], Yc=sources.y[i], mag=sources.mag[i],
                   src_id=sources.ID[i], maxrad=10.)
-        identIma[psf.y[psf.used], psf.x[psf.used]] += psf.f*10**(0.4*MZERO)
+
+        identIma[np.asarray(psf.y[psf.used], dtype=np.int16),
+                 np.asarray(psf.x[psf.used], dtype=np.int16)] \
+                 += psf.f*10**(0.4*MZERO)
 
     identIma += np.random.normal(loc=0., scale=10, size=PSF.size)
 
@@ -433,17 +438,19 @@ def initfit(arguments):
             logging.warning("Source #{0} might be double.".format(\
                     sources.ID[i]))
 
+    ## collect FWHM of sources in single array
+    fwhm = np.asarray([psf.fwhm for psf in PSF])
 
     ## signal-to-noise
     signalToNoise = sources.signalToNoise(class_psf=PSF, magZ=magZ,
                                           sigma=sigmaIma, r=psfRad)
     ##  modify S/N of sources close to brighter neighbor:
-    close = distToBrighter<PSF.fwhm    
-    signalToNoise[close] *= (1.+0.9*np.log10(distToBrighter[close]/PSF.fwhm))
+    close = distToBrighter<fwhm
+    signalToNoise[close] *= (1.+0.9*np.log10(distToBrighter[close]/fwhm[close]))
 
     ##  penalize S/N of sources outside FoV:
     outside = edgeDist<0
-    signalToNoise[outside] *= np.exp(-(edgeDist[outside]/PSF.fwhm)**2)
+    signalToNoise[outside] *= np.exp(-(edgeDist[outside]/fwhm[outside])**2)
 
 
     if not smallifu:
@@ -462,7 +469,7 @@ def initfit(arguments):
     while True:
         mcut += 0.1
         if (magPS[edgeDist>0]<mcut).sum() > confDens*dataIma.size \
-                /(PSF.fwhm*PSF.fwhm):
+                /(fwhm.mean()*fwhm.mean()):
             mcut -= 0.1
             break
         if not (magPS[edgeDist>0]>mcut).any():
@@ -490,7 +497,7 @@ def initfit(arguments):
             primary[i] = sources.ID[i]
         elif sources.mag[i] <= reslim:
             if signalToNoise[i] > snrcut:
-                if distToBrighter[i] < binrad*PSF.fwhm:
+                if distToBrighter[i] < binrad*fwhm[i]:
                     status[i]  = 1
                     primary[i] = brighterID[i]
                 else:
@@ -499,7 +506,7 @@ def initfit(arguments):
             else:
                 if edgeDist[i] < 0:
                     continue
-                if distToBrighter[i] < 2*binrad*PSF.fwhm:
+                if distToBrighter[i] < 2*binrad*fwhm[i]:
                     status[i]  = 1
                     primary[i] = brighterID[i]
                 else:
@@ -516,7 +523,7 @@ def initfit(arguments):
                                      int(status[i])))
             
         elif useunres:
-            if sources.mag[i]<=unreslim and edgeDist[i]>-PSF.fwhm:
+            if sources.mag[i]<=unreslim and edgeDist[i]>-fwhm[i]:
                 status[i]  = 0
                 primary[i] = -2
 
@@ -545,7 +552,7 @@ def initfit(arguments):
             
             if sources.status[i] == 2 \
                     and sources.mag[i] <= (reslim-3) \
-                    and edgeDist[i] > PSF.fwhm \
+                    and edgeDist[i] > fwhm[i] \
                     and shoulderDrop[i] < apernois:
 
                 sources.status[i] = 3

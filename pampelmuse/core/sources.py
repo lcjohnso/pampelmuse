@@ -39,9 +39,12 @@ CHANGELOG:
                       slope if resp. option is used), added option for fitting
                       Chebyshev-polynomial and added some documentation.
 2012/11/11, v0.3.0.1, removed remaining print-command used for debugging.
+2013/03/26, v0.4.0.0, modified the 'weights'-property and the 'signalToNoise'-
+                      method in order to adapt them to the new way of
+                      calculating the PSF profiles.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.3.0.1"
+__version__ = "0.4.0.0"
 import logging
 import numpy as np, pyfits
 from numpy.polynomial import Chebyshev, Legendre
@@ -341,8 +344,9 @@ class Sources(CoordinateTransformation, object):
                        "The primary source in the component.")
     indexmap = property(getIndexmap, None, None,
                         "Mapping from `specrow`-property to index.")
-    weights  = property(getWeights, None, None,
-                        "Relative magnitudes of sources in a component.")
+    weights  = property(\
+        getWeights, None, None,
+        "Relative magnitudes of the sources in their components.")
 
 
     def makeSpecrow(self, unique):
@@ -401,8 +405,16 @@ class Sources(CoordinateTransformation, object):
 
 
     def makeWeights(self):
-        ## `weights` is a dictionary mapping the `specrow` (keys) to the
-        ## relative magnitudes (values) of its component(s)
+        """
+        CHANGED in version 0.4 - 'weights' is 1dim. array of the same length
+        as the whole sourcelist and contains the magnitude weight of each
+        source in its component. The magnitude weight is defined as
+        10**(-0.4*df), where df is the fraction of flux the source contributes
+        to the component.
+
+        OUTDATED: 'weights' is a dictionary mapping the `specrow` (keys) to
+        the relative magnitudes (values) of its component(s).
+        """
         if self._mag == None:
             logging.warning("Property `mag` not set, assuming equal weights.")
 
@@ -1189,12 +1201,16 @@ class Sources(CoordinateTransformation, object):
 
     def signalToNoise(self, class_psf, magZ, sigma, r=5):
         """
-        Calculate the S/N ratio of all stars in the scene.
+        Calculate the S/N ratio of all stars in the scene. This routine
+        was strongly modified in version 0.4 to include the new way to
+        calculate the PSF profiles of the sources.
 
         Parameters
         ----------
-        psf : a pampelmuse.core.psf.PSF instance
-            Required to determine the flux distribution across the FoV
+        psf : A pampelmuse.core.new_profiles-class
+            An instance of this a PSF-class should be present for every
+            source in the scene. This is required to determine the flux
+            distribution across the FoV
         magZ : float
             The magnitude zeropoint, i.e., the magnitude of a source that
             contributes 1count/layer
