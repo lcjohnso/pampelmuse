@@ -16,16 +16,20 @@ CHANGELOG
                               `resizeStructure`
 2012/11/20, v0.3.0.0, included 'Instruments'-class so that dead or non-existent
                       spaxels are excluded from the computation
+2013/03/27, v0.4.0.0, modified code to implement new way of creating PSF
+                      profiles for the sources. probably still needs to be
+                      debugged.
 """
-__author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.3.0.0"
+__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
+__version__ = "0.4.0.0"
 import datetime, logging, os, sys
 import numpy as np, pyfits
 
 ## required PampelMuse-packages
 from pampelmuse.core.sources import Sources
 from pampelmuse.core.psf import PsfAttributes
-from pampelmuse.core.instruments import Pmas, Argus
+from pampelmuse.core.new_profiles import Gaussian, Moffat
+
 
 
 
@@ -63,14 +67,6 @@ def subtres(arguments):
     if "PAMPELMUSE IFU" in prmFile[0].header.keys():
         instrument = prmFile[0].header["PAMPELMUSE IFU"]
     else:
-        instrument = ""
-    if instrument == "pmas":
-        instrument = Pmas()
-    elif instrument == "argus":
-        instrument = Argus()
-    else:
-        logging.error("No valid instrument specifier found.")
-        logging.warning("Some functionalities may not work.")
         instrument = None
 
 
@@ -79,8 +75,7 @@ def subtres(arguments):
 
     ## Spectra
     logging.info("Obtaining source spectra.")
-    sources = Sources(data=prmFile["SOURCES"],  hdu=True,
-                      instrument=instrument)
+    sources = Sources(data=prmFile["SOURCES"],  hdu=True, instrument=instrument)
     sources.loadSpectra(data=prmFile["SPECTRA"], hdu=True)
                  
     ## Positions
@@ -96,71 +91,129 @@ def subtres(arguments):
         sources.makeValues()
         sources.info()
 
-    ## PSF
-    psf = PsfAttributes()
+    ## PSF attributes
+    psf_attributes = PsfAttributes()
     if "PSFPARS" in extNames: ##  check if HDU exists
         logging.info("Reading 'PSFPARS' HDU.")
-        psf.readFitsHDU(prmFile["PSFPARS"])
+        psf_attributes.readFitsHDU(prmFile["PSFPARS"])
     else: ## otherwise, assume Gaussian, round with FWHM=3.0pixel
         logging.error("No HDU 'PSFPARS' found. Assuming Gaussian PSF.")
-        psf.makeNewPSF(profile="gauss", fwhm=3.0, e=0., theta=0.)
-    psf.info()
-    psf.resizeStructure(ndisp=sources.ndisp)
-    psf.makeValues()
+        psf_attributes.makeNewPSF(profile="gauss", fwhm=3.0, e=0., theta=0.)
+    psf_attributes.info()
+    psf_attributes.resizeStructure(ndisp=sources.ndisp)
+    psf_attributes.makeValues()
 
-
+    
     ## open datacubes & check consistency
     logging.info("Checking data cube: {0}.dat.fits".format(prefix))
     dataFits  = pyfits.open('{0}.dat.fits'.format(prefix))
-    cubeShape = (dataFits[0].header['NAXIS3'],
-                 dataFits[0].header['NAXIS2'],
-                 dataFits[0].header['NAXIS1'])
-    if dataFits[0].header['NAXIS3'] != sources.ndisp:
-        logging.critical("Cube and spectra have incompatible dimensions.")
+
+    ## check if calibration HDU for ARGUS exists
+    if sources.instrument.name == "argus":
+        try:
+            setup_index = dataFits.index_of("FIBER_SETUP")
+            sources.instrument.read_fiber_setup(hdu=dataFits[setup_index])
+        except KeyError:
+            logging.warning("No HDU with fibre setup found for ARGUS data.")
+
+    ## Check format of datacube
+    ndim     = dataFits[0].header["NAXIS"]
+
+    if sources.instrument.transform == None:
+        if ndim!=3:
+            logging.error(\
+                "Data must be 3D unless mapping from spaxels to x&y specified.")
+            assert ndim==3, "Expected 3dim. datacube, got {0}dim".format(ndim)
+
+        ## initialize transformation for 'Instrument'-class
+        xdim = dataFits[0].header['NAXIS1']
+        ydim = dataFits[0].header['NAXIS2']
+
+        x = np.mod(np.arange(xdim*ydim, dtype=np.int16), xdim)
+        y = np.arange(xdim*ydim, dtype=np.int16)//xdim
+
+        sources.instrument.transform = np.vstack((y,x)).T
+        
+
+    if ndim == 3:
+        ndisp = dataFits[0].header['NAXIS3']
+    else:
+        ndisp = dataFits[0].header[\
+            'NAXIS{0}'.format(sources.instrument.spectral_axis)]
+
+    ## Check the range of layers to be fitted 
+    try: start = prmFile[0].header['PAMPELMUSE START']
+    except KeyError: start = 0
+    try: stop = prmFile[0].header['PAMPELMUSE STOP']
+    except KeyError: stop = ndisp
+    
+    if (stop-start+1) != sources.ndisp:
+        logging.critical("Datacube and PRM-file have incompatible dimensions.")
+
 
     data = dataFits[0].data ## load full(!) cube into memory.
 
-    for i in xrange(dataFits[0].header['NAXIS3']):
-        logging.info("Handling slice #{0} [{1:.1f}%].".format(\
-                i, (100.*i)/sources.ndisp))
-        
-        ## initialize PSF
-        psf_i = psf(index=i)
+    ## Initialize PSF profiles of the sources:
+    if psf_attributes.psftype == "gauss":
+        PSF = Gaussian
+    elif psf_attributes.psftype == "moffat":
+        PSF = Moffat
+    else:
+        logging.critical("Invalid PSF type: '{0}'".format(\
+                psf_attributes.psftype))
+        raise IOError, "PSF type not understood."
+    PSF.set_transform(sources.instrument.transform)
+    for i in xrange(sources.nsrc):
+        psf = PSF(Xc=sources.x[i], Yc=sources.y[i], mag=sources.weights[i],
+                  maxrad=psfRad, osfactor=5, osradius=2)
 
-        ## load current IFU coords:
-        sources.loadIFUCoords(index=i)
+
+    for kk in xrange(start, stop):
+        logging.info("Handling slice #{0} [{1:.1f}%].".format(\
+                kk, (100.*(kk-start))/(stop-start+1)))
+        
+        jj = kk - start
+
+        ## update PSF instances with current parameter fits
+        i = 0 
+        for prm in psf_attributes.parameters:
+            getattr(PSF, "set_{0}".format(prm))(psf_attributes.values[i, jj])
+            i += 1
+        
+        i = 0
+        for prm in sources.parameters:
+            getattr(PSF, "set_{0}".format(prm))(sources.ctValues[i, jj])
+            i += 1
+
 
         ## loop over components:
-        for j in xrange(sources.ncmp):
+        i = 0
+        for psf in PSF:
+            
+            j = sources.specrow[i]
 
             if j != sources.skyRow:
                 if j != sources.unresRow or subtUnRes: 
 
-                    ##  subtract from cube
-                    for k in xrange(sources.indexmap[j].size):
-  
-                        l = np.where(\
-                            sources.ifuSelect==sources.indexmap[j][k])[0][0]
+                    flux = np.zeros((sources.instrument.nspaxel,),
+                                    dtype=np.float32)
 
-                        x_k    = sources.xvalues[l,0]
-                        y_k    = sources.yvalues[l,0]
-                        flux_k = sources.data[j,i]
-                        mag_k  = sources.weights[j][k]
+                    flux[psf.used] += sources.data[j,jj]*psf.f
 
-                        if sources.instrument == None:
-                            data[i] -= flux_k*psf_i(\
-                                size=cubeShape[1:], x_c=x_k, y_c=y_k, mag=mag_k,
-                                maxrad=psfRad)
-                        else:
-                            data[i] -= flux_k*psf_i(\
-                                size=cubeShape[1:], x_c=x_k, y_c=y_k, mag=mag_k,
-                                maxrad=psfRad)*sources.instrument.fovmask
+                    if ndim == 3:
+                        data[kk] -= sources.instrument.make_grid(flux)
+                    elif sources.instrument.spatial_axis==1:
+                        data[kk, sources.instrument.isscience] -= flux
+                    else:
+                        data[sources.instrument.isscience, kk] -= flux
 
             elif subtSky:
-                if sources.instrument == None:
-                    data[i] -= sources.data[j,i]
+                if ndim == 3:
+                    data[kk] -= sources.data[j,jj]
+                elif sources.instrument.spatial_axis==1:
+                    data[kk, sources.instrument.isscience] -= sources.data[j,jj]
                 else:
-                    data[i] -= sources.data[j,i]*sources.instrument.fovmask
+                    data[sources.instrument.isscience, kk] -= sources.data[j,jj]
 
     prmFile.close() ## finished reading source catalog.
 

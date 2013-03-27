@@ -39,6 +39,7 @@ CHANGELOG
                       PyQt4 and/or matplotlib ar not available.
 2013/03/26, v0.6.0.0, modified the code in order to implement the new way of
                       calculating the PSF profiles.
+2013/03/27, v0.6.0.1, some minor modifications
 """
 __author__  = "Sebastian Kamann (skamann@aip.de)"
 __version__ = "0.6.0.0"
@@ -51,7 +52,7 @@ from pampelmuse.core.sources import Sources
 from pampelmuse.core.psf import PsfAttributes
 
 ## IMPORTANT:
-## PyQt4 and QStarFit are only load later if requested and dependencies
+## PyQt4 and QStarFit are loaded later and only if requested and dependencies
 ## fulfilled
 
 
@@ -65,7 +66,6 @@ def cubefit(arguments):
     prefix   = arguments.prefix                           ##
     fitRad   = arguments.config["FITRAD"]                 ##
     maxIter  = arguments.config["MAXITER"]                ##
-    layerRng = arguments.config["LAYERRNG"]               ##
     psfRad   = arguments.config["PSFRAD"]                 ##
     smallIFU = arguments.config["SMALLIFU"]               ##
     dobackup = arguments.config["DOBACKUP"]               ##
@@ -168,10 +168,12 @@ def cubefit(arguments):
  
     ndim     = dataFits[0].header["NAXIS"]
 
-    if sources.instrument == None:
+    if sources.instrument.transform == None:
         if ndim!=3:
-            logging.error("Data must be 3dim. unlesss instrument specified.")
+            logging.error(\
+                "Data must be 3D unless mapping from spaxels to x&y specified.")
             assert ndim==3, "Expected 3dim. datacube, got {0}dim".format(ndim)
+
         else:
             ## initialize transformation for 'Instrument'-class
             xdim = dataFits[0].header['NAXIS1']
@@ -185,10 +187,17 @@ def cubefit(arguments):
     if ndim == 3:
         ndisp = dataFits[0].header['NAXIS3']
     else:
-        ndisp = dataFits[0].header['NAXIS{0}'.format(\
-                sources.instrument.spectral_axis)]
+        ndisp = dataFits[0].header[\
+            'NAXIS{0}'.format(sources.instrument.spectral_axis)]
 
-    if ndisp < sources.ndisp:
+
+    ## Check the range of layers to be fitted 
+    try: start = prmFile[0].header['PAMPELMUSE START']
+    except KeyError: start = 0
+    try: stop = prmFile[0].header['PAMPELMUSE STOP']
+    except KeyError: stop = ndisp
+    
+    if (stop-start+1) != sources.ndisp:
         logging.critical("Datacube and PRM-file have incompatible dimensions.")
 
     sigmaFits = pyfits.open('{0}.err.fits'.format(prefix))
@@ -230,7 +239,7 @@ def cubefit(arguments):
                          psf_attributes=psf_attributes, maxrad=psfRad,
                          osradius=2, osfactor=5)
 
-    fitter(layerRange=layerRng, fitRad=fitRad, lastFitIndex=lastFitIndex,
+    fitter(layerRange=(start,stop), fitRad=fitRad, lastFitIndex=lastFitIndex,
            asSmallIFU=smallIFU, jumpStart=jumpStart, ncpu=cpuCount,
            maxiter=maxIter)
 

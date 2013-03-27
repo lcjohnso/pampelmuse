@@ -70,9 +70,12 @@ CHANGELOG:
                       (missing spaxels, non-rectangular FoV, ...) by the code.
 2013/03/26, v0.8.0.0, major modifications done to the code in order to
                       implement new way of calculating the PSF profiles.
+2013/03/27, v0.8.0.1, some minor modifications; also implemented option to
+                      restrict analysis to a certain wavelength range within
+                      a cube.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.8.0.0"
+__version__ = "0.8.0.1"
 import datetime, os, sys, logging
 import numpy as np, pyfits
 from scipy import interpolate, sparse
@@ -84,8 +87,6 @@ from pampelmuse.core.aperture import AperPhoto
 from pampelmuse.core.new_profiles import Gaussian,Moffat
 from pampelmuse.core.sources import Sources
 from pampelmuse.core.psf import PsfAttributes
-from pampelmuse.core.instruments import Pmas, Argus
-
 
 
 ## class defines the exception that is raised when the parameters
@@ -118,6 +119,7 @@ def initfit(arguments):
     cfpfile  = arguments.sourcelist                 ##
 ###### General information ###########################
     ifu      = arguments.config["IFU"]              ##
+    layerrng = arguments.config["LAYERRNG"]         ##
 ###### Photometry information:                      ##
     passband = arguments.config["PASSBAND"]         ##
     pixScale = arguments.config["PIXSCALE"]         ## 
@@ -154,20 +156,6 @@ def initfit(arguments):
     else: logging.error(\
         "Cannot find mags, missing field `{0}` or `mag`.".format(passband))
 
-##     if useunres: select = cfpResults[magColName]<unreslim
-##     else:        select = cfpResults[magColName]<reslim
-## 
-##     if globsky:
-##         ids = np.r_[cfpResults['id'][select], -1]
-##         x   = np.r_[cfpResults['x'][select], 0]
-##         y   = np.r_[cfpResults['y'][select], 0]
-##         mag = np.r_[cfpResults[magColName][select], 0]
-##     else:
-##         ids = cfpResults['id'][select]
-##         x   = cfpResults['x'][select]
-##         y   = cfpResults['y'][select]
-##         mag = cfpResults[magColName][select]
-
     if globsky:
         ids = np.r_[cfpResults['id'], -1]
         x   = np.r_[cfpResults['x'], 0]
@@ -182,19 +170,9 @@ def initfit(arguments):
     x -= x[ids>=0].min()
     y -= y[ids>=0].min()
 
-    ## Initialize instance of instrument-class
-    if ifu == "pmas":
-        logging.info("Selected instrument is PMAS.")
-        instrument = Pmas()
-    elif ifu == "argus":
-        logging.info("Selected instrument is FLAMES/ARGUS.")
-        instrument = Argus()
-    else:
-        logging.warning("No valid instrument specifier provided.")
-        instrument = None
 
-    ## Initialiize sources-class
-    sources     = Sources(ids=ids, instrument=instrument)
+    ## Initialize sources-class
+    sources     = Sources(ids=ids, instrument=ifu)
     sources.x   = x
     sources.y   = y
     sources.mag = mag
@@ -251,35 +229,34 @@ def initfit(arguments):
     ## open data HDU
     dataHDU  = dataFile[0]
     ndim     = dataHDU.header["NAXIS"]
-    if sources.instrument == None and ndim!=3:
-        logging.error("Data must be 3dim. unlesss instrument specified.")
+    if sources.instrument.transform == None and ndim!=3:
+        logging.error(\
+            "Data must be 3dim. unless mapping from spaxels to x&y specified.")
         assert ndim==3, "Expected 3dim. datacube, got {0}dim".format(ndim)
 
+    ## Reading information about wavelength coverage
     if ndim == 3:
-        laxis = 0 ## Wavelength (lambda) axis
-        spats = (dataHDU.header["NAXIS1"], dataHDU.header["NAXIS2"])
-                  ## spatial shape
-        cdelt = dataHDU.header['CDELT3']
-        crval = dataHDU.header['CRVAL3']
-        try:
-            ctype = dataHDU.header["CTYPE3"]
-        except KeyError:
-            ctype = "Angstrom"
-        ndisp = dataHDU.header['NAXIS3']
+        if sources.instrument.shape == None: ## set spatial shape if needed
+            xdim = dataHDU.header["NAXIS1"]
+            ydim = dataHDU.header["NAXIS2"]
+
+            sources.instrument.shape = (ydim, xdim)
+
+            x = np.mod(np.arange(xdim*ydim, dtype=np.int16), xdim)
+            y = np.arange(xdim*ydim, dtype=np.int16)//xdim
+            sources.instrument.transform = np.vstack((y,x)).T
+
+        spectral_axis = 3
     else:
-        laxis = 1
-        spats = (sources.instrument.nspaxel,)
-        cdelt = dataHDU.header['CDELT{0}'.format(\
-                sources.instrument.spectral_axis)]
-        crval = dataHDU.header['CRVAL{0}'.format(\
-                sources.instrument.spectral_axis)]
-        try:
-            ctype = dataHDU.header["CTYPE{0}".format(\
-                    sources.instrument.spectral_axis)]
-        except KeyError:
-            ctype = "Angstrom"
-        ndisp = dataHDU.header['NAXIS{0}'.format(\
-                sources.instrument.spectral_axis)]
+        spectral_axis = sources.instrument.spectral_axis
+
+    cdelt = dataHDU.header['CDELT{0}'.format(spectral_axis)]
+    crval = dataHDU.header['CRVAL{0}'.format(spectral_axis)]
+    try:
+        ctype = dataHDU.header["CTYPE{0}".format(spectral_axis)]
+    except KeyError:
+        ctype = "Angstrom"
+    ndisp = dataHDU.header['NAXIS{0}'.format(spectral_axis)]
 
     logging.info("   {0}.dat.fits - OK".format(prefix))
 
@@ -295,6 +272,12 @@ def initfit(arguments):
         maskHDU = None
         logging.info("   {0}.msk.fits - Not found".format(prefix))
 
+    ## check if whole cube should be analyzed
+    if layerrng[0] >= 0: start = layerrng[0]
+    else: start = ndisp + layerrng[0]
+    if layerrng[1] >= 0: stop = layerrng[1]
+    else: stop = ndisp + layerrng[1]
+    
 
     ## collapse data-cube to image in the provided photometric filter
     logging.info("Creating mock {0}-band image from datacube.".format(passband))
@@ -305,29 +288,33 @@ def initfit(arguments):
         filtercurve["wl"], filtercurve["tp"], k=3, s=0)
     fMin = filtercurve["wl"].min()
     fMax = filtercurve["wl"].max()
+    fWht = 0.
 
     ## make loop to avoid extensive use of memory for large data-cubes
-    dataIma  = np.zeros(spats, dtype=np.float32)
+    dataIma  = np.zeros(sources.instrument.nspaxel, dtype=np.float32)
     sigmaIma = np.zeros(dataIma.shape, dtype=np.float32)
-    for i in xrange(ndisp):
+    for i in xrange(start, stop):
         wave_i = crval+i*cdelt
         if ctype == "nm": wave_i *= 10
         if wave_i > fMin and wave_i < fMax:
+            wht_i = f(wave_i)
             if ndim==3 :
-                dataHDU.section[i]*f(wave_i)
-                sigmaHDU.section[i]*f(wave_i)
+                dataIma += dataHDU.section[i].flatten()*wht_i
+                sigmaIma += sigmaHDU.section[i].flatten()*wht_i
             elif sources.instrument.spectral_axis==2:
                 dataIma  += sources.instrument.get_science(\
-                    dataHDU.section[i]*f(wave_i))
+                    dataHDU.section[i]*wht_i)
                 sigmaIma += sources.instrument.get_science(\
-                        sigmaHDU.section[i]*f(wave_i))
+                        sigmaHDU.section[i]*wht_i)
             else:
                 dataIma  += sources.instrument.get_science(\
-                    dataHDU.section[:,i]*f(wave_i))
+                    dataHDU.section[:,i]*wht_i)
                 sigmaIma += sources.instrument.get_science(\
-                    sigmaHDU.section[:,i]*f(wave_i))
-    dataIma  /= filtercurve["tp"].sum()
-    sigmaIma /= filtercurve["tp"].sum()
+                    sigmaHDU.section[:,i]*wht_i)
+            fWht += wht_i
+
+    dataIma  /= fWht
+    sigmaIma /= fWht
 
 
     ## create pseudo observation from photometry results
@@ -366,13 +353,10 @@ def initfit(arguments):
     pickData["y"] /= pixScale
 
     app  = QtGui.QApplication(sys.argv)
-    if ndim==2:
-        identifier = IdentSources(\
-            grabIma=sources.instrument.make_grid(dataIma, fill_value=0.,),
-            pickIma=identIma, pickData=pickData)
-    else:
-        identifier = IdentSources(grabIma=dataIma, pickIma=identIma,
-                                  pickData=pickData)
+    identifier = IdentSources(\
+        grabIma=sources.instrument.make_grid(dataIma, fill_value=0.,),
+        pickIma=identIma, pickData=pickData)
+
     identifier.show()
     app.exec_()
 
@@ -408,10 +392,10 @@ def initfit(arguments):
         i+=1
 
     ## adapt PSF to IFU array
-    if sources.instrument != None:
+    if sources.instrument.transform != None:
         PSF.set_transform(sources.instrument.transform)
     else:
-        PSF.set_size(spats)
+        PSF.set_size(sources.instrument.shape)
 
     ## Source selection process 
     logging.info("Selecting sources to be used in PSF fitting.")
@@ -420,7 +404,7 @@ def initfit(arguments):
     sources.loadIFUCoords()
 
     ## Position in Fov/distance to edge of FoV
-    edgeDist = sources.edgeDist(fovShape=dataIma.shape)
+    edgeDist = sources.edgeDist()
 
     ## Photometric calibration:
     magPS = sources.mag[sources.ifuSelect]
@@ -532,8 +516,9 @@ def initfit(arguments):
 
 
     ## create dummy data: every spectrum is empty
-    sources.loadSpectra(data=np.zeros((sources.ncmp, ndisp), dtype=np.float32),
-                        crval=crval, cdelt=cdelt)
+    sources.loadSpectra(\
+        data=np.zeros((sources.ncmp, stop-start+1), dtype=np.float32),
+        crval=crval+start*cdelt, cdelt=cdelt)
 
 
     if not smallifu:
@@ -577,6 +562,8 @@ def initfit(arguments):
         aperData["x"] = np.squeeze(sources.xdata[0])
         aperData["y"] = np.squeeze(sources.ydata[0])
  
+        ## !!! NEEDS TO  BE UPDATED !!!
+        ## include start/stop-values
         make_aper = AperPhoto(data=dataHDU, centers=aperData, mask=maskHDU)
         
         ## !!! NEEDS TO  BE UPDATED !!!
@@ -649,6 +636,8 @@ def initfit(arguments):
         "hierarch PAMPELMUSE INITFIT UTC",
         datetime.datetime.utcnow().strftime("%y-%m-%d %H:%M:%S"))
     primaryHDU.header.update("hierarch PAMPELMUSE IFU", str(ifu))
+    primaryHDU.header.update("hierarch PAMPELMUSE START", start)
+    primaryHDU.header.update("hierarch PAMPELMUSE STOP", stop)
     primaryHDU.header.update("hierarch PAMPELMUSE INITFIT VERSION", __version__)
     primaryHDU.header.update("hierarch PAMPELMUSE INITFIT PASSBAND", passband)
     primaryHDU.header.update("hierarch PAMPELMUSE INITFIT RESLIM", reslim)

@@ -90,9 +90,13 @@ v0.6.1.0, 2013/03/22, some bugfixing wrt. handling of unresolved component in
                       the PSF/positions fit.
 v0.6.1.1, 2013/03/26, included an option to fit only a subset of all layers in
                       method __call__
+v0.6.2.1, 2013/03/27, fixed a bug when calculating the Jacobi matrix (the
+                      values were not divided by the uncertainties); also
+                      modified usage of option to fit subset of all layers of
+                      a cube.
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.6.1.1"
+__version__ = "0.6.2.1"
 
 import logging, os, sys, time
 import numpy as np, pyfits
@@ -196,7 +200,8 @@ class StarFit(object):
         elif self.psf_attributes.psftype == "moffat":
             self.PSF = Moffat
         else:
-            logging.critical("Invalid PSF type: '{0}'".format(psf.psftype))
+            logging.critical("Invalid PSF type: '{0}'".format(\
+                    self.psf_attributes.psftype))
             raise IOError, "PSF type not understood."
 
 
@@ -294,15 +299,11 @@ class StarFit(object):
         self.clip    = clip    ## efficiency of bad pixel masking
                                ## WARNING: Has no effect yet.
 
-        self.layerRange = layerRange
-        if layerRange[0]>=0: self.firstLayer = layerRange[0]
-        else: self.fistLayer = self.specPix + layerRange[0]
-        if layerRange[1]>=0: self.lastLayer = layerRange[1]
-        else: self.lastLayer = self.specPix + layerRange[1]
-        self.Nlayer = self.lastLayer-self.firstLayer
+        self.start, self.stop = layerRange
+        self.Nlayer = self.stop - self.start + 1
         
         logging.info("Requested range to be analysed: {0}-{1}".format(\
-                self.firstLayer,self.lastLayer))
+                self.start,self.stop))
 
         ## check where to start
         if lastFitIndex == None:
@@ -334,7 +335,7 @@ class StarFit(object):
         while j < self.i:
             if j >= 0:
                 self.lastFittedImas.append(\
-                    self.firstLayer + (self.Nlayer>>1) - 1 - int(j/2) \
+                    (self.Nlayer>>1) - 1 - int(j/2) \
                         + j*np.mod(j, 2) + np.mod(self.Nlayer, 2)
                     )
             j += 1
@@ -363,7 +364,7 @@ class StarFit(object):
 
             ## jj is a counter that starts at the central spectral pixel
             ## and proceeds simultaneoulsy to the red and blue end.
-            self.jj = self.firstLayer + (self.Nlayer>>1) - 1 - int(self.i/2) \
+            self.jj = (self.Nlayer>>1) - 1 - int(self.i/2) \
                 + self.i*np.mod(self.i, 2) + np.mod(self.Nlayer, 2)
 
             ## A common prefix used for all logging messages related to the
@@ -410,39 +411,41 @@ class StarFit(object):
             i += 1
 
 
+        self.kk = self.jj + self.start ## The layer of the cube to be loaded
+
         ## load mask if present, otherwise create zero mask
         if self.hasMask:
             if self.ndim == 3:
-                self.mask = self.maskFits.section[self.jj].flatten()
+                self.mask = self.maskFits.section[self.kk].flatten()
             elif self.sources.instrument.spatial_axis==1:
                 self.mask = self.sources.instrument.get_science(\
-                    self.maskFits.section[:,self.jj])
+                    self.maskFits.section[:,self.kk])
             else:
                 self.mask = self.sources.instrument.get_science(\
-                    self.maskFits.section[self.jj])            
+                    self.maskFits.section[self.kk])            
         else:
             self.mask = np.zeros(self.spatShape, dtype='bool')
             
         logging.debug("[@{0}] {1} masked pixels".format(\
-                self.jj, (self.mask==True).sum()))
+                self.kk, (self.mask==True).sum()))
 
 
         ## load data, flatten array if necessary and apply mask; if data is
         ## 2dimensional, also extract science fibers.
         ## Note: np.ndarray.flatten -> returns copy
         if self.ndim == 3:
-            self.data  = self.dataFits.section[self.jj].flatten()[self.mask==0]
-            self.sigma = self.sigmaFits.section[self.jj].flatten()[self.mask==0]
+            self.data  = self.dataFits.section[self.kk].flatten()[self.mask==0]
+            self.sigma = self.sigmaFits.section[self.kk].flatten()[self.mask==0]
         elif self.sources.instrument.spectral_axis==1:
             self.data  = self.sources.instrument.get_science(\
-                self.dataFits.section[:,self.jj])[self.mask==0]
+                self.dataFits.section[:,self.kk])[self.mask==0]
             self.sigma = self.sources.instrument.get_science(\
-                self.sigmaFits.section[:,self.jj])[self.mask==0]
+                self.sigmaFits.section[:,self.kk])[self.mask==0]
         else:
             self.data  = self.sources.instrument.get_science(\
-                self.dataFits.section[self.jj])[self.mask==0]
+                self.dataFits.section[self.kk])[self.mask==0]
             self.sigma = self.sources.instrument.get_science(\
-                self.sigmaFits.section[self.jj])[self.mask==0]
+                self.sigmaFits.section[self.kk])[self.mask==0]
 
             
         ## update transformation in PSF class to include mask
@@ -454,7 +457,7 @@ class StarFit(object):
             
             if self.maxiter > 1:
                 logging.info("[@{0}] Iteration {1} (of max. {2})".format(\
-                        self.jj, n_iter, self.maxiter))
+                        self.kk, n_iter, self.maxiter))
 
             ## create model matrix & update noise values
             self.Apsf = self.fillMatrix()
@@ -470,9 +473,9 @@ class StarFit(object):
 
             ## some logging
             logging.debug("[@{0}] Chi**2 of current fit: {1:.1f}".format(\
-                    self.jj, bestFit[4]**2))
+                    self.kk, bestFit[4]**2))
             logging.debug("[@{0}] Relative changes in fluxes: {1}".format(\
-                    self.jj, delta_flux))
+                    self.kk, delta_flux))
 
             ## convergence criterion: median relative change in fluxes <1*10^-3
             if np.median(abs(delta_flux)) < 1e-3:
@@ -493,7 +496,7 @@ class StarFit(object):
             if n_iter > self.maxiter:
                 if self.maxiter > 1:
                     logging.warning("[@{0}] Max. number of iterations reached."\
-                                        .format(self.jj))
+                                        .format(self.kk))
                 break
                  
         
@@ -640,7 +643,7 @@ class StarFit(object):
                 
             elif doLog:
                 logging.error("[@{0}] Source #{1} entirely outside FoV."\
-                                  .format(self.sources.ID[i]))
+                                  .format(self.kk, self.sources.ID[i]))
                 
         ## save unresolved component for later recovery
         if self.sources.hasUnres and calcUnres:
@@ -910,7 +913,7 @@ class StarFit(object):
                 self.sources.ctValues[ii,self.jj] = bestfit[i]
 
             ## some logging
-            logging.debug("[@{0}] Fitted coordinate transf.:".format(self.jj))
+            logging.debug("[@{0}] Fitted coordinate transf.:".format(self.kk))
             for i in xrange(len(self.sources.parameters)):
                 logging.debug("         {0}={1:.2f}".format(\
                         self.sources.parameters[i],
@@ -941,7 +944,7 @@ class StarFit(object):
                 self.psf_attributes.values[ii,self.jj] = bestfit[i]
 
             ## some logging
-            logging.debug("[@{0}] Fitted PSF model:".format(self.jj))
+            logging.debug("[@{0}] Fitted PSF model:".format(self.kk))
             for i in xrange(len(self.psf_attributes.parameters)):
                 logging.debug("         {0}={1:.2f}".format(\
                         self.psf_attributes.parameters[i],
@@ -1017,7 +1020,8 @@ class StarFit(object):
             if ii==self.sources.unresRow: continue
             for j in xrange(len(x0)):
                 jacob[j, psf.used] -= self.sources.data[ii,self.jj]\
-                    *getattr(psf, "diff_{0}".format(names[j]))
+                    *getattr(psf, "diff_{0}".format(names[j]))\
+                    /self.sigma[psf.used]
             
         return jacob
 
@@ -1046,7 +1050,7 @@ class StarFit(object):
             LASTFITS = [self.lastFittedImas[i] for i in xrange(\
                     len(self.lastFittedImas)-2, -1, -2)]
         logging.debug("[@{0}] Previous fits in focus: {1}".format(\
-                self.jj, LASTFITS))
+                self.kk, LASTFITS))
 
         if self.sources.Fit:
             
@@ -1064,7 +1068,7 @@ class StarFit(object):
                 = self.psf_attributes.data[0,:][...,LASTFITS].mean(axis=-1)
 
             logging.debug("[@{0}] Initial PSF model: {1}".format(\
-                    self.jj, self.psf_attributes.values[...,self.jj]))
+                    self.kk, self.psf_attributes.values[...,self.jj]))
 
 
 

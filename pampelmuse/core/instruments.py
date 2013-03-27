@@ -20,9 +20,11 @@ CHANGELOG:
                       classes; also added documentation.
 2013/03/26, v0.2.0.1, included a more general way to determine if a source is
                       covered by the IFU footprint. Also added documentation.
+2013/03/27, v0.2.0.2, changed default value of 'name'-property to "Generic IFU
+                      in Instrument-class (was None)
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.2.0.1"
+__version__ = "0.2.0.2"
 import logging, re
 import numpy as np
 from matplotlib import path
@@ -37,7 +39,7 @@ class Instrument(object):
     aranged on a rectangular grid with unity filling factor. It also serves as
     super-class for all instrument specific sub-classes defined.
     """
-    name = None
+    name = "Generic IFU"
 
     _transform = None ## will contain the transformation from spaxels to x&y
     _edgepix = None ## will contain the indices of the spaxels that define

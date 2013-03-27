@@ -42,9 +42,11 @@ CHANGELOG:
 2013/03/26, v0.4.0.0, modified the 'weights'-property and the 'signalToNoise'-
                       method in order to adapt them to the new way of
                       calculating the PSF profiles.
+2013/03/27, v0.4.0.1, slight modification on how Instrument-instance is
+                      initialized.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.4.0.0"
+__version__ = "0.4.0.1"
 import logging
 import numpy as np, pyfits
 from numpy.polynomial import Chebyshev, Legendre
@@ -56,7 +58,7 @@ except ImportError: pass
 from pampelmuse.core.positions import CoordinateTransformation
 from pampelmuse.functions.step_poly_fit import StepPolyFit
 from pampelmuse.core.value_array import ValueArray
-from pampelmuse.core.instruments import Argus, Pmas
+from pampelmuse.core.instruments import Instrument, Argus, Pmas
 
 
 def matchOnID(parent, child):
@@ -180,10 +182,10 @@ class Sources(CoordinateTransformation, object):
 
 
         ## "Initialize" instrument
-        if isinstance(instrument, (Argus, Pmas)):
+        if isinstance(instrument, (Instrument, Argus, Pmas)):
             self.instrument = instrument
-            logging.info("Selected instrument is '{0}'.".format(\
-                    instrument.name))
+            logging.info(\
+                "Selected instrument is '{0}'.".format(instrument.name))
         elif isinstance(instrument, str):
             if instrument == "pmas":
                 logging.info("Selected instrument is PMAS.")
@@ -194,9 +196,6 @@ class Sources(CoordinateTransformation, object):
         else:
             logging.warning("No valid instrument specifier provided.")
             self.instrument = Instrument()
-
-##         if self.instrument is None:
-##             logging.warning("No information on used instrument avaialable.")
 
 
         super(Sources, self).__init__()
@@ -1131,7 +1130,7 @@ class Sources(CoordinateTransformation, object):
         Parameters
         ----------
         fovShape : array_like, optional
-           The x- & y-size of the FoV. Only used if not Instrument-class
+           The x- & y-size of the FoV. Only used if no Instrument-class
            instance is being used.
 
         Returns
