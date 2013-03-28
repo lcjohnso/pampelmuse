@@ -41,8 +41,8 @@ CHANGELOG
                       calculating the PSF profiles.
 2013/03/27, v0.6.0.1, some minor modifications
 """
-__author__  = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.6.0.0"
+__author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
+__version__ = "0.6.0.1"
 import datetime, logging, os, sys
 import numpy as np, pyfits
 

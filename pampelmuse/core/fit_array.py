@@ -1005,7 +1005,7 @@ class StarFit(object):
         
         Returns
         -------
-        jacobi  : nd_array
+        jacob : nd_array
             The Jacobi matrix with respect to the model parameters included
             in 'x0'.
         """

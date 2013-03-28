@@ -22,9 +22,11 @@ CHANGELOG:
                       covered by the IFU footprint. Also added documentation.
 2013/03/27, v0.2.0.2, changed default value of 'name'-property to "Generic IFU
                       in Instrument-class (was None)
+2013/03/28, v0.2.1.2, bugfixed the methods 'make_grid' and 'get_science' that
+                      crashed for certain types of (valid) input data.
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.2.0.2"
+__version__ = "0.2.1.2"
 import logging, re
 import numpy as np
 from matplotlib import path
@@ -476,31 +478,20 @@ class Instrument(object):
         ## The index of the spatial axis in numpy-counting.
         np_spatial_axis = np.mod(self.spatial_axis,2)
 
-        ## Perform sanity checks
-        ## - Dimensionality
+        ## extract science signal
+        sci_data = self.get_science(data)
+
+        ## Get right dimension for calculation
         if np_spatial_axis == 1 and data.ndim == 1:
             ## add pseudo-spectral axis to handle 1dim. data (single layer):
-            calc_data = data.reshape((1,data.shape[0]))
+            calc_data = sci_data.reshape((1,sci_data.shape[0]))
         elif np_spatial_axis == 0 and data.ndim == 1:
             ## add pseudo-spectral axis to handle 1dim. data (single layer):
-            calc_data = data.reshape((data.shape[0],1))
+            calc_data = sci_data.reshape((sci_data.shape[0],1))
         else:
-            calc_data = data
+            calc_data = sci_data
 
-        if calc_data.ndim != 2:
-            logging.error("Data must be 1D or 2D, but is {0}D.".format(\
-                    int(calc_data.ndim)))
-        assert calc_data.ndim == 2, "Data must be 1D or 2D"
-
-        ## - Shape
-        if calc_data.shape[np_spatial_axis] != self.nspaxel:
-            logging.error("Spatial axis of data has invalid length")
-            logging.error("Expected {0} spaxels, but got {1}."\
-                    .format(self.nspaxel,
-                            float(calc_data.shape[np_spatial_axis])))
-        assert calc_data.shape[np_spatial_axis] == self.nspaxel, \
-            "Spatial axis of data has invalid length."
-
+        ## if no shape provided, assume default array size of instrument
         if shape == None:
             shape = self.shape
 
@@ -508,10 +499,22 @@ class Instrument(object):
         grid_y, grid_x = np.mgrid[0:shape[0]-1:1j*shape[0],
                                   0:shape[1]-1:1j*shape[1]]
 
-        ## extract science fibers (if necessary) and run griddata
-        out_data = griddata((self.y, self.x), self.get_science(calc_data),
-                            (grid_y, grid_x), method=method,
-                            fill_value=fill_value)
+
+        ## run griddata on every layer provided
+        if self.spatial_axis==1:
+            out_data = np.zeros((calc_data.shape[0],)+shape,
+                                dtype=calc_data.dtype)
+            for i in xrange(calc_data.shape[0]):
+                out_data[i] = griddata((self.y, self.x), calc_data[i],
+                                       (grid_y, grid_x), method=method,
+                                       fill_value=fill_value)
+        else:
+            out_data = np.zeros((calc_data.shape[1],)+shape,
+                                dtype=calc_data.dtype)
+            for i in xrange(calc_data.shape[1]):
+                out_data[i] = griddata((self.y, self.x), calc_data[:,i],
+                                       (grid_y, grid_x), method=method,
+                                       fill_value=fill_value)
         return np.squeeze(out_data) ## remove pseudo-spectral axis if needed
 
 

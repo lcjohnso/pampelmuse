@@ -19,9 +19,13 @@ CHANGELOG
 2013/03/27, v0.4.0.0, modified code to implement new way of creating PSF
                       profiles for the sources. probably still needs to be
                       debugged.
+2013/03/28, v0.4.1.0, some debugging done, especially fixed bug that code
+                      did not subtract anything because the loop over all
+                      sources got stuck at the first source. Also now saving
+                      fiber setup of Argus in output FITS-file if available.
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.4.0.0"
+__version__ = "0.4.1.0"
 import datetime, logging, os, sys
 import numpy as np, pyfits
 
@@ -63,22 +67,20 @@ def subtres(arguments):
         logging.warning("PRM-file does not contain results of successful fit.")
 
 
-    ## Check if information on used instrumen available
+    ## Check if information on used instrument available
     if "PAMPELMUSE IFU" in prmFile[0].header.keys():
         instrument = prmFile[0].header["PAMPELMUSE IFU"]
     else:
         instrument = None
 
 
-    ## CREATE ARRAYS THAT CONTAIN PARAMETERS USED IN THE FIT
     ## Collect information about sources
-
-    ## Spectra
+    ## -Spectra
     logging.info("Obtaining source spectra.")
     sources = Sources(data=prmFile["SOURCES"],  hdu=True, instrument=instrument)
     sources.loadSpectra(data=prmFile["SPECTRA"], hdu=True)
                  
-    ## Positions
+    ## -Positions
     logging.info("Obtaining source coordinates")
     if "POSITIONS" in extNames:
         logging.info("Reading 'POSITIONS' HDU.")
@@ -91,7 +93,7 @@ def subtres(arguments):
         sources.makeValues()
         sources.info()
 
-    ## PSF attributes
+    ## -PSF attributes
     psf_attributes = PsfAttributes()
     if "PSFPARS" in extNames: ##  check if HDU exists
         logging.info("Reading 'PSFPARS' HDU.")
@@ -109,10 +111,12 @@ def subtres(arguments):
     dataFits  = pyfits.open('{0}.dat.fits'.format(prefix))
 
     ## check if calibration HDU for ARGUS exists
+    fiber_calib = False
     if sources.instrument.name == "argus":
         try:
             setup_index = dataFits.index_of("FIBER_SETUP")
             sources.instrument.read_fiber_setup(hdu=dataFits[setup_index])
+            fiber_calib = True
         except KeyError:
             logging.warning("No HDU with fibre setup found for ARGUS data.")
 
@@ -134,7 +138,6 @@ def subtres(arguments):
 
         sources.instrument.transform = np.vstack((y,x)).T
         
-
     if ndim == 3:
         ndisp = dataFits[0].header['NAXIS3']
     else:
@@ -145,10 +148,10 @@ def subtres(arguments):
     try: start = prmFile[0].header['PAMPELMUSE START']
     except KeyError: start = 0
     try: stop = prmFile[0].header['PAMPELMUSE STOP']
-    except KeyError: stop = ndisp
+    except KeyError: stop = ndisp-1
     
     if (stop-start+1) != sources.ndisp:
-        logging.critical("Datacube and PRM-file have incompatible dimensions.")
+        logging.critical("Cube and PRM-file have incompatible sizes.")
 
 
     data = dataFits[0].data ## load full(!) cube into memory.
@@ -169,7 +172,7 @@ def subtres(arguments):
 
 
     for kk in xrange(start, stop):
-        logging.info("Handling slice #{0} [{1:.1f}%].".format(\
+        logging.info("Handling layer #{0} [{1:.1f}%].".format(\
                 kk, (100.*(kk-start))/(stop-start+1)))
         
         jj = kk - start
@@ -214,6 +217,7 @@ def subtres(arguments):
                     data[kk, sources.instrument.isscience] -= sources.data[j,jj]
                 else:
                     data[sources.instrument.isscience, kk] -= sources.data[j,jj]
+            i += 1
 
     prmFile.close() ## finished reading source catalog.
 
@@ -232,5 +236,10 @@ def subtres(arguments):
     if os.path.exists("{0}.res.fits".format(prefix)):
         os.remove("{0}.res.fits".format(prefix))
         logging.warning("Existing residual cube has been overwritten.")
-    outHDU.writeto("{0}.res.fits".format(prefix))
+
+    if fiber_calib:
+        HDUList = pyfits.HDUList([outHDU, dataFits[setup_index]])
+        HDUList.writeto("{0}.res.fits".format(prefix))
+    else:
+        outHDU.writeto("{0}.res.fits".format(prefix))
 

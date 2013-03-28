@@ -24,10 +24,16 @@ CHANGELOG
                               in previous versions.
 2012/11/10, v0.4.1.1, added option to use Chebyshev polynomials in method
                       'polyFitparameter'
+2013/03/22, v0.5.0.0, renamed main class to PsfAttributes because it is
+                      designed to be a container for the properties of the
+                      PSF and not used to calculate the actual PSF profiles
+                      anymore. This task is performed by the dedicated classes
+                      in pampelmuse.core.new_profiles.
+2013/03/28, v0.5.0.1, some minor changes.
 """
 
-__author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.4.1.1"
+__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
+__version__ = "0.5.0.1"
 
 import logging, os
 import numpy as np, pyfits
@@ -37,7 +43,6 @@ from PyQt4 import QtCore
 
 ## required PampelMuse-packages
 ## from pampelmuse.core.my_profiles import Gaussian, Moffat, Lorentz, GauMoff
-## from pampelmuse.core.new_profiles import Moffat, Gaussian
 from pampelmuse.functions.step_poly_fit import StepPolyFit
 from pampelmuse.core.value_array import ValueArray
 
@@ -151,12 +156,13 @@ class PsfAttributes(object):
     def addParameter(self, name, value, freepar=False, isfitted=False,
                      polyfit=None):
 
-##         if name == "fwhm": ## adapt new parameter naming convention
-##             name = "{0}fwhm".format(str.upper(self.psftype[0]))
+        ## adapt new old parameter naming convention
+        if name in ["Gfwhm", "Mfwhm", "Lfwhm"]:
+            name = "fwhm"
 
         if not name in self.missing:
-            logging.error("Cannot add parameter: '{0}' not missing.".format(\
-                    name))
+            logging.error(\
+                "Cannot add parameter: '{0}' not missing.".format(name))
             return
 
         i = self.parameters.index(name)
@@ -355,33 +361,33 @@ class PsfAttributes(object):
 ##                        theta=self.values[5, index],
 ##                        osfactor=osfactor,
 ##                        osradius=osradius)
-
-
-    def  __call__(self, index=0, osradius=2, osfactor=5):
-
-        if not self.verifyPSF:
-            logging.error("Cannot call PSF instance:")
-            logging.error(" No valid PSF profile avalable.")
-            return None
-
-        if not self.lockSize:
-            self.makeValues()
-
-
-        if index > self.data.shape[-1]:
-            logging.error("Cannot call PSF instance:")
-            logging.error(" Index out of valid range [0,{1}).".format(\
-                    self.values.size))
-            return None
-
-        if self.psftype == "moffat": return self.Moffat(\
-            index=index,osradius=osradius,osfactor=osfactor)
-        elif self.psftype == "lorentz": return self.Lorentz(\
-            index=index,osradius=osradius,osfactor=osfactor)
-        elif self.psftype == "gauss": return self.Gaussian(\
-            index=index,osradius=osradius,osfactor=osfactor)
-        elif self.psftype == "gaumoff": return self.GauMoff(\
-            index=index,osradius=osradius,osfactor=osfactor)
+## 
+## 
+##     def  __call__(self, index=0, osradius=2, osfactor=5):
+## 
+##         if not self.verifyPSF:
+##             logging.error("Cannot call PSF instance:")
+##             logging.error(" No valid PSF profile avalable.")
+##             return None
+## 
+##         if not self.lockSize:
+##             self.makeValues()
+## 
+## 
+##         if index > self.data.shape[-1]:
+##             logging.error("Cannot call PSF instance:")
+##             logging.error(" Index out of valid range [0,{1}).".format(\
+##                     self.values.size))
+##             return None
+## 
+##         if self.psftype == "moffat": return self.Moffat(\
+##             index=index,osradius=osradius,osfactor=osfactor)
+##         elif self.psftype == "lorentz": return self.Lorentz(\
+##             index=index,osradius=osradius,osfactor=osfactor)
+##         elif self.psftype == "gauss": return self.Gaussian(\
+##             index=index,osradius=osradius,osfactor=osfactor)
+##         elif self.psftype == "gaumoff": return self.GauMoff(\
+##             index=index,osradius=osradius,osfactor=osfactor)
 
 
 

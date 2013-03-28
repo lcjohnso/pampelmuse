@@ -23,6 +23,9 @@ CHANGELOG:
 2013/03/21, v0.1.0.0, initial version completed. Some documentation still
                       missing.
 2013/03/22, v0.1.0.1, finished documenting the code
+2013/03/28, v0.1.1.1, fixed a bug when calulating the partial derivative wrt.
+                      B in class 'Instrument': a spurious "/" was included in
+                      the formula.
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
 __version__ = "0.1.0.1"
@@ -1201,7 +1204,7 @@ class Profile(object):
                 = -(self.u*(self.Yc*np.sin(self.theta) \
                                 + self.Xc*np.cos(self.theta)) \
                         + self.v/(1.-self.e)**2\
-                        *(-self.Xc*np.sin(self.theta)/ \
+                        *(-self.Xc*np.sin(self.theta) \
                                + self.Yc*np.cos(self.theta)))/self.r
         if integrate:
             return self.sum_os(self._diff_B)

@@ -30,9 +30,10 @@ CHANGELOG
 2013/02/04, v0.5.0.0, now using wavelength as x-axis instead of pixels. Added
                       labels to x- and y-axes. Polynomial fits are now displayed
                       as solid red lines.
+2013/03/28, v0.5.0.1, some minor changes.
 """
 __author__  = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.5.0.0"
+__version__ = "0.5.0.1"
 import datetime, logging, sys
 import numpy as np, pyfits
 from PyQt4 import QtCore, QtGui
@@ -41,7 +42,6 @@ from PyQt4 import QtCore, QtGui
 from pampelmuse.graphics.dynamic_plot_canvas import DynamicPlotCanvas
 from pampelmuse.core.psf import PsfAttributes
 from pampelmuse.core.sources import Sources
-from pampelmuse.core.instruments import Pmas, Argus
 
 
 class InspectFitData(QtGui.QMainWindow):
@@ -307,15 +307,7 @@ class InspectFitData(QtGui.QMainWindow):
         if "PAMPELMUSE IFU" in self.HDUList[0].header.keys():
             instrument = self.HDUList[0].header["PAMPELMUSE IFU"]
         else:
-            instrument = ""
-        if instrument == "pmas":
-            self.instrument = Pmas()
-        elif instrument == "argus":
-            self.instrument = Argus()
-        else:
-            logging.error("No valid instrument specifier found.")
-            logging.warning("Some functionalities may not work.")
-            self.instrument = None
+            instrument = None
 
         ## Handle source spectra ###############################################
         if not "SOURCES" in self.extNames:
@@ -326,7 +318,7 @@ class InspectFitData(QtGui.QMainWindow):
             logging.critical("No HDU named 'SPECTRA' detected.")
 
         self.sources = Sources(data=self.HDUList["SOURCES"], hdu=True,
-                               instrument=self.instrument)
+                               instrument=instrument)
         self.sources.loadSpectra(data=self.HDUList["SPECTRA"], hdu=True)
 
         ## create wavelength array:

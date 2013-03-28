@@ -41,15 +41,22 @@ v0.5.1.2 -2012/07/24 - some bugfixing wrt availability checks. Now we also
                        chek for matplotlib support.
 v0.6.0.0 -2012/12/23 - added routine SHOTNOI that estimates the shot noise in a
                        datacube.
+v0.7.0.0 -2013/03/27 - implemented a new way to construct the PSF profiles. In
+                       combination with a Levenberg-Marquard algorithm that is
+                       now used to perform the non-linear fits, this
+                       significantly speeds up the code (by a factor ~10(!)).
+                       Also added support for 2dim. input data besides cubes.
 """
-__author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.6.0.0"
+__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
+__version__ = "0.7.0.0"
 
 
 print """
             ,;:.    PampelMuse, version {0:17}    ,;:.    
            (::;;)   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   (::;;)
-            `;:'    (c) {1:32}    `;:'
+            `;:'                                             `;:'
+
+        (c) {1}
 """.format(__version__, __author__)
 
 
