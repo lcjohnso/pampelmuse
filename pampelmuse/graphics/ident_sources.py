@@ -1,3 +1,18 @@
+"""
+IDENT_SOURCES
+=============
+Documentation still missing!
+
+CHANGELOG:
+----------
+...         v0.1.0.0
+2013/04/05, v0.2.0.0, changed all occurences of 'ID' o uppercase letters to
+                      bring the code into agreement with the other parts of
+                      PampelMuse.
+
+"""
+__author__ = "Sebastian Kamann (skamann@aip.de)"
+__version__ = "0.2.0.0"
 import matplotlib.pyplot, sys
 import numpy as np
 from PyQt4 import QtCore, QtGui
@@ -153,7 +168,6 @@ class IdentSources(QtGui.QMainWindow):
 
         super(IdentSources, self).__init__(parent)
         
-
         self.setWindowTitle('PampelMuse - Source identification')
 
         self.pickData = pickData
@@ -477,7 +491,7 @@ class IdentSources(QtGui.QMainWindow):
         self.curPick = n
         self.status.showMessage(\
             "Source #{0}: m={1:.1f} @({2:.1f},{3:.1f})".format(\
-                self.pickData['id'][n], float(self.pickData['mag'][n]),
+                self.pickData['ID'][n], float(self.pickData['mag'][n]),
                 float(self.pickData['x'][n]), float(self.pickData['y'][n])),
             5000)
 
@@ -495,13 +509,13 @@ class IdentSources(QtGui.QMainWindow):
             n = self.curPick
             
             matchString = "Identified source #{0} (m={1:.1f}): ".format(\
-                self.pickData['id'][n], float(self.pickData['mag'][n]))
+                self.pickData['ID'][n], float(self.pickData['mag'][n]))
             matchString += "({0:.1f},{1:.1f}) -> ({2:.1f},{3:.1f})".format(\
                 float(self.pickData['x'][n]), float(self.pickData['y'][n]),
                 float(coords[0]), float(coords[1]))
             self.updateHistory(matchString)
 
-            self.matched[self.pickData['id'][n]] = coords
+            self.matched[self.pickData['ID'][n]] = coords
 
             self.leftIma.pickData.append(n)
             self.leftIma.plotPicked()
@@ -517,12 +531,12 @@ class IdentSources(QtGui.QMainWindow):
 
         self.status.showMessage(\
             "Source #{0}: m={1:.1f} @({2:.1f},{3:.1f})".format(\
-                self.pickData['id'][n], float(self.pickData['mag'][n]),
+                self.pickData['ID'][n], float(self.pickData['mag'][n]),
                 float(self.pickData['x'][n]), float(self.pickData['y'][n])),
         5000)
 
         matchString = "Removed identification for source #{0} -".format(\
-            self.pickData['id'][n])
+            self.pickData['ID'][n])
         matchString += " m={0:.1f} @({0:.1f},{2:.1f})".format(\
                 float(self.pickData['mag'][n]), float(self.pickData['x'][n]),
                 float(self.pickData['y'][n]))
@@ -537,13 +551,13 @@ class IdentSources(QtGui.QMainWindow):
         del self.rightIma.grabYData[index2Del]
         self.rightIma.plotGrabbed()
 
-        del self.matched[self.pickData['id'][n]]
+        del self.matched[self.pickData['ID'][n]]
 
 
 
     def getResults(self):
         results = np.zeros(len(self.matched),
-                           dtype=[('id', 'i8'),('x','f8'),('y', 'f8'),
+                           dtype=[('ID', 'i8'),('x','f8'),('y', 'f8'),
                                   ('fwhm_x', 'f8'), ('fwhm_y','f8')]
                            )
         i=0

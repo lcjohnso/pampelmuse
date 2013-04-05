@@ -121,7 +121,7 @@ class CoordinateTransformation(object):
     parameters = ["A", "B", "C", "D"]
 
 
-    def __init__(self, fixed_scale=False):
+    def __init__(self, fixed_scale=False, **kwargs):
         """
         Intialize an instance of the `CoordinateTransformation`-class. The
         __init__-method does not take any input arguments, it just defines

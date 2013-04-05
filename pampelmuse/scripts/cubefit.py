@@ -135,8 +135,7 @@ def cubefit(arguments):
         
     else:
         logging.warning("No coord. transf. (HDU 'POSPARS') detected.")
-        if sources.Fit:
-            fullPosFit=True
+
 
     ## PSF
     psf_attributes = PsfAttributes()

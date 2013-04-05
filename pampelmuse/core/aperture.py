@@ -34,9 +34,11 @@ CHANGELOG:
 2012/06/01, v0.4.1.2, removed interpolation of masked values since it was not
                       stable. Instead, masked pixels are now excluded from all
                       calculations.
+2013/04/05, v0.4.1.3, made all occurences of 'id' uppercase to  make code
+                      consistent with other parts of PampelMuse.
 """
-__author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.4.1.2"
+__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
+__version__ = "0.4.1.3"
 import logging, sys
 import numpy as np, pyfits
 ## from matplotlib.mlab import griddata
@@ -60,14 +62,14 @@ class SelectAnnulus:
         shape : tuple
             Size of the (2dim.) array to work on.
         center : numpy_record_array
-            Must contain the fields 'id', 'x' and 'y'. 'x' and 'y' are
+            Must contain the fields 'ID', 'x' and 'y'. 'x' and 'y' are
             pixel coordinates of the sources in the array.
         """
 
         self.shape   = shape
         self.centers = centers
 
-        for name in ['id', 'x', 'y']:
+        for name in ['ID', 'x', 'y']:
             if not name in self.centers.dtype.names:
                 logging.critical(\
                     "Field '{0}' not found in 'centers'-array".format(name))
@@ -97,7 +99,7 @@ class SelectAnnulus:
         """
 
         self.IDs = np.asarray([ids]).flatten()
-        selected = [np.where(self.centers['id']==ID)[0][0] for ID in self.IDs]
+        selected = [np.where(self.centers['ID']==ID)[0][0] for ID in self.IDs]
 
         dst = np.zeros((self.IDs.size, self.shape[0], self.shape[1]),
                        dtype='float32')
@@ -158,7 +160,7 @@ class AperPhoto:
         centers : numpy_record_array
             Initial guesses for the pixel coordinates of all sources for which
             photometric measurements should be performed. The record array must
-            contain fields named 'id', 'x' and 'y'.
+            contain fields named 'ID', 'x' and 'y'.
         mask :  array_like of pyfits HDU-instance
             Must be boolean array of same shape as `data` if provided. All
             pixels set to True in `mask` are replaced using 2dim. linear
@@ -172,7 +174,7 @@ class AperPhoto:
 
         ## reading information about sources
         self.centers = centers
-        for name in ['id', 'x', 'y']: ## check if input is valid
+        for name in ['ID', 'x', 'y']: ## check if input is valid
             if not name in self.centers.dtype.names:
                 logging.critical(\
                     "Field '{0}' not found in `centers'".format(name))
@@ -221,7 +223,7 @@ class AperPhoto:
 
         ## prepare record array that will contains output.
         self.results = np.zeros(self.Nsources+1, dtype=[\
-                ('id',np.int32),
+                ('ID',np.int32),
                 ('spectrum', np.float32, (self.Nimages,)),
                 ('x', np.float32, (self.Nimages,)),
                 ('y', np.float32, (self.Nimages,)),
@@ -271,7 +273,7 @@ class AperPhoto:
             'spectrum' and moments are provided in fields 'x', 'y', 'x2',
             'y2' and 'xy'.
             Note that the global background flux/spectrum is stored in the
-            'spectrum' slot of a hypothetical source with 'id' -1.
+            'spectrum' slot of a hypothetical source with 'ID' -1.
         """
         self.rAper   = rAper
         self.thresh  = thresh
@@ -291,8 +293,8 @@ class AperPhoto:
         if self.mask != None or self.calcMom:
             Y, X = np.indices(self.spatpix)
 
-        self.results['id'][:self.Nsources] = self.centers['id']
-        self.results['id'][self.Nsources]  = -1 ## the average sky spectrum
+        self.results['ID'][:self.Nsources] = self.centers['ID']
+        self.results['ID'][self.Nsources]  = -1 ## the average sky spectrum
 
         self.annuSelect = SelectAnnulus(self.spatpix, self.centers)
 
@@ -324,7 +326,7 @@ class AperPhoto:
             logging.debug("   Value={0:.3f}/pixel".format(self.backval))
 
             for j in xrange(self.Nsources):
-                curID = self.centers['id'][j]
+                curID = self.centers['ID'][j]
                 logging.debug("   Source #{0}/{1} (ID={2}):".format(\
                         j, self.Nsources, curID))
 
@@ -409,7 +411,7 @@ class AperPhoto:
             The mode and the sigma of the background pixel
             distribution.
         """
-        backPix = self.annuSelect(ids=self.centers['id'], r_min=self.rAper,
+        backPix = self.annuSelect(ids=self.centers['ID'], r_min=self.rAper,
                                   r_max=0)
         backData = data[backPix]
         backData.sort()

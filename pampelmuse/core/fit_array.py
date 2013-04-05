@@ -94,9 +94,12 @@ v0.6.2.1, 2013/03/27, fixed a bug when calculating the Jacobi matrix (the
                       values were not divided by the uncertainties); also
                       modified usage of option to fit subset of all layers of
                       a cube.
+v0.7.0.0, 2013/04/05, implemented a more convenient way of handling the coords
+                      of the sources on the IFU during the fit process. Added
+                      preliminary support for fitting individual source coords.
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.6.2.1"
+__version__ = "0.7.0.0"
 
 import logging, os, sys, time
 import numpy as np, pyfits
@@ -140,7 +143,6 @@ class StarFit(object):
     def __init__(self, dataFits, sigmaFits, sources, psf_attributes,
                  maskFits=None, maxrad=np.inf, osfactor=1, osradius=0,
                  **kwargs):
-## fullPosFit=False, osFactor=5, osRadius=2
         """
         Initialize an instance of the `StarFit'-class.
     
@@ -186,9 +188,6 @@ class StarFit(object):
 
         self.sources = sources
         self.psf_attributes = psf_attributes
-
-        ## Needs to be updated!
-        self.fullPosFit = False
         
         ## Supersampling of central pixels
         self.osfactor = osfactor
@@ -221,6 +220,13 @@ class StarFit(object):
             self.specPix   = self.dataFits.header['NAXIS{0}'.format(\
                     self.sources.instrument.spectral_axis)]
 
+        ## check if mask available
+        if self.maskFits != None:
+            self.hasMask = True
+            logging.info("Bad-pixel mask is used.")
+        else:
+            self.hasMask = False
+            logging.info("No bad-pixel mask is used.")
 
         ## if Instrument instance is provided, feed PSF with x- & and y-
         ## positions of spaxels, otherwise assume rectangular field of
@@ -230,27 +236,20 @@ class StarFit(object):
         else:
             self.PSF.set_size(self.spatShape)
 
-        ## check if mask available
-        if self.maskFits != None:
-            self.hasMask = True
-            logging.info("Bad-pixel mask is used.")
-        else:
-            self.hasMask = False
-            logging.info("No bad-pixel mask is used.")
-
-
         ## initialize PSF-class for every source included
         for i in xrange(self.sources.nsrc):
             self.PSF(Xc=self.sources.x[i], Yc=self.sources.y[i],
                 mag=sources.weights[i], maxrad=maxrad, osfactor=osfactor,
                      osradius=osradius)
 
-            
-        ##  if fullPosFit-Flag is True, memory for all positions on all slices
-        ## must be provided right away. Otherwise, it is sufficient to allocate
-        ## memory only for the positions of the currently analysed slice. 
+        ## Check if individual source positions should be fitted
+        self.fullPosFit  = (self.sources.isFreePar\
+                                &(self.sources.hasPolyFit==False)).any()
+        self.posToUpdate = (self.sources.isFreePar\
+                                &(self.sources.hasPolyFit==False))
+        if self.fullPosFit:
+            logging.warning("Fit of individual source positions requested.")
 
-        
 
     def __call__(self, layerRange=(0,-1), Ntrack=10, lastFitIndex=None,
                  asSmallIFU=False, ncpu=1, maxiter=20, clip=5., **kwargs):
@@ -307,7 +306,7 @@ class StarFit(object):
 
         ## check where to start
         if lastFitIndex == None:
-            self.i = 0    ## iterator over all layers
+            self.i = 0 ## iterator over all layers
         else:
             self.i = lastFitIndex
 
@@ -342,6 +341,14 @@ class StarFit(object):
 
         self.asSmallIFU = asSmallIFU
 
+        ## if individual source positions should be fitted, we need to load
+        ## the initial guesses for the positions of all sources on all layers
+        ## into memory from the start
+        if self.fullPosFit:
+            self.sources.loadIFUCoords()
+
+
+        ## Check how many CPU's should be used
         if ncpu == None: self.ncpu = cpu_count()
         else: self.ncpu = int(ncpu)
         logging.info("Starting analysis using {0} CPU(s).".format(self.ncpu))
@@ -396,21 +403,43 @@ class StarFit(object):
         ## update parameter initial guesses (if any):
         self.updatePars() 
 
+        ## load IFU coords for current layer into memory unless individual
+        ## positions are fitted
+        if not self.fullPosFit:
+            self.sources.loadIFUCoords(index=self.jj)
 
         ## update PSF instances
+        ## -with PSF parameters
         i = 0 
         for prm in self.psf_attributes.parameters:
             getattr(self.PSF, "set_{0}".format(prm))(\
                 self.psf_attributes.values[i, self.jj])
             i += 1
         
-        i = 0
-        for prm in self.sources.parameters:
-            getattr(self.PSF, "set_{0}".format(prm))(\
-                self.sources.ctValues[i, self.jj])
+        ## -with parameters of coordinate transformation (if available)
+        if self.sources.verifyTrans:
+            i = 0
+            for prm in self.sources.parameters:
+                getattr(self.PSF, "set_{0}".format(prm))(\
+                    self.sources.ctValues[i, self.jj])
+                i += 1
+
+        ## -with direct positions if required
+        i  = -1
+        ii =  0
+        ll = self.jj*self.fullPosFit ## spectral index in sources.x/ydata
+        for psf in self.PSF:
             i += 1
+            if not self.sources.loadedIFUCoords[i]: continue
+            if self.sources.hasPolyFit[i]:
+                psf.set_xc(self.sources.xdata[1,ii,ll])
+                psf.set_yc(self.sources.ydata[1,ii,ll])
+            elif self.sources.isFreePar[i]:
+                psf.set_xc(self.sources.xdata[0,ii,ll])
+                psf.set_yc(self.sources.ydata[0,ii,ll])
+            ii += 1
 
-
+        ## WORK ON IFU DATA
         self.kk = self.jj + self.start ## The layer of the cube to be loaded
 
         ## load mask if present, otherwise create zero mask
@@ -684,12 +713,14 @@ class StarFit(object):
             ## Loop over all PSF sources; add source to residuals, fit
             ## resulting array and subtract source again.
             i=0
-            for psf in self.PSF: ## ignore sources unless they have been
-                                 ## flagged  as proper PSF candidates
+            for psf in self.PSF: 
+                
+                ## ignore sources unless they have been flagged as proper PSF
+                ## candidates
                 if not i in self.sources.psfIndices: continue
 
-                x0   = [self.sources.xvalues[i,self.jj],
-                        self.sources.yvalues[i, self.jj]]
+                x0   = [self.sources.xdata[0,i,self.jj],
+                        self.sources.ydata[0,i,self.jj]]
                 flux = self.sources.data[i,self.jj]
 
                 if self.ncpu > 1:
@@ -709,12 +740,12 @@ class StarFit(object):
                     allPars.append(threads[j].get())
 
             ## update parameters
-            if self.fullPosFit: ## if actual  source coordinates should be
-                                ## fitted,  update them directly
+            if self.fullPosFit: ## if actual source coordinates should be
+                                ## fitted, update them directly
                 for i in xrange(len(allPars)):
-                    self.sources.xvalues[self.sources.psfIndices[i], self.jj] \
+                    self.sources.xdata[0, self.sources.psfIndices[i], self.jj] \
                         = allPars[i][0]
-                    self.sources.yvalues[self.sources.psfIndices[i], self.jj] \
+                    self.sources.ydata[0, self.sources.psfIndices[i], self.jj] \
                         = allPars[i][1]
 
             else: ## otherwise, update coordinate transformation
@@ -1038,7 +1069,6 @@ class StarFit(object):
         if self.Ntrack == 0:
             ##  no updating requested
             return
-
         if len(self.lastFittedImas) < 2:
             ## nothing to update yet
             return
@@ -1058,10 +1088,12 @@ class StarFit(object):
                 self.sources.ctValues[...,self.jj] \
                     = self.sources.ctData[0,:][...,LASTFITS].mean(axis=-1)
             else: ## update coordinates
-                self.sources.xvalues[...,self.jj] \
-                    = self.sources.xdata[0,:][...,LASTFITS].mean(axis=-1)
-                self.sources.yvalues[...,self.jj] \
-                    = self.sources.ydata[0,:][...,LASTFITS].mean(axis=-1)
+                self.sources.xdata[0, self.posToUpdate, self.jj] = np.mean(\
+                    self.sources.xdata[0,self.posToUpdate][...,LASTFITS],
+                    axis=-1)
+                self.sources.ydata[0, self.posToUpdate, self.jj] = np.mean(\
+                    self.sources.ydata[0,self.posToUpdate][...,LASTFITS],
+                    axis=-1)
 
         if self.psf_attributes.Fit: ## update PSF
             self.psf_attributes.values[...,self.jj] \

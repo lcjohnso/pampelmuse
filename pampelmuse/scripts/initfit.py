@@ -73,9 +73,11 @@ CHANGELOG:
 2013/03/27, v0.8.0.1, some minor modifications; also implemented option to
                       restrict analysis to a certain wavelength range within
                       a cube.
+2013/04/05, v0.8.0.2, updated code to make it compatible with updates in
+                      class pampelmuse.core.sources.Sources.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.8.0.1"
+__version__ = "0.8.0.2"
 import datetime, os, sys, logging
 import numpy as np, pyfits
 from scipy import interpolate, sparse
@@ -380,7 +382,7 @@ def initfit(arguments):
     ## determine coordinate transformation using identified sources
     sources.loadIFUCoords(\
         data=identified[["x", "y"]].view(np.float64).reshape(-1,2).T,
-        ids=identified["id"])
+        ids=identified["ID"])
     sources.calcTrans()
     if posFit == 1: sources.ctFree[2:] = True
     elif posFit == 2: sources.ctFree[:] = True
@@ -401,13 +403,13 @@ def initfit(arguments):
     logging.info("Selecting sources to be used in PSF fitting.")
 
     ## get IFU coordinates for all (point) sources
-    sources.loadIFUCoords()
+    sources.loadIFUCoords(index=0, ids=sources.ID[sources.ID>=0])
 
     ## Position in Fov/distance to edge of FoV
     edgeDist = sources.edgeDist()
 
     ## Photometric calibration:
-    magPS = sources.mag[sources.ifuSelect]
+    magPS = sources.mag[sources.loadedIFUCoords]
 
     srcFlux = (10**(-0.4*magPS[edgeDist>0])).sum()
     magZ    = -2.5*np.log10(srcFlux/dataIma.sum())
@@ -574,12 +576,12 @@ def initfit(arguments):
         if aperResults.size > 3:
             ## determine wavelength-dependent coordinate transformation
             logging.info("Determining wavelength-dependent coord. transf.")
-            stars     = (aperResults["id"]>=0)
+            stars     = (aperResults["ID"]>=0)
             ifuCoords = aperResults[["x","y"]][stars].view(np.float32)\
                 .reshape(stars.sum(), 2, -1)
 
             sources.loadIFUCoords(data=np.rollaxis(ifuCoords, 1, 0),
-                                  ids=aperResults["id"][stars])
+                                  ids=aperResults["ID"][stars])
             sources.calcTrans()
             if posFit == 1:   sources.ctFree[2:] = True
             elif posFit == 2: sources.ctFree[:] = True
@@ -623,7 +625,7 @@ def initfit(arguments):
 
             ##  copy spectra to sources instance
             for i in xrange(aperResults.size):
-                j = np.where(sources.ID==aperResults["id"][i])[0][0]
+                j = np.where(sources.ID==aperResults["ID"][i])[0][0]
                 sources.data[sources.specrow[j]] = aperResults["spectrum"][i]
             
 

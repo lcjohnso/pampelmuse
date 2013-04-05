@@ -602,13 +602,12 @@ class InspectFitData(QtGui.QMainWindow):
                 self.dobackup = False
 
             newPosHDU   = self.sources.makeCoordinatesHDU(polyFit=True)
-            
+
             if newPosHDU != None:
                 try: self.HDUList["POSITIONS"] = newPosHDU
                 except: self.HDUList.insert(4, newPosHDU)
 
             update=True
-
 
         if "PSFPARS" in self.extNames and self.psf.free.any():
             if self.psf.unsavedPSF:  ## check if unsaved changes exist
