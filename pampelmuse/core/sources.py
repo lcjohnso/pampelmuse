@@ -49,9 +49,14 @@ CHANGELOG:
                       bugged the way of providing the coordinates of the
                       sources on the IFU data, in particular no instances of
                       pampelmuse.core.value_array.ValueArray are used anymore. 
+2013/04/08, v0.5.1.1, bugfix: when fitting polynomials to IFU coords, x and y
+                              were confused when determining the sources inside
+                              the FoV (method Sources.fitIFUCoords).
+                      also included some 'assert' statements when calculating
+                      new coordinate transformation (method Sources.calcTrans).
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.5.0.0"
+__version__ = "0.5.1.1"
 import logging
 import numpy as np, pyfits
 from numpy.polynomial import Chebyshev, Legendre
@@ -1159,19 +1164,25 @@ class Sources(CoordinateTransformation, object):
         """
         if self.x == None or self.y == None:
             logging.error("Cannot determine coordinate transformation:")
-            logging.error("   No input coordinates available.")
-            return
+            logging.error("   No reference coordinates available.")
+
         if self.xdata == None or self.ydata == None:
             logging.error("Cannot determine coordinate transformation:")
             logging.error("   No IFU coordinates available.")
-            return
+
         if self.loadedIFUCoords.sum() < 2:
             logging.error("Cannot determine coordinate transformation:")
             logging.error(\
                 "   Too few IFU sources ({0}<2).".format(\
                     self.loadedIFUCoords.sum()))
-            return
-   
+
+        assert self.x is not None, "Reference coordinates missing."
+        assert self.y is not None, "Reference coordinates missing."
+        assert self.xdata is not None, "IFU coordinates missing."
+        assert self.ydata is not None, "IFU coordinates missing."
+        assert self.loadedIFUCoords.sum() >= 2, \
+            "Need at least 2 sources to determine transformation." 
+
         coordTrans = self.quickFit(\
             [self.x[self.loadedIFUCoords], self.y[self.loadedIFUCoords]],
             [self.xdata[0], self.ydata[0]],
@@ -1256,8 +1267,9 @@ class Sources(CoordinateTransformation, object):
             "Please call 'loadIFUCoords' first."
 
         ## check if 'coord' is valid
-        if not coord in ["x", "y"]: return None, None
-        else: i = ["x", "y"].index(coord)
+        if not coord in ["x", "y"]: 
+            logging.error("Unknown coordinate selection: '{0}'".format(coord))
+        assert coord in ["x", "y"], "Coordinate must be either 'x' or 'y'."
 
         ## check if provided ID is valid
         if not ID in self.ID:
@@ -1274,7 +1286,7 @@ class Sources(CoordinateTransformation, object):
         assert self.loadedIFUCoords[j], "IFU coords not available.".format(ID)
 
         ## get index of source in data arrays and return data
-        jj = np.sum(self.loadedIFUCoords[:j])-1
+        jj = np.sum(self.loadedIFUCoords[:(j+1)])-1
         if not self.hasPolyFit[j]:
             if coord == "x": return self.xdata[0,jj], None
             else: return self.ydata[0,jj], None
@@ -1356,11 +1368,11 @@ class Sources(CoordinateTransformation, object):
             ## sources used for creating mean slope are those with status 2 or 3
             used = ((self.status>1)&(self.status<4))[self.loadedIFUCoords]
 
-            ## if "instrument" is known, then only use pixels within FoV to
+            ## if "instrument" is known, then only use sources within FoV to
             ## determine common slope.
             if self.instrument!= None:
                 used = used&self.instrument.infov(\
-                    self.ydata[0,:].mean(axis=-1),self.xdata[0,:].mean(axis=-1))
+                    self.xdata[0,:].mean(axis=-1),self.ydata[0,:].mean(axis=-1))
 
 ##             if coord == "x": 
             meanXCoord = np.mean(self.xdata[0, used], axis=0)                
