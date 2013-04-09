@@ -26,9 +26,11 @@ CHANGELOG:
 2013/03/28, v0.1.1.1, fixed a bug when calulating the partial derivative wrt.
                       B in class 'Instrument': a spurious "/" was included in
                       the formula.
+2013/04/09, v0.1.1.2, some minor changes in handling of provided parameters
+                      that have an invalid value (e.g. beta<=1).
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.1.0.1"
+__version__ = "0.1.1.2"
 import logging
 import numpy as np
 
@@ -87,6 +89,8 @@ class Profile(object):
     _B = 0  ## transformation; Note that 'Profile' supports two ways of
     _C = 0  ## defining the source coordinates: either directly or via
     _D = 0  ## a transformation from reference coordinates (see below).
+
+##     BADPRM = False
  
 
     @classmethod
@@ -255,6 +259,14 @@ class Profile(object):
         """
         assert isinstance(value, (float, np.float32, np.float64)), \
             "'e' must be a float, not {0:s}".format(type(value).__name__)
+
+        if not value >= 0 and value < 1:
+            logging.error(\
+                "'e' must be in interval [0,1) but is {0:.1f}".format(\
+                    float(value)))
+##             cls.BADPRM = True
+##             return ## no update
+##         cls.BADPRM = False
         assert value>=-1e-3 and value<1, \
             "'e' must be in interval [0,1) but is {0:.1f}".format(float(value))
 
@@ -426,6 +438,7 @@ class Profile(object):
         D : float
         """
         return cls._D
+
 
 
     def __init__(self, Xc, Yc, mag, src_id=0, maxrad=np.inf, osradius=0,
@@ -1760,8 +1773,18 @@ class Moffat(Profile):
         """
         assert isinstance(value, (float, np.float32, np.float64)), \
             "'beta' must be a float, not {0:s}".format(type(value).__name__)
-        assert value>=1, "'beta' must be >=1 but is {0:.1f}".format(\
+
+        if not value > 1 and value < 20:
+            logging.error("'beta' must be >=1 but is {0:.1f}.".format(\
+                    float(value)))
+##             cls.BADPRM = True
+##             return
+##         cls.BADPRM = False
+        assert value>1, "'beta' must be >1 but is {0:.1f}".format(\
             float(value))
+        assert value<20, "'beta' must be <20 but is {0:.1f}".format(\
+            float(value))
+
 
         if value != cls._beta:
             cls._beta = value

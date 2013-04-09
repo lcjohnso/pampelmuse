@@ -97,9 +97,11 @@ v0.6.2.1, 2013/03/27, fixed a bug when calculating the Jacobi matrix (the
 v0.7.0.0, 2013/04/05, implemented a more convenient way of handling the coords
                       of the sources on the IFU during the fit process. Added
                       preliminary support for fitting individual source coords.
+v0.7.0.1, 2013/04/09, added error handler to stop code from crashing if one of
+                      the PSF parameters falls outside the allowed range.
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.7.0.0"
+__version__ = "0.7.0.1"
 
 import logging, os, sys, time
 import numpy as np, pyfits
@@ -374,6 +376,9 @@ class StarFit(object):
             self.jj = (self.Nlayer>>1) - 1 - int(self.i/2) \
                 + self.i*np.mod(self.i, 2) + np.mod(self.Nlayer, 2)
 
+            ## The layer of the cube to be loaded
+            self.kk = self.jj + self.start
+
             ## A common prefix used for all logging messages related to the
             ## analysis of the current layer.
             self.prefixString = "[{0:0{1}d}/{2}]".format(\
@@ -440,7 +445,6 @@ class StarFit(object):
             ii += 1
 
         ## WORK ON IFU DATA
-        self.kk = self.jj + self.start ## The layer of the cube to be loaded
 
         ## load mask if present, otherwise create zero mask
         if self.hasMask:
@@ -964,22 +968,29 @@ class StarFit(object):
                     parNames.append(self.psf_attributes.parameters[i])
 
             ## call Levenberg-Marquard solver from scipy.optimize
-            bestfit = optimize.leastsq(\
-                self.fitMultiPSF, x0=fitPars, ## provide Jacobian
-                Dfun=self.jacobiMultiPSF, col_deriv=1,
-                args=(parNames,))[0]
+            try:
+                bestfit = optimize.leastsq(\
+                    self.fitMultiPSF, x0=fitPars, ## provide Jacobian
+                    Dfun=self.jacobiMultiPSF, col_deriv=1,
+                    args=(parNames,))[0]
+                success = True
+            except optimize.minpack.error: ## error handler to avoid code
+                                           ## that code crashes completely
+                logging.error("[@{0}] PSF fit failed.".format(self.kk))
+                success = False
 
             ## update parameters using fit results
-            for i in xrange(len(parNames)):
-                ii = self.psf_attributes.parameters.index(parNames[i])
-                self.psf_attributes.values[ii,self.jj] = bestfit[i]
+            if success:
+                for i in xrange(len(parNames)):
+                    ii = self.psf_attributes.parameters.index(parNames[i])
+                    self.psf_attributes.values[ii,self.jj] = bestfit[i]
 
-            ## some logging
-            logging.debug("[@{0}] Fitted PSF model:".format(self.kk))
-            for i in xrange(len(self.psf_attributes.parameters)):
-                logging.debug("         {0}={1:.2f}".format(\
-                        self.psf_attributes.parameters[i],
-                        float(self.psf_attributes.values[i,self.jj])))
+                ## some logging
+                logging.debug("[@{0}] Fitted PSF model:".format(self.kk))
+                for i in xrange(len(self.psf_attributes.parameters)):
+                    logging.debug("         {0}={1:.2f}".format(\
+                            self.psf_attributes.parameters[i],
+                            float(self.psf_attributes.values[i,self.jj])))
 
         self.ncpu = NCPU ## recover original number of CPUs to be used
 
@@ -1007,7 +1018,13 @@ class StarFit(object):
         """
         ## update parameters in PSF-class
         for i in xrange(len(x0)):
-            getattr(self.PSF, "set_{0}".format(names[i]))(x0[i])
+            try:
+                getattr(self.PSF, "set_{0}".format(names[i]))(x0[i])
+            except AssertionError: ## if parameter cannot be updated, raise
+                                   ## LinAlgError
+                raise np.linalg.linalg.LinAlgError(\
+                    "Invalid value '{0}' for parameter '{1}'.".format(\
+                        x0[i], names[i]))
 
         ## calculate new model
         Aprm = self.fillMatrix(calcUnres=False, doLog=False)
