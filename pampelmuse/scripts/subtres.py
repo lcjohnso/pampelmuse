@@ -23,9 +23,11 @@ CHANGELOG
                       did not subtract anything because the loop over all
                       sources got stuck at the first source. Also now saving
                       fiber setup of Argus in output FITS-file if available.
+2013/04/10. v0.4.2.0, further debugging: HDU with coordinate transformation
+                      was not always loaded but always required.
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.4.1.0"
+__version__ = "0.4.2.0"
 import datetime, logging, os, sys
 import numpy as np, pyfits
 
@@ -81,17 +83,22 @@ def subtres(arguments):
     sources.loadSpectra(data=prmFile["SPECTRA"], hdu=True)
                  
     ## -Positions
+    direct_coords = False
+    coord_trans = False
     logging.info("Obtaining source coordinates")
     if "POSITIONS" in extNames:
         logging.info("Reading 'POSITIONS' HDU.")
         sources.loadPositionsHDU(prmFile["POSITIONS"])
-
-    elif 'POSPARS' in extNames:
+        direct_coords = True
+    if 'POSPARS' in extNames:
         logging.info("Reading 'POSPARS' HDU.")
         sources.readTransHDU(prmFile["POSPARS"], backup=False)
         sources.resizeStructure(size=sources.ndisp)
         sources.makeValues()
         sources.info()
+        coord_trans = True
+    if direct_coords==False and coord_trans==False:
+        logging.error("Missing information to determine IFU coords.")
 
     ## -PSF attributes
     psf_attributes = PsfAttributes()
@@ -177,16 +184,35 @@ def subtres(arguments):
         
         jj = kk - start
 
-        ## update PSF instances with current parameter fits
+        ## update PSF instances
+        ## -with current parameter fits
         i = 0 
         for prm in psf_attributes.parameters:
             getattr(PSF, "set_{0}".format(prm))(psf_attributes.values[i, jj])
             i += 1
-        
-        i = 0
-        for prm in sources.parameters:
-            getattr(PSF, "set_{0}".format(prm))(sources.ctValues[i, jj])
-            i += 1
+
+        ## -with parameters of coord. transf. if necessary
+        if coord_trans:
+            i = 0
+            for prm in sources.parameters:
+                getattr(PSF, "set_{0}".format(prm))(sources.ctValues[i, jj])
+                i += 1
+
+        ## -with direct positions if required
+        if direct_coords:
+            sources.loadIFUCoords(index=jj)        
+            i  = -1
+            ii =  0
+            for psf in PSF:
+                i += 1
+                if not sources.loadedIFUCoords[i]: continue
+                if sources.hasPolyFit[i]:
+                    psf.set_xc(sources.xdata[1,ii,0])
+                    psf.set_yc(sources.ydata[1,ii,0])
+                else:
+                    psf.set_xc(sources.xdata[0,ii,0])
+                    psf.set_yc(sources.ydata[0,ii,0])
+                ii += 1
 
 
         ## loop over components:

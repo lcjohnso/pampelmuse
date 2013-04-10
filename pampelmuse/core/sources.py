@@ -1134,7 +1134,7 @@ class Sources(CoordinateTransformation, object):
                 logging.error(\
                     "Could not determine IFU coords for some sources.")
 
-
+         
             if "polyFitHDU" in self.__dict__:
             
                 inPolyFitHDU = np.in1d(ids, self.polyFitID)

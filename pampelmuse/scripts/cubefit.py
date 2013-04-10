@@ -40,9 +40,13 @@ CHANGELOG
 2013/03/26, v0.6.0.0, modified the code in order to implement the new way of
                       calculating the PSF profiles.
 2013/03/27, v0.6.0.1, some minor modifications
+2013/04/10, v0.6.0.2, removed option 'DOBACKUP' as it had no useful effect;
+                      as Sources.loadSpectra did not copy the data, all the
+                      changes to the spectra were made in-place and the backup
+                      HDU containined the same spectra as the current HDU
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.6.0.1"
+__version__ = "0.6.0.2"
 import datetime, logging, os, sys
 import numpy as np, pyfits
 
@@ -68,7 +72,7 @@ def cubefit(arguments):
     maxIter  = arguments.config["MAXITER"]                ##
     psfRad   = arguments.config["PSFRAD"]                 ##
     smallIFU = arguments.config["SMALLIFU"]               ##
-    dobackup = arguments.config["DOBACKUP"]               ##
+##     dobackup = arguments.config["DOBACKUP"]               ##
     jumpStart= arguments.config["JUMPSTART"]              ##
     useQt    = arguments.config["USEQT"]                  ##
     cpuCount = arguments.config["CPUCOUNT"]               ##
@@ -128,7 +132,7 @@ def cubefit(arguments):
 
     if 'POSPARS' in extNames:
         logging.info("Reading 'POSPARS' HDU.")
-        sources.readTransHDU(prmFile["POSPARS"], backup=dobackup)
+        sources.readTransHDU(prmFile["POSPARS"], backup=False)
         sources.resizeStructure(size=sources.ndisp)
         sources.makeValues()
         sources.info()
@@ -250,26 +254,27 @@ def cubefit(arguments):
     logging.info("Saving results.")
 
 
-    ## store spectra
-    dataHDU, sigmaHDU = sources.makeSpecHDU(makeSigma=True)
+    ## store spectra - not needed as Sources.loadSpectra does not copy the data,
+    ##                 so changes are made in-place
+##     dataHDU, sigmaHDU = sources.makeSpecHDU(makeSigma=True)
 
-    if dobackup and lastFitIndex == None:
-        if 'INSPECTRA' in extNames:
-            prmFile.remove(prmFile['INSPECTRA'])
-        prmFile['SPECTRA'].name = 'INSPECTRA'
-    else:
-        prmFile.remove(prmFile['SPECTRA'])
-    prmFile.insert(2, dataHDU)
+##     if dobackup and lastFitIndex == None:
+##         if 'INSPECTRA' in extNames:
+##             prmFile.remove(prmFile['INSPECTRA'])
+##         prmFile['SPECTRA'].name = 'INSPECTRA'
+##     else:
+##         prmFile.remove(prmFile['SPECTRA'])
+##         prmFile.insert(2, dataHDU)
 
-    if dobackup and lastFitIndex == None:
-        if 'INSIGMASPC' in extNames:
-            prmFile.remove(prmFile['INSIGMASPC'])
-        if 'SIGMASPC' in extNames:
-                prmFile['SIGMASPC'].name = 'INSIGMASPC'
-    else:
-        if 'SIGMASPC' in extNames:
-            prmFile.remove(prmFile['SIGMASPC'])
-    prmFile.insert(3, sigmaHDU)
+##     if dobackup and lastFitIndex == None:
+##         if 'INSIGMASPC' in extNames:
+##             prmFile.remove(prmFile['INSIGMASPC'])
+##         if 'SIGMASPC' in extNames:
+##                 prmFile['SIGMASPC'].name = 'INSIGMASPC'
+##     else:
+##     if 'SIGMASPC' in extNames:
+##         prmFile.remove(prmFile['SIGMASPC'])
+##     prmFile.insert(3, sigmaHDU)
 
 
     ## Store IFU coordinates (only if they have been fitted)
