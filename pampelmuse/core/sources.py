@@ -3,7 +3,7 @@ SOURCES
 =======
 The `Sources`-class is the PampelMuse-routine that handles the entire source
 catalogue. It keeps track of the loaded sources, their grouping into the
-individual components, their spectra and postions. It also provides some
+individual components, their spectra and positions. It also provides some
 methods to write the individual properties into FITS-HDUs.
 
 Since the `CoordinateTransformation`-class of PampelMuse is provided as a 
@@ -54,9 +54,14 @@ CHANGELOG:
                               the FoV (method Sources.fitIFUCoords).
                       also included some 'assert' statements when calculating
                       new coordinate transformation (method Sources.calcTrans).
+2013/04/11, v0.5.2.1, bugfix: code crashed when IDs were provided as a list in
+                              Sources.loadIFUCoords or matchOnID. This is solved
+                              now.
+2013/04/19, v0.5.2.2, included option to provide unit of wavelength scale in
+                      method 'loadSpectra' and to store it in 'makeSpecHDU'.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.5.1.1"
+__version__ = "0.5.2.2"
 import logging
 import numpy as np, pyfits
 from numpy.polynomial import Chebyshev, Legendre
@@ -89,7 +94,9 @@ def matchOnID(parent, child):
     indices : nd_array
         The index of every `child'-entry in the `parent' list (if found).
     """
-    return np.nonzero((child[:,np.newaxis]-parent)==0)[1]
+    c = np.asarray(child, dtype=np.int32)
+    p = np.asarray(parent, dtype=np.int32)
+    return np.nonzero((c[:,np.newaxis]-p)==0)[1]
 
 
 
@@ -245,7 +252,7 @@ class Sources(CoordinateTransformation, object):
 
 ###############################################################################
 ##                   Definitions of the various properties,                  ##
-##                   and the methods to create & acces them                  ##
+##                   and the methods to create & access them                 ##
 ###############################################################################
 
     @property
@@ -713,7 +720,7 @@ class Sources(CoordinateTransformation, object):
 ##              Methods dealing with the spectra of the sources              ##
 ###############################################################################
     def loadSpectra(self, data, sigma=None, hdu=False, crval=1., cdelt=1.,
-                    crpix=1, ctype="AWAV"):
+                    crpix=1, ctype="AWAV", cunit="Angstrom"):
         """
         Load the spectra for all sources in the catalogue. The method might
         also be used to provide an empty array that is filled later.
@@ -745,7 +752,11 @@ class Sources(CoordinateTransformation, object):
         ctype : string, optional
             The wavelength type of the spectra. Note that the value might be
             overwritten in case `hdu` is True and the keyword `CTYPE1` is
-            found in the FITS-header of `data`.
+            found in the FITS-header of `data`. Default is 'AWAV'.
+        cunit : string, optional
+            The unit of the wavelength scale. Note that the value might be
+            overwritten in case `hdu` is True and the keyword `CUNIT1` is
+            found in the FITS-header of `data`. Default is 'Angstrom'.
         """
         if self.ncmp == None:
             logging.error("No assigment of sources to spectra performed.")
@@ -754,6 +765,7 @@ class Sources(CoordinateTransformation, object):
         self.cdelt = cdelt
         self.crpix = crpix
         self.ctype = ctype
+        self.cunit = cunit
 
         if hdu:
             self.data = data.data
@@ -761,6 +773,7 @@ class Sources(CoordinateTransformation, object):
             if "CDELT1" in data.header: self.cdelt = data.header["CDELT1"]
             if "CRPIX1" in data.header: self.crpix = data.header["CRPIX1"]
             if "CTYPE1" in data.header: self.ctype = data.header["CTYPE1"]
+            if "CUNIT1" in data.header: self.cunit = data.header["CUNIT1"]
         else:
             self.data = data
 
@@ -1028,6 +1041,8 @@ class Sources(CoordinateTransformation, object):
         ## check the IDs for which the data should be loaded
         if ids==None:
             ids = self.ID[self.status<4]
+        else:
+            ids = np.asarray(ids)
 
         ## check if all provided IDs are actually in the source catalogue
         match = matchOnID(self.ID, ids)
@@ -1636,6 +1651,7 @@ class Sources(CoordinateTransformation, object):
         outHDU.header.update("CRVAL1", self.crval)
         outHDU.header.update("CDELT1", self.cdelt)
         outHDU.header.update("CTYPE1", self.ctype)
+        outHDU.header.update("CUNIT1", self.cunit)
 
         if makeSigma:
             if self.sigma != None:
@@ -1643,7 +1659,8 @@ class Sources(CoordinateTransformation, object):
                 sigmaHDU.header.update("CRPIX1", self.crpix)
                 sigmaHDU.header.update("CRVAL1", self.crval)
                 sigmaHDU.header.update("CDELT1", self.cdelt)
-                sigmaHDU.header.update("CTYPE1", self.ctype) 
+                sigmaHDU.header.update("CTYPE1", self.ctype)
+                sigmaHDU.header.update("CUNIT1", self.cunit)
                 return outHDU, sigmaHDU
             else:
                 logging.error("Cannot create Sigma HDU: No sigma data")

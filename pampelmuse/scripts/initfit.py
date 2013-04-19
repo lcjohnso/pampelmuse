@@ -75,9 +75,12 @@ CHANGELOG:
                       a cube.
 2013/04/05, v0.8.0.2, updated code to make it compatible with updates in
                       class pampelmuse.core.sources.Sources.
+2013/04/19, v0.8.0.3, now reading more wavelength information (keywords CTYPE?,
+                      CUNIT?) from the header of the data cube. They are also
+                      passed on to method 'Sources.loadSpectra'.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.8.0.2"
+__version__ = "0.8.0.3"
 import datetime, os, sys, logging
 import numpy as np, pyfits
 from scipy import interpolate, sparse
@@ -257,7 +260,11 @@ def initfit(arguments):
     try:
         ctype = dataHDU.header["CTYPE{0}".format(spectral_axis)]
     except KeyError:
-        ctype = "Angstrom"
+        ctype = "AWAV"
+    try:
+        cunit = dataHDU.header["CUNIT{0}".format(spectral_axis)]
+    except KeyError:
+        cunit = "Angstrom"
     ndisp = dataHDU.header['NAXIS{0}'.format(spectral_axis)]
 
     logging.info("   {0}.dat.fits - OK".format(prefix))
@@ -520,7 +527,7 @@ def initfit(arguments):
     ## create dummy data: every spectrum is empty
     sources.loadSpectra(\
         data=np.zeros((sources.ncmp, stop-start+1), dtype=np.float32),
-        crval=crval+start*cdelt, cdelt=cdelt)
+        crval=crval+start*cdelt, cdelt=cdelt, ctype=ctype, cunit=cunit)
 
 
     if not smallifu:
