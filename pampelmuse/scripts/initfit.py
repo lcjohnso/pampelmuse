@@ -461,10 +461,10 @@ def initfit(arguments):
     mcut = magPS[edgeDist>0].min()
     while True:
         mcut += 0.1
-        if (magPS[edgeDist>0]<mcut).sum() > confDens*dataIma.size \
-                /(fwhm.mean()*fwhm.mean()):
-            mcut -= 0.1
-            break
+#         if (magPS[edgeDist>0]<mcut).sum() > confDens*dataIma.size \
+#                 /(fwhm.mean()*fwhm.mean()):
+#             mcut -= 0.1
+#             break
         if not (magPS[edgeDist>0]>mcut).any():
             logging.info("No stars below m_{0}={1:.1f} detected.".format(\
                     passband, mcut))
@@ -499,12 +499,12 @@ def initfit(arguments):
             else:
                 if edgeDist[i] < 0:
                     continue
-                if distToBrighter[i] < 2*binrad*fwhm[i]:
-                    status[i]  = 1
-                    primary[i] = brighterID[i]
+#                 if distToBrighter[i] < 2*binrad*fwhm[i]:
+#                     status[i]  = 1
+#                     primary[i] = brighterID[i]
                 else:
-                    status[i]  = 2
-                    primary[i] = sources.ID[i]
+                    status[i]  = 0
+                    primary[i] = -2 ## sources.ID[i]
 
             logging.info(\
                 "   {0:6d}  {1:5.2f}  {2:5.1f}  {3:5.2f}  {4:5.2f}  {5:6d}"\
