@@ -1,0 +1,82 @@
+\documentclass[a4paper,10pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+
+%opening
+\title{The PSF profiles used by PampelMuse}
+\author{Sebastian Kamann}
+% \allowdisplaybreaks
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+An overview of the functional forms of the analytical PSF profiles that PampelMuse uses. Besides the functional forms, we also provide the partial derivatives with respect to the individual profile parameters. They are used to determine the Jacobi matrix in the Levenberg-Marquard algorithm that performs the non-linear least squares fit.
+\end{abstract}
+
+\section{Handling of positions}
+
+All profiles are defined as a function of $r$, with $r$ giving the distance of a pixel ($x_i$, $y_i$) to the centroid. In the most general case, the PSF will be of elliptical shape, with its semi-major rotated by an angle $\theta$ with respect to the $x$-axis. For this reason, we define a coordinate system (${\hat x}$, ${\hat y}$), that has the same origin as the PSF profile and has the ${\hat x}$-axis aligned with the semi-major axis. Assuming the central coordinates of profile $n$ ($n\in[0,N)$) in the original system are ($x^n$, $y^n$), the transformation is defined as
+%
+\begin{align} 
+ {\hat x} = (x-x^n)\cos\theta - (y-y^n)\sin\theta\,,
+\label{eq:psf_x} \\
+%
+ {\hat y} = (x-x^n)\sin\theta + (y-y^n)\cos\theta\,.
+\label{eq:psf_y}
+\end{align}
+%
+The radius $r$ is measured in units of pixels in direction of the semi-major axis of the profile, that is, for an arbitrary position angle $\theta$ with respect to that axis, $r$ is calculated using
+%
+\begin{equation} \label{eq:psf_radius}
+ r(x, y) = \sqrt{{\hat x}^2 + \left( \frac{\hat y}{1-e} \right)^2} \,,
+\end{equation}
+%
+where $e$ is the ellipticity of the profile.
+
+The above equations imply that $r$ is a function of $2N+2$ parameters that can be free fit parameters in the PSF optimization: $x^n$, $y^n$, $\theta$, and $e$. The partial derivatives of $r$ with respect to those parameters are
+%
+\begin{align}
+ \partial_{x^n} r \equiv \frac{\partial r}{\partial x^n} =& \left[{\hat x}^2 + \left(\frac{\hat y}{1-e}\right)^2\right]^{-1/2} \frac{1}{2} \left[2{\hat x}\frac{\partial {\hat x}}{\partial x^n} + \frac{2{\hat y}}{(1-e)^2} \frac{\partial {\hat y}}{\partial x^n}\right] \nonumber\\
+ =& -\frac{1}{r}\left[ {\hat x}\sin\theta  + \frac{{\hat y}\cos\theta}{(1-e)^2}\right]\,, \displaybreak[0]\\ 
+%
+ \partial_{y^n} r \equiv \frac{\partial r}{\partial y^n} =& \left[{\hat x}^2 + \left(\frac{\hat y}{1-e}\right)^2\right]^{-1/2} \frac{1}{2} \left[2{\hat x}\frac{\partial {\hat x}}{\partial y^n} + \frac{2{\hat y}}{(1-e)^2} \frac{\partial {\hat y}}{\partial y^n}\right] \nonumber\\
+ =& \frac{1}{r}\left[ {\hat x}\cos\theta  - \frac{{\hat y}\sin\theta}{(1-e)^2}\right]\,, \\
+ %
+ \partial_{\theta} r \equiv \frac{\partial r}{\partial \theta} =& \left[{\hat x}^2 + \left(\frac{\hat y}{1-e}\right)^2\right]^{-1/2} \frac{1}{2}\left[2{\hat x}\frac{\partial {\hat x}}{\partial \theta} + \frac{2{\hat y}}{(1-e)^2} \frac{\partial {\hat y}}{\partial \theta}\right]\ \nonumber\\
+ =& \frac{{\hat x}{\hat y}}{r}\left[ 1 - \frac{1}{(1-e)^2}\right]\,, \\
+ %
+  \partial_{e} r \equiv \frac{\partial r}{\partial e} =& \left[{\hat x}^2 + \left(\frac{\hat y}{1-e}\right)^2\right]^{-1/2} \frac{1}{2} \cdot \frac{2{\hat y}^2}{(1-e)^3}\,. \nonumber\\
+ =& \frac{{\hat y}^2}{r\cdot(1-e)^3}
+\end{align}
+%
+However, the usual approach in \texttt{PampelMuse} is that we do not fit source coordinates directly, but that we assume they are already known in some reference frame and the task is to optimize the coordinate transformation from the reference system into the actual system of the datacube. Starting from the reference coordinates ($u$, $v$), we obtain the actual coordinates via
+%
+\begin{align} 
+ x^n = A\,u^n + B\,v^n + C \,,  
+ \label{eq:coordtransX} \\
+%
+ y^n = A\,v^n - B\,u^n + D \,. 
+ \label{eq:coordtransY}
+\end{align}
+%
+In this case, $r$ is a function of $6$ potentially free parameters: $A$, $B$, $C$, $D$, $\theta$, and $e$. Accordingly, the partial derivatives $\partial_{x^n}r$ and $\partial_{y_n}r$ must be replaced by the partial derivatives with respect to $A$--$D$,
+%
+\begin{align}
+ \partial_{A} r \equiv \frac{\partial r}{\partial A} =& \partial_{x^n} r \cdot\frac{\partial x^n}{\partial A} + \partial_{y^n} r \cdot\frac{\partial y^n}{\partial A} = \partial_{x^n} r \cdot u^n + \partial_{y^n} r \cdot v^n \nonumber \\
+ =& \frac{1}{r}\left[ {\hat x}\cdot(v^n\cos\theta-u^n\sin\theta) - \frac{{\hat y}\cdot(u^n\cos\theta + v^n\sin\theta)}{(1-e)^2} \right]\,,\\
+ %
+ \partial_{B} r \equiv \frac{\partial r}{\partial B} =& \partial_{x^n} r \cdot\frac{\partial x^n}{\partial B} + \partial_{y^n} r \cdot\frac{\partial y^n}{\partial B} = \partial_{x^n} r \cdot v^n - \partial_{y^n} r \cdot u^n \nonumber \\
+ =& -\frac{1}{r}\left[ {\hat x}\cdot(u^n\cos\theta+v^n\sin\theta) + \frac{{\hat y}\cdot(v^n\cos\theta - u^n\sin\theta)}{(1-e)^2} \right]\,,\\
+ %
+ \partial_{C} r \equiv \frac{\partial r}{\partial C} =& \partial_{x^n} r \cdot\frac{\partial x^n}{\partial C}  = \partial_{x^n} r\,,\\
+% =& -\frac{1}{r}\left[ {\hat x}\sin\theta  + \frac{{\hat y}\cos\theta}{(1-e)^2}\right]\,,\\
+ %
+  \partial_{D} r \equiv \frac{\partial r}{\partial D} =& \partial_{y^n} r \cdot\frac{\partial y^n}{\partial D}  = \partial_{y^n} r\,.
+% =& \frac{1}{r}\left[ {\hat x}\cos\theta  - \frac{{\hat y}\sin\theta}{(1-e)^2}\right]\,.
+\end{align}
+
+
+
+\end{document}
