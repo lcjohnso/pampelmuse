@@ -28,9 +28,11 @@ CHANGELOG:
                       the formula.
 2013/04/09, v0.1.1.2, some minor changes in handling of provided parameters
                       that have an invalid value (e.g. beta<=1).
+2013/04/26, v0.1.1.3, added a property function that returns a string
+                      containing the identifier of a profile (e.g. 'moffat').
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.1.1.2"
+__version__ = "0.1.1.3"
 import logging
 import numpy as np
 
@@ -1329,7 +1331,7 @@ class Gaussian(Profile):
     """
 
     _fwhm = 3.
-
+    function = "gaussian"
 
     @classmethod
     def set_fwhm(cls, value):
@@ -1757,7 +1759,7 @@ class Moffat(Profile):
 
     _beta = 2.
     _fwhm = 3.
-
+    function = "moffat"
 
     @classmethod
     def set_beta(cls, value):
