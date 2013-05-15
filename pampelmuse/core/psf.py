@@ -30,6 +30,8 @@ CHANGELOG
                       anymore. This task is performed by the dedicated classes
                       in pampelmuse.core.new_profiles.
 2013/03/28, v0.5.0.1, some minor changes.
+2013/05/03, v0.5.0.2, included a check in method 'polyFitParameter' whether the
+                      provided function is valid.
 """
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
@@ -401,9 +403,17 @@ class PsfAttributes(object):
             logging.error("Unknown PSF parameter: {0}".format(name))
             return None
         
+        ## check if fit function is valid:
+        available = ["step",  "plain",  "chebyshev"]
+        if not function.lower() in available:
+            logging.error("Unknown fitting fucntion provided: {0}".format(function))
+            assert function.lower() in available, "Unknown fitting function."
+        else:
+            function = function.lower()
+        
         i = self.parameters.index(name)
 
-        if function == "step":
+        if function in ["step", "plain"]:
             self.data[1,i] = StepPolyFit(self.data[0,i,:], order=order, 
                                          bins=bins, mask=mask)
         elif function == "chebyshev":

@@ -59,9 +59,11 @@ CHANGELOG:
                               now.
 2013/04/19, v0.5.2.2, included option to provide unit of wavelength scale in
                       method 'loadSpectra' and to store it in 'makeSpecHDU'.
+2013/05/03, v0.5.2.3, included a check in method 'fitIFUCoords' whether the
+                      provided function is valid.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.5.2.2"
+__version__ = "0.5.2.3"
 import logging
 import numpy as np, pyfits
 from numpy.polynomial import Chebyshev, Legendre
@@ -135,7 +137,7 @@ class Sources(CoordinateTransformation, object):
     _weights  = None  ## map from specrow to relative magnitude
 
 
-    def __init__(self, data=None, hdu=False, instrument=None, **kwargs):
+    def __init__(self, data=None, instrument=None, **kwargs):
         """
         Initialize a new instance of the `Sources`-class.
 
@@ -146,9 +148,6 @@ class Sources(CoordinateTransformation, object):
             It must contain at least a field named `id`, all other fields are
             optional and the corresponding properties might be defined later.
             If `data` is not provided, than `ids` must be given.
-        hdu : boolean, optional
-            Flag indicating whether `data` is a pyfits BinTable-HDU instance 
-            (if `data` is provided).
         instrument : instance of pampelmuse.core.instruments.Instrument-class
                      or None, optional
             If a class-instance is provided, it will be used to identify bad
@@ -162,14 +161,16 @@ class Sources(CoordinateTransformation, object):
             initialize the scene. Only used if 'data' is not provided or does
             not contain an column with the source IDs.
 
-
         Note
         ----
         Additional keywords can be used to provide source-properties that are
         not present in 'data'
 
         """
-        if hdu:
+        if "hdu" in kwargs.keys():
+            logging.warning("Parameter 'hdu' is not used anymore.")
+
+        if isinstance(data, pyfits.BinTableHDU):
             logging.info("Initializing Sources instance from HDU.")
             data = np.array(data.data, dtype=data.data.dtype)
         else:
@@ -235,12 +236,13 @@ class Sources(CoordinateTransformation, object):
         self.isFreePar = np.zeros((self.nsrc,), dtype=np.bool)
 
         ## place-holders for spectral properties
+        self.wave  = None
         self.data  = None
         self.sigma = None
         self.ndisp = None
-        self.crval = None
-        self.crpix = None
-        self.cdelt = None
+        self.crval = 1.
+        self.crpix = 1
+        self.cdelt = 1.
         self.ctype = None
 
         ## place-holders for the arrays that will contain the IFU coords:
@@ -610,6 +612,21 @@ class Sources(CoordinateTransformation, object):
         else: return self.specrow.max()+1
 
 
+## Return a boolean array of len(nsrc) that is true if the source is resolved. 
+    @property
+    def resolved(self):
+        """
+        Returns
+        -------
+        resolved : ndarray
+            A boolean array of len(self.nsrc) indicating whether a source is
+            resolved. If self.status is undefined, all sources are considered
+            resolved.
+        """
+        if self.status == None: return np.ones((self.nsrc,), dtype=np.bool)
+        else: return (self.status>0)&(self.status<4)
+
+
 ## A flag on whether a sky component is included in the catalogue. 
     @property
     def hasSky(self):
@@ -719,8 +736,8 @@ class Sources(CoordinateTransformation, object):
 ###############################################################################
 ##              Methods dealing with the spectra of the sources              ##
 ###############################################################################
-    def loadSpectra(self, data, sigma=None, hdu=False, crval=1., cdelt=1.,
-                    crpix=1, ctype="AWAV", cunit="Angstrom"):
+    def loadSpectra(self, data, sigma=None, crval=1., cdelt=1.,
+                    crpix=1, ctype="AWAV", cunit="Angstrom", **kwargs):
         """
         Load the spectra for all sources in the catalogue. The method might
         also be used to provide an empty array that is filled later.
@@ -767,7 +784,10 @@ class Sources(CoordinateTransformation, object):
         self.ctype = ctype
         self.cunit = cunit
 
-        if hdu:
+        if "hdu" in kwargs.keys():
+            logging.warning("Parameter 'hdu' is not used anymore.")
+
+        if isinstance(data, (pyfits.ImageHDU,  pyfits.PrimaryHDU)):
             self.data = data.data
             if "CRVAL1" in data.header: self.crval = data.header["CRVAL1"]
             if "CDELT1" in data.header: self.cdelt = data.header["CDELT1"]
@@ -781,22 +801,31 @@ class Sources(CoordinateTransformation, object):
             logging.error(\
                 "No. of provided spectra [{0}] and components [{1}] differ."\
                     .format(data.shape[0], self.ncmp))
+            assert self.data.shape[0] == self.ncmp, \
+                "No. of spectra must match no. of components."
 
-        if hdu and sigma != None:
+        if sigma != None and isinstance(sigma, pyfits.BinTableHDU):
             self.sigma = sigma.data
         else:
             self.sigma = sigma
 
-        if self.sigma!=None:
+        if self.sigma != None:
             if self.sigma.shape != self.data.shape:
                 logging.error("Spectra and sigma arrays have different shapes.")
+                assert self.sigma.shape == self.data.shape, \
+                    "Sigma array must match shape of data array."
         else:
             self.sigma = np.zeros(self.data.shape, dtype=np.float32)
             ## create empty 'sigma'-array if none provided.
             
         self.ndisp = self.data.shape[1] ## length of dispersion axis
 
-        
+        ## create wavelength array
+        self.wave = np.arange(self.ndisp, dtype=np.float64)
+        self.wave -= (self.crpix-1)
+        self.wave *= self.cdelt
+        self.wave += self.crval
+
 
     def provideNames(self):
         """
@@ -1312,7 +1341,7 @@ class Sources(CoordinateTransformation, object):
 
 
     def fitIFUCoords(self, ids, coord, order, bins=1, mask=None,
-                     function="step", commonSlope=False):
+                     function="step", commonSlope=False, statusBar=None):
         """
         Method to fit the source positions as a function of wavelength. Two
         basic modes are supported currently:
@@ -1363,6 +1392,15 @@ class Sources(CoordinateTransformation, object):
         assert self.xdata != None and self.xdata != None, \
             "Please call 'loadIFUCoords' first."
 
+        ## check if fit function is valid:
+        available = ["step",  "plain",  "chebyshev"]
+        if not function.lower() in available:
+            logging.error("Unknown fitting fucntion provided: {0}".format(\
+                    function))
+            assert function.lower() in available, "Unknown fitting function."
+        else:
+            function = function.lower()
+
         ## find the indices of the source(s) to be fitted
         if ids==None:
             indices2Fit = np.arange(self.loadedIFUCoords.sum(), dtype=np.int32)
@@ -1394,7 +1432,7 @@ class Sources(CoordinateTransformation, object):
 ##             else:
             meanYCoord = np.mean(self.ydata[0, used], axis=0)
 
-            if function == "step":
+            if function in ["step", "plain"]:
                 meanXCoordFit = StepPolyFit(meanXCoord, order=order, bins=bins,
                                             mask=mask)
                 meanYCoordFit = StepPolyFit(meanYCoord, order=order, bins=bins,
@@ -1419,7 +1457,7 @@ class Sources(CoordinateTransformation, object):
                     wCoord[mask],(self.ydata[0,j]-meanYCoordFit)[mask],deg=0)
                 self.ydata[1,j] = meanYCoordFit + np.polyval(yoffset, wCoord)
 
-            elif function == "step":
+            elif function in ["step", "plain"]:
                 self.xdata[1,j] = StepPolyFit(\
                     self.xdata[0,j], order=order, bins=bins, mask=mask)
                 self.ydata[1,j] = StepPolyFit(\
@@ -1434,8 +1472,11 @@ class Sources(CoordinateTransformation, object):
             ## find index of source in (full) source catalogue
             jj = np.where(np.cumsum(self.loadedIFUCoords)==(j+1))[0][0]
             self.hasPolyFit[jj] = True
+            
             logging.debug("Polyn. fit to source #{0} [{1}/{2}]".format(\
                     self.ID[jj], k, len(indices2Fit)))
+            if statusBar != None:
+                statusBar.showMessage("Polyn. fit to source #{0} [{1}/{2}]".format(self.ID[jj], k, len(indices2Fit)), 5000)
             k += 1
 
 
@@ -1670,33 +1711,31 @@ class Sources(CoordinateTransformation, object):
 
 
 
-    def makeCoordinatesHDU(self, polyFit=False, fullFit=False):
+    def makeCoordinatesHDU(self, polyFit=False, name="POSITIONS", **kwargs):
 
         if not polyFit:
-            toStore = np.ones(self.loadedIFUCoords.sum(), dtype=np.bool)
+            toStore = self.isFreePar[self.loadedIFUCoords]
             i=0
         else:
             toStore = self.hasPolyFit[self.loadedIFUCoords]
             i=1
-        if not toStore.any(): return None
+        if not toStore.any():
+            logging.error("Cannot store source coordinates to HDU. No data available.")
+            return None
         
-            
         outHDU = pyfits.ImageHDU(np.rollaxis(\
                 np.dstack((self.xdata[i,toStore], self.ydata[i,toStore])),2,0),
-                                 name="POSITIONS")
+                                 name=name)
         outHDU.header.update("hierarch PAMPELMUSE POSITIONS POLY", polyFit)
-
-        if polyFit == False:
-            outHDU.header.update("hierarch PAMPELMUSE POSITIONS FULLFIT",
-                                 fullFit)
+        outHDU.header.update("hierarch PAMPELMUSE POSITIONS FULLFIT", (polyFit==False))
             
-
+        ## create entry in header about ID of each source and the row containing its
+        ## position
         k = 0
         for j in xrange(toStore.size):
             if toStore[j]:
                 outHDU.header.update(\
-                    "hierarch PAMPELMUSE POSITIONS ID{0}".format(k),
-                    self.ID[self.loadedIFUCoords][j])
+                    "hierarch PAMPELMUSE POSITIONS ID{0}".format(k), self.ID[j])
                 k += 1
 
         return outHDU

@@ -78,17 +78,25 @@ CHANGELOG:
 2013/04/19, v0.8.0.3, now reading more wavelength information (keywords CTYPE?,
                       CUNIT?) from the header of the data cube. They are also
                       passed on to method 'Sources.loadSpectra'.
+2013/05/03, v0.8.0.4, exported the checking of the data for consistency to a
+                      new class pampelmuse.core.cube.Cube
+2013/05/13, v0.9.0.0, inplemented the new GUI to identify the sources. Also
+                      modified the usage of the reference coordinates: they
+                      are included in the 'Sources' catalog as provided now.
+2013/05/14, v0.9.1.0, bugfix: reference coordinates in PSF instances were not
+                              updated when recovering original ones.
 """
-__author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.8.0.3"
+__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
+__version__ = "0.9.1.0"
 import datetime, os, sys, logging
 import numpy as np, pyfits
 from scipy import interpolate, sparse
 from PyQt4 import QtGui
 
 ## required PampelMuse routines
-from pampelmuse.graphics.ident_sources import IdentSources
+from pampelmuse.graphics.pampelmuse_gui import PampelMuseGui
 from pampelmuse.core.aperture import AperPhoto
+from pampelmuse.core.cube import Cube
 from pampelmuse.core.new_profiles import Gaussian,Moffat
 from pampelmuse.core.sources import Sources
 from pampelmuse.core.psf import PsfAttributes
@@ -172,9 +180,6 @@ def initfit(arguments):
         y   = cfpResults['y']
         mag = cfpResults[magColName]
 
-    x -= x[ids>=0].min()
-    y -= y[ids>=0].min()
-
 
     ## Initialize sources-class
     sources     = Sources(ids=ids, instrument=ifu)
@@ -182,6 +187,13 @@ def initfit(arguments):
     sources.y   = y
     sources.mag = mag
 
+    dx = sources.x[sources.ID>=0].min()
+    dy = sources.y[sources.ID>=0].min()
+
+    sources.x -= dx
+    sources.x /= pixScale
+    sources.y -= dy
+    sources.y /= pixScale
 
     ## initialize PSF
     if psfType == "moffat":
@@ -221,65 +233,28 @@ def initfit(arguments):
     logging.info("Reading IFS data...")
         
     ## data
-    dataFile = pyfits.open("{0}.dat.fits".format(prefix))
-
-    ## check if calibration HDU for ARGUS exists
-    if sources.instrument.name == "argus":
-        try:
-            setup_index = dataFile.index_of("FIBER_SETUP")
-            sources.instrument.read_fiber_setup(hdu=dataFile[setup_index])
-        except KeyError:
-            logging.warning("No HDU with fibre setup found for ARGUS data.")
+    data_cube = Cube("{0}.dat.fits".format(prefix),
+                     instrument=sources.instrument)
+    ndim = data_cube.ndim
+    ndisp = data_cube.ndisp
+    crval = data_cube.crval
+    cdelt = data_cube.cdelt
+    ctype = data_cube.ctype
+    cunit = data_cube.cunit
     
-    ## open data HDU
-    dataHDU  = dataFile[0]
-    ndim     = dataHDU.header["NAXIS"]
-    if sources.instrument.transform == None and ndim!=3:
-        logging.error(\
-            "Data must be 3dim. unless mapping from spaxels to x&y specified.")
-        assert ndim==3, "Expected 3dim. datacube, got {0}dim".format(ndim)
-
-    ## Reading information about wavelength coverage
-    if ndim == 3:
-        if sources.instrument.shape == None: ## set spatial shape if needed
-            xdim = dataHDU.header["NAXIS1"]
-            ydim = dataHDU.header["NAXIS2"]
-
-            sources.instrument.shape = (ydim, xdim)
-
-            x = np.mod(np.arange(xdim*ydim, dtype=np.int16), xdim)
-            y = np.arange(xdim*ydim, dtype=np.int16)//xdim
-            sources.instrument.transform = np.vstack((y,x)).T
-
-        spectral_axis = 3
-    else:
-        spectral_axis = sources.instrument.spectral_axis
-
-    cdelt = dataHDU.header['CDELT{0}'.format(spectral_axis)]
-    crval = dataHDU.header['CRVAL{0}'.format(spectral_axis)]
-    try:
-        ctype = dataHDU.header["CTYPE{0}".format(spectral_axis)]
-    except KeyError:
-        ctype = "AWAV"
-    try:
-        cunit = dataHDU.header["CUNIT{0}".format(spectral_axis)]
-    except KeyError:
-        cunit = "Angstrom"
-    ndisp = dataHDU.header['NAXIS{0}'.format(spectral_axis)]
-
-    logging.info("   {0}.dat.fits - OK".format(prefix))
-
     ## sigma
-    sigmaHDU = pyfits.open("{0}.err.fits".format(prefix))[0]
-    logging.info("   {0}.err.fits - OK".format(prefix))
+    sigma_cube = Cube("{0}.err.fits".format(prefix),
+                      instrument=sources.instrument,
+                      checks={"ndim":ndim, "ndisp":ndisp})
 
     ## mask
     try:
-        maskHDU = pyfits.open("{0}.msk.fits".format(prefix))[0]
-        logging.info("   {0}.msk.fits - OK".format(prefix))
+        mask_cube = Cube("{0}.msk.fits".format(prefix),
+                         instrument=sources.instrument, 
+                         checks={"ndim":ndim, "ndisp":ndisp})
     except IOError:
-        maskHDU = None
-        logging.info("   {0}.msk.fits - Not found".format(prefix))
+        mask_cube = None
+        logging.info("No mask cube {0}.msk.fits found".format(prefix))
 
     ## check if whole cube should be analyzed
     if layerrng[0] >= 0: start = layerrng[0]
@@ -308,23 +283,22 @@ def initfit(arguments):
         if wave_i > fMin and wave_i < fMax:
             wht_i = f(wave_i)
             if ndim==3 :
-                dataIma += dataHDU.section[i].flatten()*wht_i
-                sigmaIma += sigmaHDU.section[i].flatten()*wht_i
+                dataIma += data_cube.data_hdu.section[i].flatten()*wht_i
+                sigmaIma += sigma_cube.data_hdu.section[i].flatten()*wht_i
             elif sources.instrument.spectral_axis==2:
                 dataIma  += sources.instrument.get_science(\
-                    dataHDU.section[i]*wht_i)
+                    data_cube.data_hdu.section[i]*wht_i)
                 sigmaIma += sources.instrument.get_science(\
-                        sigmaHDU.section[i]*wht_i)
+                        sigma_cube.data_hdu.section[i]*wht_i)
             else:
                 dataIma  += sources.instrument.get_science(\
-                    dataHDU.section[:,i]*wht_i)
+                    data_cube.data_hdu.section[:,i]*wht_i)
                 sigmaIma += sources.instrument.get_science(\
-                    sigmaHDU.section[:,i]*wht_i)
+                    sigma_cube.data_hdu.section[:,i]*wht_i)
             fWht += wht_i
 
     dataIma  /= fWht
     sigmaIma /= fWht
-
 
     ## create pseudo observation from photometry results
     ## PSF is same as in IFU, with FWHM scaled by `pixScale'-Parameter
@@ -332,14 +306,13 @@ def initfit(arguments):
     ## have a flux of 1000 counts and a peak-S/N of roughly 10
     logging.info("Creating mock image from photometry sources.")
 
-    PSF.set_size(\
-        (int((sources.y.max()/pixScale)+1), int((sources.x.max()/pixScale)+1)))
-    PSF.set_A(1./pixScale)
+    PSF.set_size((int(sources.y.max()+1), int(sources.x.max()+1)))
+
     MZERO     = reslim + 7.5
 
     identIma  = np.zeros(PSF.size, dtype='float32')
     for i in xrange(sources.nsrc):
-        if sources.ID[i] < 0: continue 
+        if sources.ID[i] <= 0: continue 
 
         psf = PSF(Xc=sources.x[i], Yc=sources.y[i], mag=sources.mag[i],
                   src_id=sources.ID[i], maxrad=10.)
@@ -351,26 +324,33 @@ def initfit(arguments):
     identIma += np.random.normal(loc=0., scale=10, size=PSF.size)
 
     ## start source identification GUI to identify bright(est) stars
-    logging.info("Preparing GUI for source identification"),
-
-    ##  temporary solution: create rec-array from Sources-instance; usage of
-    ##                      instance in IdentSources will be implemented later
-    pickData = sources.toRec(\
-        ids=sources.ID[(sources.mag<reslim)&(sources.ID>=0)])
-
-    pickData["x"] /= pixScale
-    pickData["y"] /= pixScale
+    logging.info("Preparing GUI for source identification")
 
     app  = QtGui.QApplication(sys.argv)
-    identifier = IdentSources(\
-        grabIma=sources.instrument.make_grid(dataIma, fill_value=0.,),
-        pickIma=identIma, pickData=pickData)
+    identifier = PampelMuseGui(\
+        sources=sources, fitsIfu="{0}.dat.fits".format(prefix),
+        refImage=identIma, magCut=reslim-1.)
 
     identifier.show()
     app.exec_()
 
-    identified = identifier.getResults()
+    identified = identifier.identifiedSources
 
+    ## recover original coordinates in Sources instance and for PSF instances
+    sources.x *= pixScale
+    sources.x += dx
+    sources.y *= pixScale
+    sources.y += dy
+
+    i=0
+    for psf in PSF:
+        psf.Xc = sources.x[i]
+        psf.Yc = sources.y[i]
+        i += 1
+
+
+    if len(identified)<2:
+        logging.critical("At least 2 sources must be identified.")
 
 ##     ## adjust PSF FWHM (only if >=4 sources have a valid FWHM measurement)
 ##     valid = (identified["fwhm_x"]>0)&(identified["fwhm_y"]>0)
@@ -388,8 +368,8 @@ def initfit(arguments):
 
     ## determine coordinate transformation using identified sources
     sources.loadIFUCoords(\
-        data=identified[["x", "y"]].view(np.float64).reshape(-1,2).T,
-        ids=identified["ID"])
+        data=np.asarray(identified.values()).T[:2],
+        ids=identified.keys())
     sources.calcTrans()
     if posFit == 1: sources.ctFree[2:] = True
     elif posFit == 2: sources.ctFree[:] = True
@@ -571,8 +551,9 @@ def initfit(arguments):
         aperData["x"] = np.squeeze(sources.xdata[0])
         aperData["y"] = np.squeeze(sources.ydata[0])
  
-        ## !!! NEEDS TO  BE UPDATED !!!
-        ## include start/stop-values
+        # TODO: update aperture photometry!!!
+        # include start/stop-values, replace, dataHDU and maskHDU with
+        # Cube-instances 
         make_aper = AperPhoto(data=dataHDU, centers=aperData, mask=maskHDU)
         
         ## !!! NEEDS TO  BE UPDATED !!!

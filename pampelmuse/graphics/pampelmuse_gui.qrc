@@ -1,0 +1,12 @@
+<RCC>
+  <qresource prefix="icons">
+    <file>icons/back.png</file>
+    <file>icons/forth.png</file>
+    <file>icons/exit.png</file>
+    <file>icons/go.png</file>
+    <file>icons/pan.png</file>
+    <file>icons/save_as.png</file>
+    <file>icons/save.png</file>
+    <file>icons/zoom.png</file>
+  </qresource>
+</RCC>

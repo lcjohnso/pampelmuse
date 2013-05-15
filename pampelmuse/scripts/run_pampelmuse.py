@@ -46,9 +46,15 @@ v0.7.0.0 -2013/03/27 - implemented a new way to construct the PSF profiles. In
                        now used to perform the non-linear fits, this
                        significantly speeds up the code (by a factor ~10(!)).
                        Also added support for 2dim. input data besides cubes.
+v0.8.0.0 -2013/05/15 - included the new PampelMuse GUI to facilitate the source
+                       identification and parameter inspection/fitting. It
+                       provides more functionality than the previous GUIs used
+                       for these purposes. Together with the new GUI, the
+                       possibility to load a reference image when running
+                       INITFIT was provided.
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.7.0.0"
+__version__ = "0.8.0.0"
 
 
 print """
@@ -81,7 +87,7 @@ except ImportError:
 try: ## check if pyraf available
     from pyraf.iraf import images
 except ImportError:
-    logging.error("Cannot import module `pyraf`.")
+    logging.warning("Cannot import module `pyraf`.")
     logging.warning("Script ADDWCS cannot be used.")
     use_addwcs = False
 
@@ -90,12 +96,12 @@ graphics = True
 try:
     from PyQt4 import QtCore, QtGui
 except ImportError:
-    logging.error("Cannot load `PyQt4`-moodules")
+    logging.error("Cannot load `PyQt4`-modules")
     graphics = False
 try:
     import matplotlib.pyplot
 except ImportError:
-    logging.error("Cannot load `matplotlib`-moodules")
+    logging.error("Cannot load `matplotlib`-modules")
     graphics = False
 if not graphics:
     logging.warning("Scripts INITFIT and POLYFIT cannot be used.")
@@ -231,6 +237,11 @@ with. The results of the fitting process are stored in the <prefix>.prm.fits-
 file. If the modified file is fed to the CUBEFIT-routine, PampelMuse will
 use the polynomial fits. 
 """)
+    PFparser.add_argument("reference", type=str, nargs="?", help="""
+An optional FITS image to be displayed. The idea here is to load the data
+from which the reference coordinates were extracted. In that case, the image
+is displayed in the GUI and the locations of the extracted sources are
+overplotted.""")
     PFparser.set_defaults(func=polyfit)
 
 

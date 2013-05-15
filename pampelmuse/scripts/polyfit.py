@@ -19,16 +19,20 @@ CHANGELOG
                       modified so that it now uses the dedicated classes `PSF',
                       `Positions' and `Spectra'. Also included usage of the
                       DOBACKUP-parameter.
+2013/05/15, v0.4.0.0, replaced existing GUI with the new PampelMuse GUI. The
+                      new GUI also displays the IFU data and allows one to load
+                      a reference image.
 """
-__author__  = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.3.0.0"
+__author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
+__version__ = "0.4.0.0"
 
 
 import logging, sys
-from PyQt4 import QtGui
+from PyQt4 import QtCore, QtGui
 
 ##  required PampelMuse-packages
-from pampelmuse.graphics.inspect_fit_data import InspectFitData
+from pampelmuse.graphics.pampelmuse_gui import PampelMuseGui
+
 
 
 
@@ -41,27 +45,15 @@ def polyfit(arguments):
 
     ## List of required definitions: #######################
     prefix   = arguments.prefix                           ##
-    dobackup = arguments.config["DOBACKUP"]               ##
+    refImage = arguments.reference                        ##
+##     dobackup = arguments.config["DOBACKUP"]            ##
     ########################################################
 
-    app  = QtGui.QApplication(sys.argv)
-    fitter = InspectFitData(fitsFile="{0}.prm.fits".format(prefix),
-                            dobackup=dobackup)
-    fitter.show()
-    app.exec_()
+    app = QtGui.QApplication(sys.argv)
+    ui = PampelMuseGui(fitsFile="{0}.prm.fits".format(prefix), 
+                       fitsIfu="{0}.dat.fits".format(prefix), 
+                       refImage=refImage)
+    ui.show()
+    
+    sys.exit(app.exec_())
 
-
-
-## def main(filename):
-## 
-##     print ""
-##     print 21* " "+"***  PolyFit, version {0}  ***".format(__version__)+21*" "
-##     print ""
-## 
-##     app  = QtGui.QApplication(sys.argv)
-##     fitter = PolyFit(fitsFile=filename)
-##     fitter.show()
-##     app.exec_()
-## 
-## if __name__ == "__main__":
-##     main()

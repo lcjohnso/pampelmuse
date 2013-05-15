@@ -1,0 +1,711 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>PampelMuseGui</class>
+ <widget class="QMainWindow" name="PampelMuseGui">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>800</width>
+    <height>800</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>MainWindow</string>
+  </property>
+  <widget class="QWidget" name="centralWidget">
+   <widget class="QWidget" name="layoutWidget">
+    <property name="geometry">
+     <rect>
+      <x>0</x>
+      <y>0</y>
+      <width>800</width>
+      <height>717</height>
+     </rect>
+    </property>
+    <layout class="QVBoxLayout" name="centralVBox">
+     <item>
+      <widget class="Line" name="headSepLine">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <layout class="QVBoxLayout" name="spectrumViewVBox">
+       <item>
+        <layout class="QHBoxLayout" name="spectrumHeaderHBox">
+         <item>
+          <widget class="QLabel" name="spectrumHeaderLabel">
+           <property name="font">
+            <font>
+             <weight>75</weight>
+             <bold>true</bold>
+             <underline>true</underline>
+            </font>
+           </property>
+           <property name="text">
+            <string>Spectrum Viewer</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QToolButton" name="spectrumZoom">
+           <property name="enabled">
+            <bool>true</bool>
+           </property>
+           <property name="text">
+            <string>...</string>
+           </property>
+           <property name="icon">
+            <iconset resource="pampelmuse_gui.qrc">
+             <normaloff>:/icons/icons/zoom.png</normaloff>:/icons/icons/zoom.png</iconset>
+           </property>
+           <property name="checkable">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QToolButton" name="spectrumPan">
+           <property name="text">
+            <string>...</string>
+           </property>
+           <property name="icon">
+            <iconset resource="pampelmuse_gui.qrc">
+             <normaloff>:/icons/icons/pan.png</normaloff>:/icons/icons/pan.png</iconset>
+           </property>
+           <property name="checkable">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <widget class="QWidget" name="spectrumWidget" native="true">
+         <property name="minimumSize">
+          <size>
+           <width>600</width>
+           <height>300</height>
+          </size>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="spectrumEditHBox">
+         <item>
+          <widget class="QLabel" name="spectrumShowLabel">
+           <property name="font">
+            <font>
+             <weight>75</weight>
+             <bold>true</bold>
+            </font>
+           </property>
+           <property name="text">
+            <string>Data:</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QLabel" name="spectrumShowHduLabel">
+           <property name="layoutDirection">
+            <enum>Qt::LeftToRight</enum>
+           </property>
+           <property name="text">
+            <string>HDU -</string>
+           </property>
+           <property name="alignment">
+            <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+           </property>
+           <property name="indent">
+            <number>-1</number>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QComboBox" name="spectrumShowHduComboBox"/>
+         </item>
+         <item>
+          <widget class="QLabel" name="spectrumShowIdentLabel">
+           <property name="text">
+            <string>Identifier -</string>
+           </property>
+           <property name="alignment">
+            <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QComboBox" name="spectrumShowIdentComboBox"/>
+         </item>
+         <item>
+          <widget class="QToolButton" name="spectrumShowGo">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+           <property name="text">
+            <string>...</string>
+           </property>
+           <property name="icon">
+            <iconset resource="pampelmuse_gui.qrc">
+             <normaloff>:/icons/icons/go.png</normaloff>:/icons/icons/go.png</iconset>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="Line" name="spectrumEditLine">
+           <property name="orientation">
+            <enum>Qt::Vertical</enum>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QLabel" name="spectrumFitLabel">
+           <property name="font">
+            <font>
+             <weight>75</weight>
+             <bold>true</bold>
+            </font>
+           </property>
+           <property name="text">
+            <string>Fit:</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QLabel" name="spectrumFitTypeLabel">
+           <property name="text">
+            <string>Type -</string>
+           </property>
+           <property name="alignment">
+            <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QComboBox" name="spectrumFitTypeComboBox">
+           <item>
+            <property name="text">
+             <string>Plain</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Chebyshev</string>
+            </property>
+           </item>
+          </widget>
+         </item>
+         <item>
+          <widget class="QLabel" name="spectrumFitOrderLabel">
+           <property name="text">
+            <string>Order -</string>
+           </property>
+           <property name="alignment">
+            <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QSpinBox" name="spectrumFitOrderSpinBox">
+           <property name="maximum">
+            <number>12</number>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QToolButton" name="spectrumFitGo">
+           <property name="text">
+            <string>...</string>
+           </property>
+           <property name="icon">
+            <iconset resource="pampelmuse_gui.qrc">
+             <normaloff>:/icons/icons/go.png</normaloff>:/icons/icons/go.png</iconset>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+      </layout>
+     </item>
+     <item>
+      <widget class="Line" name="guiSepLine">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <layout class="QHBoxLayout" name="imageViewHBox">
+       <item>
+        <layout class="QVBoxLayout" name="refViewVBox">
+         <item>
+          <layout class="QHBoxLayout" name="refHeaderHBox">
+           <item>
+            <widget class="QLabel" name="refHeaderLabel">
+             <property name="font">
+              <font>
+               <weight>75</weight>
+               <bold>true</bold>
+               <underline>true</underline>
+              </font>
+             </property>
+             <property name="text">
+              <string>Reference View</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QToolButton" name="refBack">
+             <property name="toolTip">
+              <string>Go to last view</string>
+             </property>
+             <property name="text">
+              <string>...</string>
+             </property>
+             <property name="icon">
+              <iconset resource="pampelmuse_gui.qrc">
+               <normaloff>:/icons/icons/back.png</normaloff>:/icons/icons/back.png</iconset>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QToolButton" name="refForth">
+             <property name="toolTip">
+              <string>Go to next view</string>
+             </property>
+             <property name="text">
+              <string>...</string>
+             </property>
+             <property name="icon">
+              <iconset resource="pampelmuse_gui.qrc">
+               <normaloff>:/icons/icons/forth.png</normaloff>:/icons/icons/forth.png</iconset>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QToolButton" name="refZoom">
+             <property name="toolTip">
+              <string>Enter/leave zoom mode</string>
+             </property>
+             <property name="text">
+              <string>...</string>
+             </property>
+             <property name="icon">
+              <iconset resource="pampelmuse_gui.qrc">
+               <normaloff>:/icons/icons/zoom.png</normaloff>:/icons/icons/zoom.png</iconset>
+             </property>
+             <property name="checkable">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QToolButton" name="refPan">
+             <property name="toolTip">
+              <string>Enter/leave pan mode</string>
+             </property>
+             <property name="text">
+              <string>...</string>
+             </property>
+             <property name="icon">
+              <iconset resource="pampelmuse_gui.qrc">
+               <normaloff>:/icons/icons/pan.png</normaloff>:/icons/icons/pan.png</iconset>
+             </property>
+             <property name="checkable">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <widget class="QWidget" name="refViewWidget" native="true">
+           <property name="minimumSize">
+            <size>
+             <width>350</width>
+             <height>250</height>
+            </size>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="refCutsHBox">
+           <item>
+            <widget class="QLabel" name="refCutsLabel">
+             <property name="font">
+              <font>
+               <weight>75</weight>
+               <bold>true</bold>
+              </font>
+             </property>
+             <property name="text">
+              <string>Cuts:</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QComboBox" name="refCutsComboBox">
+             <item>
+              <property name="text">
+               <string>100%</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>99.9%</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>99.8%</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>99.5%</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>99.0%</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>98.0%</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>95.0%</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>90.0%</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>User</string>
+              </property>
+             </item>
+            </widget>
+           </item>
+           <item>
+            <widget class="Line" name="refCutsLine">
+             <property name="orientation">
+              <enum>Qt::Vertical</enum>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QLineEdit" name="refMinCutLineEdit">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QLineEdit" name="refMaxCutLineEdit"/>
+           </item>
+          </layout>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <widget class="Line" name="imageSepLine">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <layout class="QVBoxLayout" name="ifuViewVBox">
+         <item>
+          <layout class="QHBoxLayout" name="ifuHeadHBox">
+           <item>
+            <widget class="QLabel" name="ifuHeadLabel">
+             <property name="font">
+              <font>
+               <weight>75</weight>
+               <bold>true</bold>
+               <underline>true</underline>
+              </font>
+             </property>
+             <property name="text">
+              <string>IFU View</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QToolButton" name="ifuZoom">
+             <property name="text">
+              <string>...</string>
+             </property>
+             <property name="icon">
+              <iconset resource="pampelmuse_gui.qrc">
+               <normaloff>:/icons/icons/pan.png</normaloff>:/icons/icons/pan.png</iconset>
+             </property>
+             <property name="checkable">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <widget class="QWidget" name="ifuViewWidget" native="true">
+           <property name="minimumSize">
+            <size>
+             <width>250</width>
+             <height>250</height>
+            </size>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="ifuCutsHBox">
+           <item>
+            <widget class="QLabel" name="ifuCutsLabel">
+             <property name="font">
+              <font>
+               <weight>75</weight>
+               <bold>true</bold>
+              </font>
+             </property>
+             <property name="text">
+              <string>Cuts:</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QComboBox" name="ifuCutsComboBox">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="minimumSize">
+              <size>
+               <width>70</width>
+               <height>0</height>
+              </size>
+             </property>
+             <item>
+              <property name="text">
+               <string>100%</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>99.9%</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>99.5%</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>99.0%</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>98.0%</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>95.0%</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>90.0%</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>User</string>
+              </property>
+             </item>
+            </widget>
+           </item>
+           <item>
+            <widget class="Line" name="ifuCutsLine">
+             <property name="orientation">
+              <enum>Qt::Vertical</enum>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QLineEdit" name="ifuMinCutLineEdit"/>
+           </item>
+           <item>
+            <widget class="QLineEdit" name="ifuMaxCutLineEdit"/>
+           </item>
+           <item>
+            <widget class="Line" name="ifuLayerLine">
+             <property name="orientation">
+              <enum>Qt::Vertical</enum>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QSpinBox" name="ifuLayerSelectSpinBox"/>
+           </item>
+          </layout>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <widget class="QSlider" name="ifuLayerSelectSlider">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </item>
+    </layout>
+   </widget>
+  </widget>
+  <widget class="QMenuBar" name="menuBar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>800</width>
+     <height>25</height>
+    </rect>
+   </property>
+   <widget class="QMenu" name="menuFile">
+    <property name="title">
+     <string>File</string>
+    </property>
+    <addaction name="actionSave"/>
+    <addaction name="actionSaveAs"/>
+    <addaction name="separator"/>
+    <addaction name="actionQuit"/>
+   </widget>
+   <widget class="QMenu" name="menuSpectrum">
+    <property name="title">
+     <string>Spectrum</string>
+    </property>
+    <widget class="QMenu" name="menuFitting">
+     <property name="title">
+      <string>Fitting</string>
+     </property>
+     <addaction name="actionFit_all_positions"/>
+     <addaction name="actionForce_common_slope"/>
+    </widget>
+    <addaction name="menuFitting"/>
+   </widget>
+   <addaction name="menuFile"/>
+   <addaction name="menuSpectrum"/>
+  </widget>
+  <widget class="QToolBar" name="toolBar">
+   <property name="windowTitle">
+    <string>toolBar</string>
+   </property>
+   <attribute name="toolBarArea">
+    <enum>TopToolBarArea</enum>
+   </attribute>
+   <attribute name="toolBarBreak">
+    <bool>false</bool>
+   </attribute>
+   <addaction name="actionSave"/>
+   <addaction name="actionSaveAs"/>
+   <addaction name="actionQuit"/>
+  </widget>
+  <widget class="QStatusBar" name="statusBar"/>
+  <action name="actionSave">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="pampelmuse_gui.qrc">
+     <normaloff>:/icons/icons/save.png</normaloff>:/icons/icons/save.png</iconset>
+   </property>
+   <property name="text">
+    <string>&amp;Save</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+S</string>
+   </property>
+  </action>
+  <action name="actionQuit">
+   <property name="icon">
+    <iconset resource="pampelmuse_gui.qrc">
+     <normaloff>:/icons/icons/exit.png</normaloff>:/icons/icons/exit.png</iconset>
+   </property>
+   <property name="text">
+    <string>&amp;Quit</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Q</string>
+   </property>
+  </action>
+  <action name="actionSpectrum">
+   <property name="text">
+    <string>Spectrum</string>
+   </property>
+  </action>
+  <action name="actionFit_all_positions">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Fit &amp;all positions</string>
+   </property>
+   <property name="shortcut">
+    <string>Alt+A</string>
+   </property>
+  </action>
+  <action name="actionForce_common_slope">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Force &amp;common slope</string>
+   </property>
+   <property name="shortcut">
+    <string>Alt+C</string>
+   </property>
+  </action>
+  <action name="actionSaveAs">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="pampelmuse_gui.qrc">
+     <normaloff>:/icons/icons/save_as.png</normaloff>:/icons/icons/save_as.png</iconset>
+   </property>
+   <property name="text">
+    <string>Save &amp;As...</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+A</string>
+   </property>
+  </action>
+ </widget>
+ <resources>
+  <include location="pampelmuse_gui.qrc"/>
+ </resources>
+ <connections/>
+</ui>
