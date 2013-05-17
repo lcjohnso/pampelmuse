@@ -24,9 +24,12 @@ CHANGELOG:
                       in Instrument-class (was None)
 2013/03/28, v0.2.1.2, bugfixed the methods 'make_grid' and 'get_science' that
                       crashed for certain types of (valid) input data.
+2013/05/16, v0.2.2.2, fixed a bug when reading an ARGUS fiber setup: The sky
+                      fibers were previously identified via the name given by
+                      the observer. This has been changed to the retractor.
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.2.1.2"
+__version__ = "0.2.2.2"
 import logging, re
 import numpy as np
 from matplotlib import path
@@ -663,6 +666,7 @@ class Argus(Instrument):
 
         ## initialize transformation from (x,y)-coords to spaxels
         if not "transform" in kwargs.keys():
+            # TODO: check if transform is really okay: seems to be mirrored along on axis!
             kwargs["transform"] = np.vstack((np.array([5,4,3,2,1,1,2,3,4,5,6,7,8,9,10,11,12,12,12,13,1,0,0,1,2,3,4,5,6,7,8,9,10,11,11,10,9,8,7,6,6,7,8,9,10,11,12,13,13,12,11,10,9,8,7,6,5,4,3,2,13,12,11,10,9,8,7,6,5,4,3,2,1,0,0,1,2,3,4,5,5,4,3,2,1,0,0,1,2,3,4,5,6,7,8,9,10,11,12,13,2,3,4,5,6,7,8,9,10,11,12,13,13,12,11,10,9,8,7,6,10,11,12,13,13,12,11,10,9,8,7,6,5,4,3,2,1,0,0,1,9,8,7,6,5,4,3,2,1,0,0,1,2,3,4,5,6,7,8,9,1,0,0,1,2,3,4,5,6,7,8,9,10,11,12,13,13,12,11,10,6,7,8,9,10,11,12,13,13,12,11,10,9,8,7,6,5,4,3,2,13,12,11,10,9,8,7,6,5,4,3,2,1,0,0,1,2,3,4,5,5,4,3,2,1,0,0,1,2,3,4,5,6,7,8,9,10,11,12,13,2,3,4,5,6,7,8,9,10,11,12,13,13,12,11,10,9,8,7,6,6,7,8,9,10,11,11,10,9,8,7,6,5,4,3,2,1,0,0,1,13,12,12,12,11,10,9,8,7,6,5,4,3,2,1,1,2,3,4,5],dtype=np.int16),np.array([1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,2,2,3,3,2,2,2,2,2,2,2,2,2,2,2,2,1,1,1,1,1,1,4,4,4,4,4,4,4,4,3,3,3,3,3,3,3,3,3,3,3,3,5,5,5,5,5,5,5,5,5,5,5,5,5,5,4,4,4,4,4,4,7,7,7,7,7,7,6,6,6,6,6,6,6,6,6,6,6,6,6,6,8,8,8,8,8,8,8,8,8,8,8,8,7,7,7,7,7,7,7,7,10,10,10,10,9,9,9,9,9,9,9,9,9,9,9,9,9,9,8,8,11,11,11,11,11,11,11,11,11,11,10,10,10,10,10,10,10,10,10,10,13,13,12,12,12,12,12,12,12,12,12,12,12,12,12,12,11,11,11,11,14,14,14,14,14,14,14,14,13,13,13,13,13,13,13,13,13,13,13,13,15,15,15,15,15,15,15,15,15,15,15,15,15,15,14,14,14,14,14,14,17,17,17,17,17,17,16,16,16,16,16,16,16,16,16,16,16,16,16,16,18,18,18,18,18,18,18,18,18,18,18,18,17,17,17,17,17,17,17,17,20,20,20,20,20,20,19,19,19,19,19,19,19,19,19,19,19,19,18,18,19,19,20,21,21,21,21,21,21,21,21,21,21,21,21,20,20,20,20,20], dtype=np.int16))).T
 
         
@@ -699,17 +703,20 @@ class Argus(Instrument):
         _x          = []
         _y          = []
 
-        sky_match = re.compile(r"ASKY_([0-9]+)")
+        ## use 'RECTRACTOR' information from table to identify fibers
+        sky_match = re.compile(r"P2\-AR[NC][0-9]+\-([0-9]+|Sky)")
         
         for i in xrange(hdu.header["NAXIS2"]): ## loop over all rows in HDU
-            if hdu.data.field("X")[i]>0 and hdu.data.field("Y")[i]>0:
+        
+            match = sky_match.match(hdu.data.field("RETRACTOR")[i])
+        
+            if match == None: ## calibration fiber
+                self._cal_fibers.append(i)
+            elif match.group(1) == "Sky":  ## sky fiber
+                self._sky_fibers.append(i)
+            else: ## science fiber
                 _x.append(hdu.data.field("X")[i]-1)
                 _y.append(hdu.data.field("Y")[i]-1)
-            else:
-                if sky_match.match(hdu.data.field("OBJECT")[i]) != None:
-                    self._sky_fibers.append(i)
-                else:
-                    self._cal_fibers.append(i)
 
         ## update information
         super(Argus, self).set_transform(np.vstack((_y, _x)).T)
