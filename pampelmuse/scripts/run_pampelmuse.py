@@ -52,9 +52,17 @@ v0.8.0.0 -2013/05/15 - included the new PampelMuse GUI to facilitate the source
                        for these purposes. Together with the new GUI, the
                        possibility to load a reference image when running
                        INITFIT was provided.
+v0.9.0.0 -2013/05/29 - revised how the configuration of the code is handled
+                       during the analysis. The code now tracks the entire configuration
+                       using a dedicated namespace and also writes it to the header of
+                       the primary HDU when a PRM-file is saved.
+                       The order in which the configuration is used is: 1) header of a
+                       PRM-file, 2) command-line input, 3) Pampelmuse xml-file
+                       Also the preparation of the IFS data was moved from the subroutines
+                       to the main routine (i.e. this code)
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.8.0.0"
+__version__ = "0.9.0.0"
 
 
 print """
@@ -62,20 +70,18 @@ print """
            (::;;)   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   (::;;)
             `;:'                                             `;:'
 
-        (c) {1}
-""".format(__version__, __author__)
+        (c) {1}""".format(__version__, __author__)
 
 
 ## IMPORT REQUIRED PYTHON MODULES ##############################################
-import argparse, logging, os, re, sys
-import pyfits
+import argparse, datetime, logging, os, re, sys
+import numpy as np, pyfits
 
 ## initialize logging
 logging.basicConfig(format="%(asctime)s[%(levelname)-8s]: %(message)s",
                     datefmt='%m/%d/%Y %H:%M:%S', level=logging.WARNING)
 
 ## check if all dependencies are fulfilled: ####################################
-
 use_addwcs=True
 try: ## check if astLib is available
     from astLib import astCoords
@@ -109,7 +115,8 @@ if not graphics:
 
 
 ## required PampelMuse-packages ################################################
-from pampelmuse.config import xml_interact
+from pampelmuse.config import xml_interact, PampelMuseConfig, Namespace
+from pampelmuse.core.cube import Cube
 
 ## the PampelMuse-scripts
 if graphics: from pampelmuse.scripts.initfit import initfit
@@ -298,33 +305,91 @@ the names of the columns. The routine will look for columns named `id`, `RA`
 and `Dec`.""")
     AWparser.set_defaults(func=addwcs)
 
+## A Namespace is created to store the configuration of PampelMuse. The parameters
+## included in the namespace will be added as hierarch keywords to the header of
+## the primary HDU of the PampelMuse PRM file. As an example, the Namespace parameter
+## pampelmuse.initfit.version corresponds to HIERARCH PAMPELMUSE INITFIT VERSION
 
+## parse arguments into preliminary namespace
 args = PMparser.parse_args()
+
+pampelmuse = PampelMuseConfig()
+pampelmuse.version = __version__
+## initialize empty namespace for subroutine that will be called.
+setattr(pampelmuse, args.func.__name__, Namespace())
 
 ##  make sure PyQt4-dependencies are handled properly:
 if not graphics:
     args.parameter["USEQT"] = "0"
 
-## open configuration file, update if necessary
+## open configuration file, and read default configuration into  namespace
 cfg_interface = xml_interact.ModifyConfig("{0}PMparams.xml".format(CONFIGPATH),
                                           "{0}PMschema.xsd".format(CONFIGPATH))
+for key, value in cfg_interface.get_all().iteritems():
+    setattr(pampelmuse, key.lower(), value)
 
+## update configuration using command line input
+if hasattr(args, "parameter"):
+    for key, value in args.parameter.iteritems():
+        if hasattr(pampelmuse, key.lower()): ## make sure only valid parameters were provided
+            try: setattr(pampelmuse, key.lower(), eval(value))
+            except NameError: setattr(pampelmuse, key.lower(), value)
+        else:
+            logging.error("Unknown configuration parameter provided: '{0}'".format(key))
 
-##  get dtypes of provided parameters (if any) and update their values 
-if "parameter" in args:
-    names = args.parameter.keys()
-    for name in names:
-        old_value = cfg_interface.get_parameter(name, return_comment=False)
+## access initial PSF information
+if pampelmuse.psftype == "moffat": parnames = ["beta", "fwhm", "e", "theta"]
+elif pampelmuse.psftype == "gaussian": parnames = ["fwhm", "e", "theta"]
+else: logging.critical("Unknown PSF type: '{0}'".format(pampelmuse.psftype))
 
-        dtype = re.findall(r"(^<type)( ')([a-z0-9]*.[a-z0-9]*)('>)",
-                           str(type(old_value)))[0][2]
+freepar = np.zeros(len(parnames), dtype=np.bool)
+for i in xrange(freepar.size, 0, -1):
+    if pampelmuse.psffit >= 2**i:
+        freepar[i-1] = True
+        pampelmuse.psffit -= 2**i
+del pampelmuse.psffit
 
-        ## use transform_string-routine provided by xml_interfaces to 
-        ## get dtype of parameters right
-        success = cfg_interface.update_parameter(\
-            name, xml_interact.transform_string(args.parameter[name], dtype))
+pampelmuse.psf = Namespace()
+pampelmuse.psf.profile = pampelmuse.psftype
+del pampelmuse.psftype
 
-args.config = cfg_interface.get_all()  ## read configuration
+for name in parnames:
+    i = parnames.index(name)
+    setattr(pampelmuse.psf, "parname{0}".format(i), name)
+    setattr(pampelmuse.psf, "parvalue{0}".format(i), pampelmuse.psfpars[i])
+    setattr(pampelmuse.psf, "freepar{0}".format(i), bool(freepar[i]))
+del pampelmuse.psfpars
+
+## access start/stop information
+pampelmuse.start = pampelmuse.layerrng[0]
+pampelmuse.stop = pampelmuse.layerrng[1]
+del pampelmuse.layerrng
+
+    
+## add name of PRM file to configuration
+pampelmuse.filename = "{0}.prm.fits".format(args.prefix)
+
+if args.func!=initfit: ## unless INITFIT should  be called, open existing PRM file
+    
+    logging.info("Reading PampelMuse-file: {0}".format(pampelmuse.filename))
+    pampelmuse.hdulist  = pyfits.open(pampelmuse.filename, mode="update")
+
+    ## scan header of primary HDU for HIERARCH PAMPELMUSE keywords
+    ## Note that these keywords can be either directly connected to
+    ## PampelMuse (e.g. HIERARCH PAMPELMUSE IFU) or to one of its
+    ## subroutines (e.g. HIERARCH PAMPELMUSE INITFIT VERSION). In the
+    ## latter case, the key will be added to the namespace of the
+    ## corresponding subroutine.
+    pampelmuse.readHeader(pampelmuse.hdulist[0])
+    
+
+else: ## add reference catalogue to configuration
+    pampelmuse.initfit = Namespace()
+    pampelmuse.initfit.sourcelist = args.sourcelist
+
+if args.func==polyfit:
+    if not hasattr(pampelmuse, "polyfit"): pampelmuse.polyfit = Namespace()
+    pampelmuse.polyfit.reference = args.reference
 
 
 ## set up log level:
@@ -333,32 +398,42 @@ LOGLEVELS   = {0:logging.CRITICAL,
                2:logging.WARNING,
                3:logging.INFO,
                4:logging.DEBUG}
-logging.getLogger().setLevel(LOGLEVELS[args.config["VERBOSE"]])
-    
+logging.getLogger().setLevel(LOGLEVELS[pampelmuse.verbose])
 
-## check whether provided prm-file can be used with current PampelMuse-version.
-if args.func.func_name in ["cubefit", "polyfit"]:
-    prmFile = pyfits.open("{0}.prm.fits".format(args.prefix))
-    try:
-        VersionString = prmFile[0].header["PAMPELMUSE INITFIT VERSION"]
-        prmStructure = 3
-##         if re.match("v([0-9]+)\.([0-9]+)\.([0-9]+)\.([0-9]+)",VersionString):
-##             groups = re.match("v([0-9]+)\.([0-9]+)\.([0-9]+)\.([0-9]+)",
-##                               VersionString)
-    except KeyError:
-        VersionString = "0.0"
-        try:
-            prmStructure = prmFile["SOURCES"].header["PRMSTRUC"]
-        except KeyError:
-            prmStructure  = 1
+# Used as a test: an additional logger that gives the file and line where a warning message was triggered
+#if pampelmuse.verbose==4:
+#    ch = logging.StreamHandler()
+#    ch.setLevel(logging.WARNING)
+#    ch.setFormatter(logging.Formatter("%(pathname)s [%(lineno)-4s]: %(message)s"))
+#    logging.getLogger().addHandler(ch)
 
-    if prmStructure < 2 and VersionString < "0.4":
-        logging.critical("Provided PRM-file not compliant with current")
-        logging.critical("PampelMuse-version. Run")
-        logging.critical("      'PampelMuse {0} UPDATEPRM'".format(args.prefix))
-        logging.critical("to modify PRM-file first.")
 
-        sys.exit()
+## load the IFS data
+## The science, sigma and mask data can either be provided in a single file
+## (extensions 'DATA', 'ERROR', and 'MASK') or as three separate FITS-files,
+## names <root>.dat.fits, <root>.err.fits, and <root>.msk.fits
+if os.path.exists("{0}.dat.fits".format(args.prefix)):
+    data_ifs = "{0}.dat.fits".format(args.prefix)
+elif os.path.exists("{0}.fits".format(args.prefix)):
+    data_ifs = "{0}.fits".format(args.prefix)
+else:
+    logging.critical("Cannot find IFS data: {0}.dat.fits or {0}.fits".format(args.prefix))
 
-    prmFile.close()
-args.func(args)  ## execute the connected function
+if os.path.exists("{0}.err.fits".format(args.prefix)):
+    sigma_ifs = "{0}.err.fits".format(args.prefix)
+else:
+    sigma_ifs = None ## sigma data must be included as an HDU in science data file
+
+if os.path.exists("{0}.msk.fits".format(args.prefix)):
+    mask_ifs = "{0}.msk.fits".format(args.prefix)
+else:
+    mask_ifs = None ## mask data can be included as an HDU in science data file
+
+pampelmuse.ifs_data = Cube(data_ifs, instrument=pampelmuse.ifu, sigma=sigma_ifs, mask=mask_ifs)
+
+## set range of layers to be analyzed properly (in case negative values were provided)
+if pampelmuse.start < 0: pampelmuse.start = pampelmuse.ifs_data.ndisp + pampelmuse.start
+if pampelmuse.stop < 0: pampelmuse.stop = pampelmuse.ifs_data.ndisp + pampelmuse.stop 
+
+args.func(pampelmuse) ## execute the connected function
+

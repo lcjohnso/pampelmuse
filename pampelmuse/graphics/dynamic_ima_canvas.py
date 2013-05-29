@@ -16,9 +16,11 @@ CHANGELOG:
 2013/05/15 - v0.4.0.0, documented the code and revised zoom mode, also added
                        a mode to pan across the data and a history that can be
                        used to go back and forth between different views. 
+2013/05/23 - v0.4.0.1, added option to provide an instance of the Cube class
+                       of PampelMuse when loading IFS data.
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.4.0.0"
+__version__ = "0.4.0.1"
 
 import logging
 import matplotlib.pyplot, numpy as np
@@ -139,33 +141,38 @@ class DynamicImaCanvas(FigureCanvas):
         self.draw() ## update canvas view
 
 
-    def loadCube(self, name, instrument=None, checks={}, **kwargs):
+    def loadCube(self, input, instrument=None, checks={}, **kwargs):
         """
-        Load an IFU data set. Note that it is possible to provide
-        3dim. or 3dim. data. In the case that 2dim. data is provided,
-        however, 'instrument' must hold information about the instrument
-        used to observe the data (either as a string giving the instrument
-        name or an instance of a pampelmuse.core.instruments.Instrument
+        Load an IFU data set, either by providing a filename or a valid
+        instance of the 'Cube' class of PampelMuse. Note that if a filename is
+        provided, it may reference 2dim. or 3dim. data. In the case that 2dim.
+        data is provided, however, 'instrument' must hold information about the
+        instrument used to observe the data (either as a string giving the
+        instrument name or an instance of a pampelmuse.core.instruments.Instrument
         class).
         No data is actually displayed when calling this method. Use 'loadLayer'
         for this purpose.
         
         Parameters
         ----------
-        name : string
-            The name of the FITS file ccontaining the IFU data
+        name : string or an instance of pampelmuse.core.cube.Cube
+            If a string is provided, it must be the name of the FITS file containing the
+            IFU data.
         instrument : string or pampelmuse.core.instruments.Instrument instance, optional
-            Can be either the name of the instrument that observed the data
-            or an 'Instrument' instance. If neither is provided, 'name'  must  contain
-            3dim. data.
+            Can be either the name of the instrument that observed the data or an
+            'Instrument' instance. If neither is provided, 'name' must contain 3dim.
+            data. Note that this keyword only has an effect if 'name' contains a filename. 
         checks : dict, optional
             For each key in 'checks', the routine will verify that the FITS header of
             'name' contains a keyword set to the respective value.
         """
 
         ## load cube using the dedicated PampelMuse class for this purpose that
-        ##  also checks whether the  data is valid.
-        self.cube = Cube(name, instrument=instrument, checks=checks)
+        ## also checks whether the data is valid (unless an instance was provided right away).
+        if isinstance(input, str):
+            self.cube = Cube(name, instrument=instrument, checks=checks)
+        else:
+            self.cube = input
       
         ## define a Path that indicates the edges of the field of view of the instrument
         ## and add it to the figure canvas.

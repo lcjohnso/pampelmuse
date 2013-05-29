@@ -27,9 +27,10 @@ CHANGELOG:
 2013/05/16, v0.2.2.2, fixed a bug when reading an ARGUS fiber setup: The sky
                       fibers were previously identified via the name given by
                       the observer. This has been changed to the retractor.
+2013/05/29, v0.2.2.3, minor updates wrt. logging
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.2.2.2"
+__version__ = "0.2.2.3"
 import logging, re
 import numpy as np
 from matplotlib import path
@@ -111,16 +112,12 @@ class Instrument(object):
 
         ## Perform sanity checks on provided data
         if value.ndim != 2:
-            logging.critical(\
-                "'transform' must be 2dim., is {0}dim.".format(value.ndim))
+            logging.critical("'transform' must be 2dim., is {0}dim.".format(value.ndim))
         assert value.ndim == 2, "'transform' must be 2dim."
 
         if value.shape[1] != 2:
-            logging.critical(\
-                "'transform' must contain 2 spatial coordinates, has {0}."\
-                    .format(value.shape[1]))
-        assert value.shape[1]==2, \
-            "'transform' must contain 2 spatial coordinates."
+            logging.critical("'transform' must contain 2 spatial coordinates, has {0}.".format(value.shape[1]))
+        assert value.shape[1]==2, "'transform' must contain 2 spatial coordinates."
         
         self._transform = value
 
@@ -138,8 +135,7 @@ class Instrument(object):
         return self._transform
 
 
-    transform = property(get_transform, set_transform, None,
-                         "The mapping of the spaxels on the 2dim. plane.")
+    transform = property(get_transform, set_transform, None, "The mapping of the spaxels on the 2dim. plane.")
 
 
     def set_edgepix(self, value):
@@ -158,14 +154,11 @@ class Instrument(object):
 
         ## Perform sanity checks on provided data
         if self.transform == None:
-            logging.error(\
-                "Cannot set 'edgepix' unless 'transform' is specified.")
-        assert self.transform is not None, \
-            "No transformation from spaxels to x- & y-coordinates available."
+            logging.error("Cannot set 'edgepix' unless 'transform' is specified.")
+        assert self.transform is not None, "No transformation from spaxels to x- & y-coordinates available."
 
         if value.ndim != 1:
-            logging.critical("'edgepix' must be 1dim., but is {0}dim."\
-                                 .format(value.ndim))
+            logging.critical("'edgepix' must be 1dim., but is {0}dim.".format(value.ndim))
         assert value.ndim == 1, "'edgepix' must be 1dim."
 
         self._edgepix = value
@@ -203,8 +196,7 @@ class Instrument(object):
         self._edgepix = None
 
 
-    edgepix = property(get_edgepix, set_edgepix, del_edgepix,
-                       "The spaxels that define the edge of the FoV.")
+    edgepix = property(get_edgepix, set_edgepix, del_edgepix, "The spaxels that define the edge of the FoV.")
 
 
     @property
@@ -267,8 +259,7 @@ class Instrument(object):
         return self._sky_fibers
 
 
-    sky_fibers = property(get_sky_fibers, set_sky_fibers, None,
-                          "The numbers of the fibers used as sky fibers.")
+    sky_fibers = property(get_sky_fibers, set_sky_fibers, None, "The numbers of the fibers used as sky fibers.")
 
 
     def set_cal_fibers(self, value):
@@ -297,8 +288,7 @@ class Instrument(object):
         return self._cal_fibers
 
 
-    cal_fibers = property(get_cal_fibers, set_cal_fibers, None,
-                          "The numbers of the fibers used for calibration.")
+    cal_fibers = property(get_cal_fibers, set_cal_fibers, None, "The numbers of the fibers used for calibration.")
 
 
     @property
@@ -310,8 +300,7 @@ class Instrument(object):
             A list containing the indices of all auxiliary fibers used either
             as sky or calibration fibers.
         """
-        return np.asarray(np.sort(np.hstack(\
-                    (self.sky_fibers, self.cal_fibers))), dtype=np.int16)
+        return np.asarray(np.sort(np.hstack((self.sky_fibers, self.cal_fibers))), dtype=np.int16)
 
 
     @property
@@ -438,9 +427,7 @@ class Instrument(object):
             of view. Note that sources outside the field of view will have
             negative distances.
         """
-        edist = distance.cdist(\
-            self.transform[self.edgepix], np.vstack((y, x)).T,
-            metric=metric).min(axis=0)
+        edist = distance.cdist(self.transform[self.edgepix], np.vstack((y, x)).T, metric=metric).min(axis=0)
         edist[self.infov(x, y)==False] *= -1 ## sources outside have negative
                                              ## values
         return edist
@@ -508,25 +495,18 @@ class Instrument(object):
                 shape = self.shape
 
             ## prepare regular grid on which to resample the data
-            grid_y, grid_x = np.mgrid[0:shape[0]-1:1j*shape[0],
-                                      0:shape[1]-1:1j*shape[1]]
+            grid_y, grid_x = np.mgrid[0:shape[0]-1:1j*shape[0], 0:shape[1]-1:1j*shape[1]]
 
 
         ## run griddata on every layer provided
         if self.spatial_axis==1:
-            out_data = np.zeros((calc_data.shape[0],)+shape,
-                                dtype=calc_data.dtype)
+            out_data = np.zeros((calc_data.shape[0],)+shape, dtype=calc_data.dtype)
             for i in xrange(calc_data.shape[0]):
-                out_data[i] = griddata((self.y, self.x), calc_data[i],
-                                       (grid_y, grid_x), method=method,
-                                       fill_value=fill_value)
+                out_data[i] = griddata((self.y, self.x), calc_data[i], (grid_y, grid_x), method=method, fill_value=fill_value)
         else:
-            out_data = np.zeros((calc_data.shape[1],)+shape,
-                                dtype=calc_data.dtype)
+            out_data = np.zeros((calc_data.shape[1],)+shape, dtype=calc_data.dtype)
             for i in xrange(calc_data.shape[1]):
-                out_data[i] = griddata((self.y, self.x), calc_data[:,i],
-                                       (grid_y, grid_x), method=method,
-                                       fill_value=fill_value)
+                out_data[i] = griddata((self.y, self.x), calc_data[:,i], (grid_y, grid_x), method=method, fill_value=fill_value)
         return np.squeeze(out_data) ## remove pseudo-spectral axis if needed
 
 
@@ -567,8 +547,7 @@ class Instrument(object):
             calc_data = data
 
         if calc_data.ndim != 2:
-            logging.error("Data must be 1D or 2D, but is {0}D.".format(\
-                    int(calc_data.ndim)))
+            logging.error("Data must be 1D or 2D, but is {0}D.".format(int(calc_data.ndim)))
         assert calc_data.ndim == 2, "Data must be 1D or 2D"
 
         ## - Number of spaxels
@@ -582,9 +561,7 @@ class Instrument(object):
                 return np.squeeze(calc_data[:,self.isscience])
         else:
             logging.error("Provided data has invalid dimensions.")
-            logging.error("Expected {0:d} or {1:d} fibres but got {2:d}.".\
-                              format(self.nspaxel, self.nspaxel+self.naux,
-                                     calc_data.shape[np_spatial_axis]))
+            logging.error("Expected {0:d} or {1:d} fibres but got {2:d}.".format(self.nspaxel, self.nspaxel+self.naux, calc_data.shape[np_spatial_axis]))
             return None
 
 
@@ -611,8 +588,7 @@ class Pmas(Instrument):
             parent-class 'Instrument' of 'PMAS'.
         """
         ## initialize transformation from (x,y)-coords to spaxels
-        transform = np.vstack((np.arange(256, dtype=np.int16)//16,
-                               np.mod(np.arange(256, dtype=np.int16), 16))).T
+        transform = np.vstack((np.arange(256, dtype=np.int16)//16, np.mod(np.arange(256, dtype=np.int16), 16))).T
         
         ## all pixels at the edge of the fov 
         edgepix = np.asarray([0,16,32,48,64,80,96,112,128,144,160,176,192,208,224,240,241,242,243,244,245,246,247,248,249,250,251,252,253,254,255,239,223,207,191,175,159,143,127,111,95,79,63,47,31,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1], dtype=np.int16)
@@ -621,6 +597,8 @@ class Pmas(Instrument):
 ##         edgepix = np.vstack((\
 ##                 np.array([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,13,13,14,14,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15], dtype=np.int16),
 ##                 np.array([0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,0,15,0,15,0,15,0,15,0,15,0,15,0,15,0,15,0,15,0,15,0,15,0,15,0,15,0,15,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15], dtype=np.int16))).T
+
+        logging.info("Instrument in use in PMAS.")
 
         super(Pmas, self).__init__(transform, edgepix, **kwargs)
         
@@ -638,9 +616,7 @@ class Argus(Instrument):
     spectral_axis = 2
 
     ## The indices of the dedicated sky fibers
-    _sky_fibers = np.array(\
-        [20,41,63,84,105,127,148,169,191,212,233,255,276,297,319],
-        dtype=np.int16)
+    _sky_fibers = np.array([20,41,63,84,105,127,148,169,191,212,233,255,276,297,319], dtype=np.int16)
 
     ## The indices of the dedicated calibration fibers
     _cal_fibers = np.array([42,106,170,234,298], dtype=np.int16)
@@ -679,6 +655,8 @@ class Argus(Instrument):
 ##         edgepix = np.vstack((\
 ##                 np.array([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,12,12,12,12,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13], dtype=np.int16),
 ##                 np.array([2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,0,1,2,19,20,21,0,21,0,21,0,21,0,21,0,21,0,21,0,21,0,21,0,21,0,21,0,1,2,19,20,21,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19], dtype=np.int16))).T
+
+        logging.info("Instrument in use in FLAMES/Argus.")
 
         super(Argus, self).__init__(**kwargs)
 
@@ -725,12 +703,9 @@ class Argus(Instrument):
 
         ## some logging on setup that was found.
         logging.info("ARGUS fibre calibration (no. of fibres):")
-        logging.info("                            science: {0:3d}".format(\
-                self.nspaxel))
-        logging.info("                                sky: {0:3d}".format(\
-                len(self.sky_fibers)))
-        logging.info("                        calibration: {0:3d}".format(\
-                len(self.cal_fibers)))
+        logging.info("                            science: {0:3d}".format(self.nspaxel))
+        logging.info("                                sky: {0:3d}".format(len(self.sky_fibers)))
+        logging.info("                        calibration: {0:3d}".format(len(self.cal_fibers)))
 
 
 

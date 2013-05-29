@@ -61,9 +61,11 @@ CHANGELOG:
                       method 'loadSpectra' and to store it in 'makeSpecHDU'.
 2013/05/03, v0.5.2.3, included a check in method 'fitIFUCoords' whether the
                       provided function is valid.
+2013/05/29, v0.5.2.4, some minor changes
+                      
 """
-__author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.5.2.3"
+__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
+__version__ = "0.5.2.4"
 import logging
 import numpy as np, pyfits
 from numpy.polynomial import Chebyshev, Legendre
@@ -75,14 +77,14 @@ except ImportError: pass
 from pampelmuse.core.positions import CoordinateTransformation
 from pampelmuse.functions.step_poly_fit import StepPolyFit
 ## from pampelmuse.core.value_array import ValueArray
-from pampelmuse.core.instruments import Instrument, Argus, Pmas
+from pampelmuse.core.instruments import Instrument
 
 
 def matchOnID(parent, child):
     """
-    Compare to 1dim. lists for common entries. For each element in `children`
-    that is also part of the `parent`-list, the index of in the `parent'-list
-    is returned.
+    Compare to 1dim. lists for common entries. For each element in `child`
+    that is also part of the `parent` list, the index of the element in the
+    `parent' list is returned.
 
     Parameters
     ----------
@@ -205,17 +207,9 @@ class Sources(CoordinateTransformation, object):
 
 
         ## "Initialize" instrument-class
-        if isinstance(instrument, (Instrument, Argus, Pmas)):
+        if isinstance(instrument, Instrument):
             self.instrument = instrument
-            logging.info(\
-                "Selected instrument is '{0}'.".format(instrument.name))
-        elif isinstance(instrument, str):
-            if instrument == "pmas":
-                logging.info("Selected instrument is PMAS.")
-                self.instrument = Pmas()
-            elif instrument == "argus":
-                logging.info("Selected instrument is FLAMES/ARGUS.")
-                self.instrument = Argus()
+            logging.debug("Selected instrument is '{0}'.".format(instrument.name))
         else:
             logging.warning("No valid instrument specifier provided.")
             self.instrument = Instrument()
@@ -953,10 +947,8 @@ class Sources(CoordinateTransformation, object):
             try:
                 ID = hdu.header["PAMPELMUSE POSITIONS ID{0}".format(i)]
                 if not ID in self.ID:
-                    logging.error(\
-                        "Received coords for unknown ID: #{0}".format(ID))
-                assert ID in self.ID, \
-                    "Received coords for unknown ID: #{0}".format(ID)
+                    logging.error("Received coords for unknown ID: #{0}".format(ID))
+                assert ID in self.ID, "Received coords for unknown ID: #{0}".format(ID)
                 ifuID[i] = ID
             except KeyError:
                 if hdu.header["NAXIS2"] != (self.nsrc-self.hasSky):
@@ -1054,16 +1046,13 @@ class Sources(CoordinateTransformation, object):
         ## check if the requested layer selection is valid 
         if not isinstance(index, slice):
             if np.asarray(index).shape == (): index = slice(index, index+1, 1)
-            else: logging.error(\
-                "'index' is {0} but must be slice or integer.".format(\
-                    type(index)))
+            else: logging.error("'index' is {0} but must be slice or integer.".format(type(index)))
 
         ## get number of layers (if possible)
         if index.step is not None: nlayer = index.step
         elif self.ndisp != None: nlayer = self.ndisp
         else:
-            if data == None:
-                logging.error("Cannot infer length of spectral axis.")
+            if data == None: logging.error("Cannot infer length of spectral axis.")
             assert data != None, "Cannot infer length of spectral axis."
             nlayer = None
 
@@ -1077,8 +1066,7 @@ class Sources(CoordinateTransformation, object):
         match = matchOnID(self.ID, ids)
         if match.size < len(ids):
             logging.error("Invalid source IDs have been provided.")
-        assert match.size == len(ids), \
-            "Some provided IDs have no counterpart in source catalogue."
+        assert match.size == len(ids), "Some provided IDs have no counterpart in source catalogue."
         nsrc = len(ids)
 
         ## bring the provided IDs in the correct order wrt the source catalogue
@@ -1113,8 +1101,7 @@ class Sources(CoordinateTransformation, object):
             
             ## - number of sources
             if data.shape[1] != nsrc:
-                logging.error(\
-                    "Cannot match provided IFU coords data to source IDs.")
+                logging.error("Cannot match provided IFU coords data to source IDs.")
             assert data.shape[1] == nsrc, \
                 "Lengths of IFU coords data and array of source IDs differ."
 
@@ -1122,13 +1109,11 @@ class Sources(CoordinateTransformation, object):
             if data.ndim == 2:
                 if nlayer == 1: pass
                 elif nlayer == None: nlayer = 1
-                else: logging.error(\
-                    "Shape of IFU coords array does not match no of layers.")
+                else: logging.error("Shape of IFU coords array does not match no of layers.")
             elif data.ndim == 3:
                 if nlayer  == None: nlayer = data.shape[2]
                 elif data.shape[2] != nlayer:
-                    logging.error(\
-                        "IFU coords array does not match no. of layers.")
+                    logging.error("IFU coords array does not match no. of layers.")
 
             assert data.ndim in [2,3], \
                 "IFU coords array must be 3D if more than 1 layer loaded."
@@ -1152,13 +1137,12 @@ class Sources(CoordinateTransformation, object):
                 
                 ## keep track of sources for which coords have been calculated
                 processed = np.in1d(ids, self.dataID)
-
+                
                 i=0
                 for j in matchOnID(self.dataID, ids[processed]):
                     self.xdata[0,i] = self.dataHDU.section[0,j,index]
                     self.ydata[0,i] = self.dataHDU.section[1,j,index]
                     i += 1
-
             else:
                 processed = np.zeros((len(ids),), dtype=np.bool)
 
@@ -1174,21 +1158,20 @@ class Sources(CoordinateTransformation, object):
                 
                 processed[:] = True
 
-            if not processed.all():
-                logging.error(\
-                    "Could not determine IFU coords for some sources.")
-
-         
             if "polyFitHDU" in self.__dict__:
             
                 inPolyFitHDU = np.in1d(ids, self.polyFitID)
 
-                i=0
                 for j in matchOnID(self.polyFitID, ids[inPolyFitHDU]):
+                    i = np.where(ids==self.polyFitID[j])[0][0]
+                    print self.polyFitID[j], ids[i]
                     self.xdata[1,i] = self.polyFitHDU.section[0,j,index]
                     self.ydata[1,i] = self.polyFitHDU.section[1,j,index]
-                    i += 1
-        
+    
+                    processed[i] = True
+
+            if not processed.all():
+                logging.error("Could not determine IFU coords for some sources.")
 
 
     def calcTrans(self, index=slice(None)):
@@ -1337,7 +1320,6 @@ class Sources(CoordinateTransformation, object):
         else:
             if coord == "x": return self.xdata[:,jj]
             else: return self.ydata[:,jj]
-          
 
 
     def fitIFUCoords(self, ids, coord, order, bins=1, mask=None,
@@ -1604,10 +1586,11 @@ class Sources(CoordinateTransformation, object):
             flx = 10**(-0.4*(src_mag-magZ))
 
             psf.mag = 0.
-            spaxel, psf_contrib = psf.get_flux()
+##             spaxel, psf_contrib = psf.get_flux()
 
             ## get flux
-            snRatios[i] = flx*np.sqrt(((psf_contrib/sigma[spaxel])**2).sum())
+##             snRatios[i] = flx*np.sqrt(((psf_contrib/sigma[spaxel])**2).sum())
+            snRatios[i] = flx*np.sqrt(((psf.f/sigma[psf.used])**2).sum())
 
             ## recover initial star magnitude for PSF
             psf.mag = src_mag
@@ -1722,7 +1705,7 @@ class Sources(CoordinateTransformation, object):
         if not toStore.any():
             logging.error("Cannot store source coordinates to HDU. No data available.")
             return None
-        
+
         outHDU = pyfits.ImageHDU(np.rollaxis(\
                 np.dstack((self.xdata[i,toStore], self.ydata[i,toStore])),2,0),
                                  name=name)

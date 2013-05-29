@@ -22,9 +22,13 @@ CHANGELOG:
 2013/05/14, v0.3.0.0, significantly enhanced documentation of the code.
 2013/05/15, v0.3.1.0, bugfix: a '*' was missing when emitting the 'rangeSelected'
                               signal.
+2013/05/23, v0.3.2.0, bugfix: when updating the data, the lines that reset the
+                              heights of the rectangles were commented out. For this
+                              reason, the y limits of the plot were not adjusted
+                              properly.
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.3.1.0"
+__version__ = "0.3.2.0"
 
 import logging
 import matplotlib.pyplot
@@ -259,8 +263,8 @@ class DynamicPlotCanvas(FigureCanvas):
         ## reset vertical line used to highlight cursor position
         self.vLine.set_data([],[])
 
-##         for i in xrange(len(self.axes.patches)):
-##             self.axes.patches[i].set_height(0)
+        for i in xrange(len(self.axes.patches)):
+            self.axes.patches[i].set_height(0)
 
         ## update axes limits if requested
         if updateYRange:

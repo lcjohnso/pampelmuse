@@ -17,13 +17,16 @@ v0.8.0.0 - 2013/05/15, added documentation to the code and streamlined it. Also
                        added options to pan across the reference view and to
                        go scroll through the history of previously displlayed
                        cutouts of the data.
+v0.9.0.0 - 2013/05/24, increased flexibility of the code; when a cube is loaded
+                       the routine also accepts an instance of the Cube class of
+                       PampelMuse; when source spectra or coordinates are loaded
+                       and no data is provided, the active instance of the Sources
+                       class is checked for the data.
+v0.9.0.1 - 2013/05/29, implemented usage of the namespace provided by 
+                       PampelMuseConfig instead of defining an own namespace.
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.8.0.0"
-
-# TODO: remove, only needed for testing
-import sys
-sys.path.append("/home/kamann/prog/DISTRIBUTE/kamann-code.2/trunk")
+__version__ = "0.9.0.1"
 
 import datetime, logging, re, os, sys
 import matplotlib.pyplot as plt, numpy as np, pyfits
@@ -34,10 +37,13 @@ from Ui_pampelmuse_gui import Ui_PampelMuseGui
 from exit_dialog import exitUnsavedDialog
 
 ## Required PampelMuse packages
-from pampelmuse.graphics.dynamic_plot_canvas import DynamicPlotCanvas
-from pampelmuse.graphics.dynamic_ima_canvas import DynamicImaCanvas
+from pampelmuse.config import Namespace, PampelMuseConfig
 from pampelmuse.core.psf import PsfAttributes
 from pampelmuse.core.sources import Sources
+from pampelmuse.graphics.dynamic_plot_canvas import DynamicPlotCanvas
+from pampelmuse.graphics.dynamic_ima_canvas import DynamicImaCanvas
+
+
 
 
 class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
@@ -48,8 +54,8 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
     (ii) performing polynomial fits to the source positions and/or
          PSF parameters.
     """
-    def __init__(self, sources=None, fitsFile=None, fitsIfu=None, refImage=None, 
-                 parent=None, **kwargs):
+    def __init__(self, sources=None, fitsFile=None, ifsData=None, refImage=None, 
+                 parent=None, namespace=None, **kwargs):
         """
         Construct a new instance of the class 'PampelMuseGui'.
         
@@ -63,8 +69,9 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             A FITS-file containing the catalogue of sources and/or information about the
             sources such as their spectra or positions or about the PSF. An example
             for such a file is a valid prm-file as it is created by PampelMuse.
-        fitsIfu : string, optional
-            A FITS-file containing the datacube that is analysed.
+        ifsData : string or instance of pampelmuse.core.cube.Cube, optional
+            A FITS-file containing the datacube that is analysed or an instance of the
+            Cube class of PampelMuse holding the IFS data.
         refImage : string or nd_array, optional
             A reference image, provided either as a FITS file or a 2dim image array.
             Note that the idea is that the refrence coordinates used by PampelMuse are
@@ -73,6 +80,11 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             The 'parent' argument, if not None, causes self to be 
             owned by Qt instead of PyQt.
             (copied from PyQt4 documentation)
+        namespace : a python namespace, optional
+            The class uses a configuration namespace that contains information, e.g.
+            about the instrument or the version of the code. By default, an empty
+            namespace is initialized. To add the configuration to an existing one,
+            this namespace should be provided here.
         **kwargs
             Any keyword args are passed to the methods called by __init__.
         """
@@ -82,8 +94,11 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         ## Initialize variables for later use:
 
         ## PampelMuse uses a suite of hierarch keywords to store its configuration
-        ## that we collect in a dictionary
-        self.pmConfig = {}
+        ## that we collect in a namespace
+        if namespace == None:
+            self.namespace = PampelMuseConfig()
+        else:
+            self.namespace = namespace
 
         self.mask = None  ## mask along spectral axis
         self.cubeLoaded = False  ## flag indicating whether a cube is loaded
@@ -113,6 +128,13 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             assert isinstance(sources, Sources), "If provided, 'sources' must be an instance of pampelmuse.core.sources.Sources"
             self.sources = sources
 
+            self.sourceList = {} ## a dictionary that will contain the available HDUs
+                                ## and the included spectral properties that can be
+                                ## displayed/fitted.
+            self.pickSourcesOnRef() ## initialize source selection via reference image
+                                ## if possible
+            self.actionSaveAs.setEnabled(True)
+        
         ## open prm-file if provided
         if fitsFile != None:
             self.openFile(fitsFile)
@@ -127,8 +149,8 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         self.connect(self.dataPlot, SIGNAL('rangeSelected'), self.modifyMask)
         
         ## load datacube into GUI if one is provided
-        if fitsIfu != None:
-            self.openIfu(fitsIfu)
+        if ifsData != None:
+            self.openIfu(ifsData)
         
         ## load reference image into GUI if one is provided 
         if refImage != None:
@@ -142,8 +164,8 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         """
         The instrument used to observe the IFU data
         """
-        if "IFU" in self.pmConfig.keys():
-            return self.pmConfig["IFU"]
+        if hasattr(self.namespace, "ifu"):
+            return self.namespace.ifu
         else:
             return None
             
@@ -152,8 +174,8 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         """
         The index of the first layer of the IFU data that is analyzed 
         """
-        if "START" in self.pmConfig.keys():
-            return self.pmConfig["START"]
+        if hasattr(self.namespace, "start"):
+            return self.namespace.start
         else:
             return None
 
@@ -178,23 +200,26 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
                                 ## if possible
     
     
-    def loadSpectra(self, data):
+    def loadSpectra(self, data=None):
         """
         Read the source spectra from a 2dim. array or a pyfits ImageHU.
         
         Parameters
         ----------
-        data : nd_array or pyfits.ImageHDU instance
+        data : nd_array or pyfits.ImageHDU instance, optional
             The set of spectra to be loaded. Note that this method may only be
             called after the source catalogue has been initialized and that a
             check is carried out whether the number of spectra matches the number
             of components in the catalogue.
+            If no data are provided, it is assumed that the 'Sources' instance
+            that is currently active includes spectra.
         """
         if not "sources" in self.__dict__:
             logging.error("Cannot load spectra unless information about sources available.")
             return
 
-        self.sources.loadSpectra(data=data)
+        if data != None:
+            self.sources.loadSpectra(data=data)
         
         ## create entry about loaded data for data selection via QComboBox if not existent
         if self.spectrumShowHduComboBox.findText("Spectra") == -1:
@@ -204,11 +229,13 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         self.dataLoaded() ## update status of GUI
     
     
-    def loadCoordTrans(self, data):
+    def loadCoordTrans(self, data=None):
         """
         Read the coordinate transformation from reference to IFU coordinates
         form a FITS table.
-        
+        If no data are provided, it is checked whether the instance of 'Sources'
+        that is currently active contains a valid coordinate transformation.
+
         Parameters
         ----------
         data : pyfits.BinTableHDU instance
@@ -220,19 +247,21 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             logging.error("Cannot load coord. transf. unless information about sources available.")
             return
         
-        self.sources.readTransHDU(self.HDUList["POSPARS"])
+        if data != None:
+            self.sources.readTransHDU(self.HDUList["POSPARS"])
     
         ## create entries for positions and coord. transf. in QComboBox if not existent
-        for entry in ["x Positions", "y Positions", "Coord. Transf."]:
-            if self.spectrumShowHduComboBox.findText(entry) == -1:
-                self.spectrumShowHduComboBox.addItem(entry)
-        self.sourceList["Positions"] = self.sources.providePosIDs()
-        self.sourceList["Coord. Transf."] = self.sources.provideParNames()
+        if self.verifyTrans():
+            for entry in ["x Positions", "y Positions", "Coord. Transf."]:
+                if self.spectrumShowHduComboBox.findText(entry) == -1:
+                    self.spectrumShowHduComboBox.addItem(entry)
+            self.sourceList["Positions"] = self.sources.providePosIDs()
+            self.sourceList["Coord. Transf."] = self.sources.provideParNames()
         
-        ## NOTE: currently all IFU coordinates are loaded into memory, this
-        ## can be very demanding for large data sets
-        # TODO: make this more memory efficient
-        self.sources.loadIFUCoords()
+            ## NOTE: currently all IFU coordinates are loaded into memory, this
+            ## can be very demanding for large data sets
+            # TODO: make this more memory efficient
+            self.sources.loadIFUCoords()
         
         self.pickSourcesOnIfu() ## check whether source selection from IFU frame
                                 ## can be enabled.
@@ -240,16 +269,19 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         self.dataLoaded() ## update status of GUI
     
     
-    def loadPositions(self, data):
+    def loadPositions(self, data=None):
         """
         Read the IFU coordinates from a 3dim. ImageHDU.
         
         Parameters
         ----------
-        data : pyfits.ImageHDU instance
+        data : pyfits.ImageHDU instance, optional
             The coordinates of the sources on the IFU data as a function of
             wavelength. NOTE that this method may only be called after a
             catalogue of sources and their spectra have been loaded.
+            If no data are provided, it is checked whether IFU coordinates for
+            some/all sources are available in the instance of 'Sources' that
+            is currently active.
         """
         
         if not "sources" in self.__dict__:
@@ -261,23 +293,25 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             logging.error("Cannot load positions unless source spectra are available.")
             return
         
-        self.sources.loadPositionsHDU(data)
+        if data != None:
+            self.sources.loadPositionsHDU(data)
 
-        ## create entries for IFU positions in QComboBox if not existent
-        for entry in ["x Positions", "y Positions"]:
-            if self.spectrumShowHduComboBox.findText(entry) == -1:
-                self.spectrumShowHduComboBox.addItem(entry)
-        self.sourceList["Positions"] = self.sources.providePosIDs()
-        
-        ## NOTE: currently all IFU coordinates are loaded into memory, this
-        ## can be very demanding for large data sets
-        # TODO: make this more memory efficient
-        self.sources.loadIFUCoords()
-        
-        self.pickSourcesOnIfu() ## check whether source selection from IFU frame
-                                ## can be enabled.
-        
-        self.dataLoaded() ## update status of GUI
+        if self.sources.isFreePar.any() or self.sources.hasPolyFit.any():
+            ## create entries for IFU positions in QComboBox if not existent
+            for entry in ["x Positions", "y Positions"]:
+                if self.spectrumShowHduComboBox.findText(entry) == -1:
+                    self.spectrumShowHduComboBox.addItem(entry)
+            self.sourceList["Positions"] = self.sources.providePosIDs()
+            
+            ## NOTE: currently all IFU coordinates are loaded into memory, this
+            ## can be very demanding for large data sets
+            # TODO: make this more memory efficient
+            self.sources.loadIFUCoords()
+            
+            self.pickSourcesOnIfu() ## check whether source selection from IFU frame
+                                    ## can be enabled.
+            
+            self.dataLoaded() ## update status of GUI
         
 
     def loadPsfParameters(self, data):
@@ -335,18 +369,17 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         self.HDUList  = pyfits.open(fileName, mode="update")
     
         ## search headers for HIERARCH PAMPELMUSE keywords.
-        pmConfigFinder = re.compile(r"PAMPELMUSE\s([A-Z]+)$")
+        if not isinstance(self.namespace, PampelMuseConfig):
+            logging.error("Namespace is not a valid PampelMuseConfig instance.")
+            logging.error("Cannot read configuration from header of primary HDU.")
+        else:
+            self.namespace.readHeader(self.HDUList[0])
 
         ## for logging only:
         hduString = ""
 
         ## loop over HDUs in file.
         for hdu in self.HDUList:
-            
-            ## check for PampelMuse configuration keywords
-            for entry in hdu.header.ascardlist():
-                if pmConfigFinder.match(entry.key) != None:
-                    self.pmConfig[pmConfigFinder.match(entry.key).group(1)] = entry.value
 
             hduString += "{0} ".format(hdu.name)
         
@@ -365,23 +398,23 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         self.actionSaveAs.setEnabled(True)
     
     
-    def openIfu(self, fileName):
+    def openIfu(self, input):
         """
         Open an IFU datacube and display it, using the widget foreseen
         for this purpose.
         
         Parameters
         ----------
-        fileName : string
-            The name of the FITS file containing the data. Note that in
-            agreement with the the other routines of PampelMuse, 2dim.
-            data is okay if the instrument used in the observation is
-            known (otherwise data must be 3dim.).
+        input : string or a pampelmuse.core.cube.Cube instance
+            If a string is provided, it must be the name of the FITS file
+            containing the data. Note that in agreement with the the other
+            routines of PampelMuse, 2dim. data is okay if the instrument
+            used in the observation is known (otherwise data must be 3dim.).
         """
         
         ## load cube using instance of DynamicImaCanvas
         self.ifuPlot = DynamicImaCanvas()
-        self.ifuPlot.loadCube(fileName)
+        self.ifuPlot.loadCube(input)
         
         ## include this instance in GUI
         ifuFrame = QHBoxLayout(self.ifuViewWidget)
@@ -663,12 +696,16 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         else:
             HDUList = pyfits.HDUList([pyfits.PrimaryHDU(),])
         
-        for key, value in self.pmConfig.iteritems():
-            HDUList[0].header.update("hierarch PAMPELMUSE {0}".format(key), value)
-        
-        HDUList[0].header.update("hierarch PAMPELMUSE POLYFIT UTC",
-                                 datetime.datetime.utcnow().strftime("%y-%m-%d %H:%M:%S"))
-        HDUList[0].header.update("hierarch PAMPELMUSE POLYFIT VERSION", __version__)
+        if not isinstance(self.namespace, PampelMuseConfig):
+            logging.error("Namespace is not a valid instance of PampelMuseConfig.")
+            logging.error("Cannot write current configuration to header of primary HDU of outfile.")
+            
+        else:
+#            if not hasattr(self.namespace, "polyfit"):
+#                self.namespace.polyfit = Namespace()
+#            self.namespace.polyfit.utc = datetime.datetime.utcnow().strftime("%y-%m-%d %H:%M:%S")
+#            self.namespace.polyfit.version = __version__
+            self.namespace.makeHeader(hdu=HDUList[0])
 
         ## if an existing file is opened, exising HDUs will be eventually replaced
         ## for every HDU that should be written, it is checked whether an HDU with
@@ -810,9 +847,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             start = maskStart[i]
             end   = maskEnd[i]
 
-            self.dataPlot.addRectangle((start,0), width=end-start,
-                                       edgecolor="w", facecolor="k",
-                                       alpha=0.5, gid="mask{0}".format(i))
+            self.dataPlot.addRectangle((start,0), width=end-start, edgecolor="w", facecolor="k", alpha=0.5, gid="mask{0}".format(i))
             i += 1
             
         ## remove rectangles that are not needed any more.

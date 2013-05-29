@@ -160,16 +160,12 @@ class Profile(object):
             first number gives the size in y-direction.
         """
         if value.ndim != 2:
-            logging.critical("'transform' must be 2dim., is {0}dim."\
-                                 .format(value.ndim))
+            logging.critical("'transform' must be 2dim., is {0}dim.".format(value.ndim))
         assert value.ndim == 2, "'transform' must be 2dim."
 
         if value.shape[1] != 2:
-            logging.critical(\
-                "'transform' must contain 2 spatial coordinates, is {0}."\
-                    .format(value.shape[1]))
-        assert value.shape[1]==2, \
-            "'transform' must contain 2 spatial coordinates."
+            logging.critical("'transform' must contain 2 spatial coordinates, is {0}.".format(value.shape[1]))
+        assert value.shape[1]==2, "'transform' must contain 2 spatial coordinates."
         
         ## set basic class properties
         cls._transform = np.asarray(value, dtype=np.float64)
@@ -1911,6 +1907,7 @@ class Moffat(Profile):
         assert isinstance(value, (float, np.float32, np.float64)), \
             "'beta' must be a float, not {0:s}".format(type(value).__name__)
         assert value>1, "'beta' must be >1 but is {0:.1f}".format(float(value))
+        assert value<20, "'beta' must be <20 but is {0:.1f}".format(float(value))
 
         if value != self._own_beta:
 
