@@ -7,62 +7,64 @@ and some tools to change the configuration of PampelMuse.
 
 CHANGELOG
 ---------
-v0.0.0.1 -2011/09/06 - added logo
-v0.1.0.0 -2011/10/13 - modified how the PampelMuse-scripts are imported
-                       to reflect new package-structure.
-                     - first experimental "release"
-v0.1.0.1 -2011/11/29 - included logging-option
-v0.1.0.2 -2011/12/08 - added new routine `EXTRACT' to write the pixel
-                       positions of the extracted stars to an ASCII-file
-v0.1.0.3 -2012/01/13 - some minor updates to usage of logging module
-v0.1.0.4 -2012/01/17 - added posfit module. Still needs some debugging and
-                       documentation
-v0.2.0.0 -2012/01/29 - replaced posfit-module with updateprm-module. Since 
-                       the previously applied polynomial fitting of the
-                       parameters of the coordinate transformation led to
-                       wrong results, the polyfit-module now works directly
-                       on the source coordinates instead. To implement this,
-                       the structure of the prm-file has been modified. Old
-                       prm-files can be updated using the updateprm-module.
-v0.2.0.1 -2012/02/12 - slightly modified formatting of the logging-messages.
-v0.2.1.1 -2012/02/12 - fixed bug in format-string of logging-messages.
-v0.3.0.0 -2012/03/01 - added new script SUBTRES to subtract the contribution
-                       of the (resolved) stars from a datacube.
-v0.4.0.0 -2012/03/19 - modified check of PRM-file structure so that files
-                       created using INITFIT version >=0.4.0.0 pass it.
-v0.5.0.0 -2012/06/26 - added new script ADDWCS that can be used to add WCS
-                       information to the header of the IFS datacube.
-                       Also updated the help-text.
-v0.5.0.1 -2012/07/03 - slighly modified logging-initialization because calling
-                       `logging.basicConfig` has no effect after a log-message
-                       has been triggered.
-v0.5.0.2 -2012/07/24 - added handling for cases where PyQt4 is not available.
-v0.5.1.2 -2012/07/24 - some bugfixing wrt availability checks. Now we also
-                       chek for matplotlib support.
-v0.6.0.0 -2012/12/23 - added routine SHOTNOI that estimates the shot noise in a
-                       datacube.
-v0.7.0.0 -2013/03/27 - implemented a new way to construct the PSF profiles. In
-                       combination with a Levenberg-Marquard algorithm that is
-                       now used to perform the non-linear fits, this
-                       significantly speeds up the code (by a factor ~10(!)).
-                       Also added support for 2dim. input data besides cubes.
-v0.8.0.0 -2013/05/15 - included the new PampelMuse GUI to facilitate the source
-                       identification and parameter inspection/fitting. It
-                       provides more functionality than the previous GUIs used
-                       for these purposes. Together with the new GUI, the
-                       possibility to load a reference image when running
-                       INITFIT was provided.
-v0.9.0.0 -2013/05/29 - revised how the configuration of the code is handled
-                       during the analysis. The code now tracks the entire configuration
-                       using a dedicated namespace and also writes it to the header of
-                       the primary HDU when a PRM-file is saved.
-                       The order in which the configuration is used is: 1) header of a
-                       PRM-file, 2) command-line input, 3) Pampelmuse xml-file
-                       Also the preparation of the IFS data was moved from the subroutines
-                       to the main routine (i.e. this code)
+v0.0.0.1, 2011/09/06, added logo
+v0.1.0.0, 2011/10/13, modified how the PampelMuse-scripts are imported
+                      to reflect new package-structure.
+                      -> first experimental "release"
+v0.1.0.1, 2011/11/29, included logging-option
+v0.1.0.2, 2011/12/08, added new routine `EXTRACT' to write the pixel
+                      positions of the extracted stars to an ASCII-file
+v0.1.0.3, 2012/01/13, some minor updates to usage of logging module
+v0.1.0.4, 2012/01/17, added posfit module. Still needs some debugging and
+                      documentation
+v0.2.0.0, 2012/01/29, replaced posfit-module with updateprm-module. Since 
+                      the previously applied polynomial fitting of the
+                      parameters of the coordinate transformation led to
+                      wrong results, the polyfit-module now works directly
+                      on the source coordinates instead. To implement this,
+                      the structure of the prm-file has been modified. Old
+                      prm-files can be updated using the updateprm-module.
+v0.2.0.1, 2012/02/12, slightly modified formatting of the logging-messages.
+v0.2.1.1, 2012/02/12, fixed bug in format-string of logging-messages.
+v0.3.0.0, 2012/03/01, added new script SUBTRES to subtract the contribution
+                      of the (resolved) stars from a datacube.
+v0.4.0.0, 2012/03/19, modified check of PRM-file structure so that files
+                      created using INITFIT version >=0.4.0.0 pass it.
+v0.5.0.0, 2012/06/26, added new script ADDWCS that can be used to add WCS
+                      information to the header of the IFS datacube.
+                      Also updated the help-text.
+v0.5.0.1, 2012/07/03, slighly modified logging-initialization because calling
+                      `logging.basicConfig` has no effect after a log-message
+                      has been triggered.
+v0.5.0.2, 2012/07/24, added handling for cases where PyQt4 is not available.
+v0.5.1.2, 2012/07/24, some bugfixing wrt availability checks. Now we also
+                      check for matplotlib support.
+v0.6.0.0, 2012/12/23, added routine SHOTNOI that estimates the shot noise in a
+                      datacube.
+v0.7.0.0, 2013/03/27, implemented a new way to construct the PSF profiles. In
+                      combination with a Levenberg-Marquard algorithm that is
+                      now used to perform the non-linear fits, this
+                      significantly speeds up the code (by a factor ~10(!)).
+                      Also added support for 2dim. input data besides cubes.
+v0.8.0.0, 2013/05/15, included the new PampelMuse GUI to facilitate the source
+                      identification and parameter inspection/fitting. It
+                      provides more functionality than the previous GUIs used
+                      for these purposes. Together with the new GUI, the
+                      possibility to load a reference image when running
+                      INITFIT was provided.
+v0.9.0.0, 2013/05/29, revised how the configuration of the code is handled
+                      during the analysis. The code now tracks the entire configuration
+                      using a dedicated namespace and also writes it to the header of
+                      the primary HDU when a PRM-file is saved.
+                      The order in which the configuration is used is: 1) header of a
+                      PRM-file, 2) command-line input, 3) Pampelmuse xml-file
+                      Also the preparation of the IFS data was moved from the subroutines
+                      to the main routine (i.e. this code)
+v0.9.1.0, 2013/05/31, check whether parameter 'USEQT' is False if dependencies for GUIs
+                      are not fulfilled was not updated so far.
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.9.0.0"
+__version__ = "0.9.1.0"
 
 
 print """
@@ -320,8 +322,8 @@ setattr(pampelmuse, args.func.__name__, Namespace())
 
 ##  make sure PyQt4-dependencies are handled properly:
 if not graphics:
-    args.parameter["USEQT"] = "0"
-
+    pampelmuse.useqt = False
+    
 ## open configuration file, and read default configuration into  namespace
 cfg_interface = xml_interact.ModifyConfig("{0}PMparams.xml".format(CONFIGPATH),
                                           "{0}PMschema.xsd".format(CONFIGPATH))
@@ -367,6 +369,7 @@ del pampelmuse.layerrng
 
     
 ## add name of PRM file to configuration
+pampelmuse.prefix = args.prefix
 pampelmuse.filename = "{0}.prm.fits".format(args.prefix)
 
 if args.func!=initfit: ## unless INITFIT should  be called, open existing PRM file

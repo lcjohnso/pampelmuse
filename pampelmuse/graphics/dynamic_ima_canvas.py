@@ -10,20 +10,24 @@ Gui to display IFU data and reference data.
 
 CHANGELOG:
 ----------
-2013/02/03 - v0.2.0.0, started to add documentation and increased the size of
-                       the circles used to indicate data points.
-2013/05/06 - v0.3.0.0, added support for viewing layers of datacubes.
-2013/05/15 - v0.4.0.0, documented the code and revised zoom mode, also added
-                       a mode to pan across the data and a history that can be
-                       used to go back and forth between different views. 
-2013/05/23 - v0.4.0.1, added option to provide an instance of the Cube class
-                       of PampelMuse when loading IFS data.
+2013/02/03, v0.2.0.0, started to add documentation and increased the size of
+                      the circles used to indicate data points.
+2013/05/06, v0.3.0.0, added support for viewing layers of datacubes.
+2013/05/15, v0.4.0.0, documented the code and revised zoom mode, also added
+                      a mode to pan across the data and a history that can be
+                      used to go back and forth between different views. 
+2013/05/23, v0.4.0.1, added option to provide an instance of the Cube class
+                      of PampelMuse when loading IFS data.
+2013/05/31, v0.4.0.2, modified method 'addData' so that an existing data set
+                      is automatically removed before a new one is plotted.
+                      Also improved updating of axes limits when new data is
+                      plotted.
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.4.0.1"
+__version__ = "0.4.0.2"
 
 import logging
-import matplotlib.pyplot, numpy as np
+import matplotlib.artist, matplotlib.pyplot, numpy as np
 from PyQt4 import QtCore
 from matplotlib import path, patches
 from matplotlib.figure import Figure
@@ -99,7 +103,6 @@ class DynamicImaCanvas(FigureCanvas):
         self.leaveAxes = self.fig.canvas.mpl_connect('axes_leave_event', self._uponLeaving)
 
 
-
     def addImage(self, image, **kwargs):
         """
         Add a new data to the figure. This method can only
@@ -126,9 +129,8 @@ class DynamicImaCanvas(FigureCanvas):
 
         self.changeCuts() ## adapt cuts to the new data
 
-        ## adjust axes limits and store them for later recovery
-        self.axes.set_xlim(-0.5, self.image.shape[1]+0.5)
-        self.axes.set_ylim(-0.5, self.image.shape[0]+0.5)
+        ## adjust axes limits
+        self.updateAxesLimits()
         
         ## reset history of views
         self.curViewIndex = 0
@@ -139,6 +141,7 @@ class DynamicImaCanvas(FigureCanvas):
         self.axes.set_yticks([])
 
         self.draw() ## update canvas view
+
 
 
     def loadCube(self, input, instrument=None, checks={}, **kwargs):
@@ -270,6 +273,36 @@ class DynamicImaCanvas(FigureCanvas):
             self.emit(QtCore.SIGNAL("changedHiCut"), self.cuts[1])
 
 
+    def updateAxesLimits(self):
+        """
+        Automatically adjust the axis limits when a new image is loaded or
+        when new data is overplotted on the image.
+        The reason for doing this in a dedicated method is that the method
+        matplotlib.axes.Axes.relim() does not work with instances of
+        matplotlib.Collection and each scatter plot is an instance of the
+        sub-class PathCollection.
+        """
+
+        axesMin = [0, 0]
+        axesMax = [1, 1]
+
+        if self.image is not None:
+            axesMin = [-0.5, -0.5]
+            axesMax = [self.image.shape[1]+0.5, self.image.shape[0]+0.5]
+
+        if hasattr(self, "dataPlot") and isinstance(self.dataPlot, matplotlib.artist.Artist):
+            dataMin, dataMax = self.dataPlot.get_datalim(self.axes.transData).get_points()
+            
+            dataMinRound = [int(dataMin[0]-1*(dataMin[0]<0)), int(dataMin[1]-1*(dataMin[1]<0))] 
+            dataMaxRound = [int(dataMax[0]+1), int(dataMax[1]+1)]
+        
+            axesMin = np.min([axesMin, dataMinRound], axis=0)
+            axesMax = np.max([axesMax, dataMaxRound], axis=0)
+
+        self.axes.set_xlim(axesMin[0], axesMax[0])
+        self.axes.set_ylim(axesMin[1], axesMax[1])
+
+
     def getNearestSpaxel(self, x, y):
         """
         Return the spectrum of the nearest spaxel relative to a provided
@@ -330,16 +363,14 @@ class DynamicImaCanvas(FigureCanvas):
         
         assert self.x.shape == self.y.shape, "x- and y-coords must have same shape."
 
-        ## determine sizes of markers to be plotted - Not needed!
-##         if isinstance(size, (int, float)):
-##             self.size = size*np.ones(self.x.shape, dtype=np.float32)
-##         else:
-##             self.size = np.asarray(size)
-##             assert self.size.shape == self.x.shape, \
-##                 "If sizes are provided as an array, it must have same length as coords."
+        ## if previously data have been added, that is removed
+        if hasattr(self, "dataPlot") and isinstance(self.dataPlot, matplotlib.artist.Artist):
+            self.dataPlot.remove()
 
         self.dataPlot = self.axes.scatter(self.x, self.y, **kwargs)
     
+        ## change axes limits to show all the data
+        self.updateAxesLimits()
         self.draw()
 
         ## check if IDs were provided, otherwise numerate sources

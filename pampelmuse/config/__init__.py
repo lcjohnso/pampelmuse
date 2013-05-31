@@ -8,9 +8,17 @@ PampelMuseConfig is also designed as a pure namspace. However, it defines
 additional methods 'readHeader' and 'makeHeader' that can be used to read a
 configuration from a pyfits HDU and to store the current configuration of
 PampelMuse again in the header of a pyfits HDU.
+
+CHANGELOG:
+----------
+v0.1.0.0, 2013/05/26
+v0.2.0.0, added check for keywords of routine SUBTRES in makeHeader
+          method.
 """
-__version__ = "0.1" ## 2013/05/26
+__version__ = "0.2.0.0" ## 2013/05/31
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
+
+
 
 import datetime, re
 import pyfits
@@ -95,5 +103,10 @@ class PampelMuseConfig(Namespace):
             for entry in ["version", "utc"]:
                 if hasattr(self.polyfit, entry):
                     hdu.header.update("hierarch PAMPELMUSE POLYFIT {0}".format(entry.upper()), getattr(self.polyfit, entry))
+
+        if hasattr(self, "subtres"):
+            for entry in ["version", "utc"]:
+                if hasattr(self.subtres, entry):
+                    hdu.header.update("hierarch PAMPELMUSE SUBTRES {0}".format(entry.upper()), getattr(self.subtres, entry))
 
         return hdu

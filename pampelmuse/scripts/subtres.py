@@ -23,8 +23,11 @@ CHANGELOG
                       did not subtract anything because the loop over all
                       sources got stuck at the first source. Also now saving
                       fiber setup of Argus in output FITS-file if available.
-2013/04/10. v0.4.2.0, further debugging: HDU with coordinate transformation
+2013/04/10, v0.4.2.0, further debugging: HDU with coordinate transformation
                       was not always loaded but always required.
+2013/05/31, v0.5.0.0, modified overall structure of code so that it is
+                      compatible with the new way the PampelMuse configuration
+                      is handled.
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
 __version__ = "0.4.2.0"
@@ -39,129 +42,81 @@ from pampelmuse.core.new_profiles import Gaussian, Moffat
 
 
 
-def subtres(arguments):
+def subtres(pampelmuse):
 
     print ""
     print 21* " "+"***  SubtRes, version {0}  ***".format(__version__)+21*" "
     print ""
 
-    ## List of required definitions: #######################
-    prefix   = arguments.prefix                           ##
-    psfRad   = arguments.config["PSFRAD"]                 ##
-    subtSky  = arguments.config["SUBSKY"]                 ##
-    subtUnRes= arguments.config["SUBUNRES"]               ##
-    copyHead = True
-    ########################################################
+    ## Collect information about sources/create Sources-instance
+    logging.info("Obtaining information on sources in the field...")
+    
+    ## Source catalogue
+    sources = Sources(data=pampelmuse.hdulist["SOURCES"], instrument=pampelmuse.ifs_data.instrument)
 
-
-    ## open PRM-file
-    logging.info("Reading PampelMuse-file: {0}.prm.fits".format(prefix))
-    prmFile  = pyfits.open("{0}.prm.fits".format(prefix))
-    extNames = [prmFile[i].name for i in xrange(len(prmFile))]
 
     ## Check if PRM-file contains results of successful fit
-    try: fitStatus = prmFile[0].header['PAMPELMUSE CUBEFIT STATUS']
-    except KeyError:
-        try: fitStatus = prmFile[0].header['PMFITIND']
-        except KeyError: fitStatus = None
+    if hasattr(pampelmuse, "cubefit") and hasattr(pampelmuse.cubefit, "status"):
+        fitStatus = pampelmuse.cubefit.status
+    else:
+        fitStatus = "Unknown"
 
     if fitStatus != "SUCCESS":
-        logging.warning("PRM-file does not contain results of successful fit.")
+        logging.error("PRM-file does not contain results of successful fit.")
 
 
-    ## Check if information on used instrument available
-    if "PAMPELMUSE IFU" in prmFile[0].header.keys():
-        instrument = prmFile[0].header["PAMPELMUSE IFU"]
-    else:
-        instrument = None
-
-
-    ## Collect information about sources
-    ## -Spectra
+    ## Collect source spectra
     logging.info("Obtaining source spectra.")
-    sources = Sources(data=prmFile["SOURCES"],  hdu=True, instrument=instrument)
-    sources.loadSpectra(data=prmFile["SPECTRA"], hdu=True)
-                 
-    ## -Positions
-    direct_coords = False
-    coord_trans = False
-    logging.info("Obtaining source coordinates")
-    if "POSITIONS" in extNames:
-        logging.info("Reading 'POSITIONS' HDU.")
-        sources.loadPositionsHDU(prmFile["POSITIONS"])
-        direct_coords = True
-    if 'POSPARS' in extNames:
-        logging.info("Reading 'POSPARS' HDU.")
-        sources.readTransHDU(prmFile["POSPARS"], backup=False)
+    try:
+        i = pampelmuse.hdulist.index_of("SPECTRA")
+        sources.loadSpectra(data=pampelmuse.hdulist[i])
+    except KeyError:
+        logging.critical("Cannot find spectra (HDU `SPECTRA') in provided PRM-file.")
+
+
+    ## Collect source positions
+    logging.info("Obtaining information about source coordinates.")
+
+    try:
+        i = pampelmuse.hdulist.index_of("POSITIONS")
+        sources.loadPositionsHDU(pampelmuse.hdulist[i])
+        try:
+            i = pampelmuse.hdulist.index_of("INPOSITIONS")
+            sources.loadPositionsHDU(pampelmuse.hdulist[i])
+        except KeyError:
+            pass
+    except KeyError:
+        pass
+
+    try:
+        i = pampelmuse.hdulist.index_of("POSPARS")
+        sources.readTransHDU(pampelmuse.hdulist[i], backup=False)
         sources.resizeStructure(size=sources.ndisp)
         sources.makeValues()
         sources.info()
-        coord_trans = True
-    if direct_coords==False and coord_trans==False:
-        logging.error("Missing information to determine IFU coords.")
+        
+    except KeyError:
+        logging.warning("No coord. transf. (HDU 'POSPARS') detected.")
 
-    ## -PSF attributes
+
+    ## Initializing PSF properties
     psf_attributes = PsfAttributes()
-    if "PSFPARS" in extNames: ##  check if HDU exists
-        logging.info("Reading 'PSFPARS' HDU.")
-        psf_attributes.readFitsHDU(prmFile["PSFPARS"])
-    else: ## otherwise, assume Gaussian, round with FWHM=3.0pixel
-        logging.error("No HDU 'PSFPARS' found. Assuming Gaussian PSF.")
-        psf_attributes.makeNewPSF(profile="gauss", fwhm=3.0, e=0., theta=0.)
-    psf_attributes.info()
+    try:
+        i = pampelmuse.hdulist.index_of("PSFPARS")
+        psf_attributes.readFitsHDU(pampelmuse.hdulist[i])
+    except KeyError: ## otherwise, assume Gaussian, round with FWHM=3.0pixel
+        logging.warning("No HDU 'PSFPARS' found. Using default PSF.")
+        psf_attributes.makeNewPSF(profile=pampelmuse.psftype)
+
+        i=0
+        while hasattr(pampelmuse.psf, "parname{0}".format(i)):
+            psf_attributes.addParameter(name=getattr(pampelmuse.psf, "parname{0}".format(i)),
+                                        value=getattr(pampelmuse.psf, "parvalue{0}".format(i)), 
+                                        freepar=getattr(pampelmuse.psf, "freepar{0}".format(i)))
+
     psf_attributes.resizeStructure(ndisp=sources.ndisp)
     psf_attributes.makeValues()
-
-    
-    ## open datacubes & check consistency
-    logging.info("Checking data cube: {0}.dat.fits".format(prefix))
-    dataFits  = pyfits.open('{0}.dat.fits'.format(prefix))
-
-    ## check if calibration HDU for ARGUS exists
-    fiber_calib = False
-    if sources.instrument.name == "argus":
-        try:
-            setup_index = dataFits.index_of("FIBER_SETUP")
-            sources.instrument.read_fiber_setup(hdu=dataFits[setup_index])
-            fiber_calib = True
-        except KeyError:
-            logging.warning("No HDU with fibre setup found for ARGUS data.")
-
-    ## Check format of datacube
-    ndim     = dataFits[0].header["NAXIS"]
-
-    if sources.instrument.transform == None:
-        if ndim!=3:
-            logging.error(\
-                "Data must be 3D unless mapping from spaxels to x&y specified.")
-            assert ndim==3, "Expected 3dim. datacube, got {0}dim".format(ndim)
-
-        ## initialize transformation for 'Instrument'-class
-        xdim = dataFits[0].header['NAXIS1']
-        ydim = dataFits[0].header['NAXIS2']
-
-        x = np.mod(np.arange(xdim*ydim, dtype=np.int16), xdim)
-        y = np.arange(xdim*ydim, dtype=np.int16)//xdim
-
-        sources.instrument.transform = np.vstack((y,x)).T
-        
-    if ndim == 3:
-        ndisp = dataFits[0].header['NAXIS3']
-    else:
-        ndisp = dataFits[0].header[\
-            'NAXIS{0}'.format(sources.instrument.spectral_axis)]
-
-    ## Check the range of layers to be fitted 
-    try: start = prmFile[0].header['PAMPELMUSE START']
-    except KeyError: start = 0
-    try: stop = prmFile[0].header['PAMPELMUSE STOP']
-    except KeyError: stop = ndisp-1
-    
-    if (stop-start+1) != sources.ndisp:
-        logging.critical("Cube and PRM-file have incompatible sizes.")
-
-
-    data = dataFits[0].data ## load full(!) cube into memory.
+    psf_attributes.info()
 
     ## Initialize PSF profiles of the sources:
     if psf_attributes.psftype == "gauss":
@@ -169,20 +124,23 @@ def subtres(arguments):
     elif psf_attributes.psftype == "moffat":
         PSF = Moffat
     else:
-        logging.critical("Invalid PSF type: '{0}'".format(\
-                psf_attributes.psftype))
+        logging.critical("Invalid PSF type: '{0}'".format(psf_attributes.psftype))
         raise IOError, "PSF type not understood."
-    PSF.set_transform(sources.instrument.transform)
+    PSF.set_transform(pampelmuse.ifs_data.instrument.transform)
     for i in xrange(sources.nsrc):
-        psf = PSF(Xc=sources.x[i], Yc=sources.y[i], mag=sources.weights[i],
-                  maxrad=psfRad, osfactor=5, osradius=2)
+        psf = PSF(Xc=sources.x[i], Yc=sources.y[i], mag=sources.weights[i], maxrad=pampelmuse.psfrad, osfactor=5, osradius=2)
 
 
-    for kk in xrange(start, stop):
-        logging.info("Handling layer #{0} [{1:.1f}%].".format(\
-                kk, (100.*(kk-start))/(stop-start+1)))
+    ## load full(!) cube into memory.
+    logging.info("Reading full cube into memory...")
+    data = pampelmuse.ifs_data.data_hdu.data
+
+
+    for kk in xrange(pampelmuse.start, pampelmuse.stop):
+        logging.info("Handling layer #{0} [{1:.1f}%].".format(kk, (100.*(kk-pampelmuse.start))/(pampelmuse.stop-pampelmuse.start+1)))
         
-        jj = kk - start
+        ## account for offset between layers of datacube and PRM file if not the whole cube is analyzed 
+        jj = kk - pampelmuse.start
 
         ## update PSF instances
         ## -with current parameter fits
@@ -191,81 +149,75 @@ def subtres(arguments):
             getattr(PSF, "set_{0}".format(prm))(psf_attributes.values[i, jj])
             i += 1
 
-        ## -with parameters of coord. transf. if necessary
-        if coord_trans:
+        ## -with parameters of coordinate transformation (if available)
+        if sources.verifyTrans:
             i = 0
             for prm in sources.parameters:
                 getattr(PSF, "set_{0}".format(prm))(sources.ctValues[i, jj])
                 i += 1
 
         ## -with direct positions if required
-        if direct_coords:
-            sources.loadIFUCoords(index=jj)        
-            i  = -1
-            ii =  0
-            for psf in PSF:
-                i += 1
-                if not sources.loadedIFUCoords[i]: continue
+        i  = -1
+        ii =  0
+        
+        sources.loadIFUCoords(index=jj)
+
+        for psf in PSF:
+            i += 1
+            j  = sources.specrow[i]
+            
+            if sources.loadedIFUCoords[i]:
                 if sources.hasPolyFit[i]:
                     psf.set_xc(sources.xdata[1,ii,0])
                     psf.set_yc(sources.ydata[1,ii,0])
-                else:
+                elif sources.isFreePar[i]:
                     psf.set_xc(sources.xdata[0,ii,0])
                     psf.set_yc(sources.ydata[0,ii,0])
                 ii += 1
 
 
-        ## loop over components:
-        i = 0
-        for psf in PSF:
-            
-            j = sources.specrow[i]
-
             if j != sources.skyRow:
-                if j != sources.unresRow or subtUnRes: 
+                if j != sources.unresRow or pampelmuse.subunres: 
 
-                    flux = np.zeros((sources.instrument.nspaxel,),
-                                    dtype=np.float32)
+                    flux = np.zeros((pampelmuse.ifs_data.instrument.transform.shape[0],), dtype=np.float32)
 
                     flux[psf.used] += sources.data[j,jj]*psf.f
 
-                    if ndim == 3:
-                        data[kk] -= sources.instrument.make_grid(flux)
-                    elif sources.instrument.spatial_axis==1:
-                        data[kk, sources.instrument.isscience] -= flux
+                    if pampelmuse.ifs_data.ndim == 3:
+                        data[kk] -= pampelmuse.ifs_data.instrument.make_grid(flux)
+                    elif pampelmuse.ifs_data.instrument.spatial_axis==1:
+                        data[kk, pampelmuse.ifs_data.instrument.isscience] -= flux
                     else:
-                        data[sources.instrument.isscience, kk] -= flux
+                        data[pampelmuse.ifs_data.instrument.isscience, kk] -= flux
 
-            elif subtSky:
+            elif pampelmuse.subsky:
                 if ndim == 3:
                     data[kk] -= sources.data[j,jj]
-                elif sources.instrument.spatial_axis==1:
-                    data[kk, sources.instrument.isscience] -= sources.data[j,jj]
+                elif pampelmuse.ifs_data.instrument.spatial_axis==1:
+                    data[kk, pampelmuse.ifs_data.instrument.isscience] -= sources.data[j,jj]
                 else:
-                    data[sources.instrument.isscience, kk] -= sources.data[j,jj]
-            i += 1
+                    data[pampelmuse.ifs_data.instrument.isscience, kk] -= sources.data[j,jj]
 
-    prmFile.close() ## finished reading source catalog.
+    pampelmuse.hdulist.close() ## finished reading source catalog.
 
+    pampelmuse.subtres.version = __version__
+    pampelmuse.subtres.utc = datetime.datetime.utcnow().strftime("%y-%m-%d %H:%M:%S")
 
-    outHDU = pyfits.PrimaryHDU(data)
-    if copyHead:
-        outHDU.header = dataFits[0].header
-    outHDU.header.update(\
-        "hierarch PAMPELMUSE SUBTRES UTC",
-        datetime.datetime.utcnow().strftime("%y-%m-%d %H:%M:%S"))
-    outHDU.header.update("hierarch PAMPELMUSE SUBTRES VERSION", __version__)
-    outHDU.header.update("hierarch PAMPELMUSE SUBTRES PSFRAD", psfRad)
-    outHDU.header.update("hierarch PAMPELMUSE SUBTRES SUBTSKY", subtSky)
-    outHDU.header.update("hierarch PAMPELMUSE SUBTRES SUBTUNRES", subtUnRes)
+    ## create HDU for output
+    outHDU = pyfits.PrimaryHDU(data, header=pampelmuse.ifs_data.data_hdu.header)
+    
+    ## add PampelMuse configuration to HDU just created:
+    outHDU = pampelmuse.makeHeader(hdu=outHDU)
   
-    if os.path.exists("{0}.res.fits".format(prefix)):
-        os.remove("{0}.res.fits".format(prefix))
+    ## delete any existing residuals file
+    if os.path.exists("{0}.res.fits".format(pampelmuse.prefix)):
+        os.remove("{0}.res.fits".format(pampelmuse.prefix))
         logging.warning("Existing residual cube has been overwritten.")
 
-    if fiber_calib:
-        HDUList = pyfits.HDUList([outHDU, dataFits[setup_index]])
-        HDUList.writeto("{0}.res.fits".format(prefix))
+    ## save output (including HDU with fiber setup if available)
+    if pampelmuse.ifs_data.calibration_hdu != None:
+        HDUList = pyfits.HDUList([outHDU, pampelmuse.ifs_data.calibration_hdu])
+        HDUList.writeto("{0}.res.fits".format(pampelmuse.prefix))
     else:
-        outHDU.writeto("{0}.res.fits".format(prefix))
+        outHDU.writeto("{0}.res.fits".format(pampelmuse.prefix))
 

@@ -62,10 +62,10 @@ CHANGELOG:
 2013/05/03, v0.5.2.3, included a check in method 'fitIFUCoords' whether the
                       provided function is valid.
 2013/05/29, v0.5.2.4, some minor changes
-                      
+2013/05/31, v0.5.2.5, removed spurious 'print' command used for debugging
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.5.2.4"
+__version__ = "0.5.2.5"
 import logging
 import numpy as np, pyfits
 from numpy.polynomial import Chebyshev, Legendre
@@ -1164,7 +1164,7 @@ class Sources(CoordinateTransformation, object):
 
                 for j in matchOnID(self.polyFitID, ids[inPolyFitHDU]):
                     i = np.where(ids==self.polyFitID[j])[0][0]
-                    print self.polyFitID[j], ids[i]
+
                     self.xdata[1,i] = self.polyFitHDU.section[0,j,index]
                     self.ydata[1,i] = self.polyFitHDU.section[1,j,index]
     
@@ -1718,7 +1718,7 @@ class Sources(CoordinateTransformation, object):
         for j in xrange(toStore.size):
             if toStore[j]:
                 outHDU.header.update(\
-                    "hierarch PAMPELMUSE POSITIONS ID{0}".format(k), self.ID[j])
+                    "hierarch PAMPELMUSE POSITIONS ID{0}".format(k), self.ID[self.loadedIFUCoords][j])
                 k += 1
 
         return outHDU

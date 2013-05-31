@@ -6,9 +6,12 @@ CHANGELOG
 2013/05/03, v0.1.0.0, initial version
 2013/05/29, v0.2.0.0, added methods to return a layer from a datacube,
                       also included more documentation
+2013/05/31, v0.3.0.0, added method 'makeCube' that returns the data as
+                      a 3dim. cube that can be viewed using tools like
+                      QFitsView or ds9.
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.1.0.0"
+__version__ = "0.3.0.0"
 import logging
 import numpy as np, pyfits
 
@@ -55,6 +58,7 @@ class Cube:
         self.data_hdu  = None
         self.sigma_hdu = None
         self.mask_hdu  = None
+        self.calibration_hdu = None
 
         ## open datacube:
         self.file = pyfits.open(name)
@@ -70,10 +74,12 @@ class Cube:
 
         else:
             ## if no instrument name is provided, try to get from FITS header:
-            try:
-                instrume = self.file[0].header["INSTRUME"]
-            except KeyError:
-                instrume = ""
+            for hdu in self.file:
+                try:
+                    instrume = hdu.header["INSTRUME"]
+                    break
+                except KeyError:
+                    instrume = ""
             
             if instrume == "GIRAFFE":
                 self.instrument = Argus()
@@ -84,7 +90,8 @@ class Cube:
         if self.instrument.name == "argus":
             try:
                 setup_index = self.file.index_of("FIBER_SETUP")
-                self.instrument.read_fiber_setup(hdu=self.file[setup_index])
+                self.calibration_hdu = self.file[setup_index]
+                self.instrument.read_fiber_setup(hdu=self.calibration_hdu)
             except KeyError:
                 logging.warning("No HDU with fibre setup found for ARGUS data.")
     
@@ -117,8 +124,9 @@ class Cube:
         else:
             self.spectral_axis = self.instrument.spectral_axis
 
-        self.cdelt = self.data_hdu.header['CDELT{0}'.format(self.spectral_axis)]
+        self.crpix = self.data_hdu.header['CRPIX{0}'.format(self.spectral_axis)]
         self.crval = self.data_hdu.header['CRVAL{0}'.format(self.spectral_axis)]
+        self.cdelt = self.data_hdu.header['CDELT{0}'.format(self.spectral_axis)]
 
         try:
             self.ctype = self.data_hdu.header["CTYPE{0}".format(self.spectral_axis)]
@@ -344,3 +352,50 @@ class Cube:
             return self.instrument.get_science(_hdu.section[index])
         
         
+    def makeCube(self, asPrimary=False, **kwargs):
+        """
+        Create an actual datacube, i.e. a 3dim. data structure that can be
+        opened with programs like QFitsView or ds9.
+        
+        Parameters
+        ----------
+        asPrimary : boolean, optional
+            If this flag is true, the data is contained in a pyfits.PrimaryHDU
+            instance. Otherwise, it is contained in a pyfits.ImageHDU instance.
+        kwargs
+            Any additional keyword argument is passed on to the call of the
+            method pampelmuse.core.instrument.make_grid that is used to
+            convert the 2dim. into 3dim. data.
+            
+        Returns
+        -------
+        hdu : a pyfits ImageHDU-instance
+            The HDU that contains the 3dim. data. The header will is created
+            from the Header of the loaded IFS data by changing the axes
+            information (CDELT?, CRVAL?, ...) to match the structure of the
+            cube.
+        """
+        if self.ndim == 3:
+            
+            if isinstance(self.data_hdu, pyfits.PrimaryHDU) and not asPrimary:
+                return pyfits.ImageHDU(self.data_hdu.data, header=self.data_hdu.header)
+            elif isinstance(self.data_hdu) and asPrimary:
+                return pyfits.PrimaryHDU(self.data_hdu.data, header=self.data_hdu.header)
+            else:
+                return self.data_hdu
+        else:
+            outData = self.instrument.make_grid(self.data_hdu.data)
+            
+            outHeader = self.data_hdu.header
+            outHeader.update("CRPIX3", self.crpix, after="CRPIX2")
+            outHeader.update("CRVAL{0}".format(self.instrument.spectral_axis), 1.)
+            outHeader.update("CRVAL3", self.crval, after="CRVAL2")
+            outHeader.update("CDELT{0}".format(self.instrument.spectral_axis), 1.)
+            outHeader.update("CDELT3", self.cdelt, after="CDELT2")
+            outHeader.update("CTYPE{0}".format(self.instrument.spectral_axis), "LINEAR")
+            outHeader.update("CTYPE3", self.ctype, after="CTYPE2")
+            outHeader.update("CUNIT{0}".format(self.instrument.spectral_axis), "pixel")
+            outHeader.update("CTYPE3", self.cunit, after="CUNIT2")
+    
+            if asPrimary: return pyfits.PrimaryHDU(outData, header=outHeader)
+            else: return pyfits.ImageHDU(outData, header=outHeader)

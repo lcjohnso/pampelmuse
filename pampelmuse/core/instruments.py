@@ -433,8 +433,7 @@ class Instrument(object):
         return edist
 
 
-    def make_grid(self, data, grid=None, shape=None, method='linear',
-                  fill_value=np.nan):
+    def make_grid(self, data, grid=None, shape=None, method='linear', fill_value=np.nan,  **kwargs):
         """
         Calculate a representation of an observed dataset of the current 
         Instrument-instance on a regular grid in the (x,y)-plane. This method
@@ -448,7 +447,7 @@ class Instrument(object):
             (either with or without auxiliary fibers). Its spatial and
             spectral axes should coincide with those of the Instrument-
             instance.
-       shape : tuple, optional
+        shape : tuple, optional
             The (y,x)-shape of the regular grid to be created. NOTE that
             following the numpy-convention, the first value gives the y-
             size. If no size is provided, the method will use the default

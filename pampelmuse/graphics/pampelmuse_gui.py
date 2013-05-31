@@ -9,24 +9,27 @@ automatically by QtDesigner.
 
 CHANGELOG
 =========
-v0.6.0.0 - 2013/05/06, migrated an older existing code (inspect_fit_data.py)
-                       that was so far used to handle the GUI.
-v0.7.0.0 - 2013/05/13, merged the existing GUIs for source identification and
-                       inspecting and fitting the results.
-v0.8.0.0 - 2013/05/15, added documentation to the code and streamlined it. Also
-                       added options to pan across the reference view and to
-                       go scroll through the history of previously displlayed
-                       cutouts of the data.
-v0.9.0.0 - 2013/05/24, increased flexibility of the code; when a cube is loaded
-                       the routine also accepts an instance of the Cube class of
-                       PampelMuse; when source spectra or coordinates are loaded
-                       and no data is provided, the active instance of the Sources
-                       class is checked for the data.
-v0.9.0.1 - 2013/05/29, implemented usage of the namespace provided by 
-                       PampelMuseConfig instead of defining an own namespace.
+v0.6.0.0, 2013/05/06, migrated an older existing code (inspect_fit_data.py)
+                      that was so far used to handle the GUI.
+v0.7.0.0, 2013/05/13, merged the existing GUIs for source identification and
+                      inspecting and fitting the results.
+v0.8.0.0, 2013/05/15, added documentation to the code and streamlined it. Also
+                      added options to pan across the reference view and to
+                      go scroll through the history of previously displlayed
+                      cutouts of the data.
+v0.9.0.0, 2013/05/24, increased flexibility of the code; when a cube is loaded
+                      the routine also accepts an instance of the Cube class of
+                      PampelMuse; when source spectra or coordinates are loaded
+                      and no data is provided, the active instance of the Sources
+                      class is checked for the data.
+v0.9.0.1, 2013/05/29, implemented usage of the namespace provided by 
+                      PampelMuseConfig instead of defining an own namespace.
+v0.9.1.1, 2013/05/31, so far, when both IFU coordinates and polynomial fits were
+                      provided, both were overplotted on the datacube. This has
+                      been changed.
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.9.0.1"
+__version__ = "0.9.1.1"
 
 import datetime, logging, re, os, sys
 import matplotlib.pyplot as plt, numpy as np, pyfits
@@ -251,7 +254,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             self.sources.readTransHDU(self.HDUList["POSPARS"])
     
         ## create entries for positions and coord. transf. in QComboBox if not existent
-        if self.verifyTrans():
+        if self.sources.verifyTrans:
             for entry in ["x Positions", "y Positions", "Coord. Transf."]:
                 if self.spectrumShowHduComboBox.findText(entry) == -1:
                     self.spectrumShowHduComboBox.addItem(entry)
@@ -534,7 +537,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         if not self.cubeLoaded: return
 
         # TODO: check if next line works if new data is loaded
-#        if "dataPlot" in self.ifuPlot.__dict__: del self.ifuPlot.dataPlot
+        # if "dataPlot" in self.ifuPlot.__dict__: del self.ifuPlot.dataPlot
 
         ## data points will be overplotted as black empty circles
         ## Note that only resolved sources (status in [2,3]) are displayed, source
