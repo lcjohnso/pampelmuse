@@ -9,9 +9,11 @@ CHANGELOG
 2013/05/31, v0.3.0.0, added method 'makeCube' that returns the data as
                       a 3dim. cube that can be viewed using tools like
                       QFitsView or ds9.
+2013/06/11, v0.4.0.0, added a new method to extract a single spectrum
+                      from a cube.
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.3.0.0"
+__version__ = "0.4.0.0"
 import logging
 import numpy as np, pyfits
 
@@ -350,6 +352,36 @@ class Cube:
             return self.instrument.get_science(_hdu.section[:,index])
         else:
             return self.instrument.get_science(_hdu.section[index])
+        
+        
+    def getSpectrum(self, index):
+        """
+        Return the spectrum from spaxel 'index'. Note that 'index' may refer
+        to a calibration or a sky fiber if the instrument includes such fibers.
+        
+        Parameters
+        ----------
+        index : int
+            The index of the spaxel for which the spectrum should be returned.
+            
+        Returns
+        -------
+        spectrum : nd_array
+            The spectrum in spaxel 'index'.
+        """
+        ## check if provided index is valid
+        if index>=self.instrument.nfiber or index<-self.instrument.nfiber:
+            logging.error("Fiber index ({0}) out of range. Must be <{1}.".format(index, self.instrument.nfiber))
+        assert index<self.instrument.nfiber and index>=-self.instrument.nfiber, "Fiber index out of range."
+        
+        if self.ndim == 3:
+            ## for 3dim. data, there are no calibration or sky fibers, thus nfiber=len(transform)
+            j, k = self.instrument.transform[index]
+            return self.data_hdu.section[:, j, k]
+        elif self.instrument.spectral_axis==1:
+            return self.data_hdu.section[index]
+        else:
+            return self.data_hdu.section[:, index]
         
         
     def makeCube(self, asPrimary=False, **kwargs):

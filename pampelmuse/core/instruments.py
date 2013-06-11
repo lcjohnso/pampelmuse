@@ -28,9 +28,11 @@ CHANGELOG:
                       fibers were previously identified via the name given by
                       the observer. This has been changed to the retractor.
 2013/05/29, v0.2.2.3, minor updates wrt. logging
+2013/06/11, v0.3.0.0, added new property nfiber that returns the total number
+                      of fibers (science+sky+calibration)
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.2.2.3"
+__version__ = "0.3.0.0"
 import logging, re
 import numpy as np
 from matplotlib import path
@@ -312,6 +314,17 @@ class Instrument(object):
             The number of auxiliary (= sky or calibration) fibers per datacube.
         """
         return len(self.aux_fibers)
+        
+
+    @property
+    def nfiber(self):
+        """
+        Returns
+        -------
+        nfiber : int
+            The total number of fibers (science+sky+calib.) of the instrument.
+        """
+        return self.naux + self.nspaxel
         
 
     @property

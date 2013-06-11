@@ -105,9 +105,14 @@ v0.8.0.0, 2013/05/29, performed massive debugging wrt. fitting of individual
                       of the class pampelmuse.core.cube.Cube as it allows for a
                       convenient way of handling IFU data with a non-rectangular 
                       field of view.
+v0.9.0.0, 2013/06/11, changed the behaviour of the code so that when no coordinate
+                      transformation is used, sources with status are used in the
+                      position fit but not in the PSF fit. This is useful to deter-
+                      mine positions for faint sources that do not allow for a good
+                      PSF fit.
 """ 
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.8.0.0"
+__version__ = "0.9.0.0"
 
 import logging, os, sys, time
 import numpy as np, pyfits
@@ -209,6 +214,7 @@ class StarFit(object):
             self.PSF(Xc=self.sources.x[i], Yc=self.sources.y[i],mag=sources.weights[i], maxrad=maxrad, osfactor=osfactor, osradius=osradius)
 
         ## Check if individual source positions should be fitted
+
         self.fullPosFit  = (self.sources.isFreePar&(self.sources.hasPolyFit==False)).any()
         self.posToUpdate = (self.sources.isFreePar&(self.sources.hasPolyFit==False))
         if self.fullPosFit:
@@ -620,7 +626,7 @@ class StarFit(object):
             allPars = []
             
             parNames = ["xc", "yc"]
-
+    
             ## Initialize parallelization (if requested)
             if self.ncpu > 1:
                 pool    = Pool(self.ncpu)
@@ -637,7 +643,9 @@ class StarFit(object):
 
                 ## ignore sources unless they have been flagged as proper PSF
                 ## candidates
-                if not i in self.sources.psfIndices: continue
+                if not self.posToUpdate[i]: continue
+# TODO: check if this also works when using a coordinate transformation
+#                if not i in self.sources.psfIndices: continue
                 
                 ## get index of source in array of IFU coordinates, save them to place updated coords
                 ## at the right indices
@@ -661,6 +669,7 @@ class StarFit(object):
             ## update parameters
             if self.fullPosFit: ## if IFU coordinates should be fitted, update them directly
                 for i in xrange(len(allPars)):
+                    print allPars[i][0], allPars[i][1]
                     self.sources.xdata[0, coordIndices[i], self.jj] = allPars[i][0]
                     self.sources.ydata[0, coordIndices[i], self.jj] = allPars[i][1]
 

@@ -46,9 +46,10 @@ CHANGELOG
                       HDU containined the same spectra as the current HDU
 2013/05/24, v0.7.0.0, modified structure of the code to match the new way that
                       PampelMuse is initialized.
+2013/06/11, v0.7.0.1, removed parameter 'FITRAD' that was obsolete anyway.
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.7.0.0"
+__version__ = "0.7.0.1"
 import datetime, logging, os, sys
 import numpy as np, pyfits
 
@@ -162,7 +163,7 @@ def cubefit(pampelmuse):
     else:
         fitter = StarFit(ifs_data=pampelmuse.ifs_data, sources=sources, psf_attributes=psf_attributes, maxrad=pampelmuse.psfrad, osradius=2, osfactor=5)
 
-    fitter(layerRange=(start,stop), fitRad=pampelmuse.fitrad, lastFitIndex=lastFitIndex, asSmallIFU=pampelmuse.smallifu, jumpStart=pampelmuse.jumpstart,
+    fitter(layerRange=(start,stop), lastFitIndex=lastFitIndex, asSmallIFU=pampelmuse.smallifu, jumpStart=pampelmuse.jumpstart,
            ncpu=pampelmuse.cpucount, maxiter=pampelmuse.maxiter)
 
     if pampelmuse.useqt:

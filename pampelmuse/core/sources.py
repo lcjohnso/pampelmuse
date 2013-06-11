@@ -63,9 +63,11 @@ CHANGELOG:
                       provided function is valid.
 2013/05/29, v0.5.2.4, some minor changes
 2013/05/31, v0.5.2.5, removed spurious 'print' command used for debugging
+2013/06/13, v0.6.0.0, removed methods 'edgeDist' and 'signalToNoise' as they were
+                      only loosely connected to the class 'Sources'.
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.5.2.5"
+__version__ = "0.6.0.0"
 import logging
 import numpy as np, pyfits
 from numpy.polynomial import Chebyshev, Legendre
@@ -1466,36 +1468,6 @@ class Sources(CoordinateTransformation, object):
 ################################################################################
 ##              Source selection methods/properties                           ##
 ################################################################################
-    def edgeDist(self, fovShape=(16,16)):
-        """
-        Determine the distance of each source included in the scene to the
-        edges of the FoV.
-
-        Parameters
-        ----------
-        fovShape : array_like, optional
-           The x- & y-size of the FoV. Only used if no Instrument-class
-           instance is being used.
-
-        Returns
-        -------
-        dist2bright : nd_array
-            A 1dim. array containing the distance of each source to the edge
-            of the FoV. Negative distances are used for sources outside the
-            FoV
-        """
-        logging.info("Determining position of sources in IFU FoV.")
-
-        if self.instrument is not None:
-            return self.instrument.dist2edge(self.xdata[0].mean(axis=-1),
-                                             self.ydata[0].mean(axis=-1))
-        else:
-            return np.min([self.xdata[0].mean(axis=-1),
-                           self.ydata[0].mean(axis=-1),
-                           fovShape[1]-1-self.xdata[0].mean(axis=-1),
-                           fovShape[0]-1-self.ydata[0].mean(axis=-1)],
-                          axis=0)
-
 
     def distToBrighter(self):
         logging.info("Determining distance to nearest brighter source.")
@@ -1539,87 +1511,6 @@ class Sources(CoordinateTransformation, object):
         offset[dist>r] = 99.
 
         return 10**(-0.4*offset.min(axis=0))
-
-
-
-    def signalToNoise(self, class_psf, magZ, sigma, r=5):
-        """
-        Calculate the S/N ratio of all stars in the scene. This routine
-        was strongly modified in version 0.4 to include the new way to
-        calculate the PSF profiles of the sources.
-
-        Parameters
-        ----------
-        psf : A pampelmuse.core.new_profiles-class
-            An instance of this a PSF-class should be present for every
-            source in the scene. This is required to determine the flux
-            distribution across the FoV
-        magZ : float
-            The magnitude zeropoint, i.e., the magnitude of a source that
-            contributes 1count/layer
-        sigma : nd_array
-            The average uncertainties in the individual spaxels.
-        r : float, optional
-            The radius out to which the PSF profile is calculated.
-            
-        Returns
-        -------
-        snRatios : nd_array
-            A 1dim. array containing the S/N-ratio for each source
-
-        """
-        logging.info("Determining Signal-to-Noise of sources.")
-
-##         x   = self.xdata[0].mean(axis=-1)
-##         y   = self.ydata[0].mean(axis=-1)
-##         mag = self._mag[self.loadedIFUCoords]
-
-        snRatios = np.zeros(self.loadedIFUCoords.sum(), dtype=np.float32)
-
-        i=0
-        for psf in class_psf:
-##         for i in xrange(snRatios.size):
-            
-            assert psf.src_id==self.ID[i], "Source IDs do not match PSF IDs."
-
-            src_mag = psf.mag            
-            flx = 10**(-0.4*(src_mag-magZ))
-
-            psf.mag = 0.
-##             spaxel, psf_contrib = psf.get_flux()
-
-            ## get flux
-##             snRatios[i] = flx*np.sqrt(((psf_contrib/sigma[spaxel])**2).sum())
-            snRatios[i] = flx*np.sqrt(((psf.f/sigma[psf.used])**2).sum())
-
-            ## recover initial star magnitude for PSF
-            psf.mag = src_mag
-
-            i += 1
-
-        return snRatios
-
-
-
-##             ##  calculate PSF profile
-## ##             _profile = psf(size=sigma.shape, x_c=x[i], y_c=y[i],
-## ##                            mag=0., maxrad=r, return_sparse=True,
-## ##                            as_sparse_matrix=True)
-##             
-##             ## remove "empty"-pixels if instance of Instrument-class is
-##             ## available
-##             if self.instrument != None:
-##                 profile = (np.asarray(_profile.todense())/sigma)[\
-##                     self.instrument.fovmask]
-##             else:
-##                 profile = np.asarray(_profile.todense())/sigma
-## 
-## 
-##             ## PSF array must be converted to a numpy array before calculation
-##             snRatios[i] = flx*np.sqrt((profile**2).sum())
-## 
-##         return snRatios
-
 
 
 ################################################################################

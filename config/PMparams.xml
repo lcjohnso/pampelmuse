@@ -1,4 +1,4 @@
-<?xml version="1.0" ?><?xml-stylesheet type="text/xsl" href="PMstyle.xsl"?><ns0:configuration timestamp="2013-03-26T15:29:18Z" xmlns:ns0="http://www.tobedefined.com/pampelmuse" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.tobedefined.com/pampelmuse PMschema.xsd">
+<?xml version="1.0" ?><?xml-stylesheet type="text/xsl" href="PMstyle.xsl"?><ns0:configuration timestamp="2013-06-10T20:45:38Z" xmlns:ns0="http://www.tobedefined.com/pampelmuse" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.tobedefined.com/pampelmuse PMschema.xsd">
  
  <ns0:parameter category="1pho">
   <ns0:name>CFPCOLS</ns0:name>
@@ -12,7 +12,7 @@
    <ns0:comment>The photometric passband in which the provided magnitudes are given</ns0:comment>
    <ns0:updated timestamp="2011-11-29T21:03:10Z">Appended parameter PASSBAND to configuration file.</ns0:updated>
   </ns0:parameter>
-  <ns0:parameter category="1pho">
+  <ns0:parameter category="1pho"><ns0:name>ZEROMAG</ns0:name><ns0:value dtype="float">99.9</ns0:value><ns0:comment>The magnitude zeropoint of the IFS data in the provided passband, i.e. the magnitude of a source triggering 1 count/layer. Set this parameter to 99.9 to let the routine determine the zeropoint from the data.</ns0:comment><ns0:updated timestamp="2013-06-10T20:45:38Z">Appended parameter ZEROMAG to configuration file.</ns0:updated></ns0:parameter><ns0:parameter category="1pho">
   <ns0:name>PIXSCALE</ns0:name>
   <ns0:value dtype="float">10.0</ns0:value>
   <ns0:comment>The scaling of the IFU pixels with respect to the input coordinates. Same as the IFU pixelsize if the input coordinates are given in acrseconds. If the input coordinates are given in pixels, it is the ratio of IFU to input pixelsize.</ns0:comment>
@@ -66,18 +66,8 @@
   <ns0:comment>This flag defines how the determination of the PSF and the coordinate transformation is performed during the fit. If SMALLIFU is enabled, all sources are used for this purpose (recommended for IFUs with a small number of spatial pixels), otherwise bright, isolated stars are used (recommended for MUSE)</ns0:comment>
   <ns0:updated timestamp="2011-11-28T19:37:02Z">Appended parameter SMALLIFU to configuration file.</ns0:updated>
  </ns0:parameter>
- <ns0:parameter category="0general">
-  <ns0:name>DOBACKUP</ns0:name>
-  <ns0:value dtype="bool">False</ns0:value>
-  <ns0:comment>If DOBACKUP-flag is set, input values will not be deleted but moved to backup-HDUs in the PRM-file</ns0:comment>
-  <ns0:updated timestamp="2011-12-05T21:17:42Z">Appended parameter DOBACKUP to configuration file.</ns0:updated>
- </ns0:parameter>
- <ns0:parameter category="3fit" inuse="0">
-  <ns0:name>FITRAD</ns0:name>
-  <ns0:value dtype="float">3.0</ns0:value>
-  <ns0:comment>The fitting radius (given in spatial pixels) defines the circular area around a source used in the PSF fit of that source</ns0:comment>
-  <ns0:updated timestamp="2011-10-25T13:45:43Z">Appended parameter FITRAD to configuration file.</ns0:updated>
- <ns0:updated timestamp="2013-03-26T14:12:04Z">Changed default value of parameter FITRAD to 3.0 (was 3.0)</ns0:updated><ns0:updated timestamp="2013-03-26T14:12:04Z">Disabled usage of parameter.</ns0:updated></ns0:parameter>
+
+ 
  <ns0:parameter category="3fit"><ns0:name>LAYERRNG</ns0:name><ns0:value dtype="tuple">(0, -1)</ns0:value><ns0:comment>The spectral range of the datacube that should be analysed, given as the indices of the first and the last layer in that range. By default, the whole cube is analysed.</ns0:comment><ns0:updated timestamp="2013-03-26T14:10:43Z">Appended parameter LAYERRNG to configuration file.</ns0:updated></ns0:parameter><ns0:parameter category="3fit">
   <ns0:name>PSFRAD</ns0:name>
   <ns0:value dtype="float">10.0</ns0:value>

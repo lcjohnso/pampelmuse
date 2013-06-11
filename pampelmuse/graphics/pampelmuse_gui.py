@@ -27,9 +27,11 @@ v0.9.0.1, 2013/05/29, implemented usage of the namespace provided by
 v0.9.1.1, 2013/05/31, so far, when both IFU coordinates and polynomial fits were
                       provided, both were overplotted on the datacube. This has
                       been changed.
+v0.9.1.2, 2013/06/11, when overplotting the source list on the reference view,
+                      the sky is now excluded.
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.9.1.1"
+__version__ = "0.9.1.2"
 
 import datetime, logging, re, os, sys
 import matplotlib.pyplot as plt, numpy as np, pyfits
@@ -626,6 +628,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             sizes = 20*np.ones(self.sources.nsrc, dtype=np.float32)
 
             self.refPlotSelected = np.ones((self.sources.nsrc, ), dtype=np.bool)
+        self.refPlotSelected[self.sources.ID<0] = False
 
         ## add the data to the plot.
         self.refPlot.addData(self.sources.x[self.refPlotSelected], self.sources.y[self.refPlotSelected],
@@ -1438,4 +1441,3 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             facecolors[i] = self.refPlot.edgecolors[i]
         self.refPlot.dataPlot.set_facecolors(facecolors)
         self.refPlot.draw()
-    

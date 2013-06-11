@@ -87,12 +87,17 @@ CHANGELOG:
                               updated when recovering original ones.
 2013/05/29, v0.10.0.0, major updates to the file to match the new way that the
                        configuration of PampelMuse is carried through the analysis.
+2013/06/11, v0.11.0.0, changed how S/N of sources is determined: instead of counting
+                       all sources with centroids inside FoV, the contribution of
+                       each source is estimated using its PSF.
+                       Also experimenting with an alternative way to estimate the
+                       noise. 
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.10.0.0"
+__version__ = "0.11.0.0"
 import datetime, os, sys, logging
 import numpy as np, pyfits
-from scipy import interpolate, sparse
+from scipy import interpolate, ndimage, sparse
 from PyQt4 import QtGui
 
 ## required PampelMuse routines
@@ -106,13 +111,80 @@ DATAPATH = os.path.expandvars("$pampelmuse_path/data/")
 
 
 ## class defines the exception that is raised when the parameters
-## in the PampelMuse-configuration are such that they do not allow
+## in the Pampel Muse-configuration are such that they do not allow
 ## for a proper analysis of the provided input
 class ConfigurationError(EnvironmentError):
     def __init__(self, value):
         self.value = value
     def __str__(self):
         return repr(self.value)
+
+
+## Routine to  estimate the S/N in the spectra. Adapted from the RAVE DR3
+## method described in Siebert et al. (2011)
+def calcNoise(spectrum,  norm=1):
+
+    mask       = np.ones(spectrum.shape, dtype=np.bool)
+    clippedPix = 0
+
+    while True:
+        smooth    = ndimage.uniform_filter1d(spectrum[mask], size=3)
+        residuals = spectrum[mask] - smooth
+        sigma     = residuals.std()
+        
+        mask[np.flatnonzero(mask)[abs(residuals)>(2.*sigma)]] = False
+
+        if (mask==False).sum() == clippedPix:
+            break
+        else:
+            clippedPix = (mask==False).sum()
+
+    sigma_i = np.zeros((mask.sum()-2,), dtype=np.float32)
+    for j in xrange(sigma_i.size):
+        sigma_i[j] = np.std(residuals[j:j+3])
+
+    return (1.62*norm)*np.median(sigma_i)
+
+
+
+def estSnr(class_psf, sigma):
+        """
+        Calculate the S/N ratio of all stars in the scene. This routine
+        was strongly modified in version 0.4 to include the new way to
+        calculate the PSF profiles of the sources.
+
+        Parameters
+        ----------
+        psf : A pampelmuse.core.new_profiles-class
+            An instance of this a PSF-class should be present for every
+            source in the scene. This is required to determine the flux
+            distribution across the FoV
+        sigma : nd_array
+            The average uncertainties in the individual spaxels.
+
+        Returns
+        -------
+        snRatios : nd_array
+            A 1dim. array containing the S/N-ratio for each source
+        totFlux : float
+            The integrated flux of all point sources over the individual
+            spaxels.
+        """
+        logging.info("Determining Signal-to-Noise of sources.")
+
+        snRatios = []
+        totFlux  = 0.
+
+        for psf in class_psf:
+            
+            ## measure S/N
+            snRatios.append(np.sqrt(((psf.f/sigma[psf.used])**2).sum()))
+
+            ## add the flux contribution of this source in the FoV
+            totFlux += psf.f.sum()
+
+        return np.array(snRatios, dtype=np.float32), totFlux
+
 
 
 def initfit(pampelmuse):
@@ -195,9 +267,20 @@ def initfit(pampelmuse):
     fMax = filtercurve["wl"].max()
     fWht = 0.
 
+    ## estimate noise using the method described by Siebert et al. (2001). This is currently slow
+    # TODO: increase speed of calculation
+#    sigmaIma = np.zeros(pampelmuse.ifs_data.instrument.transform.shape[0], dtype=np.float32)
+#    i=0
+#    j=0
+#    for isscience in pampelmuse.ifs_data.instrument.isscience:
+#        if isscience:
+#            sigmaIma[j] = calcNoise(pampelmuse.ifs_data.getSpectrum(i)[1000:-1000], norm=1.3)
+#            j += 1
+#        i += 1
+
     ## make loop to avoid extensive use of memory for large data-cubes
     dataIma  = np.zeros(pampelmuse.ifs_data.instrument.transform.shape[0], dtype=np.float32)
-    sigmaIma = np.zeros(dataIma.shape, dtype=np.float32)
+    sigmaIma = np.zeros(dataIma.shape, dtype=np.float32) ## old method to determine noise was from SIGMA cube via integration over passband
     for i in xrange(pampelmuse.start, pampelmuse.stop):
         wave_i = pampelmuse.ifs_data.crval+i*pampelmuse.ifs_data.cdelt
         if pampelmuse.ifs_data.ctype == "nm": wave_i *= 10
@@ -206,32 +289,34 @@ def initfit(pampelmuse):
             mask_i = pampelmuse.ifs_data.getMaskForLayer(i)
             data_i, sigma_i = pampelmuse.ifs_data.getLayer(i)
 
-            dataIma[mask_i==0]  += data_i*wht_i # pampelmuse.ifs_data.instrument.get_science(data_i*wht_i)
-            sigmaIma[mask_i==0] += sigma_i*wht_i # pampelmuse.ifs_data.instrument.get_science(sigma_i*wht_i)
+            dataIma[mask_i==0] += data_i*wht_i
+            sigmaIma[mask_i==0] += sigma_i*wht_i
             fWht += wht_i
 
     dataIma  /= fWht
     sigmaIma /= fWht
 
-
-
     ## create pseudo observation from photometry results
     ## PSF is same as in IFU, with FWHM scaled by `pixScale'-Parameter
-    ## The zeropoint is such that a source with magnitude `reslim' will
+    ## Unless a zeropoint is provided (configuration parameter ZEROMAG),
+    ## the zeropoint is such that a source with magnitude `reslim' will
     ## have a flux of 1000 counts and a peak-S/N of roughly 10
     logging.info("Creating mock image from photometry sources...")
 
     PSF.set_size((int(sources.y.max()+1), int(sources.x.max()+1)))
 
-    MZERO     = pampelmuse.reslim + 7.5
+    if pampelmuse.zeromag > 99.:
+        magZ = pampelmuse.reslim + 7.5
+    else:
+        magZ = pampelmuse.zeromag
 
     identIma  = np.zeros(PSF.size, dtype='float32')
     for i in xrange(sources.nsrc):
         if sources.ID[i] <= 0: continue 
 
-        psf = PSF(Xc=sources.x[i], Yc=sources.y[i], mag=sources.mag[i], src_id=sources.ID[i], maxrad=10.)
+        psf = PSF(Xc=sources.x[i], Yc=sources.y[i], mag=sources.mag[i]-magZ, src_id=sources.ID[i], maxrad=10.)
 
-        identIma[np.asarray(psf.y[psf.used], dtype=np.int16), np.asarray(psf.x[psf.used], dtype=np.int16)] += psf.f*10**(0.4*MZERO)
+        identIma[np.asarray(psf.y[psf.used], dtype=np.int16), np.asarray(psf.x[psf.used], dtype=np.int16)] += psf.f
 
     identIma += np.random.normal(loc=0., scale=10, size=PSF.size)
 
@@ -278,19 +363,12 @@ def initfit(pampelmuse):
     ## Source selection process 
     logging.info("Selecting sources to be used in PSF fitting...")
 
-    ## get IFU coordinates for all (point) sources
+    ## Gather some basic information about sources: position in FoV, distance to next brighter source,...
+    ## load IFU coordinates for all (point) sources
     sources.loadIFUCoords(index=0, ids=sources.ID[sources.ID>=0])
 
     ## Position in Fov/distance to edge of FoV
-    edgeDist = sources.edgeDist()
-
-    ## Photometric calibration:
-    magPS = sources.mag[sources.loadedIFUCoords]
-
-    srcFlux = (10**(-0.4*magPS[edgeDist>0])).sum()
-    magZ    = -2.5*np.log10(srcFlux/dataIma.sum())
-    logging.info("Estimated photometric zeropoint ({0}) is {1:.2f}".format(pampelmuse.passband, float(magZ)))
-    pampelmuse.initfit.photzero = magZ
+    edgeDist = pampelmuse.ifs_data.instrument.dist2edge(sources.xdata[0].mean(axis=-1), sources.ydata[0].mean(axis=-1))
 
     ## distance to next brighter source
     distToBrighter, brighterID = sources.distToBrighter()
@@ -298,11 +376,31 @@ def initfit(pampelmuse):
         for i in (distToBrighter < 1e-5).nonzero()[0]:
             logging.warning("Source #{0} might be double.".format(sources.ID[i]))
 
+    if not pampelmuse.smallifu:
+        shoulderDrop = sources.shoulderDrop(r=pampelmuse.psfrad)
+
+
+    ## Perform photometric calibration (unless provided) and S/N estimation:
+    signalToNoise, intFlux = estSnr(PSF, sigmaIma)
+    
+    ## Calculate ratio between expected flux for current zeropoint and flux in image
+    fratio = intFlux/dataIma.sum()
+    dmag = -2.5*np.log10(fratio)
+
+    ## determine zeropoint if requested and update S/N estimates 
+    if pampelmuse.zeromag > 99.:
+        signalToNoise /= fratio
+        magZ += dmag
+        logging.info("Estimated photometric zeropoint ({0}) is {1:.2f}".format(pampelmuse.passband, float(magZ)))
+    elif fratio > (2./3.) and fratio < 1.5:
+        logging.info("The difference between provided and estimated photometric zeropoint ({0}) is {1:.2f}mag".format(pampelmuse.passband, abs(dmag)))
+    else:
+        logging.warning("The difference between provided and estimated photometric zeropoint ({0}) is {1:.2f}mag".format(pampelmuse.passband, abs(dmag)))
+    
+    pampelmuse.initfit.photzero = magZ
+
     ## collect FWHM of sources in single array
     fwhm = np.asarray([psf.fwhm for psf in PSF])
-
-    ## signal-to-noise
-    signalToNoise = sources.signalToNoise(class_psf=PSF, magZ=magZ, sigma=sigmaIma, r=pampelmuse.psfrad)
 
     ##  modify S/N of sources close to brighter neighbor:
     close = distToBrighter<fwhm
@@ -313,9 +411,6 @@ def initfit(pampelmuse):
     signalToNoise[outside] *= np.exp(-(edgeDist[outside]/fwhm[outside])**2)
 
 
-    if not pampelmuse.smallifu:
-        shoulderDrop = sources.shoulderDrop(r=pampelmuse.psfrad)
-
     ## determine status of all sources in catalogue:
     ##  4 - global sky spectrum
     ##  3 - resolved, own spectrum
@@ -325,6 +420,7 @@ def initfit(pampelmuse):
     ## -1 - excluded
 
     ## Determine confusion limit, update parameter if requested
+    magPS = sources.mag[sources.loadedIFUCoords]
     mcut = magPS[edgeDist>0].min()
     while True:
         mcut += 0.1
