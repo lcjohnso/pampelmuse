@@ -30,9 +30,13 @@ CHANGELOG:
 2013/05/29, v0.2.2.3, minor updates wrt. logging
 2013/06/11, v0.3.0.0, added new property nfiber that returns the total number
                       of fibers (science+sky+calibration)
+2013/06/13, v0.3.0.1, modified handling of edges of field of view. They coincide
+                      now with the edges of the spaxels (instead of their centres).
+                      Introduced a new property 'edgepath' to facilitate the
+                      calculations.
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.3.0.0"
+__version__ = "0.3.0.1"
 import logging, re
 import numpy as np
 from matplotlib import path
@@ -52,6 +56,7 @@ class Instrument(object):
     _transform = None ## will contain the transformation from spaxels to x&y
     _edgepix = None ## will contain the indices of the spaxels that define
                     ## the edge of the field of view.
+    _edgepath = None ## will be a matplotlib.path around the edge of the FoV
 
     _sky_fibers = []  ## The indices of the sky fibers
     _cal_fibers = []  ## The indices of the calibration fibers
@@ -80,10 +85,6 @@ class Instrument(object):
             If edgepix=None, it can be specified after initialization.
         badspax : array_like, optional
             A list containing the indices of dead spaxels.
-##      NOT USED ANYMORE   maxoff : float, optional
-##             The maximum distance of a position in the (x,y)-plane to the
-##             centre of a spaxel that is considered inside the field of view.
-##             The default value of sqrt(0.5) assumes a filling factor of unity.
         """
 
         self.set_transform(transform)
@@ -199,6 +200,39 @@ class Instrument(object):
 
 
     edgepix = property(get_edgepix, set_edgepix, del_edgepix, "The spaxels that define the edge of the FoV.")
+
+
+    def get_edgepath(self):
+        """
+        Create a matplotlib.path.Path instance that follows the edges of
+        the field of view. This instance can be used for plotting purposes
+        and to check whether a point is inside or outside the FoV.
+        
+        Returns
+        -------
+        edgepath:  a matplotlib.path.Path instance
+            The edges of the field of view.
+        """
+        
+        ## can only create Path if transformation and edge spaxels have been defined
+        if self.edgepix == None or self.transform == None: return None
+        
+        if self._edgepath == None:
+            ## estimate center of field of view
+            center = np.median(self.transform,  axis=0)
+        
+            ## apply offset of +/-0.5 to spaxels along the egdes of the FoV
+            edgepos  = np.asarray(self.transform[np.r_[self.edgepix, self.edgepix[0]]], dtype=np.float32)
+            offsets  = 0.5*np.ones(edgepos.shape,  dtype=np.float32)
+            offsets[edgepos<center] *= -1
+            edgepos += offsets
+        
+            ## initialize path instance:
+            self._edgepath = path.Path(edgepos, closed=True)
+        return self._edgepath
+    
+    
+    edgepath = property(get_edgepath, None, None, "A path along the edge of the field of view.")
 
 
     @property
@@ -378,8 +412,7 @@ class Instrument(object):
             The distance(s) calculated using the provided metric and in units
             of spaxels.
         """
-        return distance.cdist(self.transform, np.vstack((y, x)).T,
-                              metric=metric)
+        return distance.cdist(self.transform, np.vstack((y, x)).T, metric=metric)
 
 
     def infov(self, x, y):
@@ -403,16 +436,14 @@ class Instrument(object):
             A boolean flag for each source indicating whether or not it is
             inside the field of view.
         """
-        ## initialize path instance:
-        edge_path = path.Path(self.transform[self.edgepix])
         
         ## loop over provided coordinates
         if isinstance(x, (np.ndarray, list)):
             infov = np.zeros(len(x), dtype=np.bool)
             for i in xrange(infov.size):
-                infov[i] = edge_path.contains_point((y[i], x[i]))
+                infov[i] = self.edgepath.contains_point((y[i], x[i]))
         else:
-            infov = (edge_path.contains_point((y, x))==1)
+            infov = (self.edgepath.contains_point((y, x))==1)
 
         return infov
 
@@ -440,9 +471,9 @@ class Instrument(object):
             of view. Note that sources outside the field of view will have
             negative distances.
         """
-        edist = distance.cdist(self.transform[self.edgepix], np.vstack((y, x)).T, metric=metric).min(axis=0)
-        edist[self.infov(x, y)==False] *= -1 ## sources outside have negative
-                                             ## values
+        edist = distance.cdist(self.edgepath.to_polygons()[0], np.vstack((y, x)).T, metric=metric).min(axis=0)
+        edist[self.infov(x, y)==False] *= -1 ## sources outside have negative ## values
+        
         return edist
 
 

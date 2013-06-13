@@ -22,12 +22,15 @@ CHANGELOG:
                       is automatically removed before a new one is plotted.
                       Also improved updating of axes limits when new data is
                       plotted.
+2013/06/13, v0.4.0.3, modified plotting of frame around IFU FoV so that the
+                      Path instance available in
+                      pampelmuse.core.instrument.Instrument is used.
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.4.0.2"
+__version__ = "0.4.0.3"
 
 import logging
-import matplotlib.artist, matplotlib.pyplot, numpy as np
+import matplotlib.transforms, matplotlib.artist, matplotlib.pyplot, numpy as np
 from PyQt4 import QtCore
 from matplotlib import path, patches
 from matplotlib.figure import Figure
@@ -179,10 +182,12 @@ class DynamicImaCanvas(FigureCanvas):
       
         ## define a Path that indicates the edges of the field of view of the instrument
         ## and add it to the figure canvas.
-        self.edgepoly = path.Path(self.cube.instrument.transform[self.cube.instrument.edgepix][:, [1, 0]])
+        ## such a Path is available in the pampelmuse.cube.instrument.Instrument instance,
+        ## yet the x- and y-axes need to be swapped.
+        t = matplotlib.transforms.Affine2D(np.array([[0, 1, 0], [1, 0, 0], [0, 0, 1]]))
+        plotpath = self.cube.instrument.edgepath.transformed(t)
       
-        edgepatch = patches.PathPatch(self.edgepoly, facecolor="None", edgecolor="r", lw=2, 
-                                      alpha=0.5)
+        edgepatch = patches.PathPatch(plotpath, facecolor="None", edgecolor="r", lw=2, alpha=0.5)
         self.axes.add_patch(edgepatch)
       
       
@@ -288,7 +293,7 @@ class DynamicImaCanvas(FigureCanvas):
 
         if self.image is not None:
             axesMin = [-0.5, -0.5]
-            axesMax = [self.image.shape[1]+0.5, self.image.shape[0]+0.5]
+            axesMax = [self.image.shape[1]-0.5, self.image.shape[0]-0.5]
 
         if hasattr(self, "dataPlot") and isinstance(self.dataPlot, matplotlib.artist.Artist):
             dataMin, dataMax = self.dataPlot.get_datalim(self.axes.transData).get_points()
