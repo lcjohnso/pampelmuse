@@ -25,9 +25,13 @@ CHANGELOG:
 2013/06/13, v0.4.0.3, modified plotting of frame around IFU FoV so that the
                       Path instance available in
                       pampelmuse.core.instrument.Instrument is used.
+2013/06/19, v0.4.1.3, it happened occasionally that the code showed unexpected
+                      behavior in zoom or pan mode when leaving and re-entering
+                      the axes because multiple events were triggered. This should
+                      be fixed now.
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.4.0.3"
+__version__ = "0.4.1.3"
 
 import logging
 import matplotlib.transforms, matplotlib.artist, matplotlib.pyplot, numpy as np
@@ -91,15 +95,14 @@ class DynamicImaCanvas(FigureCanvas):
         self.axes.set_autoscale_on(False)
 
         ## Initialize the frame used to indicate a zoom into the data.
-        self.zoomFrame = Rectangle((0., 0.),  width=0., height=0., fc="None", 
-                                   lw=1.0, ls="solid", ec="0.5",
-                                   transform=self.axes.transData, 
-                                   gid="zoomFrame")
+        self.zoomFrame = Rectangle((0., 0.),  width=0., height=0., fc="None", lw=1.0, ls="solid", ec="0.5",
+                                   transform=self.axes.transData, gid="zoomFrame")
         self.axes.add_patch(self.zoomFrame)
 
         ## start in normal mode (zoom and pan switched off)
         self.zoom = False
         self.pan = False
+        self.inEvent = False ## will be True if pan or zoom is going on
         
         ## Handle events when axes instance is left or entered
         self.enterAxes = self.fig.canvas.mpl_connect('axes_enter_event', self._uponEntering)
@@ -446,7 +449,6 @@ class DynamicImaCanvas(FigureCanvas):
         event : a matplotlib.backend_bases.LocationEvent instance
             The event that triggered the method call.
         """
-
         if event.inaxes != self.axes:
             return ## do noting if wrong axes were entered
         
@@ -455,8 +457,9 @@ class DynamicImaCanvas(FigureCanvas):
         except:
             pass
         
-        ## initialize handler for mouse click
-        self.Init = self.fig.canvas.mpl_connect('button_press_event', self.on_mouseButton_pressed)
+        ## initialize handler for mouse click unless a zoom or pan event is still active
+        if not self.inEvent:
+            self.Init = self.fig.canvas.mpl_connect('button_press_event', self.on_mouseButton_pressed)
 
         
 
@@ -470,7 +473,6 @@ class DynamicImaCanvas(FigureCanvas):
         event : a matplotlib.backend_bases.LocationEvent instance
             The event that triggered the method call.
         """
-        
         if event.inaxes != self.axes:
             return
 
@@ -514,6 +516,7 @@ class DynamicImaCanvas(FigureCanvas):
 
         ## disconnect initialization event to avoid multiple events.
         self.fig.canvas.mpl_disconnect(self.Init)
+        self.inEvent = True
 
         ## initialize actions for mouse movement with button pressed and
         ## release of button
@@ -539,6 +542,7 @@ class DynamicImaCanvas(FigureCanvas):
         
         ## disconnect handlers for button release and movement
         ## with mouse button pressed.
+        self.inEvent = False
         self.fig.canvas.mpl_disconnect(self.Final)
         self.fig.canvas.mpl_disconnect(self.MotionKey)
 
@@ -548,23 +552,24 @@ class DynamicImaCanvas(FigureCanvas):
             self.xFinal = event.xdata
             self.yFinal = event.ydata
 
-        xmin, xmax = sorted([self.xInit, self.xFinal])
-        ymin, ymax = sorted([self.yInit, self.yFinal])
-
-        if self.zoom: ## if zoom, change limits to selected window
-            if xmin==xmax or ymin==ymax:
-                logging.error("Area selection must be 2dimensional.")
-            else:
-                self.axes.set_xlim(xmin, xmax)
-                self.axes.set_ylim(ymin, ymax)
-                self.draw()
-            self.zoomFrame.set_width(0) ## minimize zoom window
-            self.zoomFrame.set_height(0)
-
-        self.curViewIndex += 1
-        self.viewHistory.insert(self.curViewIndex, (self.axes.get_xlim(), self.axes.get_ylim()))
-        if len(self.viewHistory) > self.curViewIndex+1:
-            self.viewHistory = self.viewHistory[:self.curViewIndex+1]
+        if self.xInit != None and self.yInit != None:
+            xmin, xmax = sorted([self.xInit, self.xFinal])
+            ymin, ymax = sorted([self.yInit, self.yFinal])
+    
+            if self.zoom: ## if zoom, change limits to selected window
+                if xmin==xmax or ymin==ymax:
+                    logging.error("Area selection must be 2dimensional.")
+                else:
+                    self.axes.set_xlim(xmin, xmax)
+                    self.axes.set_ylim(ymin, ymax)
+                    self.draw()
+                self.zoomFrame.set_width(0) ## minimize zoom window
+                self.zoomFrame.set_height(0)
+    
+            self.curViewIndex += 1
+            self.viewHistory.insert(self.curViewIndex, (self.axes.get_xlim(), self.axes.get_ylim()))
+            if len(self.viewHistory) > self.curViewIndex+1:
+                self.viewHistory = self.viewHistory[:self.curViewIndex+1]
 
         ## initialize handler for next selection event
         self.Init = self.fig.canvas.mpl_connect('button_press_event', self.on_mouseButton_pressed)
@@ -587,6 +592,9 @@ class DynamicImaCanvas(FigureCanvas):
         """
 
         if event.inaxes != self.axes:
+            return
+
+        if self.xInit == None or self.yInit == None:
             return
 
         ## in case the button is released outside the axes, we use the
