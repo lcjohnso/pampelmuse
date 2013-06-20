@@ -29,9 +29,12 @@ CHANGELOG:
                       behavior in zoom or pan mode when leaving and re-entering
                       the axes because multiple events were triggered. This should
                       be fixed now.
+2013/06/20, v0.5.0.0, now using animations to only redraw the elements that are
+                      actually affected by a user interaction. This makes the inter-
+                      actions much smoother.
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.4.1.3"
+__version__ = "0.5.0.0"
 
 import logging
 import matplotlib.transforms, matplotlib.artist, matplotlib.pyplot, numpy as np
@@ -107,6 +110,26 @@ class DynamicImaCanvas(FigureCanvas):
         ## Handle events when axes instance is left or entered
         self.enterAxes = self.fig.canvas.mpl_connect('axes_enter_event', self._uponEntering)
         self.leaveAxes = self.fig.canvas.mpl_connect('axes_leave_event', self._uponLeaving)
+
+
+    def draw(self):
+        """
+        Update the plot to display the latest changes. Following the
+        recommendations for animations in matplotlib, we only redraw
+        the animated parts of a plot and blit the static parts during
+        an animation. To this aim, we save the static background to a
+        variable immediately after each call to draw().
+        
+        """
+        ## draw() shows unanimated parts of plot that we also save as a static background for later recovery
+        super(DynamicImaCanvas, self).draw()
+        self.background = self.figure.canvas.copy_from_bbox(self.axes.bbox)
+        
+        ## show animated part - needs to be called because draw() only plots static parts
+#        if self.vLine.get_animated(): self.axes.draw_artist(self.vLine)
+        
+        ## and blit just the redrawn (e.g. animated) area
+#        self.figure.canvas.blit(self.axes.bbox)
 
 
     def addImage(self, image, **kwargs):
@@ -379,6 +402,11 @@ class DynamicImaCanvas(FigureCanvas):
     
         ## change axes limits to show all the data
         self.updateAxesLimits()
+        
+        ## reset history of views
+        self.curViewIndex = 0
+        self.viewHistory  = [(self.axes.get_xlim(), self.axes.get_ylim()), ]
+        
         self.draw()
 
         ## check if IDs were provided, otherwise numerate sources
@@ -510,6 +538,7 @@ class DynamicImaCanvas(FigureCanvas):
                 self.gotoView(0)
                 return
             self.zoomFrame.set_xy((self.xInit,self.yInit))
+            self.zoomFrame.set_animated(True)
         elif self.pan: ## for panning, we need current axis limits
             self.panWindowX = self.axes.get_xlim()
             self.panWindowY = self.axes.get_ylim()
@@ -565,6 +594,7 @@ class DynamicImaCanvas(FigureCanvas):
                     self.draw()
                 self.zoomFrame.set_width(0) ## minimize zoom window
                 self.zoomFrame.set_height(0)
+                self.zoomFrame.set_animated(False)
     
             self.curViewIndex += 1
             self.viewHistory.insert(self.curViewIndex, (self.axes.get_xlim(), self.axes.get_ylim()))
@@ -605,12 +635,17 @@ class DynamicImaCanvas(FigureCanvas):
         if self.zoom: ##  span up zoom window
             self.zoomFrame.set_width(self.xFinal-self.xInit)
             self.zoomFrame.set_height(self.yFinal-self.yInit)
+
+            self.figure.canvas.restore_region(self.background)
+            self.axes.draw_artist(self.zoomFrame)
+            self.figure.canvas.blit(self.axes.bbox)
+
         elif self.pan: ## change x- and y-limits
             dx = (self.xInit - self.xFinal)/2.
             dy = (self.yInit - self.yFinal)/2.
             self.axes.set_xlim(self.panWindowX[0]+dx, self.panWindowX[1]+dx)
             self.axes.set_ylim(self.panWindowY[0]+dy, self.panWindowY[1]+dy)
-        self.draw()
+            self.draw()
 
 
     def gotoView(self,  index):

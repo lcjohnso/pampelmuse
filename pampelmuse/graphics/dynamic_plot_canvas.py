@@ -26,9 +26,12 @@ CHANGELOG:
                               heights of the rectangles were commented out. For this
                               reason, the y limits of the plot were not adjusted
                               properly.
+2013/06/20, v0.4.0.0, now using animations to only redraw the elements that are
+                      actually affected by a user interaction. This makes the inter-
+                      actions much smoother.
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.3.2.0"
+__version__ = "0.4.0.0"
 
 import logging
 import matplotlib.pyplot
@@ -73,6 +76,7 @@ class DynamicPlotCanvas(FigureCanvas):
         ## prepare figure canvas
         self.fig  = Figure(figsize=(width, height), dpi=dpi)
         self.axes = self.fig.add_axes((0.15, 0.20, 0.82, 0.76))
+        self.canvas = self.fig.canvas
 
         FigureCanvas.__init__(self, self.fig)
         self.setParent(parent)
@@ -80,9 +84,9 @@ class DynamicPlotCanvas(FigureCanvas):
         ## dictionary to keep track of the data sets that are plotted.
         self.thePlots = {}
 
-        ## a vertical line that can later be used to hightlight the
-        ## cursor position on the canvas.
-        self.vLine, = self.axes.plot([], [], ls='--', color='r')
+        ## a vertical line that can later be used to hightlight the cursor position on the canvas.
+        self.vLine, = self.axes.plot([0.5, 0.5], [0, 1], ls='--', color='r')
+        self.vLine.set_animated(True) ## make animated for smoother interaction
 
         ## prepare structure to hold a set of rectangles to be
         ## overplotted on th data. In PampelMuse, this is used to
@@ -91,23 +95,16 @@ class DynamicPlotCanvas(FigureCanvas):
         ## to achieve axes units (bottom to top = 0 to 1) in
         ## vertical direction and data units (wavelength) in
         ## horizontal direction:
-        self.bar_transform = blended_transform_factory(\
-            self.axes.transData, self.axes.transAxes)
+        self.bar_transform = blended_transform_factory(self.axes.transData, self.axes.transAxes)
         self.bar_gid = [] ## will contain the ID of every rectangle
         
-        ## the mask selector. It will be spanned by mouse mouvements
-        ## over the canvas while the left button is pressed.
-        selector = Rectangle((0.,0.), width=0., height=1., alpha=0.5,
-                              fc='r', lw=0, transform=self.bar_transform,
-                              gid="selector")
+        ## the mask selector. It will be spanned by mouse mouvements over the canvas while the left button is pressed.
+        selector = Rectangle((0.,0.), width=0., height=1., alpha=0.5,fc='r', lw=0, transform=self.bar_transform, gid="selector")
         self.axes.add_patch(selector)
         self.bar_gid.append(selector)
         
         ## The frame used to indicate a zoom into the data.
-        zoomFrame = Rectangle((0., 0.),  width=0., height=0., fc="None", 
-                              lw=1.0, ls="solid", ec="0.5",
-                              transform=self.axes.transData, 
-                              gid="zoomFrame")
+        zoomFrame = Rectangle((0., 0.), width=0., height=0., fc="None", lw=1.0, ls="solid", ec="0.5", transform=self.axes.transData, gid="zoomFrame")
         self.axes.add_patch(zoomFrame)
         self.bar_gid.append(zoomFrame.get_gid())
 
@@ -122,13 +119,30 @@ class DynamicPlotCanvas(FigureCanvas):
         ## start in normal mode (zoom and pan switched off)
         self.zoom = False
         self.pan = False
+
+        self.draw()
+
         
 
     def draw(self):
         """
-        Update the plot to display the latest changes.
+        Update the plot to display the latest changes. Following the
+        recommendations for animations in matplotlib, we only redraw
+        the animated parts of a plot and blit the static parts during
+        an animation. To this aim, we save the static background to a
+        variable immediately after each call to draw().
+        
         """
+        ## draw() shows unanimated parts of plot that we also save as a static background for later recovery
         super(DynamicPlotCanvas, self).draw()
+        self.background = self.figure.canvas.copy_from_bbox(self.axes.bbox)
+        
+        ## show animated part - needs to be called because draw() only plots static parts
+        if self.vLine.get_animated(): self.axes.draw_artist(self.vLine)
+        
+        ## and blit just the redrawn (e.g. animated) area
+        self.figure.canvas.blit(self.axes.bbox)
+
 
 
     def addData(self, name, xData, yData, **kwargs):
@@ -162,7 +176,7 @@ class DynamicPlotCanvas(FigureCanvas):
                 + self.axes.yaxis.get_minorticklines():
             line.set_markeredgewidth(1.5)
 
-        ## update canvas.
+        ## update canvas
         self.draw()
 
 
@@ -325,7 +339,7 @@ class DynamicPlotCanvas(FigureCanvas):
 
         ## reset cursor indicator
         self.vLine.set_data([],[])
-        self.draw()
+        self.axes.draw_artist(self.vLine)
         
         if event.inaxes != self.axes:
             return
@@ -352,14 +366,18 @@ class DynamicPlotCanvas(FigureCanvas):
         """
 
         ##  Only one such event is allowed.
-        self.fig.canvas.mpl_disconnect(self.Init)
+        self.figure.canvas.mpl_disconnect(self.Init)
+
+        ## disable normal motion event
+        self.figure.canvas.mpl_disconnect(self.Motion)
 
         self.button = event.button
         self.xInit = event.xdata
         self.yInit = event.ydata
 
-        ## In zoom mode, right mouse button causes recovery of
-        ## original view.
+        ## In zoom mode, behaviour depends on clicked mouse button:
+        ## *right mouse button causes recovery of original view.
+        ## *left mouse button: animate zoom rectangle and set its origin to the current mouse location
         if self.zoom:
             if event.button == 3:
                 self.axes.set_xlim(self.fullXRange)
@@ -368,15 +386,17 @@ class DynamicPlotCanvas(FigureCanvas):
                 self.axes.patches[1].set_height(0)
                 self.draw()
                 return
+            self.axes.patches[1].set_animated(True)
             self.axes.patches[1].set_xy((self.xInit,self.yInit))
         elif self.pan: ## for panning, we need current axis limits
             self.panWindowX = self.axes.get_xlim()
             self.panWindowY = self.axes.get_ylim()
-        else: ## in normal mode, set start coordinates for 'selector' rectangle
+        else: ## in normal mode, set start coordinates for 'selector' rectangle and animate zoom rectangle
+            self.axes.patches[0].set_animated(True)
             self.axes.patches[0].set_xy((self.xInit,0))
+            
 
-        ## initialize actions for mouse movement with button pressed and
-        ## release of button
+        ## initialize actions for mouse movement with button pressed and release of button
         self.MotionKey = self.fig.canvas.mpl_connect('motion_notify_event', self._motionNotifyKeyPressed)
         self.Final = self.fig.canvas.mpl_connect('button_release_event', self._grabCoordsFinal)
 
@@ -419,14 +439,28 @@ class DynamicPlotCanvas(FigureCanvas):
                 self.axes.set_xlim(xmin, xmax)
                 self.axes.set_ylim(ymin, ymax)
                 self.draw()
+
+            ## recover initial state of zoom window
             self.axes.patches[1].set_width(0)
             self.axes.patches[1].set_height(0)
+
+            ## turn off animation of zoom rectangle
+            self.axes.patches[1].set_animated(False)
+    
         elif not self.pan: ## if normal mode was one, trigger signal about a newly selected range
-            self.axes.patches[0].set_width(0)
             self.emit(QtCore.SIGNAL("rangeSelected"), *[(xmin, xmax), event.button==1])
+
+            ## recover initial state of selection rectangle
+            self.axes.patches[0].set_width(0)
+
+            ## turn off animation of zoom rectangle
+            self.axes.patches[0].set_animated(False)
 
         ## initialize handler for next selection event
         self.Init = self.fig.canvas.mpl_connect('button_press_event', self._grabCoordsInit)
+
+        ## intialize handler for normal motions again
+        self.Motion= self.fig.canvas.mpl_connect('motion_notify_event', self._motionNotify)
 
 
     def _motionNotify(self, event):
@@ -441,11 +475,20 @@ class DynamicPlotCanvas(FigureCanvas):
             The event that triggered the method call.
         """
 
-        if not self.zoom or self.pan:
-            if event.inaxes == self.axes:
-                self.vLine.set_data([event.xdata,event.xdata],
-                                    self.axes.get_ylim())
-            self.draw()
+        if self.zoom or self.pan: return
+        if event.inaxes != self.axes: return
+        
+        self.vLine.set_data([event.xdata,event.xdata], self.axes.get_ylim())
+        
+        ##restore the background region
+        self.figure.canvas.restore_region(self.background)
+
+        ## redraw just the current rectangle
+        self.axes.draw_artist(self.vLine)
+
+        ## blit just the redrawn area
+        self.figure.canvas.blit(self.axes.bbox)
+
 
 
     def _motionNotifyKeyPressed(self, event):
@@ -464,22 +507,36 @@ class DynamicPlotCanvas(FigureCanvas):
             The event that triggered the method call.
         """
 
-        if event.inaxes != self.axes:
-            return
+        if event.inaxes != self.axes: return
+        if self.thePlots == {}: return
 
         ## in case the button is released outside the axes, we use the
         ## coordinates of the last motion event inside the axis
         self.xFinal = event.xdata
         self.yFinal = event.ydata
-
-        if self.zoom: ##  span up zoom window
-            self.axes.patches[1].set_width(self.xFinal-self.xInit)
-            self.axes.patches[1].set_height(self.yFinal-self.yInit)
-        elif self.pan: ## change x- and y-limits
+            
+        if self.pan: ## change x- and y-limits
             dx = (self.xInit - self.xFinal)/2.
             dy = (self.yInit - self.yFinal)/2.
             self.axes.set_xlim(self.panWindowX[0]+dx, self.panWindowX[1]+dx)
             self.axes.set_ylim(self.panWindowY[0]+dy, self.panWindowY[1]+dy)
-        else: ## modify width of 'selector' rectangle
-            self.axes.patches[0].set_width(self.xFinal-self.xInit)
-        self.draw()
+            
+            ## in panning mode, we need to redraw complete canvas (slow!)
+            self.draw()
+        
+        else: ## in other modes, we only redraw animated elements (fast!)
+            if self.zoom: ##  span up zoom window
+                self.axes.patches[1].set_width(self.xFinal-self.xInit)
+                self.axes.patches[1].set_height(self.yFinal-self.yInit)
+            else: ## modify width of 'selector' rectangle
+                self.axes.patches[0].set_width(self.xFinal-self.xInit)
+            
+            ## restore the background region
+            self.figure.canvas.restore_region(self.background)
+
+            ## redraw just the current rectangle
+            if self.zoom: self.axes.draw_artist(self.axes.patches[1])
+            else: self.axes.draw_artist(self.axes.patches[0])
+
+            ## blit just the redrawn area
+            self.figure.canvas.blit(self.axes.bbox)

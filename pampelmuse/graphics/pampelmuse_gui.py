@@ -29,9 +29,13 @@ v0.9.1.1, 2013/05/31, so far, when both IFU coordinates and polynomial fits were
                       been changed.
 v0.9.1.2, 2013/06/11, when overplotting the source list on the reference view,
                       the sky is now excluded.
+v0.10.0.0, 2013/06/20, added possibilities to interact with IFU plot: zoom, pan,
+                      go back and forth. Also some minor changes to adapt to
+                      improved interaction via animations in DynamicPlotCanvas and
+                      DynamicImaCanvas.
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.9.1.2"
+__version__ = "0.10.0.0"
 
 import datetime, logging, re, os, sys
 import matplotlib.pyplot as plt, numpy as np, pyfits
@@ -538,36 +542,48 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         if not self.sources.loadedIFUCoords.any(): return
         if not self.cubeLoaded: return
 
-        # TODO: check if next line works if new data is loaded
-        # if "dataPlot" in self.ifuPlot.__dict__: del self.ifuPlot.dataPlot
-
-        ## data points will be overplotted as black empty circles
-        ## Note that only resolved sources (status in [2,3]) are displayed, source
-        ## close to a brighter source (status==1) are displayed as grey empty circles.
-        edgecolors = np.asarray(self.sources.resolved.sum()*["k"],  dtype="|S3")
-        edgecolors[self.sources.status[self.sources.resolved]==1] = "0.5"
+        ## get indices of the sources to be plotted from the array containing the IFU coordinates
+        sourceIndex = np.flatnonzero(self.sources.resolved&self.sources.loadedIFUCoords) ## the indices of the sources to plot in the coordinate arrays
+        typeIndex = np.asarray(self.sources.hasPolyFit[sourceIndex], dtype=np.int16)
+        layerIndex=0
         
-        ## if magnitudes are available in the sources catalogue, we use them to scale the
-        ## circles representing the sources.
-        if self.sources.mag != None:
-            sizes = 10.*(10**(-0.2*(self.sources.mag[self.sources.resolved]-max(self.sources.mag[self.sources.resolved]))))
+        ## collect coordinates of sources to be plotted in one array
+        offsets = np.dstack((self.sources.xdata[typeIndex, sourceIndex, layerIndex], self.sources.ydata[typeIndex, sourceIndex, layerIndex]))[0]
+
+        ## if no data has been plotted yet, create a new plot
+        if not hasattr(self.ifuPlot, "dataPlot"):
+
+            ## data points will be overplotted as black empty circles
+            ## Note that only resolved sources (status in [2,3]) are displayed, source
+            ## close to a brighter source (status==1) are displayed as grey empty circles.
+            edgecolors = np.asarray(self.sources.resolved.sum()*["k"],  dtype="|S3")
+            edgecolors[self.sources.status[self.sources.resolved]==1] = "0.5"
+        
+            ## if magnitudes are available in the sources catalogue, we use them to scale the
+            ## circles representing the sources.
+            if self.sources.mag != None:
+                sizes = 10.*(10**(-0.2*(self.sources.mag[self.sources.resolved]-max(self.sources.mag[self.sources.resolved]))))
+            else:
+                sizes = 20*np.ones(self.sources.resolved.sum(), dtype=np.float32)
+
+            self.ifuPlot.addData(offsets[:, 0], offsets[:, 1],  s=sizes, ids=self.sources.ID[self.sources.resolved], edgecolors=edgecolors, picker=3, facecolors="None")
+        
+            ##  disable source picking, enable spectrum selection
+            self.ifuPlot.figure.canvas.mpl_disconnect(self.cid_ifuGrab_event)
+            
+            ## show spectrum of a source if one is selected
+            self.cid_ifuPick_event = self.ifuPlot.figure.canvas.mpl_connect("pick_event", self.on_ifuPick_event)
+    
+            self.ifuInteractMode = "pick" ##update flag to indicate that interaction mode has changed
+        
+        ## otherwise update data; as we a scatter plot is used to show the data, there is no attribute 'set_data'.
+        ## Instead, we use the attribute 'set_offsets' to update the plot
         else:
-            sizes = 20*np.ones(self.sources.resolved.sum(), dtype=np.float32)
+            assert offsets.shape==self.ifuPlot.dataPlot.get_offsets().shape, "Cannot change size of plotted data set."
+            self.ifuPlot.dataPlot.set_offsets(offsets)
+            
+            
 
-        self.ifuPlot.addData(self.sources.xdata[0, self.sources.resolved[self.sources.loadedIFUCoords], 0], 
-                             self.sources.ydata[0, self.sources.resolved[self.sources.loadedIFUCoords], 0], 
-                             s=sizes, ids=self.sources.ID[self.sources.resolved], edgecolors=edgecolors,  
-                             picker=3, facecolors="None")
-            
-        ##  disable source picking, enable spectrum selection
-        self.ifuPlot.figure.canvas.mpl_disconnect(self.cid_ifuGrab_event)
-            
-        ## show spectrum of a source if one is selected
-        self.ifuPlot.figure.canvas.mpl_connect("pick_event", self.on_ifuPick_event)
-        
-        self.ifuInteractMode = "pick" ##update flag to indicate that interaction mode has changed
-    
-    
     def on_ifuPick_event(self, event):
         """
         Handle action if one or more sources are picked from the IFU canvas.
@@ -1085,15 +1101,9 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             The new position of the slider.
         """
         
-        ## synchronize spin box
+        ## synchronize spin box - the spin box will also check whether a cube is loaded
+        ## and will synchronise the pointer in the spectrum viewer
         self.ifuLayerSelectSpinBox.setValue(position)
-        
-        ## show new layer if IFU data
-        if self.cubeLoaded:
-            self.ifuPlot.loadLayer(position)
-    
-            self.dataPlot.vLine.set_data([self.ifuPlot.wave, self.ifuPlot.wave], self.dataPlot.axes.get_ylim())
-            self.dataPlot.draw()
     
     
     @pyqtSignature("int")
@@ -1112,12 +1122,17 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         ## synchronize slider
         self.ifuLayerSelectSlider.setValue(p0)
         
-        ## show new layer of IFU datacube
+        ## show new layer if IFU data
         if self.cubeLoaded:
             self.ifuPlot.loadLayer(p0)
+ 
+            ##  also update position of pointer if it is currently animated
+            if self.dataPlot.vLine.get_animated():
+                self.dataPlot.vLine.set_data([self.ifuPlot.wave, self.ifuPlot.wave], self.dataPlot.axes.get_ylim())
             
-            self.dataPlot.vLine.set_data([self.ifuPlot.wave, self.ifuPlot.wave], self.dataPlot.axes.get_ylim())
-            self.dataPlot.draw()
+                self.dataPlot.figure.canvas.restore_region(self.dataPlot.background)
+                self.dataPlot.axes.draw_artist(self.dataPlot.vLine)
+                self.dataPlot.figure.canvas.blit(self.dataPlot.axes.bbox)
     
     
     @pyqtSignature("QString")
@@ -1162,6 +1177,88 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         edit. NOTE that this method is only trigggered when <ENTER> is hit.
         """
         self.ifuPlot.changeCuts(hicut=float(self.ifuMaxCutLineEdit.text()))
+        
+        
+    @pyqtSignature("bool")
+    def on_ifuZoom_clicked(self, checked):
+        """
+        Handle action when the zoom button for the IFU view is enabled or
+        disabled.
+        
+        Parameters
+        ----------
+        checked : bool
+            The new state of the zoom button: True if mode is enabled, False
+            otherwise.
+        """
+        if not "ifuPlot" in self.__dict__: return
+
+        self.ifuPlot.zoom = checked
+        if checked:
+            ## Leave pan mode if enabled
+            if self.ifuPlot.pan: self.ifuPan.click()
+
+            ##  disable source selection or data grabbing (if enabled) while zoom is active
+            if self.ifuInteractMode == "pick":
+                self.ifuPlot.figure.canvas.mpl_disconnect(self.cid_ifuPick_event)
+            elif self.ifuInteractMode == "grab":
+                self.ifuPlot.figure.canvas.mpl_disconnect(self.cid_ifuGrab_event)
+        else: ## enable source selection or data grabbing again (if they were actiive before zoom started.)
+            if self.ifuInteractMode == "pick":
+                self.cid_ifuPick_event = self.ifuPlot.figure.canvas.mpl_connect("pick_event", self.on_ifuPick_event)
+            elif ifuInteractMode == "grab":
+                self.cid_ifuGrab_event = self.ifuPlot.figure.canvas.mpl_connect("button_press_event",  self.on_ifuGrab_event)
+
+
+    @pyqtSignature("bool")
+    def on_ifuPan_clicked(self, checked):
+        """
+        Handle action when the pan button for the IFU view is enabled
+        or disabled.
+        
+        Parameters
+        ----------
+        checked : bool
+            The new state of the pan button: True if mode is enabled, False
+            otherwise.
+        """
+        if not "ifuPlot" in self.__dict__: return
+        
+        self.ifuPlot.pan = checked
+        if checked:
+            ## Leave zoom mode if enabled
+            if self.ifuPlot.zoom: self.ifuZoom.click()
+
+            ##  disable source selection or data grabbing (if enabled) while zoom is active
+            if self.ifuInteractMode == "pick":
+                self.ifuPlot.figure.canvas.mpl_disconnect(self.cid_ifuPick_event)
+            elif self.ifuInteractMode == "grab":
+                self.ifuPlot.figure.canvas.mpl_disconnect(self.cid_ifuGrab_event)
+        else: ## enable source selection or data grabbing again (if they were actiive before zoom started.)
+            if self.ifuInteractMode == "pick":
+                self.cid_ifuPick_event = self.ifuPlot.figure.canvas.mpl_connect("pick_event", self.on_ifuPick_event)
+            elif ifuInteractMode == "grab":
+                self.cid_ifuGrab_event = self.ifuPlot.figure.canvas.mpl_connect("button_press_event",  self.on_ifuGrab_event)
+
+
+    @pyqtSignature("")
+    def on_ifuBack_clicked(self):
+        """
+        Handle event when button for going to previous view of
+        IFU data is clicked.
+        """
+        if not "ifuPlot" in self.__dict__: return
+        self.ifuPlot.gotoView(self.ifuPlot.curViewIndex-1)
+    
+    
+    @pyqtSignature("")
+    def on_ifuForth_clicked(self):
+        """
+        Handle event when button for going to next view of IFU data
+        is clicked.
+        """
+        if not "ifuPlot" in self.__dict__: return
+        self.ifuPlot.gotoView(self.ifuPlot.curViewIndex+1)
         
         
     def on_ifuPlot_grabbed(self, x, y):

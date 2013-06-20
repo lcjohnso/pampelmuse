@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file '/home/kamann/prog/DISTRIBUTE/kamann-code.2/trunk/pampelmuse/graphics/pampelmuse_gui.ui'
 #
-# Created: Wed May 15 13:34:40 2013
+# Created: Thu Jun 20 12:13:59 2013
 #      by: PyQt4 UI code generator 4.9.1
 #
 # WARNING! All changes made in this file will be lost!
@@ -232,11 +232,24 @@ class Ui_PampelMuseGui(object):
         self.ifuHeadLabel.setFont(font)
         self.ifuHeadLabel.setObjectName(_fromUtf8("ifuHeadLabel"))
         self.ifuHeadHBox.addWidget(self.ifuHeadLabel)
+        self.ifuBack = QtGui.QToolButton(self.layoutWidget)
+        self.ifuBack.setIcon(icon3)
+        self.ifuBack.setObjectName(_fromUtf8("ifuBack"))
+        self.ifuHeadHBox.addWidget(self.ifuBack)
+        self.ifuForth = QtGui.QToolButton(self.layoutWidget)
+        self.ifuForth.setIcon(icon4)
+        self.ifuForth.setObjectName(_fromUtf8("ifuForth"))
+        self.ifuHeadHBox.addWidget(self.ifuForth)
         self.ifuZoom = QtGui.QToolButton(self.layoutWidget)
-        self.ifuZoom.setIcon(icon1)
+        self.ifuZoom.setIcon(icon)
         self.ifuZoom.setCheckable(True)
         self.ifuZoom.setObjectName(_fromUtf8("ifuZoom"))
         self.ifuHeadHBox.addWidget(self.ifuZoom)
+        self.ifuPan = QtGui.QToolButton(self.layoutWidget)
+        self.ifuPan.setIcon(icon1)
+        self.ifuPan.setCheckable(True)
+        self.ifuPan.setObjectName(_fromUtf8("ifuPan"))
+        self.ifuHeadHBox.addWidget(self.ifuPan)
         self.ifuViewVBox.addLayout(self.ifuHeadHBox)
         self.ifuViewWidget = QtGui.QWidget(self.layoutWidget)
         self.ifuViewWidget.setMinimumSize(QtCore.QSize(250, 250))
@@ -389,7 +402,10 @@ class Ui_PampelMuseGui(object):
         self.refCutsComboBox.setItemText(7, QtGui.QApplication.translate("PampelMuseGui", "90.0%", None, QtGui.QApplication.UnicodeUTF8))
         self.refCutsComboBox.setItemText(8, QtGui.QApplication.translate("PampelMuseGui", "User", None, QtGui.QApplication.UnicodeUTF8))
         self.ifuHeadLabel.setText(QtGui.QApplication.translate("PampelMuseGui", "IFU View", None, QtGui.QApplication.UnicodeUTF8))
+        self.ifuBack.setText(QtGui.QApplication.translate("PampelMuseGui", "...", None, QtGui.QApplication.UnicodeUTF8))
+        self.ifuForth.setText(QtGui.QApplication.translate("PampelMuseGui", "...", None, QtGui.QApplication.UnicodeUTF8))
         self.ifuZoom.setText(QtGui.QApplication.translate("PampelMuseGui", "...", None, QtGui.QApplication.UnicodeUTF8))
+        self.ifuPan.setText(QtGui.QApplication.translate("PampelMuseGui", "...", None, QtGui.QApplication.UnicodeUTF8))
         self.ifuCutsLabel.setText(QtGui.QApplication.translate("PampelMuseGui", "Cuts:", None, QtGui.QApplication.UnicodeUTF8))
         self.ifuCutsComboBox.setItemText(0, QtGui.QApplication.translate("PampelMuseGui", "100%", None, QtGui.QApplication.UnicodeUTF8))
         self.ifuCutsComboBox.setItemText(1, QtGui.QApplication.translate("PampelMuseGui", "99.9%", None, QtGui.QApplication.UnicodeUTF8))
