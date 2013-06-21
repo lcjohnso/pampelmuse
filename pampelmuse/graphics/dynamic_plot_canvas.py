@@ -29,21 +29,24 @@ CHANGELOG:
 2013/06/20, v0.4.0.0, now using animations to only redraw the elements that are
                       actually affected by a user interaction. This makes the inter-
                       actions much smoother.
+2013/06/21, v0.4.1.0, for some reason I cannot figure out calling the blit()-method
+                      in call() causes the GUI to not update the axes ticks and labels
+                      until the GUI gets out of focus. So I commented that line out.
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.4.0.0"
+__version__ = "0.4.1.0"
 
-import logging
+import inspect, logging
 import matplotlib.pyplot
 import numpy as np
 from PyQt4 import QtCore
-from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from matplotlib.patches import Rectangle
 from matplotlib.transforms import blended_transform_factory
 matplotlib.pyplot.rcParams["axes.linewidth"]=1.5
 
-class DynamicPlotCanvas(FigureCanvas):
+class DynamicPlotCanvas(FigureCanvasQTAgg):
     """
     This class can be used to display a matplotlib lineplot and
     interact with it. The possible types of interaction include
@@ -78,7 +81,7 @@ class DynamicPlotCanvas(FigureCanvas):
         self.axes = self.fig.add_axes((0.15, 0.20, 0.82, 0.76))
         self.canvas = self.fig.canvas
 
-        FigureCanvas.__init__(self, self.fig)
+        super(DynamicPlotCanvas, self).__init__(self.fig)
         self.setParent(parent)
 
         ## dictionary to keep track of the data sets that are plotted.
@@ -122,7 +125,6 @@ class DynamicPlotCanvas(FigureCanvas):
 
         self.draw()
 
-        
 
     def draw(self):
         """
@@ -137,12 +139,18 @@ class DynamicPlotCanvas(FigureCanvas):
         super(DynamicPlotCanvas, self).draw()
         self.background = self.figure.canvas.copy_from_bbox(self.axes.bbox)
         
-        ## show animated part - needs to be called because draw() only plots static parts
-        if self.vLine.get_animated(): self.axes.draw_artist(self.vLine)
+        ## for debugging: check where the call was triggered
+        curframe = inspect.currentframe()
+        calframe = inspect.getouterframes(curframe, 2)
+        logging.debug("call to draw() triggered by: {0} in {1}[@{2}]".format(calframe[1][3], calframe[1][1], calframe[1][2]))
         
-        ## and blit just the redrawn (e.g. animated) area
-        self.figure.canvas.blit(self.axes.bbox)
-
+        ## show animated part - needs to be called because draw() only plots static parts
+        if self.vLine.get_animated():
+            self.axes.draw_artist(self.vLine)
+        
+            ## and blit just the redrawn (e.g. animated) area
+            ## self.figure.canvas.blit(self.axes.bbox) ## for some reason I do not understand, uncommenting this line causes the plot to not update the labels
+                                                       ## and ticks of the axes until the GUI is out of focus...
 
 
     def addData(self, name, xData, yData, **kwargs):

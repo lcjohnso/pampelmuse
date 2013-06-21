@@ -33,9 +33,12 @@ v0.10.0.0, 2013/06/20, added possibilities to interact with IFU plot: zoom, pan,
                       go back and forth. Also some minor changes to adapt to
                       improved interaction via animations in DynamicPlotCanvas and
                       DynamicImaCanvas.
+v0.10.1.0, 2013/06/21, in v0.4.0.0 a bug was introduced that lead to the wrong
+                      coordinates of the sources in the IFU plot. This bug has
+                      been fixed.
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.10.0.0"
+__version__ = "0.10.1.0"
 
 import datetime, logging, re, os, sys
 import matplotlib.pyplot as plt, numpy as np, pyfits
@@ -543,7 +546,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         if not self.cubeLoaded: return
 
         ## get indices of the sources to be plotted from the array containing the IFU coordinates
-        sourceIndex = np.flatnonzero(self.sources.resolved&self.sources.loadedIFUCoords) ## the indices of the sources to plot in the coordinate arrays
+        sourceIndex = np.flatnonzero(self.sources.resolved[self.sources.loadedIFUCoords]) ## the indices of the sources to plot in the coordinate arrays
         typeIndex = np.asarray(self.sources.hasPolyFit[sourceIndex], dtype=np.int16)
         layerIndex=0
         
@@ -932,13 +935,11 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             yLabel = r"$f_\lambda\,[\mathrm{counts}/\mathrm{layer}]$"
 
         elif self.curProp == "x Positions":
-            self.yData, self.yFit \
-                = self.sources.getIFUCoords(coord="x", ID=int(self.curRowName))
+            self.yData, self.yFit = self.sources.getIFUCoords(coord="x", ID=int(self.curRowName))
             yLabel = r"$x\,[\mathrm{spaxel}]$"
 
         elif self.curProp == "y Positions":
-            self.yData, self.yFit \
-                = self.sources.getIFUCoords(coord="y", ID=int(self.curRowName))
+            self.yData, self.yFit = self.sources.getIFUCoords(coord="y", ID=int(self.curRowName))
             yLabel = r"$y\,[\mathrm{spaxel}]$"
 
         elif self.curProp == "PSF":
@@ -956,17 +957,12 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             yLabel=None
 
         ## update plot
-        self.dataPlot.updateData(name='data',xData=self.sources.wave,yData=self.yData,
-                                 xLabel=r"$\lambda\,[\mathrm{\AA}]$", yLabel=yLabel, 
-                                 updateYRange=updateYRange)
+        self.dataPlot.updateData(name='data',xData=self.sources.wave,yData=self.yData, xLabel=r"$\lambda\,[\mathrm{\AA}]$", yLabel=yLabel, updateYRange=updateYRange)
 
         if self.yFit != None:
-            self.dataPlot.updateData(\
-                name='fit', xData=self.sources.wave, yData=np.copy(self.yFit), 
-                updateYRange=updateYRange)
+            self.dataPlot.updateData(name='fit', xData=self.sources.wave, yData=np.copy(self.yFit), updateYRange=updateYRange)
         else:
-            self.dataPlot.updateData(name='fit', xData=[], yData=[], 
-                                     updateYRange=updateYRange)
+            self.dataPlot.updateData(name='fit', xData=[], yData=[], updateYRange=updateYRange)
 
         ## show mask
         self.plotMask()
