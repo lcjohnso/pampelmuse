@@ -26,12 +26,14 @@ CHANGELOG
 2012/03/28, v0.4.1.0, some debugging in `calcTrans`-method.
 2012/07/15, no new version or any changes, just thought about some ideas to
             update the fit of the source postions.
+2013/06/25, v0.4.1.1, changed how PyQt4 is imported: only when the 'provideParNames'
+                      method is call, the routine tries to import it and returns
+                      None if it is not available.
 """
 __author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.4.1.0"
+__version__ = "0.4.1.1"
 import logging
 import numpy as np, pyfits
-from PyQt4 import QtCore
 
 ## required PampelMuse-packages:
 from pampelmuse.functions.step_poly_fit import StepPolyFit
@@ -550,14 +552,20 @@ class CoordinateTransformation(object):
     def provideParNames(self):
         """
         Short routine whose sole purpose is to provide a list of the names of
-        all the parameters to the `InspectFitData`-routine of PampelMuse.
+        all the parameters to the `InspectFitData`-routine of PampelMuse. This
+        requires PyQt4 to be installed on the system which is checked first.
 
         Returns
         -------
         names :QtCore.QStringList
             The names of the parameters of the coord. transf.
         """
-        return QtCore.QStringList(self.parameters)
+        try:
+            from PyQt4 import QtCore
+            return QtCore.QStringList(self.parameters)
+        except ImportError:
+            logging.error("Cannot convert parameter names to QStrings as PyQt4 is not available on the system.")
+            return None
 
 
 

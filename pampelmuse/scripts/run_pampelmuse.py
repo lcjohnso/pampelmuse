@@ -62,9 +62,10 @@ v0.9.0.0, 2013/05/29, revised how the configuration of the code is handled
                       to the main routine (i.e. this code)
 v0.9.1.0, 2013/05/31, check whether parameter 'USEQT' is False if dependencies for GUIs
                       are not fulfilled was not updated so far.
+v0.9.1.1, 2013/06/25, small changes to logging messages.
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.9.1.0"
+__version__ = "0.9.1.1"
 
 
 print """
@@ -112,7 +113,7 @@ except ImportError:
     logging.error("Cannot load `matplotlib`-modules")
     graphics = False
 if not graphics:
-    logging.warning("Scripts INITFIT and POLYFIT cannot be used.")
+    logging.error("Scripts INITFIT and POLYFIT cannot be used.")
 
 
 
