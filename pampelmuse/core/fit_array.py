@@ -110,9 +110,14 @@ v0.9.0.0, 2013/06/11, changed the behaviour of the code so that when no coordina
                       position fit but not in the PSF fit. This is useful to deter-
                       mine positions for faint sources that do not allow for a good
                       PSF fit.
+v0.9.0.1, 2013/06/25, included a more convenient handling of failed PSF fits when
+                      working on a large FoV: The routine logs the results of all
+                      individual fits and only uses the good ones to update the
+                      parameters. Previously, the initial guesses of the failed fits
+                      were also used for this purpose.
 """ 
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.9.0.0"
+__version__ = "0.9.0.1"
 
 import logging, os, sys, time
 import numpy as np, pyfits
@@ -598,8 +603,7 @@ class StarFit(object):
                 indices1[-nValues:] = j*np.ones((nValues,), dtype=np.int16)
                 
             elif doLog:
-                logging.error("[@{0}] Source #{1} entirely outside FoV."\
-                                  .format(self.kk, self.sources.ID[i]))
+                logging.error("[@{0}] Source #{1} entirely outside FoV.".format(self.kk, self.sources.ID[i]))
                 
         ## save unresolved component for later recovery
         if self.sources.hasUnres and calcUnres:
@@ -608,8 +612,7 @@ class StarFit(object):
                               
         return sparse.coo_matrix((coeffs, (indices0, indices1)), shape=(self.PSF.transform.shape[0], self.sources.ncmp)).tocsc()
 
-                              
-    ## Not updated yet!!!
+
     def fitPSF_largeIFU(self):
         """
         Perform the PSF fit for an IFU with many spaxels. In this case,
@@ -624,7 +627,8 @@ class StarFit(object):
 
             ## list will contain results of all fits
             allPars = []
-            
+            success = []
+            coordIndices = []
             parNames = ["xc", "yc"]
     
             ## Initialize parallelization (if requested)
@@ -635,8 +639,6 @@ class StarFit(object):
             ## Loop over all PSF sources; add source to residuals, fit
             ## resulting array and subtract source again.
             i=-1
-                
-            coordIndices = []
             
             for psf in self.PSF: 
                 i += 1
@@ -658,37 +660,48 @@ class StarFit(object):
                 if self.ncpu > 1:
                     threads.append(pool.apply_async(self.wrapper_fitOnePSF, args=(x0, parNames, psf, flux)))
                 else:
-                    allPars.append(self.wrapper_fitOnePSF(x0=x0, names=parNames, psf=psf, flux=flux))
+                    result = self.wrapper_fitOnePSF(x0=x0, names=parNames, psf=psf, flux=flux)
+                    allPars.append(result[0])
+                    success.append((result[-1]>0)&(result[-1]<=4))
+                    if not success[-1]:
+                        logging.error("[@{0}] Coordinates fit failed for source #{1}: {2}".format(self.kk, psf.src_id, result[-2]))
 
             if self.ncpu > 1:
                 pool.close()
                 pool.join()
                 for i in xrange(self.sources.psfIndices.size):
-                    allPars.append(threads[j].get())
+                    results = threads[j].get()
+                    allPars.append(result[0])
+                    success.append((result[-1]>0)&(result[-1]<=4))
+                    if not success[-1]:
+                        logging.error("[@{0}] Coordinates fit failed for source #{1}: {2}".format(self.kk, self.sources.ID[self.posToUpdate[i]], result[-2]))
 
             ## update parameters
             if self.fullPosFit: ## if IFU coordinates should be fitted, update them directly
                 for i in xrange(len(allPars)):
-                    print allPars[i][0], allPars[i][1]
-                    self.sources.xdata[0, coordIndices[i], self.jj] = allPars[i][0]
-                    self.sources.ydata[0, coordIndices[i], self.jj] = allPars[i][1]
+                    if success[i]:
+                        self.sources.xdata[0, coordIndices[i], self.jj] = allPars[i][0]
+                        self.sources.ydata[0, coordIndices[i], self.jj] = allPars[i][1]
 
             else: ## otherwise, update coordinate transformation
-                self.sources.ctValues[...,self.jj] = self.sources.quickFit(\
-                    [self.sources.x[self.sources.psfIndices], self.sources.y[self.sources.psfIndices]],
-                    [[allPars[i][0] for i in xrange(len(allPars))], [allPars[i][1] for i in xrange(len(allPars))]],
-                    outSigma=None)[0]
-                
-                for i in xrange(len(self.sources.parameters)):
-                    ## updating the parameters in the PSF-class overwrites
-                    ## the (direct) source positions used for the fit
-                    getattr(self.PSF, "set_{0}".format(self.sources.parameters[i]))(self.sources.ctValues[i, self.jj])
+                if np.sum(success) < 2:
+                    logging.error("[@{0}] Cannot update coord. transf. because <2 sources fitted successfully.".format(self.kk))
+                else:
+                    origIndices = self.posToUpdate[np.array(success, dtype=np.bool)]
+                    ifuIndices  = np.flatnonzero(np.array(success, dtype=np.bool))
+                    self.sources.ctValues[...,self.jj] = self.sources.quickFit([self.sources.x[origIndices], self.sources.y[origIndices]],
+                                                                               [[allPars[i][0] for i in ifuIndices], [allPars[i][1] for i in ifuIndices]],
+                                                                               outSigma=None)[0]
+                    for i in xrange(len(self.sources.parameters)):
+                        ## updating the parameters in the PSF-class overwrites
+                        ## the (direct) source positions used for the fit
+                        getattr(self.PSF, "set_{0}".format(self.sources.parameters[i]))(self.sources.ctValues[i, self.jj])
 
 
         if self.psf_attributes.Fit: ## fit PSF
 
             allPars = []
-            
+            success = []
             ## collect names and initial values of free PSF parameters
             parNames = []
             x0       = []
@@ -715,25 +728,37 @@ class StarFit(object):
                 if self.ncpu > 1:
                     threads.append(pool.apply_async(self.wrapper_fitOnePSF, args=(x0, parNames, psf, flux)))
                 else:
-                    allPars.append(self.wrapper_fitOnePSF(x0=x0, names=parNames, psf=psf, flux=flux))
+                    result = self.wrapper_fitOnePSF(x0=x0, names=parNames, psf=psf, flux=flux)
+                    allPars.append(result[0])
+                    success.append((result[-1]>0)&(result[-1]<=4))
+                    if not success[-1]:
+                        logging.error("[@{0}] PSF fit failed for source #{1}: {2}".format(self.kk, psf.src_id, result[-2]))
         
             if self.ncpu > 1: ## only parallelization
                 pool.close()
                 pool.join()
                 for i in xrange(self.sources.psfIndices.size):
-                    allPars.append(threads[j].get())
+                    result = threads[j].get()
+                    allPars.append(result[0])
+                    success.append((result[-1]>0)&(result[-1]<=4))
+                    if not success[-1]:
+                        logging.error("[@{0}] PSF fit failed for source #{1}: {2}".format(self.kk, self.sources.ID[self.sources.psfIndices[i]], result[-2]))
                 
-            ## update parameter values in the attributes of the PSF and in
-            ## the actual PSF profiles
-            i = 0
-            for par in parNames:
-                ii = self.psf_attributes.parameters.index(par)
+            ## update parameter values in the attributes of the PSF and in the actual PSF profiles; for this, only
+            ##  the results of the successful fits are used. If no fit was successful, nothing is updated.
+            if np.sum(success) == 0:
+                logging.error("[@{0}] Cannot update PSF parameters because no star yielded a successful fit.".format(self.kk))
+            else:
+                successIndices = np.flatnonzero(np.array(success, dtype=np.bool))
+                i = 0
+                for par in parNames:
+
+                    ii = self.psf_attributes.parameters.index(par)
                 
-                self.psf_attributes.values[ii,self.jj] = np.mean([allPars[k][i] for k in xrange(len(allPars))])
+                    self.psf_attributes.values[ii,self.jj] = np.mean([allPars[k][i] for k in successIndices])
+                    getattr(self.PSF, "set_{0}".format(par))(self.psf_attributes.values[ii,self.jj])
                 
-                getattr(self.PSF, "set_{0}".format(par))(self.psf_attributes.values[ii,self.jj])
-                
-                i += 1
+                    i += 1
                 
 
     def wrapper_fitOnePSF(self, x0, names, psf, flux):
@@ -767,22 +792,11 @@ class StarFit(object):
         _current   = np.copy(self.current)
         _current[psf.used] += psf.f/self.sigma[psf.used]*flux
 
-        badFit = True ## a flag indicating if a PSF parameter was
-                      ## fitted with an invalid value (e.g. beta<=1)
-
         ## call non-linear least squares fit
         try:
-            bestFit_j = optimize.leastsq(self.fitOnePSF, x0=x0, args=(names, psf, flux, _current))[0]
-            badFit = False
-        except optimize.minpack.error: ## error handler to avoid code that code crashes completely
-            logging.error("[@{0}] Individual PSF fit failed.".format(self.kk))
-            
-        
-            
-        if not badFit: ##  only update data if fit was valid
-            return bestFit_j
-        else:
-            return x0
+            return optimize.leastsq(self.fitOnePSF, x0=x0, args=(names, psf, flux, _current), full_output=1)
+        except optimize.minpack.error as error: ## error handler to avoid code that code crashes completely
+            return (x0, {}, "Exception of type optimize.minpack.error encountered while executing fit.", 99)
 
 
     def fitOnePSF(self, x0, names, psf, flux, data):
@@ -817,15 +831,18 @@ class StarFit(object):
         ## update PSF using current parameter estimates
         for i in xrange(len(x0)):
             try:
+                ## the attribute is only set in the 'psf'-instance of the class,
+                ## not in all instances! This is different from the behaviour of
+                ## getattr(self.PSF, "set_<PAR>")(<VALUE>)
                 setattr(psf, names[i], x0[i])
-            except AssertionError: ## if parameter cannot be updated, raise LinAlgError
+                
+            except AssertionError as error: ## if parameter cannot be updated, raise LinAlgError
+                logging.error("[@{0}] Encountered AssertionError: {1}".format(self.kk, error))
                 raise np.linalg.linalg.LinAlgError("Invalid value '{0}' for parameter '{1}'.".format(x0[i], names[i]))
-            ## the attribute is only set in the 'psf'-instance of the class,
-            ## not in all instances! This is different from the behaviour of
-            ## getattr(self.PSF, "set_<PAR>")(<VALUE>)
 
         ## return residuals
         return (data[psf.used] - psf.f/self.sigma[psf.used]*flux)
+
 
 
 

@@ -32,9 +32,12 @@ CHANGELOG:
 2013/06/20, v0.5.0.0, now using animations to only redraw the elements that are
                       actually affected by a user interaction. This makes the inter-
                       actions much smoother.
+2013/06/25, v0.5.0.1, modified the interaction with the canvas so that a Qt Signal
+                      is triggered when the mouse is moved over a pixel. The pixel
+                      coordinates are provided with the emitted signal.
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.5.0.0"
+__version__ = "0.5.0.1"
 
 import logging
 import matplotlib.transforms, matplotlib.artist, matplotlib.pyplot, numpy as np
@@ -107,7 +110,12 @@ class DynamicImaCanvas(FigureCanvas):
         self.pan = False
         self.inEvent = False ## will be True if pan or zoom is going on
         
+        ## Initialize start coordinates of an event
+        self.xInit = None
+        self.yInit = None
+        
         ## Handle events when axes instance is left or entered
+        self.onMotion  = self.fig.canvas.mpl_connect('motion_notify_event', self.on_mouseMotion_notify)
         self.enterAxes = self.fig.canvas.mpl_connect('axes_enter_event', self._uponEntering)
         self.leaveAxes = self.fig.canvas.mpl_connect('axes_leave_event', self._uponLeaving)
 
@@ -283,14 +291,16 @@ class DynamicImaCanvas(FigureCanvas):
             npix   = self.image.size
             cutpix = int((1-cutlev)*npix)
             
-            if self.layer != -1: ## if cube loaded, only use science fibers to determine cuts
-                if self.cube.ndim == 3 or self.cube.instrument.spectral_axis==2:
-                    values = self.cube.instrument.get_science(self.cube.data_hdu.section[self.layer])
-                else:
-                    values = self.cube.instrument.get_science(self.cube.data_hdu.section[:, i])
+            if self.layer != -1: ## if cube loaded, only science fibers are used to determine cuts
+                _values = self.cube.getLayer(self.layer)[0]
             else:
-                values = self.image.copy().reshape(-1)
+                _values = self.image.copy().reshape(-1)
+            
+            values = _values[_values==_values] ## remove NaN pixels
+            
+            ## sort pixel values    
             values.sort()
+
             self.cuts = (values[cutpix/2], 0.5*(values[-cutpix/2-1]+values[-cutpix/2-2]))
 
         ## change cuts and update canvas
@@ -535,6 +545,8 @@ class DynamicImaCanvas(FigureCanvas):
         ## original view.
         if self.zoom:
             if event.button == 3: ## recover original view.
+                self.xInit = None
+                self.yInit = None
                 self.gotoView(0)
                 return
             self.zoomFrame.set_xy((self.xInit,self.yInit))
@@ -549,7 +561,7 @@ class DynamicImaCanvas(FigureCanvas):
 
         ## initialize actions for mouse movement with button pressed and
         ## release of button
-        self.MotionKey = self.fig.canvas.mpl_connect('motion_notify_event', self.on_mouseMotion_notify)
+#        self.MotionKey = self.fig.canvas.mpl_connect('motion_notify_event', self.on_mouseMotion_notify)
         self.Final = self.fig.canvas.mpl_connect('button_release_event', self.on_mouseButton_released)
 
 
@@ -573,7 +585,7 @@ class DynamicImaCanvas(FigureCanvas):
         ## with mouse button pressed.
         self.inEvent = False
         self.fig.canvas.mpl_disconnect(self.Final)
-        self.fig.canvas.mpl_disconnect(self.MotionKey)
+#        self.fig.canvas.mpl_disconnect(self.MotionKey)
 
         ## get coordinates where event took place and edges of
         ## selected rectangle.
@@ -602,6 +614,8 @@ class DynamicImaCanvas(FigureCanvas):
                 self.viewHistory = self.viewHistory[:self.curViewIndex+1]
 
         ## initialize handler for next selection event
+        self.xInit = None
+        self.yInit = None
         self.Init = self.fig.canvas.mpl_connect('button_press_event', self.on_mouseButton_pressed)
 
 
@@ -623,6 +637,8 @@ class DynamicImaCanvas(FigureCanvas):
 
         if event.inaxes != self.axes:
             return
+
+        self.emit(QtCore.SIGNAL("coordsChanged"), int(event.xdata), int(event.ydata))
 
         if self.xInit == None or self.yInit == None:
             return

@@ -30,11 +30,16 @@ CHANGELOG:
                       that have an invalid value (e.g. beta<=1).
 2013/04/26, v0.1.1.3, added a property function that returns a string
                       containing the identifier of a profile (e.g. 'moffat').
+2013/06/25, v0.1.2.3, when a profile was entirely outside the FoV (i.e. at a
+                      distance >maxrad), the code crashed uncontrolled. To avoid
+                      this, an assert statement has been included in the
+                      definitions of the 'xc' and 'yc' properties.
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.1.1.3"
+__version__ = "0.1.2.3"
 import logging
 import numpy as np
+from scipy import spatial
 
 
 ## class that defines an iterator over all its instances
@@ -604,8 +609,10 @@ class Profile(object):
         value : float
             The centroid should be provided in units of spaxels.
         """
-        assert isinstance(value, (float, np.float32, np.float64)), \
-           "'xc' must be a float, not {0:s}".format(type(value).__name__)
+        assert isinstance(value, (float, np.float32, np.float64)), "'xc' must be a float, not {0:s}".format(type(value).__name__)
+
+        assert (spatial.distance.cdist([[self.yc, value]], self.transform)<=self.maxrad).any(), \
+            "Provided xc={0:.2f} places source #{1} at distance >maxrad to FoV.".format(value, self.src_id)
 
         if value != self._xc:
             self._xc = value
@@ -629,10 +636,7 @@ class Profile(object):
             self.__dict__[prop] = None
 
 
-
-    xc = property(get_xc, set_xc, del_xc,
-                  "The centroid of the profile along the x-axis.")
-
+    xc = property(get_xc, set_xc, del_xc, "The centroid of the profile along the x-axis.")
 
 
 ## Define the 'yc' property to set and return the y-centroid of the profile ####
@@ -648,8 +652,7 @@ class Profile(object):
         yc : float
             The centroid of the profile along the y-axis in units of spaxels.
         """
-        if self._yc == None: ## use coordinate transformation if no direct
-                             ## centroid available
+        if self._yc == None: ## use coordinate transformation if no direct centroid available
             return self.A*self.Yc - self.B*self.Xc + self.D
         else:
             return self._yc
@@ -664,8 +667,10 @@ class Profile(object):
         value : float
             The centroid should be provided in units of spaxels.
         """
-        assert isinstance(value, (float, np.float32, np.float64)), \
-           "'yc' must be a float, not {0:s}".format(type(value).__name__)
+        assert isinstance(value, (float, np.float32, np.float64)), "'yc' must be a float, not {0:s}".format(type(value).__name__)
+
+        assert (spatial.distance.cdist([[value, self.xc]], self.transform)<=self.maxrad).any(), \
+            "Provided yc={0:.2f} places source #{1} at distance >maxrad to FoV.".format(value, self.src_id)
 
         if value  !=  self._yc:
             self._yc = value
@@ -731,8 +736,7 @@ class Profile(object):
             ## all properties that build up on u- & v-coordinates must be
             ## recalculated.
             for prop in self.profile_properties:
-                if not prop in ["_used", "_oversampled", "_osmap", "_ossummer",
-                                "_xos", "_yos"]:
+                if not prop in ["_used", "_oversampled", "_osmap", "_ossummer", "_xos", "_yos"]:
                     self.__dict__[prop] = None
 
 
@@ -747,8 +751,7 @@ class Profile(object):
         ## all properties that build up on u- & v-coordinates must be
         ## recalculated.
         for prop in self.profile_properties:
-            if not prop in ["_used", "_oversampled", "_osmap", "_ossummer",
-                            "_xos", "_yos"]:
+            if not prop in ["_used", "_oversampled", "_osmap", "_ossummer", "_xos", "_yos"]:
                 self.__dict__[prop] = None
 
 
@@ -809,8 +812,7 @@ class Profile(object):
         self._own_e = None
 
         for prop in self.profile_properties:
-            if not prop in ["_used", "_oversampled", "_osmap", "_ossummer",
-                            "_xos", "_yos", "_u", "_v"]:
+            if not prop in ["_used", "_oversampled", "_osmap", "_ossummer", "_xos", "_yos", "_u", "_v"]:
                 self.__dict__[prop] = None
 
 
@@ -835,8 +837,7 @@ class Profile(object):
             if self.maxrad == np.inf: ## use all spaxels if requested
                 self._used = np.ones((self.transform.shape[0],), dtype=np.bool)
             else:
-                self._used = np.sqrt(\
-                    (self.x-self.xc)**2+(self.y-self.yc)**2)<=self.maxrad
+                self._used = np.sqrt((self.x-self.xc)**2+(self.y-self.yc)**2)<=self.maxrad
         return self._used
 
 
@@ -864,8 +865,7 @@ class Profile(object):
             A 1dim. boolean array with length = number of spaxels in class.
         """
         if self._oversampled == None:
-            self._oversampled = np.sqrt(\
-                (self.x-self.xc)**2 + (self.y-self.yc)**2)<=self.osr
+            self._oversampled = np.sqrt((self.x-self.xc)**2 + (self.y-self.yc)**2)<=self.osr
         return self._oversampled
 
 
@@ -918,10 +918,7 @@ class Profile(object):
             supersampled are included 'osfactor'**2 times.
         """
         if self._osmap == None:
-            self._osmap = np.hstack((\
-                    self.spaxel[self.used],
-                    np.resize(self.spaxel[self.oversampled],
-                              ((self.osf*self.osf-1)*self.Nos,))))
+            self._osmap = np.hstack((self.spaxel[self.used], np.resize(self.spaxel[self.oversampled], ((self.osf*self.osf-1)*self.Nos,))))
             self._osmap.sort()
         return self._osmap
 
@@ -941,8 +938,7 @@ class Profile(object):
             ## first calculate difference of adjacent entries in 'osmap'. Then
             ## find indices where this difference is >0 and include those in
             ## ossummer
-            next_spaxel = np.flatnonzero(\
-                np.diff(np.r_[self.osmap[0]-1, self.osmap, self.osmap[-1]+1]))
+            next_spaxel = np.flatnonzero(np.diff(np.r_[self.osmap[0]-1, self.osmap, self.osmap[-1]+1]))
             self._ossummer = np.vstack((next_spaxel[:-1],next_spaxel[1:])).T
         return self._ossummer
 

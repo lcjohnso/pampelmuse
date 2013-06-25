@@ -32,16 +32,17 @@ CHANGELOG
 2013/03/28, v0.5.0.1, some minor changes.
 2013/05/03, v0.5.0.2, included a check in method 'polyFitParameter' whether the
                       provided function is valid.
+2013/06/25, v0.5.0.3, moved import of QtCore to method 'provideParNames' and included
+                      a check on whether PyQt4 is available.
 """
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.5.0.1"
+__version__ = "0.5.0.3"
 
 import logging, os
 import numpy as np, pyfits
 from numpy.polynomial import Chebyshev, Legendre
-
-from PyQt4 import QtCore
+## QtCore will be loaded on request
 
 ## required PampelMuse-packages
 ## from pampelmuse.core.my_profiles import Gaussian, Moffat, Lorentz, GauMoff
@@ -255,7 +256,14 @@ class PsfAttributes(object):
 
     def provideParNames(self):
 
-        return QtCore.QStringList(self.parameters)
+        try:
+            from PyQt4 import QtCore
+            return QtCore.QStringList(self.parameters)
+        except ImportError:
+            logging.error("PyQt4 is not available on the system.")
+            logging.error("Cannot provide names of PSF parameters as QStrings.")
+            return None
+        
 
 
 

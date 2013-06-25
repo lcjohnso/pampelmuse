@@ -122,6 +122,7 @@ class DynamicPlotCanvas(FigureCanvasQTAgg):
         ## start in normal mode (zoom and pan switched off)
         self.zoom = False
         self.pan = False
+        self.inEvent = False ## will be True if selection, pan or zoom is going on
 
         self.draw()
 
@@ -328,10 +329,11 @@ class DynamicPlotCanvas(FigureCanvasQTAgg):
             self.fig.canvas.mpl_disconnect(self.Motion)
         except:
             pass
-        
-        ## initialize handlers for mouse movement and mouse clicks
-        self.Init = self.fig.canvas.mpl_connect('button_press_event', self._grabCoordsInit)
-        self.Motion= self.fig.canvas.mpl_connect('motion_notify_event', self._motionNotify)
+
+        ## initialize handlers for mouse movement & click unless a zoom or pan event is still active
+        if not self.inEvent:
+            self.Init = self.fig.canvas.mpl_connect('button_press_event', self._grabCoordsInit)
+            self.Motion= self.fig.canvas.mpl_connect('motion_notify_event', self._motionNotify)
 
         
 
@@ -372,6 +374,8 @@ class DynamicPlotCanvas(FigureCanvasQTAgg):
         event : a matplotlib.backend_bases.MouseEvent instance
             The event that triggered the method call.
         """
+        ## change status to make sure no second event is triggered
+        self.inEvent = True
 
         ##  Only one such event is allowed.
         self.figure.canvas.mpl_disconnect(self.Init)
@@ -393,6 +397,7 @@ class DynamicPlotCanvas(FigureCanvasQTAgg):
                 self.axes.patches[1].set_width(0)
                 self.axes.patches[1].set_height(0)
                 self.draw()
+                self.inEvent = False ## event ends immediately 
                 return
             self.axes.patches[1].set_animated(True)
             self.axes.patches[1].set_xy((self.xInit,self.yInit))
@@ -469,6 +474,10 @@ class DynamicPlotCanvas(FigureCanvasQTAgg):
 
         ## intialize handler for normal motions again
         self.Motion= self.fig.canvas.mpl_connect('motion_notify_event', self._motionNotify)
+
+        ## no event taking place anymore
+        self.inEvent = False
+
 
 
     def _motionNotify(self, event):

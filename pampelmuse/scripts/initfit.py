@@ -92,9 +92,10 @@ CHANGELOG:
                        each source is estimated using its PSF.
                        Also experimenting with an alternative way to estimate the
                        noise. 
+2013/06/25, v0.11.1.0, debugged the code for Muse data.
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.11.0.0"
+__version__ = "0.11.1.0"
 import datetime, os, sys, logging
 import numpy as np, pyfits
 from scipy import interpolate, ndimage, sparse
@@ -213,7 +214,7 @@ def initfit(pampelmuse):
 
 
     ## Initialize sources-class
-    logging.info("Initializing sources in the field...")
+##     logging.info("Initializing sources in the field...")
     sources     = Sources(ids=ids, instrument=pampelmuse.ifs_data.instrument)
     sources.x   = x
     sources.y   = y
@@ -281,7 +282,10 @@ def initfit(pampelmuse):
     ## make loop to avoid extensive use of memory for large data-cubes
     dataIma  = np.zeros(pampelmuse.ifs_data.instrument.transform.shape[0], dtype=np.float32)
     sigmaIma = np.zeros(dataIma.shape, dtype=np.float32) ## old method to determine noise was from SIGMA cube via integration over passband
+    logging.debug("Images contain {0} spaxels.".format(dataIma.size))
+
     for i in xrange(pampelmuse.start, pampelmuse.stop):
+        logging.debug("Working on layer {0:0{1}d}/{2:{1}d}".format(i+1, len(str(pampelmuse.stop-pampelmuse.start)), pampelmuse.stop-pampelmuse.start))
         wave_i = pampelmuse.ifs_data.crval+i*pampelmuse.ifs_data.cdelt
         if pampelmuse.ifs_data.ctype == "nm": wave_i *= 10
         if wave_i > fMin and wave_i < fMax:

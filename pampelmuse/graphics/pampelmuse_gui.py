@@ -36,9 +36,11 @@ v0.10.0.0, 2013/06/20, added possibilities to interact with IFU plot: zoom, pan,
 v0.10.1.0, 2013/06/21, in v0.4.0.0 a bug was introduced that lead to the wrong
                       coordinates of the sources in the IFU plot. This bug has
                       been fixed.
+v0.10.1.1, 2013/06/25, the current position of the mouse over the IFU canvas is now
+                      logged in the status bar.
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.10.1.0"
+__version__ = "0.10.1.1"
 
 import datetime, logging, re, os, sys
 import matplotlib.pyplot as plt, numpy as np, pyfits
@@ -460,11 +462,14 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         
         self.cubeLoaded = True ## set flag that a cube is available to True
 
+        ## log current position of mouse cursor in status bar
+        self.connect(self.ifuPlot, SIGNAL("coordsChanged"), lambda x, y: self.statusBar.showMessage("x={0:3d}, y={1:3d}".format(x, y), 5000))
+
         ## If possible, i.e. when IFU positions are available, the interaction mode is changed to 'grab', meaning
         ## that a list of sources is overplotted on the cube display and when a source is selected, its spectrum
         ## or x-/y- position is displayed as a function of wavelength.
         self.pickSourcesOnIfu()
-            
+
             
     def openReference(self, fileName, **kwargs):
         """
@@ -1202,7 +1207,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         else: ## enable source selection or data grabbing again (if they were actiive before zoom started.)
             if self.ifuInteractMode == "pick":
                 self.cid_ifuPick_event = self.ifuPlot.figure.canvas.mpl_connect("pick_event", self.on_ifuPick_event)
-            elif ifuInteractMode == "grab":
+            elif self.ifuInteractMode == "grab":
                 self.cid_ifuGrab_event = self.ifuPlot.figure.canvas.mpl_connect("button_press_event",  self.on_ifuGrab_event)
 
 
@@ -1233,7 +1238,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         else: ## enable source selection or data grabbing again (if they were actiive before zoom started.)
             if self.ifuInteractMode == "pick":
                 self.cid_ifuPick_event = self.ifuPlot.figure.canvas.mpl_connect("pick_event", self.on_ifuPick_event)
-            elif ifuInteractMode == "grab":
+            elif self.ifuInteractMode == "grab":
                 self.cid_ifuGrab_event = self.ifuPlot.figure.canvas.mpl_connect("button_press_event",  self.on_ifuGrab_event)
 
 

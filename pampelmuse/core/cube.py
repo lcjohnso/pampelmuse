@@ -11,9 +11,14 @@ CHANGELOG
                       QFitsView or ds9.
 2013/06/11, v0.4.0.0, added a new method to extract a single spectrum
                       from a cube.
+2013/06/25, v0.4.0.1, changed hierarchy on how the instrument is determined:
+                      The entry in the PampelMuse configuration is only used
+                      when not INSTRUME key is available in the FITS-header.
+                      Also added support for variance extensions (EXTNAME 'STAT')
+                      as they are provided by the MUSE pipeline.
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.4.0.0"
+__version__ = "0.4.0.1"
 import logging
 import numpy as np, pyfits
 
@@ -44,7 +49,8 @@ class Cube:
         mask : string, optional
             The path to the bad pixel mask of the cube. If none is provided, the
             routine will check whether the data file contains an extension 'MASK'.
-        instrument : pampelmuse.core.instruments.Instrument instance or None, optional
+        instrument : pampelmuse.core.instruments.Instrument instance, string or None,
+            optional
             Can be used to provide informations about the instrument used to observe
             the data. Note that if not instrument information is provided, only 3dim.
             data is accepted.
@@ -62,31 +68,41 @@ class Cube:
         self.mask_hdu  = None
         self.calibration_hdu = None
 
+        ## property to check whether uncertainties or variances are loaded
+        self.is_var = False
+
         ## open datacube:
         self.file = pyfits.open(name)
     
-        ## create instrument instance if none provided
-        if isinstance(instrument, Instrument):
-            self.instrument = instrument
-            
-        elif isinstance(instrument, str):
-            if instrument == "argus": self.instrument = Argus()
-            elif instrument == "pmas": self.instrument = Pmas()
-            else: logging.error("Unknown instrument specifier: '{0}'".format(instrument))
-
-        else:
-            ## if no instrument name is provided, try to get from FITS header:
+        ## if no instrument instance is provided, first option is to look for header keyword 'INSTRUME'
+        ## NOTE: unfortunately PMAS does not use the INSTRUME key (even though it is a standard FITS key, Martin!)
+        if not isinstance(instrument, Instrument):
+            instrume = None
             for hdu in self.file:
                 try:
                     instrume = hdu.header["INSTRUME"]
                     break
-                except KeyError:
-                    instrume = ""
-            
-            if instrume == "GIRAFFE":
+                except KeyError: pass
+                
+            ## if no 'INSTRUME' keyword is found, assume instrument name was provided as a string in 'instrument' argument
+            if instrume == None:
+                instrume = instrument
+
+            if instrume.upper() in ["GIRAFFE", "ARGUS"]:
                 self.instrument = Argus()
-            else: ## unfortunately PMAS does not use the INSTRUME key
+            elif instrume.upper == "PMAS":
+                self.instrument = Pmas()
+#            elif instrume.upper() == "MUSE":
+#                self.instrument = Muse()
+            else:
+                if instrume is not None:
+                    logging.error("Unknown instrument specifier: '{0}'".format(instrume))
+                else:
+                    logging.warning("Cannot determine IFU in use.")
+                logging.warning("Some functions might not work properly.")
                 self.instrument = Instrument()
+        else:
+            self.instrument = instrument
         
         ## check if calibration HDU for ARGUS exists, extension (FIBER_HDU)
         if self.instrument.name == "argus":
@@ -105,12 +121,13 @@ class Cube:
         ## to x- & y-coords unknown, otherwise 2dim. data is accepted
         self.ndim = self.data_hdu.header["NAXIS"]
 
-        if self.instrument.transform == None and self.ndim!=3:
-            logging.error("Data must be 3dim. unless mapping from spaxels to x&y specified.")
-            assert self.ndim==3, "Expected 3dim. datacube, got {0}dim".format(self.ndim)
+        if self.ndim != 3:
+            if self.instrument.transform == None:
+                logging.error("Data must be 3dim. unless mapping from spaxels to x&y specified.")
+                assert self.ndim==3, "Expected 3dim. datacube, got {0}dim".format(self.ndim)
 
-        ## Reading information about wavelength coverage
-        if self.ndim == 3:
+                self.spectral_axis = self.instrument.spectral_axis
+        else:
             if self.instrument.shape == None: ## set spatial shape if needed
                 xdim = self.data_hdu.header["NAXIS1"]
                 ydim = self.data_hdu.header["NAXIS2"]
@@ -118,17 +135,31 @@ class Cube:
                 self.instrument.shape = (ydim, xdim)
 
                 ## for 3dim. data, initialize transformation assuming rectangular array
-                x = np.mod(np.arange(xdim*ydim, dtype=np.int16), xdim)
-                y = np.arange(xdim*ydim, dtype=np.int16)//xdim
+                x = np.mod(np.arange(xdim*ydim, dtype=np.int32), xdim)
+                y = np.arange(xdim*ydim, dtype=np.int32)//xdim
                 self.instrument.transform = np.vstack((y,x)).T
 
             self.spectral_axis = 3
-        else:
-            self.spectral_axis = self.instrument.spectral_axis
 
+        ## check if data compatible with coordinate transformation of the instrument
+        self.nvoxel = reduce(lambda x,y: x*y, self.data_hdu.data.shape)
+        self.nlayer = self.data_hdu.header["NAXIS{0}".format(self.spectral_axis)]
+    
+        if self.instrument.transform.shape[0]!=(self.nvoxel/self.nlayer):
+            logging.critical("No. of spaxels in data [{0}] and instrument definition [{1}] differ.".format((self.nvoxel/self.nlayer), self.instrument.transform.shape[0]))
+        assert self.instrument.transform.shape[0]==(self.nvoxel/self.nlayer), "No. of spaxels in data does not match no. of instrument spaxels."
+
+
+        ## Reading information about wavelength coverage
         self.crpix = self.data_hdu.header['CRPIX{0}'.format(self.spectral_axis)]
         self.crval = self.data_hdu.header['CRVAL{0}'.format(self.spectral_axis)]
-        self.cdelt = self.data_hdu.header['CDELT{0}'.format(self.spectral_axis)]
+        
+        try: self.cdelt = self.data_hdu.header['CDELT{0}'.format(self.spectral_axis)]
+        except KeyError:
+            try: self.cdelt = self.data_hdu.header['CD{0}_{0}'.format(self.spectral_axis)]
+            except KeyError:
+                logging.error("Cannot find dispersion keyword ('CDELT{0}' or 'CD{0}_{0}')".format(self.spectral_axis))
+                self.cdelt = None
 
         try:
             self.ctype = self.data_hdu.header["CTYPE{0}".format(self.spectral_axis)]
@@ -187,27 +218,46 @@ class Cube:
     
     def openSigma(self, filename=None):
         """
-        Open the uncertainties of the data and check their validity. The
-        uncertainties should be either in the first extension of a file or
-        in an extension named 'ERROR'. Not that if no file is provided, the
-        routine will check the data file for the information.
+        Open the uncertainties or variances of the data and check their
+        validity. Uncertainties should be either in the first extension of
+        a file or in an extension named 'ERROR' or 'SIGMA'. Variance should
+        be in an extension named 'STAT'. Note that if no file is provided,
+        the routine will check the data file for the information.
         
         Parameters
         ----------
         filename : string, optional
-            The filename of the FITS file that contains the uncertainties.
+            The filename of the FITS file that contains the uncertainties or
+            variances.
         """
         if filename != None:
             hdulist = pyfits.open(filename)
         else:
             hdulist = self.file
-            
-        try:
-            self.sigma_hdu = hdulist["ERROR"]
-        except KeyError:
-            if filename != None: self.sigma_hdu = hdulist[0]
+        
+        ## check for uncertainties
+        for name in ["ERROR", "SIGMA"]:
+            try:
+                self.sigma_hdu = hdulist[name]
+                logging.info("Detected extension '{0}', assuming it coontains uncertainties.".format(name))
+                break
+            except KeyError:
+                pass
+
+        ## check for variances
+        for name in ["STAT", ]:
+            try:
+                self.sigma_hdu = hdulist[name]
+                self.is_var = True
+                logging.info("Detected extension '{0}', assuming it contains variances.".format(name))
+            except KeyError:
+                pass
+        
+        if self.sigma_hdu == None:
+            if filename != None:
+                self.sigma_hdu = hdulist[0]
             else:
-                logging.error("No HDU containing uncertainties detected.")
+                logging.error("No HDU containing uncertainties or variances detected.")
                 return
                 
         ##  consistency checks: must have same dimensions as data
@@ -222,14 +272,14 @@ class Cube:
                 self.sigma_hdu = None
                 return
                 
-        logging.info("Opening uncertaities HDU successful.")
+        logging.info("Opening uncertaities/variances HDU successful.")
         
     
     def openMask(self, filename=None):
         """
         Open the bad pixel mask of the data and check its validity. The
-        uncertainties should be either in the first extension of a file or
-        in an extension named 'MASK'. Not that if no file is provided, the
+        mask should be either in the first extension of a file or in an
+        extension named 'MASK'. Not that if no file is provided, the
         routine will check the data file for the information.
         
         Parameters
@@ -244,6 +294,7 @@ class Cube:
             
         try:
             self.mask_hdu = hdulist["MASK"]
+            logging.info("Detected extension 'MASK', assuming it contains the bad voxel mask.")
         except KeyError:
             if filename != None: self.mask_hdu = hdulist[0]
             else:
@@ -278,7 +329,7 @@ class Cube:
         -------
         mask or None, depending on whether a mask is available
         """
-        if self.mask_hdu == None:  return None
+        if self.mask_hdu == None:  return np.zeros(self.instrument.nspaxel, dtype=np.int16)
         else: return self._getLayer(self.mask_hdu, index)
         
         
@@ -312,12 +363,14 @@ class Cube:
             valid = self.getMaskForLayer(index)==0
         
             if return_sigma:
-                return self._getLayer(self.data_hdu, index)[valid], self._getLayer(self.sigma_hdu, index)[valid]
+                if not self.is_var: return self._getLayer(self.data_hdu, index)[valid], self._getLayer(self.sigma_hdu, index)[valid]
+                else: return self._getLayer(self.data_hdu, index)[valid], np.sqrt(self._getLayer(self.sigma_hdu, index)[valid])
             else:
                 return self._getLayer(self.data_hdu, index)[valid]
         else:
             if return_sigma:
-                return self._getLayer(self.data_hdu, index), self._getLayer(self.sigma_hdu, index)
+                if not self.is_var: return self._getLayer(self.data_hdu, index), self._getLayer(self.sigma_hdu, index)
+                else: return self._getLayer(self.data_hdu, index), np.sqrt(self._getLayer(self.sigma_hdu, index))
             else:
                 return self._getLayer(self.data_hdu, index)
         

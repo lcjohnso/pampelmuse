@@ -34,9 +34,12 @@ CHANGELOG:
                       now with the edges of the spaxels (instead of their centres).
                       Introduced a new property 'edgepath' to facilitate the
                       calculations.
+2013/06/25, v0.3.1.1, the 'edgepath' property to define the spaxels that constitute
+                      the edges of the FoV was not set properly when no specific
+                      instrument was specified.
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.3.0.1"
+__version__ = "0.3.1.1"
 import logging, re
 import numpy as np
 from matplotlib import path
@@ -181,13 +184,8 @@ class Instrument(object):
             
             ## assume rectangular field of view and fibres aranged row after
             ## row (like PMAS/LArr).
-            return np.hstack(\
-                (np.nonzero((self.y==self.y.min())&(self.x>self.x.min())),
-                 np.nonzero((self.x==self.x.max())&(self.y>self.y.min())),
-                 np.nonzero((self.y==self.y.max())&(self.x<self.x.max()))[::-1],
-                 np.nonzero((self.x==self.x.min())&(self.y<self.y.max()))[::-1]\
-                     ))
-
+            return np.hstack((np.flatnonzero((self.y==self.y.min())&(self.x>self.x.min())), np.flatnonzero((self.x==self.x.max())&(self.y>self.y.min())),
+                              np.flatnonzero((self.y==self.y.max())&(self.x<self.x.max()))[::-1], np.flatnonzero((self.x==self.x.min())&(self.y<self.y.max()))[::-1]))
         else:
             return self._edgepix
 
@@ -213,7 +211,6 @@ class Instrument(object):
         edgepath:  a matplotlib.path.Path instance
             The edges of the field of view.
         """
-        
         ## can only create Path if transformation and edge spaxels have been defined
         if self.edgepix == None or self.transform == None: return None
         
@@ -604,7 +601,8 @@ class Instrument(object):
                 return np.squeeze(calc_data[:,self.isscience])
         else:
             logging.error("Provided data has invalid dimensions.")
-            logging.error("Expected {0:d} or {1:d} fibres but got {2:d}.".format(self.nspaxel, self.nspaxel+self.naux, calc_data.shape[np_spatial_axis]))
+            if self.naux>0: logging.error("Expected {0:d} or {1:d} fibres but got {2:d}.".format(self.nspaxel, self.nspaxel+self.naux, calc_data.shape[np_spatial_axis]))
+            else: logging.error("Expected {0:d} fibres but got {1:d}.".format(self.nspaxel, calc_data.shape[np_spatial_axis]))
             return None
 
 

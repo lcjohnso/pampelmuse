@@ -175,10 +175,10 @@ class Sources(CoordinateTransformation, object):
             logging.warning("Parameter 'hdu' is not used anymore.")
 
         if isinstance(data, pyfits.BinTableHDU):
-            logging.info("Initializing Sources instance from HDU.")
+            logging.info("Initializing Sources instance using provided HDU...")
             data = np.array(data.data, dtype=data.data.dtype)
         else:
-            logging.info("Initializing Sources instance.")
+            logging.info("Initializing Sources instance...")
 
         ## Initialize properties:
         ## Note that the  properties below can be accessed in two ways:
@@ -196,6 +196,7 @@ class Sources(CoordinateTransformation, object):
                 pass
         elif "ids" in kwargs.keys():
             self.ID = np.asarray(kwargs["ids"])
+            logging.info("Catalog contains {0} sources".format(self.nsrc))
         if self.ID == None:
             logging.critical("Source IDs must be provided upon initialization.")
 
@@ -211,7 +212,7 @@ class Sources(CoordinateTransformation, object):
         ## "Initialize" instrument-class
         if isinstance(instrument, Instrument):
             self.instrument = instrument
-            logging.debug("Selected instrument is '{0}'.".format(instrument.name))
+##            logging.debug("Selected instrument is '{0}'.".format(instrument.name))
         else:
             logging.warning("No valid instrument specifier provided.")
             self.instrument = Instrument()
