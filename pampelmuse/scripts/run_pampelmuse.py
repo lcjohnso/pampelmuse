@@ -63,9 +63,11 @@ v0.9.0.0, 2013/05/29, revised how the configuration of the code is handled
 v0.9.1.0, 2013/05/31, check whether parameter 'USEQT' is False if dependencies for GUIs
                       are not fulfilled was not updated so far.
 v0.9.1.1, 2013/06/25, small changes to logging messages.
+v0.9.2.1, 2013/06/25, code crashes when ran without PyQt4 support because methods 'initfit'
+                      and 'polyfit' were referenced but not imported.
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.9.1.1"
+__version__ = "0.9.2.1"
 
 
 print """
@@ -373,7 +375,7 @@ del pampelmuse.layerrng
 pampelmuse.prefix = args.prefix
 pampelmuse.filename = "{0}.prm.fits".format(args.prefix)
 
-if args.func!=initfit: ## unless INITFIT should  be called, open existing PRM file
+if not graphics or args.func!=initfit: ## unless INITFIT should be called, open existing PRM file
     
     logging.info("Reading PampelMuse-file: {0}".format(pampelmuse.filename))
     pampelmuse.hdulist  = pyfits.open(pampelmuse.filename, mode="update")
@@ -391,7 +393,7 @@ else: ## add reference catalogue to configuration
     pampelmuse.initfit = Namespace()
     pampelmuse.initfit.sourcelist = args.sourcelist
 
-if args.func==polyfit:
+if graphics and args.func==polyfit:
     if not hasattr(pampelmuse, "polyfit"): pampelmuse.polyfit = Namespace()
     pampelmuse.polyfit.reference = args.reference
 
