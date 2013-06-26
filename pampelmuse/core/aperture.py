@@ -39,9 +39,11 @@ CHANGELOG:
 2013/06/26, v0.5.0.0, major updates to the code to make it compatible with the
                       newer versions of PampelMuse. The aperture correction
                       using the PSF still has to be implemented.
+2013/06/26, v0.5.1.0, forgot a continue statement when the routine encounters
+                      a layer for which al voxels have been masked.
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.5.0.0"
+__version__ = "0.5.1.0"
 import logging, sys
 import numpy as np, pyfits
 from scipy import spatial
@@ -188,6 +190,7 @@ class AperPhoto:
 
             if not (curMask==False).any():
                 logging.error("[@{0}] This layer contains no unmasked voxels.".format(kk))
+                continue
 
             ## spaxel coordinates
             spaxels = self.cube.instrument.transform[curMask==False]
