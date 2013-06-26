@@ -37,9 +37,10 @@ CHANGELOG:
                       coordinates are provided with the emitted signal.
 2013/06/26, v0.5.1.1, code crashed when a requested layer from a datacube contained
                       only NaN values. This should be fixed now.
+2013/06/26, v0.5.2.1, previous release introduced new bug: 'size()' instead of 'size'
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.5.1.1"
+__version__ = "0.5.2.1"
 
 import logging
 import matplotlib.transforms, matplotlib.artist, matplotlib.pyplot, numpy as np
@@ -300,7 +301,7 @@ class DynamicImaCanvas(FigureCanvas):
             
             values = _values[_values==_values] ## remove NaN pixels
             
-            if values.size() == 0:
+            if values.size == 0:
                 logging.error("Requested layer contains only NaN values.")
                 self.cuts = (0, 1)
             else:
