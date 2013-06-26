@@ -65,9 +65,13 @@ CHANGELOG:
 2013/05/31, v0.5.2.5, removed spurious 'print' command used for debugging
 2013/06/13, v0.6.0.0, removed methods 'edgeDist' and 'signalToNoise' as they were
                       only loosely connected to the class 'Sources'.
+2013/06/26, v0.6.0.1, modified the method 'loadIFUCoords' so that instead of
+                      issuing a warning when not all sources have IFU coordinates
+                      available, it loads the reference coordinates for those
+                      sources.
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.6.0.0"
+__version__ = "0.6.0.1"
 import logging
 import numpy as np, pyfits
 from numpy.polynomial import Chebyshev, Legendre
@@ -1019,6 +1023,8 @@ class Sources(CoordinateTransformation, object):
          (2a) reading the coordinates from a previously provided (using the
               method 'loadPositionsHDU') FITS-ImageHDU.
          (2b) using the coordinate transformation if a valid one is available.
+         (2c) directly use the reference coordinates (i.e. assuming the coord.
+              transformation is A=1, B=C=D=0)
         Additionally, the method check whether polynomial fits to the IFU
         coordinates exists as a FITS-ImageHDU.
 
@@ -1094,19 +1100,17 @@ class Sources(CoordinateTransformation, object):
 
             self.isFreePar[:] = False
             self.isFreePar[match] = free
-        
+
             ## check if data array has a valid shape
             ## - first axis must have length 2 (x- & y-axis)
             if data.shape[0] != 2:
                 logging.error("Provided IFU coords array has invalid shape.")
-            assert data.shape[0] == 2, \
-                "First axis of array must be x-/y-coords."
+            assert data.shape[0] == 2, "First axis of array must be x-/y-coords."
             
             ## - number of sources
             if data.shape[1] != nsrc:
                 logging.error("Cannot match provided IFU coords data to source IDs.")
-            assert data.shape[1] == nsrc, \
-                "Lengths of IFU coords data and array of source IDs differ."
+            assert data.shape[1] == nsrc, "Lengths of IFU coords data and array of source IDs differ."
 
             ## - number of layers
             if data.ndim == 2:
@@ -1115,13 +1119,10 @@ class Sources(CoordinateTransformation, object):
                 else: logging.error("Shape of IFU coords array does not match no of layers.")
             elif data.ndim == 3:
                 if nlayer  == None: nlayer = data.shape[2]
-                elif data.shape[2] != nlayer:
-                    logging.error("IFU coords array does not match no. of layers.")
+                elif data.shape[2] != nlayer: logging.error("IFU coords array does not match no. of layers.")
 
-            assert data.ndim in [2,3], \
-                "IFU coords array must be 3D if more than 1 layer loaded."
-            if data.ndim == 3: assert data.shape[2] == nlayer, \
-                    "3rd axis of IFU coords array must match no. of layers."
+            assert data.ndim in [2,3], "IFU coords array must be 3D if more than 1 layer loaded."
+            if data.ndim == 3: assert data.shape[2] == nlayer, "3rd axis of IFU coords array must match no. of layers."
 
             ## make sure coordinates are stored in proper order & fill arrays
             if sorter == None:
@@ -1149,17 +1150,17 @@ class Sources(CoordinateTransformation, object):
             else:
                 processed = np.zeros((len(ids),), dtype=np.bool)
 
-            if (processed==False).any() and self.verifyTrans:
-                
-                xNew, yNew = self.__call__(\
-                    x=self.x[self.loadedIFUCoords][processed==False],
-                    y=self.y[self.loadedIFUCoords][processed==False],
-                    index=index)
-                
-                self.xdata[0,processed==False] = xNew
-                self.ydata[0,processed==False] = yNew
-                
-                processed[:] = True
+            if (processed==False).any():
+                xin = self.x[self.loadedIFUCoords][processed==False]
+                yin = self.y[self.loadedIFUCoords][processed==False]
+                if self.verifyTrans:
+                    xNew, yNew = self.__call__(x=xin, y=yin, index=index)
+                    self.xdata[0,processed==False] = xNew
+                    self.ydata[0,processed==False] = yNew
+
+                else:
+                    self.xdata[0, processed==False] = xin
+                    self.ydata[0, processed==False] = yin
 
             if "polyFitHDU" in self.__dict__:
             
@@ -1170,11 +1171,6 @@ class Sources(CoordinateTransformation, object):
 
                     self.xdata[1,i] = self.polyFitHDU.section[0,j,index]
                     self.ydata[1,i] = self.polyFitHDU.section[1,j,index]
-    
-                    processed[i] = True
-
-            if not processed.all():
-                logging.error("Could not determine IFU coords for some sources.")
 
 
     def calcTrans(self, index=slice(None)):

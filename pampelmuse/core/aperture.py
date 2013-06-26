@@ -36,103 +36,21 @@ CHANGELOG:
                       calculations.
 2013/04/05, v0.4.1.3, made all occurences of 'id' uppercase to  make code
                       consistent with other parts of PampelMuse.
+2013/06/26, v0.5.0.0, major updates to the code to make it compatible with the
+                      newer versions of PampelMuse. The aperture correction
+                      using the PSF still has to be implemented.
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.4.1.3"
+__version__ = "0.5.0.0"
 import logging, sys
 import numpy as np, pyfits
-## from matplotlib.mlab import griddata
+from scipy import spatial
 
 ## required PampelMuse-packages
-## None required, instance of the `PSF`-class provided
+from pampelmuse.core.cube import Cube
+from pampelmuse.core.sources import Sources
+from pampelmuse.core.new_profiles import Profile
 
-
-
-class SelectAnnulus:
-    """
-    Class to create boolean array with True entries in annulus-shaped
-    region.
-    """
-    def __init__(self, shape, centers):
-        """
-        Initialize a class to select annulus from array
-        
-        Parameters
-        ----------
-        shape : tuple
-            Size of the (2dim.) array to work on.
-        center : numpy_record_array
-            Must contain the fields 'ID', 'x' and 'y'. 'x' and 'y' are
-            pixel coordinates of the sources in the array.
-        """
-
-        self.shape   = shape
-        self.centers = centers
-
-        for name in ['ID', 'x', 'y']:
-            if not name in self.centers.dtype.names:
-                logging.critical(\
-                    "Field '{0}' not found in 'centers'-array".format(name))
-
-
-    def __call__(self, ids, r_min, r_max):
-        """
-        Select pixels in an annulus around one or more sources.
-
-        Parameters
-        ----------
-        ids : integer or array_like
-            The ID(s) of the source(s).
-        r_min : float
-            Inner radius of the annulus
-        r_max : float
-            Outer radius of the annulus. If r_max=0, all pixel at
-            distances > r_min are selected
-
-        Returns
-        -------
-        selected_pixel : array_like
-            A 2dim. boolean array of with shape `shape` and all pixels set to
-            True that:
-                (a) are at a distance >=r_min  wrt to all selected sources.
-               [(b) are at a distance <=r_max to ONE selected source.]
-        """
-
-        self.IDs = np.asarray([ids]).flatten()
-        selected = [np.where(self.centers['ID']==ID)[0][0] for ID in self.IDs]
-
-        dst = np.zeros((self.IDs.size, self.shape[0], self.shape[1]),
-                       dtype='float32')
-
-        j = 0
-        for i in selected:
-            self.x_c = self.centers['x'][i]
-            self.y_c = self.centers['y'][i]
-
-            dst[j] = np.fromfunction(self._calc, self.shape, dtype='float32')
-            j += 1
-
-        minDst = dst.min(axis=0)
-
-        if r_max != 0:
-            outArray = (minDst>=r_min)&(minDst<=r_max)
-        else:
-            outArray = (minDst>=r_min)
-
-        if not outArray.any():
-            logging.warn("Annulus does not contain any pixels.")
-
-        return outArray
-
-
-    def _calc(self, y, x):
-        """
-        Measure distance of every pixel to center. Method is called
-        automatically by '__call__'.
-        """
-
-        r2 = (x - self.x_c)**2 + (y - self.y_c)**2
-        return np.sqrt(r2)
 
 
 
@@ -145,97 +63,48 @@ class AperPhoto:
     and subtracted. 
     """
 
-    def __init__(self, data, centers, mask=None):
+    def __init__(self, cube, sources, min_status=3):
         """
         Initialize an instance of AperPhoto-class
 
         Parameters
         ----------
-        data : array_like of pyfits HDU-instance
-            The 2 or 3dim. array on which the aperture photometry should
-            be performed. In case of a 3dim. array, the first axis must
-            be the spectral one. Also, in the case of a 3dim. array a pyfits
-            HDU-instance can be provided that will then be loaded into memory
-            image-by-image (useful for large data-cubes).
-        centers : numpy_record_array
-            Initial guesses for the pixel coordinates of all sources for which
-            photometric measurements should be performed. The record array must
-            contain fields named 'ID', 'x' and 'y'.
-        mask :  array_like of pyfits HDU-instance
-            Must be boolean array of same shape as `data` if provided. All
-            pixels set to True in `mask` are replaced using 2dim. linear
-            interpolation before aperture photometry is performed.
-            
+        cube : an instance of pampelmuse.core.cube.Cube
+            All the information about the data that should  be analysed should
+            be provided here. For further information on how to do this, check
+            the documentation included in the class 'Cube'.
+        sources : an instance of pampelmuse.core.sources.Sources
+            All the information about the sources that are present in the data
+            cube should be provided here. For further information on how to
+            properly set up  an instance of 'Sources', check the documentation
+            included in the definition of that class.  
+        min_status : int, optional
+            The minimum value of the 'Sources.status' property a source should
+            have to be considered in the aperture spectrophotometry.
+    
         Returns
         -------
         The newly created instance
         """
-        logging.info("Starting aperture photometry, validating input.")
+        logging.info("Starting aperture photometry, validating input...")
 
-        ## reading information about sources
-        self.centers = centers
-        for name in ['ID', 'x', 'y']: ## check if input is valid
-            if not name in self.centers.dtype.names:
-                logging.critical(\
-                    "Field '{0}' not found in `centers'".format(name))
+        ## Checking 'cube'
+        assert isinstance(cube, Cube), "Parameter 'sources' must be an instance of pampelmuse.core.cube.Cube."
+        self.cube = cube
 
-        self.Nsources = self.centers.size
-        logging.info("Found {0} valid sources.".format(self.Nsources))
+        ## Checking 'sources'
+        assert isinstance(sources, Sources), "Parameter 'sources' must be an instance of pampelmuse.core.sources.Sources."
+        self.sources = sources
+        assert sources.x != None, "Initial guesses for the x coordinates of the sources must be available."
+        assert sources.y != None, "Initial guesses for the y coordinates of the sources must be available."
+        assert sources.status != None, "Property Sources.status must have been set."
 
-        ## prepare data array, check whether array or HDU provided
-        if isinstance(data, (pyfits.PrimaryHDU, pyfits.ImageHDU)):
-            self.dataFITS = True
-        else:
-            self.dataFITS = False
+        ## Checking which sources should be included in the calculation
+        self.used = (self.sources.status>=min_status)&(self.sources.status<4)
+        logging.info("Will carry out aperture spectrophotometry for {0} sources with status>={1}.".format(self.used.sum(), min_status))
 
-        if self.dataFITS:
-            ndim = data.header["NAXIS"]
-            self.spatpix = (data.header["NAXIS2"], data.header["NAXIS1"])
-        else:
-            ndim = data.ndim
-            self.spatpix = data.shape[-2:]
 
-        if ndim == 3:
-            self.data = data
-        else:
-            if self.dataFITS:
-                self.data = data.data.reshape((1,) + self.spatpix)
-            else:
-                self.data = data.reshape((1,)+self.spatpix)
-            self.dataFITS = False
-
-        if self.dataFITS: self.Nimages = self.data.header["NAXIS3"]
-        else: self.Nimages = self.data.shape[0]
-
-        logging.info("Input data is {0}D, with {1} spectral pixels."\
-                         .format(2+(self.Nimages>1),  self.Nimages))
-
-        ## prepare mask array (if any), check whether array or HDU provided
-        self.mask = mask
-        if isinstance(self.mask, (pyfits.PrimaryHDU, pyfits.ImageHDU)):
-            self.maskFITS = True
-        else:
-            self.maskFITS = False
-
-##         if self.mask != None:
-##             if self.mask.shape != self.data.shape:
-##                 logging.critical("Data and mask have different shapes.")
-
-        ## prepare record array that will contains output.
-        self.results = np.zeros(self.Nsources+1, dtype=[\
-                ('ID',np.int32),
-                ('spectrum', np.float32, (self.Nimages,)),
-                ('x', np.float32, (self.Nimages,)),
-                ('y', np.float32, (self.Nimages,)),
-                ('x2', np.float32, (self.Nimages,)),
-                ('y2', np.float32, (self.Nimages,)),
-                ('xy', np.float32, (self.Nimages,))
-                ])
-        
-
-        
-    def aper_photo(self, rAper=3., psf=None, calcMoments=True, thresh=3.,
-                   localBG=True):
+    def aper_photo(self, r_aper=3., layer_range=(0, -1), PSF=None, calc_moments=True, thresh=3., local_background=True):
         """
         Method performs the actual aperture (spectro)photometry (and
         measures the moments if requested). An estimate of the global
@@ -249,20 +118,25 @@ class AperPhoto:
 
         Parameters
         ----------
-        rAper : float, optional
-            Measurement radius; only pixels with distances <= rAper to
+        r_aper : float, optional
+            Measurement radius; only pixels with distances <= r_aper to
             the source center are taken into account
-        psf : a PSF instance, optional
-            An instance of a PSF-class can be provided. In that case,
-            the provided PSF is used to perform an aperture correction.
-        calcMoments : bool, optional
+        layer_range : array_like
+            The indices of the first and the last layer of the data cube
+            that should be included in the calculation. The default is to
+            use the entire cube. 
+        PSF : a class pampelmuse.core.new_profiles.Profile
+            A PSF class can be provided here,  containing an instance for
+            every source. In that case, the provided PSFs are used to
+            perform an aperture correction. NOT YET IMPLEMENTED!
+        calc_moments : bool, optional
             Boolean flag that tells AperPhoto whether moments should be
             calculated
         thresh : float, optional
             Only pixels with values larger than <thresh> times the
            estimated background noise are considered in the moment
             calculation.
-        localBG : boolean, optional
+        local_background : boolean, optional
             Flag indicating whether a local background for every source
             should be estimated.
             
@@ -275,193 +149,141 @@ class AperPhoto:
             Note that the global background flux/spectrum is stored in the
             'spectrum' slot of a hypothetical source with 'ID' -1.
         """
-        self.rAper   = rAper
-        self.thresh  = thresh
-        self.calcMom = calcMoments
-        logging.info("Aperture photometry - starting calulation with:")
-        logging.info("   Aperture radius (rAper) = {0:.1f}pixel".format(rAper))
-        logging.info("   Pixel threshold (thresh) = {0}sigma".format(thresh))
-        logging.info("   Moment calculation? - {0}".format(calcMoments))
-        logging.info("   Local background calculation? - {0}".format(localBG))
+        self.r_aper = r_aper
+        self.start, self.stop = layer_range
+        if self.start < 0: self.start = self.cube.ndisp - self.start
+        if self.stop < 0: self.stop = self.cube.ndisp - self.stop
+        self.Nlayer = self.stop-self.start+1
+        self.PSF = PSF
+        self.thresh = thresh
+        self.calc_moments = calc_moments
+        
+        logging.info("Aperture photometry - starting calulation, using the following setup:")
+        logging.info("+Aperture radius (r_aper) = {0:.1f}pixel".format(self.r_aper))
+        logging.info("+Included layers (layer_range): {0}-{1}".format(self.start, self.stop))
+        logging.info("+Pixel threshold (thresh) = {0}sigma".format(self.thresh))
+        logging.info("+Moment calculation? (calc_moments) - {0}".format(self.calc_moments))
+        logging.info("+Local background calculation? (local_background) - {0}".format(local_background))
+        logging.info("+Aperture correction via PSF estimate? (PSF) - {0}.".format(self.PSF!=None))
 
-        if psf != None:
-            logging.info("   Aperture correction with `{0}'-PSF.".format(\
-                    psf.psftype))
-        else:
-            logging.info("   No aperture correction applied.")
+        ## prepare record array that will contains output.
+        logging.info("Preparing array to contain results...")
+        self.results = np.zeros(self.used.sum()+1, dtype=[("ID",np.int32), ("flux", np.float32, (self.Nlayer,)), ("x", np.float32, (self.Nlayer,)),
+                                                          ("y", np.float32, (self.Nlayer,)), ("x2", np.float32, (self.Nlayer,)), ("y2", np.float32, (self.Nlayer,)),
+                                                          ("xy", np.float32, (self.Nlayer,))])
+        self.results["ID"][:-1] = self.sources.ID[self.used]
+        self.results["ID"][-1] = -1 ## last entry in the results array is reserved for the sky estimate 
 
-        if self.mask != None or self.calcMom:
-            Y, X = np.indices(self.spatpix)
+        ## calculation is started on the central layer of the requested range and moves to both sides simultaneously
+        for i in xrange(self.Nlayer):
+            jj = (self.Nlayer>>1) - 1 - int(i/2) + i*np.mod(i, 2) + np.mod(self.Nlayer, 2)
+            kk = jj + self.start
+            
+            logging.info("Aperture spectrophotometry - processing layer #{0} [{1}/{2}]".format(kk, i+1, self.Nlayer))
 
-        self.results['ID'][:self.Nsources] = self.centers['ID']
-        self.results['ID'][self.Nsources]  = -1 ## the average sky spectrum
+            ## collect information for current layer
+            ## data & mask
+            curData = self.cube.getLayer(kk, return_sigma=False)
+            curMask = self.cube.getMaskForLayer(kk)
 
-        self.annuSelect = SelectAnnulus(self.spatpix, self.centers)
+            if not (curMask==False).any():
+                logging.error("[@{0}] This layer contains no unmasked voxels.".format(kk))
 
-        for i in xrange(self.Nimages):
-            logging.info("Aperture spectrophotometry - image #{0}/{1})".format(\
-                    i+1, self.Nimages))
+            ## spaxel coordinates
+            spaxels = self.cube.instrument.transform[curMask==False]
 
-            if self.dataFITS: data_i = self.data.section[i]
-            else:  data_i = np.copy(self.data[i])
+            logging.debug("[@{0}] Calculating distances between source centroids and spaxels for all sources...".format(kk))
+            ## load IFU coordinates for the requested sources
+            self.sources.loadIFUCoords(ids=self.sources.ID[self.used], index=jj)
+            centroids = np.hstack((self.sources.ydata[0], self.sources.xdata[0]))
 
-            ##  if mask provided, interpolate masked values
-            if self.mask !=  None:
-                if self.maskFITS: mask_i = self.mask.section[i].astype(np.bool)
-                else: mask_i = self.mask[i]
-            else:
-                mask_i = np.zeros(self.spatpix, dtype=np.bool)
+            ## for this layer, calculate distance of centroid of each source to each spaxel
+            self.offsets = spatial.distance.cdist(centroids, spaxels)
 
-##                 if not psf:
-##                     logging.debug("   Implementing mask.")
-##                     x_mask = X[mask_i]
-##                     y_mask = Y[mask_i]
+            ##  estimate global background value. For this, all spaxels within a distance r_aper to any source centroid are masked out
+            logging.debug("[@{0}] Determining global background...".format(kk))
+            backpix = (self.offsets>self.r_aper).all(axis=0)
+            if backpix.sum() < 20: logging.warn("[@{0}] Using < 20 pixels to estimate global background.".format(kk))
+            self.backval, self.backstd = self._clip_sigma(curData[backpix])
+            self.results["flux"][-1, jj] = self.backval
+            logging.debug("[@{0}] Global background is {1:.2f}/pixel".format(kk, self.backval))
 
-                    
-            ##  estimate global background value.
-            logging.debug("   Determining global background")
-            self.backval, self.backstd = self._estGlobalBG(\
-                data_i-data_i*mask_i)
-            self.results['spectrum'][self.Nsources,i] = self.backval
-            logging.debug("   Value={0:.3f}/pixel".format(self.backval))
+            ## a loop over all sources (index n), but calculations are only performed if source n is included in the
+            ## list of sources for which the aperture spectrophotometry should be performed. N is the index for those
+            ## sources.
+            N = -1
+            for n in xrange(self.sources.nsrc):
+                if not self.used[n]: continue
 
-            for j in xrange(self.Nsources):
-                curID = self.centers['ID'][j]
-                logging.debug("   Source #{0}/{1} (ID={2}):".format(\
-                        j, self.Nsources, curID))
+                N += 1
 
-                ## estimate local background (if requested)
-                if localBG:
-                    backval_ji,backstd_ji = self._estLocalBG(\
-                        data_i-data_i*mask_i, curID=curID)
-                    logging.debug("      Background: {0}/pixel (local)"\
-                                      .format(backval_ji))
+                logging.debug("[@{0}] Processing source #{0} [{1}/{2}]:".format(kk, self.sources.ID[n], N+1, self.used.sum()))
 
-                ## otherwise use global background
-                else:
-                    backval_ji,backstd_ji = self.backval,self.backstd
-                    logging.debug("      Background: {0}/pixel (glob.)"\
-                                      .format(backval_ji)) 
+                ## estimate local background (if requested, otherwise use global background)
+                if local_background:
+                    backpix = (self.offsets[N]>2*self.r_aper)&(self.offsets[N]<=4*self.r_aper)
 
-                ## Get array for calculations
-                selPix_ji  = self.annuSelect(ids=curID, r_min=0,
-                                             r_max=self.rAper)
-                selPix_ji[mask_i] = False
+                    if backpix.sum() < 10: logging.warn("[@{0}, #{1}] Using < 10 pixels to estimate local background.".format(kk, self.sources.ID[n]))
+        
+                    backval, backstd = self._clip_sigma(curData[backpix])
+                    logging.debug("[@{0}, #{1}] Local background: {2:.2f}/pixel".format(kk, self.sources.ID[n], backval))
 
-                selData_ji = np.copy(data_i[selPix_ji]) - backval_ji
 
-                ## Moment calculation:
-                if self.calcMom:
-                    aboveCut = (selData_ji>(self.thresh*backstd_ji))
-                                  
-                    if aboveCut.sum() > 3:
-                        logging.debug("      Moments:")
+                ## Get array for calculations & subtract background estimate
+                fluxpix  = self.offsets[N]<=self.r_aper
+                fluxdata = curData[fluxpix] - backval
 
-                        moments = self._measureMoments(selData_ji[aboveCut],
-                                                       X=X[selPix_ji][aboveCut],
-                                                       Y=Y[selPix_ji][aboveCut])
-                        k = 0
-                        for moment in ['x', 'y', 'x2', 'y2', 'xy']:
-                            self.results[moment][j,i]  = moments[k]
-                            logging.debug("       {0}={1}".format(moment,
-                                                                  moments[k]))
-                            k += 1
+                ## Moment calculation, only if requested:
+                if self.calc_moments:
+                    mompix  = fluxpix&(curData>(backval+self.thresh*backstd))
+                    momdata = curData[mompix]                                  
+                    if mompix.sum() > 3:
+                        if mompix.sum() < 5: logging.warn("[@{0}, #{1}] Less than 5 pixels used to calculate moments.".format(kk, self.sources.ID[n]))
+                        moments = self._measure_moments(momdata, X=spaxels[mompix, 1], Y=spaxels[mompix, 0])
+                        
+                        ## perform sanity check on second order moments and add them to results:
+                        if moments[2]<0:
+                            logging.error("[@{0}, #{1}] Source has unphysical moments: <x^2> < 0".format(kk, self.sources.ID[n]))
+                            moments[2]=0
+                        if moments[3]<0:
+                            logging.error("[@{0}, #{1}] Source has unphysical moments: <y^2> < 0".format(kk, self.sources.ID[n]))
+                            moments[3]=0
+                        if moments[4]**2 >= moments[2]*moments[3]:
+                            logging.error("[@{0}, #{1}] Source has unphysical moments: <xy>^2 >= <x^2><y^2>".format(kk, self.sources.ID[n]))
+                            moments[4] = 0
+                            
+                        self.results["x"][N, jj] = moments[0]
+                        self.results["y"][N, jj] = moments[1]
+                        self.results["x2"][N, jj] = moments[2]
+                        self.results["y2"][N, jj] = moments[3]
+                        self.results["xy"][N, jj] = moments[4]
+                        logging.debug("[@{0}, #{1}] Calculated moments: <x>={2:.1f} <y>={3:.1f}, <x^2>={4:.1f}, <y^2>={5:.1f}, <xy>={6:.1f}".format(\
+                            kk, self.sources.ID[n], moments[0], moments[1],  moments[2], moments[3], moments[4]))
                     else:
-                        logging.error(\
-                            "Too few pixels (<4) to calculate moments.")
-                        self.results['x'][j][i] = self.centers['x'][j]
-                        self.results['y'][j][i] = self.centers['y'][j]
-
-                else:
-                    self.results['x'][j][i] = self.centers['x'][j]
-                    self.results['y'][j][i] = self.centers['y'][j]
+                        logging.error("[@{0}, #{1}] Too few pixels (<4) to calculate moments.".format(kk, self.sources.ID[n]))
 
                 ## Aperture photometry:
-                if psf != None:
-                    psfProf = psf(index=i*psf.disp) 
-                    psf_ji  = psfProf(size=self.spatpix,
-                                      x_c=self.centers['x'][j],
-                                      y_c=self.centers['y'][j],
-                                      mag=0., maxrad=15, return_sparse=False)
+                corr = 1.
+# TODO: implement usage of PSF for aperture correction
+#                if psf != None:
+#                    corr =  psf.f[fluxpix].sum()/psf.f.sum()
+#                else:
+#                    corr = 1.
 
-                    corr =  psf_ji[selPix_ji].sum()
-                else:
-                    corr = 1.
-
-                self.results['spectrum'][j][i] = selData_ji.sum()/corr
-                logging.debug("      Flux: {0}counts".format(\
-                        self.results['spectrum'][j][i]))
+                flux = fluxdata.sum()/corr
+                self.results["flux"][N, jj] = flux
+                logging.debug("[@{0}, #{1}] Calculated aperture flux: {2:.2f} counts".format(kk, self.sources.ID[n], float(flux)))
 
         return self.results
- 
-
-
-    def _estGlobalBG(self, data):
-        """
-        Estimate global background value in a 2dim. data array using
-        sigma clipping.
         
-        Parameters
-        ----------
-        data : ndarray
-            The 2dim. data array
 
-        Returns
-        -------
-            The mode and the sigma of the background pixel
-            distribution.
-        """
-        backPix = self.annuSelect(ids=self.centers['ID'], r_min=self.rAper,
-                                  r_max=0)
-        backData = data[backPix]
-        backData.sort()
-        
-        if backData.size < 20:
-            logging.warn("Using < 20 pixels to estimate global background.")
-
-        return self.__clipSigma(backData)
-
-
-
-    def _estLocalBG(self, data, curID):
-        """
-        Estimate local background value  for source 'curID' using
-        sigma clipping. The background is calculated in an annulus with
-        inner radius 'self.rAper' and outer radius 'self.rAper'+5.
-
-        Returns the mode and the sigma of the background pixel
-        distribution.
-        
-        Parameters
-        ----------
-        data : ndarray
-            The 2dim. data array
-        curID : integer
-            The ID of the investigated source.
-
-        Returns
-        -------
-            The mode and the sigma of the background pixel
-            distribution.
-        """
-        backPix = self.annuSelect(ids=curID, r_min=2*self.rAper,
-                                  r_max=4*self.rAper)
-        backData = data[backPix]
-        if backData.size < 10:
-            logging.warn("Using < 10 pixels to estimate local background.")
-        backData.sort()
-        
-        return self.__clipSigma(backData)
-
-
-
-    def __clipSigma(self, data, thresh=3.):
+    def _clip_sigma(self, indata, thresh=3.):
         """
         Perform sigma-cliipping on 1dim. array
 
         Parameters
         ----------
-        data : nd_array
+        indata : nd_array
             The array containing the data
         thresh : float, optional
             During the sigma clipping, all pixel values deviating more
@@ -475,36 +297,33 @@ class AperPhoto:
         sigma : float
             The sigma-clipped standard deviation of the data
         """
+        data = np.sort(indata)
 
         i = 0
         while True:
-	
             sigma  = data.std()
             median = data[data.shape[0]>>1]
-	
+            
             if i > 0:
-	
                 if len(data) == hist_length:
                     mean = data.mean()
                     mode = 3*median - 2*mean
                     break
-	                
+
             hist_length = len(data)
-	            
-            valid = np.logical_and(data>(median-thresh*sigma),
-                                   data<(median+thresh*sigma))
+            valid = (data>(median-thresh*sigma))&(data<(median+thresh*sigma))
 
             if valid.sum() < 5:
                 logging.warn("Sigma-clipping left <5 valid pixels.")
-	
+
             data = data[valid]
             i += 1
-	
+
         return mode, sigma
 
 
 
-    def _measureMoments(self, data, X, Y):
+    def _measure_moments(self, indata, X, Y):
 
         """
         Method measures first and second order moments of the pixel
@@ -517,43 +336,36 @@ class AperPhoto:
 
         Parameters
         ----------
-        data : ndarray
-            The 2dim. data array
+        indata : ndarray
+            The data, provided as a 1dim. array. Note that the data should
+            be background subtracted, otherwise the second order moments will
+            be overestimated.
+        X : ndarray
+            The x-coordinates of the pixels in 'data'. Must of course be of the
+            same shape as 'data'.
+        Y : ndarray
+            The y-coordinates of the pixels in 'data'. Must of course be of the
+            same shape as 'data'.
+            
+        Returns
+        -------
+        x : float
+            The first order moment of the data in x-direction.
+        y : float
+            The first order moment of the data in y-direction.
+        x2 : float
+            The second order moment (variance) of the data in x-direction.
+        y2 : float
+            The second order moment (variance) of the data in y-direction.
+        xy : float
+            The covariance between x and y.
         """
-
-        if data.size < 5:
-            logging.warn("Less than 5 pixels used to calculate moments.")
-
-        total = float(data.sum())
-        x  = (X*data).sum()/total
-        y  = (Y*data).sum()/total
+        total = float(indata.sum())
+        x  = (X*indata).sum()/total
+        y  = (Y*indata).sum()/total
         
-        x2 = (X*X*data).sum()/total - x**2
-        y2 = (Y*Y*data).sum()/total - y**2        
-        xy = (X*Y*data).sum()/total - x*y
-        
-        if x2<0:
-            logging.error("Source has unphysical moments: <x^2> < 0")
-            x2=0
+        x2 = (X*X*indata).sum()/total - x**2
+        y2 = (Y*Y*indata).sum()/total - y**2        
+        xy = (X*Y*indata).sum()/total - x*y
 
-        if y2<0:
-            logging.error("Source has unphysical moments: <y^2> < 0")
-            y2=0
-
-        if xy**2 >= x2*y2:
-            logging.error("Source has unphysical moments: <xy>^2 >= <x^2><y^2>")
-            xy = 0
-
-##         col = data[:,int(y)]
-##         if col.sum() > 0.:
-##             sigma_x = math.sqrt(abs(((np.arange(col.size())-y)**2)*col).sum()/col.sum())
-##         else:
-##             sigma_x = 99.
-##         row = data[int(x),:]
-##         if row.sum() > 0.:
-##             sigma_y = math.sqrt(abs(((np.arange(row.size())-x)**2)*row).sum()/row.sum())
-##         else:
-##             sigma_y = 99.
-##         fwhm = 2.355*(sigma_x+sigma_y)/2.
-
-        return (x, y, x2, y2, xy)
+        return [x, y, x2, y2, xy]
