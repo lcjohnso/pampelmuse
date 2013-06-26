@@ -35,9 +35,11 @@ CHANGELOG:
 2013/06/25, v0.5.0.1, modified the interaction with the canvas so that a Qt Signal
                       is triggered when the mouse is moved over a pixel. The pixel
                       coordinates are provided with the emitted signal.
+2013/06/26, v0.5.1.1, code crashed when a requested layer from a datacube contained
+                      only NaN values. This should be fixed now.
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.5.0.1"
+__version__ = "0.5.1.1"
 
 import logging
 import matplotlib.transforms, matplotlib.artist, matplotlib.pyplot, numpy as np
@@ -298,10 +300,14 @@ class DynamicImaCanvas(FigureCanvas):
             
             values = _values[_values==_values] ## remove NaN pixels
             
-            ## sort pixel values    
-            values.sort()
+            if values.size() == 0:
+                logging.error("Requested layer contains only NaN values.")
+                self.cuts = (0, 1)
+            else:
+                ## sort pixel values    
+                values.sort()
 
-            self.cuts = (values[cutpix/2], 0.5*(values[-cutpix/2-1]+values[-cutpix/2-2]))
+                self.cuts = (values[cutpix/2], 0.5*(values[-cutpix/2-1]+values[-cutpix/2-2]))
 
         ## change cuts and update canvas
         self.imagePlot.set_clim(self.cuts[0], self.cuts[1])
