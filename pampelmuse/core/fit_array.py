@@ -115,9 +115,13 @@ v0.9.0.1, 2013/06/25, included a more convenient handling of failed PSF fits whe
                       individual fits and only uses the good ones to update the
                       parameters. Previously, the initial guesses of the failed fits
                       were also used for this purpose.
+v0.9.0.2, 2013/06/27, in newer versions of scipy (>0.11.0) the 'epsfcn' parameter of
+                      leastsq is defaulted to None instead of 0.0 and for some reason
+                      this seems to strongly influence the fit results in some cases.
+                      Therefore for each call to leastsq epsfcn=0.0 was added.
 """ 
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.9.0.1"
+__version__ = "0.9.0.2"
 
 import logging, os, sys, time
 import numpy as np, pyfits
@@ -794,7 +798,7 @@ class StarFit(object):
 
         ## call non-linear least squares fit
         try:
-            return optimize.leastsq(self.fitOnePSF, x0=x0, args=(names, psf, flux, _current), full_output=1)
+            return optimize.leastsq(self.fitOnePSF, x0=x0, args=(names, psf, flux, _current), full_output=1, epsfcn=0.0)
         except optimize.minpack.error as error: ## error handler to avoid code that code crashes completely
             return (x0, {}, "Exception of type optimize.minpack.error encountered while executing fit.", 99)
 
@@ -871,7 +875,7 @@ class StarFit(object):
                     parNames.append(self.sources.parameters[i])
 
             ## call Levenberg-Marquard solver from scipy.optimize (& provide Jacobian)
-            bestfit = optimize.leastsq(self.fitMultiPSF, x0=fitPars, Dfun=self.jacobiMultiPSF, col_deriv=1, args=(parNames,))[0]
+            bestfit = optimize.leastsq(self.fitMultiPSF, x0=fitPars, Dfun=self.jacobiMultiPSF, col_deriv=1, args=(parNames,), epsfcn=0.0)[0]
             
             ## update parameters using fit results
             for i in xrange(len(parNames)):
@@ -897,7 +901,7 @@ class StarFit(object):
 
             ## call Levenberg-Marquard solver from scipy.optimize (& provide Jacobian)
             try:
-                bestfit = optimize.leastsq(self.fitMultiPSF, x0=fitPars, Dfun=self.jacobiMultiPSF, col_deriv=1, args=(parNames,))[0]
+                bestfit = optimize.leastsq(self.fitMultiPSF, x0=fitPars, Dfun=self.jacobiMultiPSF, col_deriv=1, args=(parNames,), epsfcn=0.0)[0]
                 success = True
             except optimize.minpack.error: ## error handler to avoid code
                                            ## that code crashes completely
