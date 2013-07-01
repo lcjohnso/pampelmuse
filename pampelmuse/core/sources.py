@@ -69,9 +69,11 @@ CHANGELOG:
                       issuing a warning when not all sources have IFU coordinates
                       available, it loads the reference coordinates for those
                       sources.
+2013/07/01, v0.6.1.1, fixed a bug in the method loadIFUCoords, ll. 1163: inserted
+                      a np.newaxis to make the two arrays compatible.
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.6.0.1"
+__version__ = "0.6.1.1"
 import logging
 import numpy as np, pyfits
 from numpy.polynomial import Chebyshev, Legendre
@@ -1007,8 +1009,7 @@ class Sources(CoordinateTransformation, object):
 
 
 
-    def loadIFUCoords(self, data=None, ids=None, index=slice(None),
-                      free=False):
+    def loadIFUCoords(self, data=None, ids=None, index=slice(None), free=False):
         """
         Provide the IFU coordinates for an individual source, a subset of
         sources or the entire catalogue. The coordinates might be loaded for
@@ -1157,10 +1158,9 @@ class Sources(CoordinateTransformation, object):
                     xNew, yNew = self.__call__(x=xin, y=yin, index=index)
                     self.xdata[0,processed==False] = xNew
                     self.ydata[0,processed==False] = yNew
-
                 else:
-                    self.xdata[0, processed==False] = xin
-                    self.ydata[0, processed==False] = yin
+                    self.xdata[0, processed==False] = xin[:, np.newaxis]
+                    self.ydata[0, processed==False] = yin[:, np.newaxis]
 
             if "polyFitHDU" in self.__dict__:
             

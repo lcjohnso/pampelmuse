@@ -16,9 +16,14 @@ CHANGELOG
                       when not INSTRUME key is available in the FITS-header.
                       Also added support for variance extensions (EXTNAME 'STAT')
                       as they are provided by the MUSE pipeline.
+2013/07/01, v0.4.1.1, fixed two bugs in the __init__-method that caused the code
+                      to crash when loading ARGUS data because the property
+                      'spectral_axis' was defined in the wrong if-clause and a
+                      check for the size of the data did not account for sky or
+                      calibration fibers.
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.4.0.1"
+__version__ = "0.4.1.1"
 import logging
 import numpy as np, pyfits
 
@@ -125,7 +130,7 @@ class Cube:
             if self.instrument.transform == None:
                 logging.error("Data must be 3dim. unless mapping from spaxels to x&y specified.")
                 assert self.ndim==3, "Expected 3dim. datacube, got {0}dim".format(self.ndim)
-
+            else:
                 self.spectral_axis = self.instrument.spectral_axis
         else:
             if self.instrument.shape == None: ## set spatial shape if needed
@@ -144,10 +149,11 @@ class Cube:
         ## check if data compatible with coordinate transformation of the instrument
         self.nvoxel = reduce(lambda x,y: x*y, self.data_hdu.data.shape)
         self.nlayer = self.data_hdu.header["NAXIS{0}".format(self.spectral_axis)]
-    
-        if self.instrument.transform.shape[0]!=(self.nvoxel/self.nlayer):
-            logging.critical("No. of spaxels in data [{0}] and instrument definition [{1}] differ.".format((self.nvoxel/self.nlayer), self.instrument.transform.shape[0]))
-        assert self.instrument.transform.shape[0]==(self.nvoxel/self.nlayer), "No. of spaxels in data does not match no. of instrument spaxels."
+   
+        ## following check not useful as data may contain calibration and/or sky fibers
+##         if self.instrument.transform.shape[0]!=(self.nvoxel/self.nlayer):
+##             logging.critical("No. of spaxels in data [{0}] and instrument definition [{1}] differ.".format((self.nvoxel/self.nlayer), self.instrument.transform.shape[0]))
+##         assert self.instrument.transform.shape[0]==(self.nvoxel/self.nlayer), "No. of spaxels in data does not match no. of instrument spaxels."
 
 
         ## Reading information about wavelength coverage
@@ -239,7 +245,7 @@ class Cube:
         for name in ["ERROR", "SIGMA"]:
             try:
                 self.sigma_hdu = hdulist[name]
-                logging.info("Detected extension '{0}', assuming it coontains uncertainties.".format(name))
+                logging.info("Detected extension '{0}', assuming it contains uncertainties.".format(name))
                 break
             except KeyError:
                 pass
