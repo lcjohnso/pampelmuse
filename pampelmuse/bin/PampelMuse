@@ -1,0 +1,464 @@
+#! /usr/bin/env python
+"""
+PampelMuse
+==========
+
+Provides
+--------
+The main script of PampelMuse, the Potsdam Advanced Multi PSF Extraction
+Algorithm for MUSE. All analysis starts here.
+
+Purpose
+-------
+The routine first checks if all dependencies for running PampelMuse are
+fulfilled. Especially, it checks whether PyQt4 is available on the system.
+Afterwards, the subroutines of PampelMuse are loaded; depending on whether
+PyQt4 was found on the system, the routines that require graphical output
+are loaded or not.
+
+In the next step, the configuration of PampelMuse is loaded, and updated
+if requested by the user. The default configuration of PampelMuse is stored
+in an xml-file that is provided together with the code. For the subsequent
+analysis, the configuration will be written to a namespace that is passed
+to the individual subroutines called at the end of initialization. The user
+has two options to modify the default configuration from the xml-file before
+passing it to the subroutines:
+
+(i) via the command line:
+PampelMuse can be called with either of the two options '--fromline' and
+'--fromfile'. In the former case, the parameters to be updated should be
+provided as comma-separated <key>=<value> pairs in the command line after
+'--fromline'. In the latter case, '--fromfile' should be followed by the
+name of a plain ascii file that contains the <key>=<value> pairs, one per
+row. An overview of the parameters that PampelMuse uses can be found in the
+manual.
+
+(ii) via the header of the primary HDU of the PampelMuse PRM-file
+If a PRM file exists, the routine will check the header for entries HIERARCH
+PAMPELMUSE <KEY> and use the provided values to update the configuration.
+Note that values given in the header of the PRM-file have priority over those
+provided on the command line.
+
+As a last step before calling the subroutine, the routine opens and verifies
+the FITS files containing the IFS data. Note that the routine does NOT load
+the data into memory yet but just checks whether the file(s) are valid.
+
+Latest SVN revision
+-------------------
+103, 2013/07/24
+"""
+__author__     = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
+__version__    = "0.10.0.0"
+__revision__   = 103
+
+
+
+
+print """
+            ,;:.    PampelMuse, version {0:17}    ,;:.    
+           (::;;)   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   (::;;)
+            `;:'                                             `;:'
+
+        (c) {1}
+""".format(__version__, __author__)
+
+
+## IMPORT REQUIRED PYTHON MODULES ##############################################
+import argparse, datetime, logging, os, re, sys
+import numpy as np, pyfits
+
+## initialize logging
+## at this point it  is not known which logging level is requested in the PampelMuse configuration, however,
+## it is set to WARNING so that the user notices if certain parts of PampelMuse cannot be used because mandatory
+## python modules are missing
+logging.basicConfig(format="%(asctime)s[%(levelname)-8s]: %(message)s", datefmt='%m/%d/%Y %H:%M:%S', level=logging.WARNING)
+
+
+## check if all dependencies are fulfilled: ####################################
+use_addwcs=True
+try: ## check if astLib is available
+    from astLib import astCoords
+except ImportError:
+    logging.warning("Cannot import module 'astLib'.")
+    logging.warning("Routine ADDWCS cannot be used.")
+    use_addwcs = False
+
+try: ## check if pyraf available
+    from pyraf.iraf import images
+except ImportError:
+    logging.warning("Cannot import module 'pyraf'.")
+    logging.warning("Routine ADDWCS cannot be used.")
+    use_addwcs = False
+
+## check whether dependencies for graphical backends are fufilled
+graphics = True
+try:
+    from PyQt4 import QtCore, QtGui
+except ImportError:
+    logging.error("Cannot load 'PyQt4'-modules")
+    graphics = False
+try:
+    import matplotlib.pyplot
+except ImportError:
+    logging.error("Cannot load 'matplotlib'-modules")
+    graphics = False
+if not graphics:
+    logging.error("Routines INITFIT and POLYFIT cannot be used.")
+
+
+
+## required PampelMuse-packages ################################################
+from pampelmuse.bin import xml_interact
+from pampelmuse.config import PampelMuseConfig, Namespace
+from pampelmuse.core import Cube
+from pampelmuse.core.psf import Variables
+
+## the PampelMuse subroutines
+from pampelmuse.routines import cubefit, subtres, shotnoi, makecube
+if graphics: from pampelmuse.routines import initfit, polyfit
+if use_addwcs: from pampelmuse.routines import addwcs
+
+
+
+## Two small classes are defined that read the configuration provided by the
+## user either from the command-line or from a plain ascii-file and add it as
+## a dictionary to the namespace that is created by argparse (NOTE that this
+## is not the PampelMuse namespace that is defined below)
+## (i) class to read configuration from command line, provided as parameter
+##     'action' to the argparse argument '--fromline'
+class GetValuesFromLine(argparse.Action):
+    """
+    Short routine to write 'name=value'-pairs appended to the '--fromline'
+    option into a dictionary.
+    """
+    def __call__(self, parser, namespace, values, option_string=None):
+        outdict = {}
+        for _val in values[0].split('-'):
+            val = re.sub(r'\s', '', _val) ## remove whitespace chars.
+            if len(val.split("=")) != 2:
+                raise IOError, "Bad parameter definition in line: {0}".format(val)
+            name, value = val.split("=")
+            outdict[name.upper()] = value
+        setattr(namespace, self.dest, outdict)
+
+
+## (ii) class to read configuration from an ascii file, provided as parameter
+##      'action' to the argparse argument '--fromfile'
+class GetValuesFromFile(argparse.Action):
+    """
+    Short routine to extract 'name=value'-pairs from an ASCII-file provided
+    using the '--fromfile' option and add them to a dictionary
+    """    
+    def __call__(self, parser, namespace, values, option_string=None):
+        outdict = {}
+        for _line in values:
+            if not len(_line)==0:
+                if not _line[0] == "#":
+                    line = re.sub(r'\s', '', _line) ## remove whitespace chars.
+                    if not len(line.split("=")) == 2:
+                        raise IOError, "Bad parameter definition in file '{0}'".format(values.name)+": {0}".format(line)
+                    name, value = line.split("=")
+                    outdict[name.upper()] = value
+        setattr(namespace, self.dest, outdict)
+
+
+## Initialize main argument parser for PampelMuse
+PMparser = argparse.ArgumentParser(prog="PampelMuse", description="""
+PampelMuse is a routine to extract stellar spectra from IFS data vi PSF
+fitting techniques. It is designed for the analysis of IFS observations
+of crowded stellar fields. As the name suggests, it was originally intended
+to serve as an analysis tool for the Muse spectrograph. Yet, PampelMuse is
+written in a more generic way and should be able to analyze data coming from
+other spectrographs as well. A limitation of the current version is that the
+spaxels of the IFS should be square. The analysis of the data is performed in
+different stages that are carried out by the  various sub-routines provided
+below.""")
+PMparser.add_argument("prefix", type=str, help="""
+The prefix common to all FITS-files required by PampelMuse. The naming of the
+files should be according to one of the following schemes:\n
+
+(1) Data, uncertainties, and mask are included in a single FITS file. In that
+case, a file named PREFIX.fits should be available, containing at least an
+HDU named DATA and one named either ERROR (uncertainties) or STAT (variances).
+The mask may be included in an additional HDU named MASK.
+
+(2) Different FITS files are used for data, uncertainties and mask. In that 
+case, the following files should be present:
+(i)   PREFIX.dat.fits - the IFS data
+(ii)  PREFIX.err.fits - the uncertainties of the IFS data
+(iii) PREFIX.msk.fits - optional! - a bad-pixel mask
+
+All routines except for INITFIT also require the PampelMuse PRM file, named
+PREFIX.prm.fits. This file is created by the routine INITFIT.""")
+
+## Note: 'fromfile' and 'fromline' share the same dest 'parameter'. However,
+##       since they are in a 'mutually exclusive group' and their 'default'
+##       is set to argparse.SUPPRESS, at most one of them will contibute to
+##       the namespace.
+group = PMparser.add_mutually_exclusive_group(required=False)
+group.add_argument("--fromfile", type=argparse.FileType('r'), action=GetValuesFromFile, dest="parameter", default=argparse.SUPPRESS, help="""
+Update configuration using the parameters provided in an ASCII-file: One
+parameter per line, name and value separated by '=', lines starting with '#'
+are ignored""")
+group.add_argument("--fromline", type=str, nargs=1, action=GetValuesFromLine, dest="parameter", default=argparse.SUPPRESS, help="""
+Update configuration using the parameters provided in the command line,
+following '--fromline'-string. Again, name and value must be separated
+by '=' (no whitespace!). Individual parameters  must be comma-separated.""")
+
+PMsubparsers = PMparser.add_subparsers(title='Available routines')
+
+
+if graphics:
+    IFparser = PMsubparsers.add_parser("INITFIT", help="""
+The sub-routine is used to assemble a source list that is used in the PSF
+fitting process. Recall that PampelMuse assumes that an inventory of the
+sources in the field is available. From this inventory, the subset of
+sources that are accessible to an analysis with PampelMuse are identified
+and written to a dedicated FITS-file, the PRM-file, that is used through-
+out the remaining analysis. The different steps to obtain the PRM-file are
+a) Interactive identification of bright sources in the field based on the
+   IFS data and a simulated image created from the provided sourcelist at
+   the spatial resolution of the datacube.
+b) Determination of all sources in the inventory relative to the observe
+   field of view. This information is used to estimate the photometric zero-
+   point in the IFS data and to estimate the S/N of the individual sources.
+c) Assignment of the individual sources to components that are used in the
+   analysis. A component is defined as an entity of one or more sources for
+   which the spectrum is extracted independently from otther sources during
+   the PSF fitting. The assignment is performed based on the estimated S/N
+   of the sources and their relative distances.
+d) If possible, perform aperture spectrophotometry for the bright sources to
+   obtain more accurate initial guesses for the parameters of the coordinate
+   transformation and the PSF variables.""")
+    IFparser.add_argument("sourcelist", type=str, help="""
+ASCII-file containing the results from crowded field photometry. Empty lines
+or lines starting with '#' are considered comments. The first columns may
+contain the column names, in which case the routine will look for columns
+named 'id', 'x', 'y', and <FNAME>, where <FNAME> is the name of the photo-
+metric filter used in the source selection process. If no header is available,
+the routine will use the first four columns.""")
+    IFparser.set_defaults(func=initfit)
+
+CFparser = PMsubparsers.add_parser("CUBEFIT", help="""
+This sub-routine performs the actual PSF-fitting process, it is the workhorse
+of PampelMuse and its execution may take several  hours to complete. It expects
+a useful PRM-file to be available (created e.g using INITFIT). The analysis of
+the data proceeds in a layer-by-layer manner. In each layer, up to three analyis
+steps are performed, namely a fit of the fluxes, a fit of the PSF variables, and
+a fit of the coordinates. The former step  is performed via linear least squares
+optimization, the latter two steps use a Levenberg-Marquard algorithm. The three
+steps are iterated until convergence. Once the analysis has completed, the results
+are written to the PRM-file.""")
+CFparser.set_defaults(func=cubefit)
+
+if graphics:
+    PFparser = PMsubparsers.add_parser("POLYFIT", help="""
+This sub-routine loads the PampelMuse GUI and is designed for a visualization
+of the results from the PSF fit on the one hand and for an interactive modelling
+of the PSF variables and source coordinates on the other. The idea of modelling
+these parameters is that they should vary smoothly with wavelength, so by combi-
+ning the results from the indiviual layers one can create a model beyond the
+accuracy of an individual layer. To this aim, polynomials fits of the parameters
+can be performed. In a subsequent analysis with the sub-routine CUBEFIT, the
+routine will then use the parameters obtain in the fits and leave them unchanged.""")
+    PFparser.add_argument("reference", type=str, nargs="?", help="""
+An optional FITS image to be displayed. The idea here is to load the data
+from which the reference coordinates were extracted. In that case, the image
+is displayed in the GUI and the locations of the extracted sources are
+overplotted.""")
+    PFparser.set_defaults(func=polyfit)
+
+
+SRparser = PMsubparsers.add_parser("SUBTRES", help="""
+The sub-routine is designed to subtract the contribution of the (resolved) stars
+from the IFS data. A PRM-file containing the results from a successful analysis
+with CUBEFIt should be available. The resulting data is stored as a Fit-file under
+<prefix>.res.fits.""")
+SRparser.set_defaults(func=subtres)
+
+
+SNparser = PMsubparsers.add_parser("SHOTNOI", help="""
+The sub-routine estimates the shot noise in each spatial pixel of an IFS data cube
+before and after the resolved sources have been subtracted. This routine will only
+work if a PRM-file containing the results from a successful analysis with CUBEFIT
+is available.""")
+SNparser.add_argument("sourcelist", type=str, nargs="?", help="""
+Optional ASCII-file containing the results from crowded-field photometry. Empty
+line or lines starting with '#' are considered comments. The first columns may
+contain the column names, in which case the routine will look for columns named
+'id', 'x', 'y', and <FNAME>, where <FNAME> is the name of the photometric filter
+used in the source selection process. If no header is available, the routine will
+use the first four columns. Such a file is useful if the source list that was
+initially provided to INITFIT was cut at a certain magnitude and one wants to
+consider also the contribution  of fainter sources.""")
+SNparser.set_defaults(func=shotnoi)
+
+if use_addwcs:
+    AWparser = PMsubparsers.add_parser("ADDWCS", help="""
+The sub-routine can be used to add WCS information to the header of the IFS data
+based on the spaxel coordinates and RA- and Dec-information of sources in the
+field of view. Of course, this only works if some sources have RA- and Dec-
+information available. The sub-routine is basically a  warpper around the ccmap
+from IRAF. Note that this routine requires 'pyraf' and 'astLib' to be available
+on the system. Otherwise it won't work.""")
+    AWparser.add_argument("sourcelist", type=str, nargs="?", help="""
+An optional file containing RA- and Dec-coordinates for the sources in the PRM
+file (or a subset of them). This is needed if the catalogue in the PRM file does
+not contain world coordinates. Empty line or lines starting with '#' are consi-
+dered comments. The first columns may contain the column names, in which case the
+routine will look for columns named 'id', 'ra', and 'dec'. If no header is avai-
+lable, the routine will use the first three columns.""")
+    AWparser.set_defaults(func=addwcs)
+    
+MCparser = PMsubparsers.add_parser("MAKECUBE", help="""
+The sub-routine creates a 3dim. data cube from 2dim. IFS data and stores it as
+a FITS file under <prefix>.cube.fits. Note that if the IFS data has been
+previously passed to sub-routine ADDWCS, the routine will also set the WCS infor-
+mation in the header of the resulting cube right.
+""")    
+MCparser.set_defaults(func=makecube)
+
+
+## Collect configuration of PampelMuse
+__currentdir__ = os.path.dirname(__file__)
+__configpath__ = os.path.join(__currentdir__, os.pardir, os.pardir, "config") ## the path to the XML file containing the default configuration
+
+## parse arguments into preliminary namespace
+args = PMparser.parse_args()
+
+## A Namespace is created to store the configuration of PampelMuse. The parameters
+## included in the namespace will be added as hierarch keywords to the header of
+## the primary HDU of the PampelMuse PRM file. As an example, the Namespace parameter
+## pampelmuse.initfit.version corresponds to HIERARCH PAMPELMUSE INITFIT VERSION
+pampelmuse = PampelMuseConfig()
+pampelmuse.version = __version__
+
+## initialize empty (sub)namespace for subroutine that will be called.
+setattr(pampelmuse, args.func.__name__, Namespace())
+
+##  make sure PyQt4-dependencies are handled properly:
+if not graphics:
+    pampelmuse.useqt = False
+    
+## open configuration file, and read default configuration into namespace
+cfg_interface = xml_interact.ModifyConfig(os.path.join(__configpath__,"PMparams.xml"), os.path.join(__configpath__, "PMschema.xsd"))
+for key, value in cfg_interface.get_all().iteritems():
+    setattr(pampelmuse, key.lower(), value)
+
+## update configuration using command line input
+if hasattr(args, "parameter"):
+    for key, value in args.parameter.iteritems():
+        if hasattr(pampelmuse, key.lower()): ## make sure only valid parameters were provided
+            try: setattr(pampelmuse, key.lower(), eval(value))
+            except NameError: setattr(pampelmuse, key.lower(), value)
+        else:
+            logging.error("Unknown configuration parameter provided: '{0}'".format(key))
+
+## access initial PSF information, check if profile defined in pampelmuse.core.psf.variables.Variables
+try:
+    parnames = Variables.PROFILES[pampelmuse.psftype]
+except KeyError:
+    logging.critical("Unknown PSF type: '{0}'".format(pampelmuse.psftype))
+
+## translate parameter PSFFIT from PampelMuse configuration into boolean array indicating which variables
+## of the PSF are fitted.
+freepar = np.zeros(len(parnames), dtype=np.bool)
+for i in xrange(freepar.size, 0, -1):
+    if pampelmuse.psffit >= 2**i:
+        freepar[i-1] = True
+        pampelmuse.psffit -= 2**i
+del pampelmuse.psffit
+
+## create dedicated (sub)namespace for the PSF containing three attributes per variable:
+## parname - the name of the variable,  parvalue - the (initial) value of the variable, freepar - whether or not the variable is a free fit parameter
+pampelmuse.psf = Namespace()
+pampelmuse.psf.profile = pampelmuse.psftype
+del pampelmuse.psftype
+
+for name in parnames:
+    i = parnames.index(name)
+    setattr(pampelmuse.psf, "parname{0}".format(i), name)
+    setattr(pampelmuse.psf, "parvalue{0}".format(i), pampelmuse.psfpars[i])
+    setattr(pampelmuse.psf, "freepar{0}".format(i), bool(freepar[i]))
+del pampelmuse.psfpars
+
+
+## add name of PRM file to configuration
+pampelmuse.prefix = args.prefix
+pampelmuse.filename = "{0}.prm.fits".format(args.prefix)
+
+## for subroutine ADDWCS, the IFS data must be opened in 'update'-mode, otherwise read-only is sufficient
+if args.func==addwcs: mode='update'
+else: mode='readonly'
+
+## unless INITFIT should be called, open existing PRM file (first check for 'graphics' because initfit undefined if False)
+if not graphics or args.func!=initfit:
+    
+    logging.info("Reading PampelMuse-file: {0}".format(pampelmuse.filename))
+    pampelmuse.hdulist  = pyfits.open(pampelmuse.filename, mode="update")
+
+    ## Scan header of primary HDU for HIERARCH PAMPELMUSE keywords. Note that these keywords can be either directly connected to
+    ## PampelMuse (e.g. HIERARCH PAMPELMUSE IFU) or to one of its subroutines (e.g. HIERARCH PAMPELMUSE INITFIT VERSION). In the
+    ## latter case, the key will be added to the namespace of the corresponding subroutine.
+    pampelmuse.readHeader(pampelmuse.hdulist[0])
+    
+    if args.func == shotnoi:
+        if not hasattr(pampelmuse, "shotnoi"): pampelmuse.shotnoi = Namespace()
+        pampelmuse.shotnoi.sourcelist = args.sourcelist
+
+    if args.func == addwcs:
+        if not hasattr(pampelmuse, "addwcs"): pampelmuse.addwcs = Namespace()
+        pampelmuse.addwcs.sourcelist = args.sourcelist
+
+else: ## add reference catalogue to configuration
+    pampelmuse.initfit = Namespace()
+    pampelmuse.initfit.sourcelist = args.sourcelist
+
+if graphics and args.func==polyfit:
+    if not hasattr(pampelmuse, "polyfit"): pampelmuse.polyfit = Namespace()
+    pampelmuse.polyfit.reference = args.reference
+
+## set up log level:
+LOGLEVELS = {0:logging.CRITICAL, 1:logging.ERROR, 2:logging.WARNING, 3:logging.INFO, 4:logging.DEBUG}
+logging.getLogger().setLevel(LOGLEVELS[pampelmuse.verbose])
+
+# Used as a test: an additional logger that gives the file and line where a warning message was triggered
+#if pampelmuse.verbose==4:
+#    ch = logging.StreamHandler()
+#    ch.setLevel(logging.WARNING)
+#    ch.setFormatter(logging.Formatter("%(pathname)s [%(lineno)-4s]: %(message)s"))
+#    logging.getLogger().addHandler(ch)
+
+## validate the IFS data
+## The science, sigma and mask data can either be provided in a single file
+## (extensions 'DATA', 'ERROR', and 'MASK') or as three separate FITS-files,
+## names <root>.dat.fits, <root>.err.fits, and <root>.msk.fits
+if os.path.exists("{0}.dat.fits".format(args.prefix)):
+    data_ifs = "{0}.dat.fits".format(args.prefix)
+elif os.path.exists("{0}.fits".format(args.prefix)):
+    data_ifs = "{0}.fits".format(args.prefix)
+else:
+    logging.critical("Cannot find IFS data: {0}.dat.fits or {0}.fits".format(args.prefix))
+
+if os.path.exists("{0}.err.fits".format(args.prefix)):
+    sigma_ifs = "{0}.err.fits".format(args.prefix)
+else:
+    sigma_ifs = None ## sigma data must be included as an HDU in science data file
+
+if os.path.exists("{0}.msk.fits".format(args.prefix)):
+    mask_ifs = "{0}.msk.fits".format(args.prefix)
+else:
+    mask_ifs = None ## mask data can be included as an HDU in science data file
+
+pampelmuse.ifs_data = Cube(data_ifs, instrument=pampelmuse.ifu, sigma=sigma_ifs, mask=mask_ifs, mode=mode)
+
+## set range of layers to be analyzed properly (in case negative values were provided)
+## access start/stop information - get positive layer numbers for first and last layer that should be analysed
+pampelmuse.start = pampelmuse.layerrng[0]
+pampelmuse.stop = pampelmuse.layerrng[1]
+del pampelmuse.layerrng
+if pampelmuse.start < 0: pampelmuse.start = pampelmuse.ifs_data.ndisp + pampelmuse.start
+if pampelmuse.stop < 0: pampelmuse.stop = pampelmuse.ifs_data.ndisp + pampelmuse.stop 
+
+## execute the function connected to the requested (sub)routine
+args.func(pampelmuse)

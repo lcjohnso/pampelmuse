@@ -1,46 +1,28 @@
 """
-DYNAMIC_IMA_CANVAS
-==================
-DynamicImaCanvas defines a class that is designed to display FITS data
-and to interact with it. It provides the basic functionailty like a zoom
-option or a pan option and also allows one to interact with the data, like
-grabbing coordinates or picking data. The class is used by the PampelMuse
-Gui to display IFU data and reference data.
+dynamic_ima_canvas.py
+=====================
 
+Provides
+--------
+class pampelmuse.graphics.dynamic_ima_canvas.DynamicImaCanvas
 
-CHANGELOG:
-----------
-2013/02/03, v0.2.0.0, started to add documentation and increased the size of
-                      the circles used to indicate data points.
-2013/05/06, v0.3.0.0, added support for viewing layers of datacubes.
-2013/05/15, v0.4.0.0, documented the code and revised zoom mode, also added
-                      a mode to pan across the data and a history that can be
-                      used to go back and forth between different views. 
-2013/05/23, v0.4.0.1, added option to provide an instance of the Cube class
-                      of PampelMuse when loading IFS data.
-2013/05/31, v0.4.0.2, modified method 'addData' so that an existing data set
-                      is automatically removed before a new one is plotted.
-                      Also improved updating of axes limits when new data is
-                      plotted.
-2013/06/13, v0.4.0.3, modified plotting of frame around IFU FoV so that the
-                      Path instance available in
-                      pampelmuse.core.instrument.Instrument is used.
-2013/06/19, v0.4.1.3, it happened occasionally that the code showed unexpected
-                      behavior in zoom or pan mode when leaving and re-entering
-                      the axes because multiple events were triggered. This should
-                      be fixed now.
-2013/06/20, v0.5.0.0, now using animations to only redraw the elements that are
-                      actually affected by a user interaction. This makes the inter-
-                      actions much smoother.
-2013/06/25, v0.5.0.1, modified the interaction with the canvas so that a Qt Signal
-                      is triggered when the mouse is moved over a pixel. The pixel
-                      coordinates are provided with the emitted signal.
-2013/06/26, v0.5.1.1, code crashed when a requested layer from a datacube contained
-                      only NaN values. This should be fixed now.
-2013/06/26, v0.5.2.1, previous release introduced new bug: 'size()' instead of 'size'
+Purpose
+-------
+This module provides the class DynamicImaCanvas defines that is designed
+to display FITS image data (2D or 3D are supported) and to interact with it.
+It provides the basic functionailty like a zoom option or a pan option and
+also allows one to interact with the data, like grabbing coordinates or
+picking data. The class is used by the PampelMuse GUI to display IFS data
+and reference data. In order to handle 2dim. IFS data, the Cube class is
+loaded from pampelmuse.core.cube
+
+Latest SVN revision
+-------------------
+103, 2013/07/23
+
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.5.2.1"
+__revision__ = 103
 
 import logging
 import matplotlib.transforms, matplotlib.artist, matplotlib.pyplot, numpy as np
@@ -295,7 +277,7 @@ class DynamicImaCanvas(FigureCanvas):
             cutpix = int((1-cutlev)*npix)
             
             if self.layer != -1: ## if cube loaded, only science fibers are used to determine cuts
-                _values = self.cube.getLayer(self.layer)[0]
+                _values = self.cube.get_layer(self.layer)[0]
             else:
                 _values = self.image.copy().reshape(-1)
             
@@ -340,7 +322,7 @@ class DynamicImaCanvas(FigureCanvas):
 
         if hasattr(self, "dataPlot") and isinstance(self.dataPlot, matplotlib.artist.Artist):
             dataMin, dataMax = self.dataPlot.get_datalim(self.axes.transData).get_points()
-            
+
             dataMinRound = [int(dataMin[0]-1*(dataMin[0]<0)), int(dataMin[1]-1*(dataMin[1]<0))] 
             dataMaxRound = [int(dataMax[0]+1), int(dataMax[1]+1)]
         

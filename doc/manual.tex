@@ -1,0 +1,60 @@
+\documentclass[a4paper,10pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{graphicx}
+\usepackage{url}
+
+\title{PampelMuse}
+\author{Sebastian Kamann}
+\date{02.07.2013}
+
+\newcommand{\shellcmd}[1]{\\\indent\indent\texttt{\footnotesize\# #1}}
+
+\begin{document}
+ 
+\maketitle
+
+\begin{abstract}
+ \textsc{PampelMuse} is a software package with the purpose of facilitating the analysis of integral-field spectroscopic observations of crowded stellar fields. It provides several  subroutines to perform the individual steps of the data analysis. 
+\end{abstract}
+
+\section{Getting started}
+ 
+\subsection{Requirements}
+
+\textsc{PampelMuse} is written in \textit{python}. A recent version of \textit{python} should be available on the system, \textit{python v2.7} is recommended. In addition, several \textit{python} packages are required to run \textsc{Pampelmuse}:
+\begin{itemize}
+ \item \textit{numpy}\footnote{\url{http://www.numpy.org/}}, tested for version 1.6.1
+ \item \textit{scipy}\footnote{\url{http://scipy.org/}}, tested for version 0.9.0
+ \item \textit{pyfits}\footnote{\url{http://www.stsci.edu/institute/software_hardware/pyfits/}}, tested for version 3.1.1
+\end{itemize}
+Note that the versions of the packages listed above are just a recommendation. The code may also run with earlier versions. In addition to these packages, it is highly recommended that the following packages are available on the system:
+\begin{itemize}
+ \item \textit{matplotlib}\footnote{\url{http://matplotlib.org/}}, tested for version 1.1.1
+ \item \textit{PyQt4}\footnote{\url{http://www.riverbankcomputing.co.uk/software/pyqt/intro}}
+\end{itemize}
+These packages are required in order to work with the graphical user interface (GUI) that is provided with \textsc{PampelMuse}. When starting \textsc{PampelMuse} the availability of \textit{matplotlib} and \textit{PyQt4} is checked. If the packages are not available, the subroutines that implement the GUI will be disabled. Finally, the packages listed below are not required to run the core packages of \textsc{PampelMuse}, but some auxiliary routines depend on them:
+\begin{itemize}
+ \item \textit{astLib}\footnote{\url{http://astlib.sourceforge.net/}}, tested for version 0.7.0
+ \item \textit{pyraf}\footnote{\url{http://www.stsci.edu/institute/software_hardware/pyraf}}
+\end{itemize}
+
+\subsection{Download and Installation}
+
+There are currently two possibilities to obtain \textsc{PampelMuse} that will be described in the following.
+
+\subsubsection{Using the tarball}
+A zipped version of the code is available at \url{http://path.to/pampelmuse.tar.gz}. After the download is completed, change to the folder containing the tarball and execute the following commands
+\shellcmd{tar -xvzf pampelmuse.tar.gz}
+\shellcmd{cd pampelmuse/}
+\shellcmd{python setup.py install} \\
+This will install \textsc{PampelMuse} to your default \textit{python} path. Note that the last step usually requires root privileges. If you do not have those privileges, you can define a custom path using the \texttt{--prefix} or \texttt{--home} arguments. You only have to make sure then that the path you are using to install \textsc{PampelMuse} is included in your \texttt{PYTHONPATH}. For example, the following commands will install \textsc{PampelMuse} to folders \texttt{\$HOME/lib} and \texttt{\$HOME/bin}.
+\shellcmd{python setup.py install --home=\~}
+\shellcmd{export PYTHONPATH=\$PYTHONPATH:\$HOME/lib/python \#\# for a bash-shell or}
+\shellcmd{setenv PYTHONPATH \$PYTHONPATH:\$HOME/lib/python \#\# for a c-shell} \\
+You probably want to store the modification of your \texttt{PYTHONPATH} variable in your shell configuration file (\texttt{.bashrc} or \texttt{.cshrc}), otherwise you have to set the variable again every time you open a new shell. For further informations on custom installation paths, check the \textit{python} documentation.\footnote{\url{http://docs.python.org/2/install/#alternate-installation}}
+
+Afterwards, you should be able to execute
+\shellcmd{PampelMuse --help} \\
+If no error message is returned, you have installed \texttt{PampelMuse} successfully!
+
+\end{document}

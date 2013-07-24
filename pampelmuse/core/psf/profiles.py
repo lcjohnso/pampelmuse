@@ -1,42 +1,48 @@
 """
-PROFILES
-========
-The classes defined in this script provide the functionality to create a PSF
-profile, i.e. the intensity distribution as a function of position, for a
-given set of shape parameters and source coordinates. Besides the actual
-distribution of intensities, the partial derivatives with respect to the
-individual parameters are also incldued. They can be used to prepare
-the Jacobi matrix that can be provided to the Levenberg-Marquard scheme of
-scipy.optimize.
-All parameters that influence the shape and the position of a profile can
-be updated on the fly. The classes are designed in such a way that only the
-properties that depend on the updates paramaters must be recalculated
-afterwards. This allows for an efficient usage of the classes during the
-analysis.
-After initialization, the instances of each class are iterable, i.e. one can
-loop over all instances of a class via
->>> for psf in Profile:
->>>  print psf.xc, psf.yc  ## returns central coordinates of each profile
+profiles.py
+===========
 
-CHANGELOG:
-----------
-2013/03/21, v0.1.0.0, initial version completed. Some documentation still
-                      missing.
-2013/03/22, v0.1.0.1, finished documenting the code
-2013/03/28, v0.1.1.1, fixed a bug when calulating the partial derivative wrt.
-                      B in class 'Instrument': a spurious "/" was included in
-                      the formula.
-2013/04/09, v0.1.1.2, some minor changes in handling of provided parameters
-                      that have an invalid value (e.g. beta<=1).
-2013/04/26, v0.1.1.3, added a property function that returns a string
-                      containing the identifier of a profile (e.g. 'moffat').
-2013/06/25, v0.1.2.3, when a profile was entirely outside the FoV (i.e. at a
-                      distance >maxrad), the code crashed uncontrolled. To avoid
-                      this, an assert statement has been included in the
-                      definitions of the 'xc' and 'yc' properties.
+Provides
+--------
+class pampelmuse.core.psf.IterRegistry
+class pampelmuse.core.psf.classproperty
+class pampelmuse.core.psf.profile.Profile
+class pampelmuse.core.psf.profile.Gaussian
+class pampelmuse.core.psf.profile.Moffat
+
+Purpose
+-------
+This module implements the analytical PSF profiles that are used by Pampel-
+Muse. The main classes defined here (class 'Profile' and its subclasses)
+serve the purpose of calculating the intensities of a given PSF for each
+data point. This is the most time-consuming step in the analysis and its
+duration basically defines how fast PampelMuse can analyse an IFS data set.
+For this reason, the classes were designed to maximize the efficiency of the
+intensity calculations. Especially, all pixel-based properties, such as the
+(angle dependent) radius of a pixel to the profile centre, the intensity
+distribution across the pixels, or the partial derivatives of a profile with
+respect to its variables (that are needed to fill the Jacobi matrix in a
+Levenberg-Marquard solver) are defined as properties that are only recalcu-
+lated if any of the underlying variables (such as the profile centre or a
+PSF variable) changes its value.
+
+There are two auxiliary classes defined in this module. 'IterRegistry' provides
+an iterator over the available instances of the 'Profile' class (or one of its
+subclasses), i.e., it is possible to write a loop like
+>>> for psf in Profile:
+>>>     ## do something
+The second auxiliary class, 'classproperty', implements a property that is not
+connected to an individual instance of a class, but to all instances of it. It
+allows to change the value of a PSF variable (such as the FWHM) for all instan-
+ces simultaneously without having to loop over them.
+
+Latest SVN revision
+-------------------
+103, 2013/07/24
 """
-__author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.1.2.3"
+__author__   = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
+__revision__ = 103
+
 import logging
 import numpy as np
 from scipy import spatial
@@ -611,8 +617,8 @@ class Profile(object):
         """
         assert isinstance(value, (float, np.float32, np.float64)), "'xc' must be a float, not {0:s}".format(type(value).__name__)
 
-        assert (spatial.distance.cdist([[self.yc, value]], self.transform)<=self.maxrad).any(), \
-            "Provided xc={0:.2f} places source #{1} at distance >maxrad to FoV.".format(value, self.src_id)
+        assert (spatial.distance.cdist([[self.yc, value]], self.transform)>=-self.maxrad).any(), \
+            "Provided xc={0:.2f} places source #{1} at distance >maxrad to FoV.".format(float(value), self.src_id)
 
         if value != self._xc:
             self._xc = value
@@ -669,7 +675,7 @@ class Profile(object):
         """
         assert isinstance(value, (float, np.float32, np.float64)), "'yc' must be a float, not {0:s}".format(type(value).__name__)
 
-        assert (spatial.distance.cdist([[value, self.xc]], self.transform)<=self.maxrad).any(), \
+        assert (spatial.distance.cdist([[value, self.xc]], self.transform)>=-self.maxrad).any(), \
             "Provided yc={0:.2f} places source #{1} at distance >maxrad to FoV.".format(value, self.src_id)
 
         if value  !=  self._yc:

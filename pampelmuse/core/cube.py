@@ -1,34 +1,38 @@
 """
-This file provides the class 'Cube' that is thought to facilitate the 
-opening of FITS cubes and checking them for validity.
+cube.py
+=======
 
-CHANGELOG
-2013/05/03, v0.1.0.0, initial version
-2013/05/29, v0.2.0.0, added methods to return a layer from a datacube,
-                      also included more documentation
-2013/05/31, v0.3.0.0, added method 'makeCube' that returns the data as
-                      a 3dim. cube that can be viewed using tools like
-                      QFitsView or ds9.
-2013/06/11, v0.4.0.0, added a new method to extract a single spectrum
-                      from a cube.
-2013/06/25, v0.4.0.1, changed hierarchy on how the instrument is determined:
-                      The entry in the PampelMuse configuration is only used
-                      when not INSTRUME key is available in the FITS-header.
-                      Also added support for variance extensions (EXTNAME 'STAT')
-                      as they are provided by the MUSE pipeline.
-2013/07/01, v0.4.1.1, fixed two bugs in the __init__-method that caused the code
-                      to crash when loading ARGUS data because the property
-                      'spectral_axis' was defined in the wrong if-clause and a
-                      check for the size of the data did not account for sky or
-                      calibration fibers.
+Provides
+--------
+class pampelmuse.core.cube.Cube
+
+Purpose
+-------
+This module implements the class 'Cube' that facilitates the working
+with IFS data within PampelMuse. An instance of the class can be
+initialized using either 2dim. or 3dim. data. Note however, that for
+2dim. data informations about the instrument used to observe the data
+must be available. This information can either be provided via a key-
+word argument to the initialization method or obtained from the FITS
+header of the data, via standard keyword INSTRUME. The method will also
+check whether the IFS data contains HDUs providing either uncertainties
+(extension ERROR) or variances (extension STAT) and a bad-pixel mask
+(extension MASK). These can also provided as dedciated FITS-files.
+
+Latest SVN revision
+-------------------
+103, 2013/07/23
+
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.4.1.1"
+__revision__ = 103
+
 import logging
 import numpy as np, pyfits
 
 ## required PampelMuse routines
-from pampelmuse.core.instruments import Instrument, Argus, Pmas
+from pampelmuse.core.instruments import *
+
 
 class Cube:
     """
@@ -39,7 +43,7 @@ class Cube:
     is available.
     """
     
-    def __init__(self, name, sigma=None, mask=None, instrument=None, checks={}):
+    def __init__(self, name, sigma=None, mask=None, instrument=None, mode='readonly', checks={}):
         """
         Initialize a new instance of the 'Cube' class.
         
@@ -59,12 +63,16 @@ class Cube:
             Can be used to provide informations about the instrument used to observe
             the data. Note that if not instrument information is provided, only 3dim.
             data is accepted.
+        mode :  string, optional
+            Open mode, 'readonly' (default), 'update', 'append', 'denywrite', or
+            'ostream'. This parameter is passed to pyfits.open().
         checks : dictionary, optional
             An optional list of (keyword, value)-pairs used to check the consistency
             of the datacube with previously loaded data.
         """
     
         self.name = name
+        self.mode = mode
 
         self._wave = None
 
@@ -77,7 +85,8 @@ class Cube:
         self.is_var = False
 
         ## open datacube:
-        self.file = pyfits.open(name)
+        logging.info("Reading IFS data from file {0}...".format(self.name))
+        self.file = pyfits.open(name, mode=self.mode)
     
         ## if no instrument instance is provided, first option is to look for header keyword 'INSTRUME'
         ## NOTE: unfortunately PMAS does not use the INSTRUME key (even though it is a standard FITS key, Martin!)
@@ -149,11 +158,6 @@ class Cube:
         ## check if data compatible with coordinate transformation of the instrument
         self.nvoxel = reduce(lambda x,y: x*y, self.data_hdu.data.shape)
         self.nlayer = self.data_hdu.header["NAXIS{0}".format(self.spectral_axis)]
-   
-        ## following check not useful as data may contain calibration and/or sky fibers
-##         if self.instrument.transform.shape[0]!=(self.nvoxel/self.nlayer):
-##             logging.critical("No. of spaxels in data [{0}] and instrument definition [{1}] differ.".format((self.nvoxel/self.nlayer), self.instrument.transform.shape[0]))
-##         assert self.instrument.transform.shape[0]==(self.nvoxel/self.nlayer), "No. of spaxels in data does not match no. of instrument spaxels."
 
 
         ## Reading information about wavelength coverage
@@ -174,7 +178,7 @@ class Cube:
         try:
             self.cunit = self.data_hdu.header["CUNIT{0}".format(self.spectral_axis)]
         except KeyError:
-            self.cunit = self.ctype
+            self.cunit = "Angstrom"
 
         self.ndisp = self.data_hdu.header['NAXIS{0}'.format(self.spectral_axis)]
 
@@ -191,10 +195,10 @@ class Cube:
         logging.info("Opening data HDU successful.")
     
         ## check if file with uncertainties is available, otherwise check data file:
-        self.openSigma(sigma)
+        self.open_sigma(sigma)
 
         ## check if file with masked pixels is available, otherwise check data file:
-        self.openMask(mask)
+        self.open_mask(mask)
 
 
     @property
@@ -222,7 +226,7 @@ class Cube:
             return r"\mathrm{{{0}}}".format(self.cunit)
 
     
-    def openSigma(self, filename=None):
+    def open_sigma(self, filename=None):
         """
         Open the uncertainties or variances of the data and check their
         validity. Uncertainties should be either in the first extension of
@@ -237,7 +241,8 @@ class Cube:
             variances.
         """
         if filename != None:
-            hdulist = pyfits.open(filename)
+            self.sigma_file = pyfits.open(filename, mode=self.mode)
+            hdulist = self.sigma_file
         else:
             hdulist = self.file
         
@@ -281,7 +286,7 @@ class Cube:
         logging.info("Opening uncertaities/variances HDU successful.")
         
     
-    def openMask(self, filename=None):
+    def open_mask(self, filename=None):
         """
         Open the bad pixel mask of the data and check its validity. The
         mask should be either in the first extension of a file or in an
@@ -294,7 +299,8 @@ class Cube:
             The filename of the FITS file that contains the mask.
         """
         if filename != None:
-            hdulist = pyfits.open(filename)
+            self.mask_file = pyfits.open(filename, mode=self.mode)
+            hdulist = self.mask_file
         else:
             hdulist = self.file
             
@@ -322,7 +328,7 @@ class Cube:
         logging.info("Opening mask HDU successful.")
         
     
-    def getMaskForLayer(self, index):
+    def get_mask_for_layer(self, index):
         """
         Return the bad pixel mask for a single layer.
        
@@ -336,14 +342,14 @@ class Cube:
         mask or None, depending on whether a mask is available
         """
         if self.mask_hdu == None:  return np.zeros(self.instrument.nspaxel, dtype=np.int16)
-        else: return self._getLayer(self.mask_hdu, index)
+        else: return self._get_layer(self.mask_hdu, index)
         
         
-    def getLayer(self, index, apply_mask=True, return_sigma=True):
+    def get_layer(self, index, apply_mask=True, return_sigma=True):
         """
         Return the data (and uncertainties if requested) in a layer. Note that
         the data is flattened if necessary and the bad pixel mask is applied
-        (if available) if requested. If the loaded data is 2dimensional and the 
+        if (available and) requested. If the loaded data is 2dimensional and the 
         instrument contains calibration/sky fibers, only the science fibers are
         returned.
         
@@ -366,28 +372,27 @@ class Cube:
             The uncertainties for the returned data (only if requested).
         """
         if apply_mask and self.mask_hdu != None:
-            valid = self.getMaskForLayer(index)==0
+            valid = self.get_mask_for_layer(index)==0
         
             if return_sigma:
-                if not self.is_var: return self._getLayer(self.data_hdu, index)[valid], self._getLayer(self.sigma_hdu, index)[valid]
-                else: return self._getLayer(self.data_hdu, index)[valid], np.sqrt(self._getLayer(self.sigma_hdu, index)[valid])
+                if not self.is_var: return self._get_layer(self.data_hdu, index)[valid], self._get_layer(self.sigma_hdu, index)[valid]
+                else: return self._get_layer(self.data_hdu, index)[valid], np.sqrt(self._get_layer(self.sigma_hdu, index)[valid])
             else:
-                return self._getLayer(self.data_hdu, index)[valid]
+                return self._get_layer(self.data_hdu, index)[valid]
         else:
             if return_sigma:
-                if not self.is_var: return self._getLayer(self.data_hdu, index), self._getLayer(self.sigma_hdu, index)
-                else: return self._getLayer(self.data_hdu, index), np.sqrt(self._getLayer(self.sigma_hdu, index))
+                if not self.is_var: return self._get_layer(self.data_hdu, index), self._get_layer(self.sigma_hdu, index)
+                else: return self._get_layer(self.data_hdu, index), np.sqrt(self._get_layer(self.sigma_hdu, index))
             else:
-                return self._getLayer(self.data_hdu, index)
+                return self._get_layer(self.data_hdu, index)
         
         
-    def _getLayer(self, _hdu, index):
+    def _get_layer(self, _hdu, index):
         """
-        Extract a layer from a provided HDU. This routines is mainly
-        used internally and is called by 'getLayer' and 'getMaskForLayer'
-        methods. It checks the dimensionality of the data and the 
-        properties of the instrument to determine how to slice the data
-        to obtain a layer.
+        Extract a layer from a provided HDU. This routines is mainly used
+        internally and is called by Cube.get_layer() and Cube.get_mask_for_layer()
+        methods. It checks the dimensionality of the data and the  properties of
+        the instrument to determine how to slice the data to obtain a layer.
         
         Parameters
         ----------
@@ -413,7 +418,7 @@ class Cube:
             return self.instrument.get_science(_hdu.section[index])
         
         
-    def getSpectrum(self, index):
+    def get_spectrum(self, index):
         """
         Return the spectrum from spaxel 'index'. Note that 'index' may refer
         to a calibration or a sky fiber if the instrument includes such fibers.
@@ -443,7 +448,7 @@ class Cube:
             return self.data_hdu.section[:, index]
         
         
-    def makeCube(self, asPrimary=False, **kwargs):
+    def make_cube(self, asPrimary=False, **kwargs):
         """
         Create an actual datacube, i.e. a 3dim. data structure that can be
         opened with programs like QFitsView or ds9.
@@ -477,16 +482,26 @@ class Cube:
         else:
             outData = self.instrument.make_grid(self.data_hdu.data)
             
+            logging.info("Updating header information...")
             outHeader = self.data_hdu.header
             outHeader.update("CRPIX3", self.crpix, after="CRPIX2")
-            outHeader.update("CRVAL{0}".format(self.instrument.spectral_axis), 1.)
             outHeader.update("CRVAL3", self.crval, after="CRVAL2")
-            outHeader.update("CDELT{0}".format(self.instrument.spectral_axis), 1.)
             outHeader.update("CDELT3", self.cdelt, after="CDELT2")
-            outHeader.update("CTYPE{0}".format(self.instrument.spectral_axis), "LINEAR")
             outHeader.update("CTYPE3", self.ctype, after="CTYPE2")
-            outHeader.update("CUNIT{0}".format(self.instrument.spectral_axis), "pixel")
-            outHeader.update("CTYPE3", self.cunit, after="CUNIT2")
+            outHeader.update("CUNIT3", self.cunit, after="CUNIT2")
+
+            ## keywords for "old" dispersion axis are not valid anymore, so they are deleted (if present)
+            for key in ["CRPIX", "CRVAL", "CDELT", "CTYPE", "CUNIT"]:
+                if "{0}{1}".format(key, self.instrument.spectral_axis) in outHeader:
+                    del outHeader["{0}{1}".format(key, self.instrument.spectral_axis)]
     
             if asPrimary: return pyfits.PrimaryHDU(outData, header=outHeader)
             else: return pyfits.ImageHDU(outData, header=outHeader)
+
+
+    def __del__(self):
+
+        ## close FITS files that were  opened by instance 
+        self.file.close()
+        if hasattr(self, "sigma_file"): self.sigma_file.close()
+        if hasattr(self, "mask_file"): self.mask_file.close()

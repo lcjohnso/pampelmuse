@@ -1,45 +1,35 @@
 """
-INSTRUMENTS
-===========
-The classes defined in this script are supposed to provide support in handling
-instrument-specific characteristics: dead fibers, holes in FoV,
-non-rectangular FoV, ...
-The idea is to define a sub-class of the class 'Instruments' for every IFU that
-should be supported. Everything that is instrument-specific should be handled
-in those classes so that the other routines of PampelMuse do not need to be
-updated every time support for a new instrument is added. Currently PMAS/Larr
-and FLAMES/ARGUS are included.
+instruments.py
+==============
 
-CHANGELOG:
-----------
-2012/11/09, v0.1.0.0, preliminary version completed, support for PMAS/Larr
-                      and FLAMES/ARGUS
+Provides
+--------
+class pampelmuse.core.instruments.Instrument
+class pampelmuse.core.instruments.Pmas
+class pampelmuse.core.instruments.Argus
 
-2013/02/02, v0.1.1.0, bugfix in PMAS class: replaced int16 with np.int16
-2013/03/22, v0.2.0.0, significantly updated functionality of the individual
-                      classes; also added documentation.
-2013/03/26, v0.2.0.1, included a more general way to determine if a source is
-                      covered by the IFU footprint. Also added documentation.
-2013/03/27, v0.2.0.2, changed default value of 'name'-property to "Generic IFU
-                      in Instrument-class (was None)
-2013/03/28, v0.2.1.2, bugfixed the methods 'make_grid' and 'get_science' that
-                      crashed for certain types of (valid) input data.
-2013/05/16, v0.2.2.2, fixed a bug when reading an ARGUS fiber setup: The sky
-                      fibers were previously identified via the name given by
-                      the observer. This has been changed to the retractor.
-2013/05/29, v0.2.2.3, minor updates wrt. logging
-2013/06/11, v0.3.0.0, added new property nfiber that returns the total number
-                      of fibers (science+sky+calibration)
-2013/06/13, v0.3.0.1, modified handling of edges of field of view. They coincide
-                      now with the edges of the spaxels (instead of their centres).
-                      Introduced a new property 'edgepath' to facilitate the
-                      calculations.
-2013/06/25, v0.3.1.1, the 'edgepath' property to define the spaxels that constitute
-                      the edges of the FoV was not set properly when no specific
-                      instrument was specified.
+Purpose
+-------
+This module implements classes that provide support in handling instrument-
+specific characteristics such dead fibers, holes in FoV, or a non-rectangular
+FoV. Additionally, the classes enable support for 2dim. data, with one axis
+being the spectral one and the remaining axis indicating fiber number (for
+fiber-based IFS).
+By design, each class is only valid for data coming from a specific instrument.
+Currently, there are dedicated class for PMAS/LArr and FLAMES/Argus. Requests
+for support of other instruments will be added on request. Requests should be
+made using the E-Mail address below. Note however that if no dedicated class for
+an instrument exists, this does NOT mean that data coming from that instrument
+cannot be analysed. For such purposes, the class 'Instrument' is used. The only
+limitation is that the data must be provided as a 3dim. cube then and that things
+like dead fibers or holes in the FoV are not handled.
+
+Latest SVN revision
+-------------------
+103, 2013/07/23
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.3.1.1"
+__revision__ = 103
 import logging, re
 import numpy as np
 from matplotlib import path
@@ -412,7 +402,7 @@ class Instrument(object):
         return distance.cdist(self.transform, np.vstack((y, x)).T, metric=metric)
 
 
-    def infov(self, x, y):
+    def infov(self, xy):
         """
         Check if the provided (x,y)-positions are inside the field of view of
         the current Instrument-instance. The method uses the 'contains_point'-
@@ -422,10 +412,10 @@ class Instrument(object):
 
         Parameters
         ----------
-        x : float or array_like
-            The x-position(s) of the source(s), in units of spaxels.
-        y : float or array_like
-            The y-position(s) of the source(s), in units of spaxels.
+        xy : array_like, shape (2,) or (N,2)
+            The x-position(s) of the N source(s) on the (x,y) plane, in units
+            of spaxels.
+
 
         Returns
         -------
@@ -434,28 +424,29 @@ class Instrument(object):
             inside the field of view.
         """
         
+        xy = np.asarray(xy)
+        
         ## loop over provided coordinates
-        if isinstance(x, (np.ndarray, list)):
-            infov = np.zeros(len(x), dtype=np.bool)
+        if xy.ndim > 1:
+            infov = np.zeros(xy.shape[0], dtype=np.bool)
             for i in xrange(infov.size):
-                infov[i] = self.edgepath.contains_point((y[i], x[i]))
+                infov[i] = self.edgepath.contains_point((xy[i,1], xy[i,0]))
         else:
-            infov = (self.edgepath.contains_point((y, x))==1)
+            infov = (self.edgepath.contains_point((xy[1], xy[0]))==1)
 
         return infov
 
 
-    def dist2edge(self, x, y, metric="euclidean"):
+    def distance_to_edge(self, xy, metric="euclidean"):
         """
         Calculate the  distance of one or more point in (x,y)-space to the
         edge of the field of view of the current Instrument instance.
 
         Parameters
         ----------
-        x : float or array_like
-            The x-position(s) of the source(s), in units of spaxels.
-        y : float or array_like
-            The y-position(s) of the source(s), in units of spaxels.
+        xy : array_like, shape (2,) or (N,2)
+            The position(s) of the N source(s) on the (x,y) plane, in units
+            of spaxels.
         metric : string
             The metric used to calculate the distances. For the different
             options and their meanings consult the documentation of
@@ -463,13 +454,13 @@ class Instrument(object):
 
         Returns
         -------
-        dist2edge : array_like or float
+        distance_to_edge : array_like or float
             The distance of each provided source to the edge of the field
             of view. Note that sources outside the field of view will have
             negative distances.
         """
-        edist = distance.cdist(self.edgepath.to_polygons()[0], np.vstack((y, x)).T, metric=metric).min(axis=0)
-        edist[self.infov(x, y)==False] *= -1 ## sources outside have negative ## values
+        edist = distance.cdist(self.edgepath.to_polygons()[0], np.asarray(xy)[...,[1,0]], metric=metric).min(axis=0)
+        edist[self.infov(xy)==False] *= -1 ## sources outside have negative ## values
         
         return edist
 
@@ -505,6 +496,7 @@ class Instrument(object):
         out_data : nd_array
             The data representation on the regular grid in the (x,y)-plane.
         """
+        logging.info("Arranging spatial pixels in (x,y) plane...")
         
         ## The index of the spatial axis in numpy-counting.
         np_spatial_axis = np.mod(self.spatial_axis,2)
@@ -547,6 +539,8 @@ class Instrument(object):
             out_data = np.zeros((calc_data.shape[1],)+shape, dtype=calc_data.dtype)
             for i in xrange(calc_data.shape[1]):
                 out_data[i] = griddata((self.y, self.x), calc_data[:,i], (grid_y, grid_x), method=method, fill_value=fill_value)
+
+        logging.info("...processed {0} spectral layer(s).".format(i+1))
         return np.squeeze(out_data) ## remove pseudo-spectral axis if needed
 
 
@@ -683,7 +677,7 @@ class Argus(Instrument):
 
         ## initialize transformation from (x,y)-coords to spaxels
         if not "transform" in kwargs.keys():
-            # TODO: check if transform is really okay: seems to be mirrored along on axis!
+            # TODO: check if transform is really okay: seems to be mirrored along one axis!
             kwargs["transform"] = np.vstack((np.array([5,4,3,2,1,1,2,3,4,5,6,7,8,9,10,11,12,12,12,13,1,0,0,1,2,3,4,5,6,7,8,9,10,11,11,10,9,8,7,6,6,7,8,9,10,11,12,13,13,12,11,10,9,8,7,6,5,4,3,2,13,12,11,10,9,8,7,6,5,4,3,2,1,0,0,1,2,3,4,5,5,4,3,2,1,0,0,1,2,3,4,5,6,7,8,9,10,11,12,13,2,3,4,5,6,7,8,9,10,11,12,13,13,12,11,10,9,8,7,6,10,11,12,13,13,12,11,10,9,8,7,6,5,4,3,2,1,0,0,1,9,8,7,6,5,4,3,2,1,0,0,1,2,3,4,5,6,7,8,9,1,0,0,1,2,3,4,5,6,7,8,9,10,11,12,13,13,12,11,10,6,7,8,9,10,11,12,13,13,12,11,10,9,8,7,6,5,4,3,2,13,12,11,10,9,8,7,6,5,4,3,2,1,0,0,1,2,3,4,5,5,4,3,2,1,0,0,1,2,3,4,5,6,7,8,9,10,11,12,13,2,3,4,5,6,7,8,9,10,11,12,13,13,12,11,10,9,8,7,6,6,7,8,9,10,11,11,10,9,8,7,6,5,4,3,2,1,0,0,1,13,12,12,12,11,10,9,8,7,6,5,4,3,2,1,1,2,3,4,5],dtype=np.int16),np.array([1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,2,2,3,3,2,2,2,2,2,2,2,2,2,2,2,2,1,1,1,1,1,1,4,4,4,4,4,4,4,4,3,3,3,3,3,3,3,3,3,3,3,3,5,5,5,5,5,5,5,5,5,5,5,5,5,5,4,4,4,4,4,4,7,7,7,7,7,7,6,6,6,6,6,6,6,6,6,6,6,6,6,6,8,8,8,8,8,8,8,8,8,8,8,8,7,7,7,7,7,7,7,7,10,10,10,10,9,9,9,9,9,9,9,9,9,9,9,9,9,9,8,8,11,11,11,11,11,11,11,11,11,11,10,10,10,10,10,10,10,10,10,10,13,13,12,12,12,12,12,12,12,12,12,12,12,12,12,12,11,11,11,11,14,14,14,14,14,14,14,14,13,13,13,13,13,13,13,13,13,13,13,13,15,15,15,15,15,15,15,15,15,15,15,15,15,15,14,14,14,14,14,14,17,17,17,17,17,17,16,16,16,16,16,16,16,16,16,16,16,16,16,16,18,18,18,18,18,18,18,18,18,18,18,18,17,17,17,17,17,17,17,17,20,20,20,20,20,20,19,19,19,19,19,19,19,19,19,19,19,19,18,18,19,19,20,21,21,21,21,21,21,21,21,21,21,21,21,20,20,20,20,20], dtype=np.int16))).T
 
         

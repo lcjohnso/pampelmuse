@@ -1,57 +1,38 @@
 """
-APERTURE
-========
-The routine is designed to perform aperture photometry on a 2dim. image or
-aperture spectrophotometry a 3dim. datacube. 
+aperture.py
+===========
 
-The main routine is the class `AperPhoto` that performs aperture (spectro)-
-photometry for a list of input positions, provided as a structured array. A
-local background around every source is estimated and subtracted before its
-flux and moments are determined. Additonally the routine estimates the global
-background in the data.
+Provides
+--------
+class pampelmuse.core.aperture.AperPhoto
 
-The class `SelectAnnulus' is called to extract doughnut-shaped regions from
-the input data and is frequently called by `AperPhoto'.
+Purpose
+-------
+This module implements  the class 'AperPhoto' that is designed to perform
+aperture photometry on a 2dim. image or aperture spectrophotometry a 3dim.
+datacube. An instance of the class can be initialized from IFS data and a
+cources catalogue. To this aim, a valid instance of pampelmuse.core.cube.Cube
+and a valid instance of pampelmuse.core.sources.Sources must be provided.
+The aperture photometry is performed for each layer of the IFS data indepen-
+dently. A local background around every source is estimated and subtracted
+before its flux and moments are determined. If requested, the routine also
+estimates the global background in each layer of the data.
 
-
-CHANGELOG:
-----------
-2011/09/05, v0.0.0.0, significantly modified existing older routine
-2011/09/08, v0.1.0.0, changed usage of PSF in code. Now a PSF instance
-                      can be provided to the `aper_photo'-method. In that
-                      case, an aperture correction is automatically
-                      performed using the given PSF. (previously, provided
-                      FWHM was used to create a Gaussian PSF)
-2011/09/19, v0.1.1.0, fixed bug that the whole sky spectrum was replaced
-                      with the latest estimate of the global background
-2011/12/02, v0.1.1.1, included logging-module
-2011/12/05, v0.1.2.1, bugfixed logging
-2012/03/16, v0.4.0.0, modified the code to use the dedicated `PSF`-class
-                      defined by PampelMuse. Also adapted the current
-                      version number to the version number of PampelMuse.
-2012/03/19, v0.4.0.1, removed a remaining print-command used for debugging.
-2012/04/24, v0.4.0.2, again...
-2012/06/01, v0.4.1.2, removed interpolation of masked values since it was not
-                      stable. Instead, masked pixels are now excluded from all
-                      calculations.
-2013/04/05, v0.4.1.3, made all occurences of 'id' uppercase to  make code
-                      consistent with other parts of PampelMuse.
-2013/06/26, v0.5.0.0, major updates to the code to make it compatible with the
-                      newer versions of PampelMuse. The aperture correction
-                      using the PSF still has to be implemented.
-2013/06/26, v0.5.1.0, forgot a continue statement when the routine encounters
-                      a layer for which al voxels have been masked.
+Latest SVN revision
+-------------------
+103, 2013/07/23
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.5.1.0"
+__revision__ = 103
+
 import logging, sys
-import numpy as np, pyfits
+import numpy as np
 from scipy import spatial
 
 ## required PampelMuse-packages
-from pampelmuse.core.cube import Cube
-from pampelmuse.core.sources import Sources
-from pampelmuse.core.new_profiles import Profile
+from pampelmuse.functions.statistics import clip_sigma
+from pampelmuse.core import Cube, Sources
+from pampelmuse.core.psf import Profile
 
 
 
@@ -127,7 +108,7 @@ class AperPhoto:
             The indices of the first and the last layer of the data cube
             that should be included in the calculation. The default is to
             use the entire cube. 
-        PSF : a class pampelmuse.core.new_profiles.Profile
+        PSF : a class pampelmuse.core.psf.profiles.Profile
             A PSF class can be provided here,  containing an instance for
             every source. In that case, the provided PSFs are used to
             perform an aperture correction. NOT YET IMPLEMENTED!
@@ -185,8 +166,8 @@ class AperPhoto:
 
             ## collect information for current layer
             ## data & mask
-            curData = self.cube.getLayer(kk, return_sigma=False)
-            curMask = self.cube.getMaskForLayer(kk)
+            curData = self.cube.get_layer(kk, return_sigma=False)
+            curMask = self.cube.get_mask_for_layer(kk)
 
             if not (curMask==False).any():
                 logging.error("[@{0}] This layer contains no unmasked voxels.".format(kk))
@@ -207,9 +188,13 @@ class AperPhoto:
             logging.debug("[@{0}] Determining global background...".format(kk))
             backpix = (self.offsets>self.r_aper).all(axis=0)
             if backpix.sum() < 20: logging.warn("[@{0}] Using < 20 pixels to estimate global background.".format(kk))
-            self.backval, self.backstd = self._clip_sigma(curData[backpix])
-            self.results["flux"][-1, jj] = self.backval
-            logging.debug("[@{0}] Global background is {1:.2f}/pixel".format(kk, self.backval))
+            
+            ## perform kappa-sigma clipping to determine background level and noise
+            backdata = clip_sigma(curData[backpix], axis=None)
+            backval = backdata.mean()
+            backstd = backdata.std()
+            self.results["flux"][-1, jj] = backval
+            logging.debug("[@{0}] Global background is {1:.2f}/pixel".format(kk, backval))
 
             ## a loop over all sources (index n), but calculations are only performed if source n is included in the
             ## list of sources for which the aperture spectrophotometry should be performed. N is the index for those
@@ -228,7 +213,10 @@ class AperPhoto:
 
                     if backpix.sum() < 10: logging.warn("[@{0}, #{1}] Using < 10 pixels to estimate local background.".format(kk, self.sources.ID[n]))
         
-                    backval, backstd = self._clip_sigma(curData[backpix])
+                    backdata = clip_sigma(curData[backpix], axis=None)
+                    backval = backdata.mean()
+                    backstd = backdata.std()
+
                     logging.debug("[@{0}, #{1}] Local background: {2:.2f}/pixel".format(kk, self.sources.ID[n], backval))
 
 
@@ -242,7 +230,7 @@ class AperPhoto:
                     momdata = curData[mompix]                                  
                     if mompix.sum() > 3:
                         if mompix.sum() < 5: logging.warn("[@{0}, #{1}] Less than 5 pixels used to calculate moments.".format(kk, self.sources.ID[n]))
-                        moments = self._measure_moments(momdata, X=spaxels[mompix, 1], Y=spaxels[mompix, 0])
+                        moments = self.measure_moments(momdata, X=spaxels[mompix, 1], Y=spaxels[mompix, 0])
                         
                         ## perform sanity check on second order moments and add them to results:
                         if moments[2]<0:
@@ -278,55 +266,10 @@ class AperPhoto:
                 logging.debug("[@{0}, #{1}] Calculated aperture flux: {2:.2f} counts".format(kk, self.sources.ID[n], float(flux)))
 
         return self.results
-        
-
-    def _clip_sigma(self, indata, thresh=3.):
-        """
-        Perform sigma-cliipping on 1dim. array
-
-        Parameters
-        ----------
-        indata : nd_array
-            The array containing the data
-        thresh : float, optional
-            During the sigma clipping, all pixel values deviating more
-            than 'thresh' times the background noise from the
-            median are clipped
-
-        Returns
-        -------
-        mode : float
-            The sigma-clipped mode of the data
-        sigma : float
-            The sigma-clipped standard deviation of the data
-        """
-        data = np.sort(indata)
-
-        i = 0
-        while True:
-            sigma  = data.std()
-            median = data[data.shape[0]>>1]
-            
-            if i > 0:
-                if len(data) == hist_length:
-                    mean = data.mean()
-                    mode = 3*median - 2*mean
-                    break
-
-            hist_length = len(data)
-            valid = (data>(median-thresh*sigma))&(data<(median+thresh*sigma))
-
-            if valid.sum() < 5:
-                logging.warn("Sigma-clipping left <5 valid pixels.")
-
-            data = data[valid]
-            i += 1
-
-        return mode, sigma
 
 
 
-    def _measure_moments(self, indata, X, Y):
+    def measure_moments(self, indata, X, Y):
 
         """
         Method measures first and second order moments of the pixel

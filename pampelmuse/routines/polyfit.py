@@ -1,0 +1,107 @@
+"""
+polyfit.py
+==========
+
+Provides
+--------
+function pampelmuse.routines.polyfit.polyfit
+
+Purpose
+-------
+The module implements the function 'polyfit' that is called if PampelMuse is
+called with the POLYFIT option. The function is designed to inspect the fit
+results of PampelMuse. It can also be used to perform polynomial fits to the
+IFS coordinates of the sources or the variables of the PSF. To this aim, it
+uses the PampelMuse GUI. As the GUI is designer using Qt, the function can
+only be executed if PyQt4 is available on the system.
+NOTE that the GUI itself is not defined here but implemented via the module
+pampelmuse.graphics.pampelmuse_gui.
+
+Latest SVN revision
+-------------------
+103, 2013/07/19
+"""
+__author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
+__revision__ = 103
+
+
+import datetime, logging, sys
+from PyQt4 import QtCore, QtGui
+
+##  required PampelMuse-packages
+from pampelmuse.core import Sources
+from pampelmuse.core.coordinates import Transformation
+from pampelmuse.core.psf import Variables
+from pampelmuse.graphics import PampelMuseGui
+
+
+def polyfit(pampelmuse):
+
+    logging.info("Executing requested routine POLYFIT [Revision {0:d}].".format(__revision__))
+
+    ## Collect information about sources/create Sources-instance
+    logging.info("Obtaining information on sources in the field...")
+    
+    ## Source catalogue
+    sources = Sources(data=pampelmuse.hdulist["SOURCES"], instrument=pampelmuse.ifs_data.instrument)
+
+    ## Prepare GUI
+    app = QtGui.QApplication(sys.argv)
+    ui = PampelMuseGui(sources=sources, ifsData=pampelmuse.ifs_data, refImage=pampelmuse.polyfit.reference, 
+                       namespace=pampelmuse)
+    ui.outfileName = pampelmuse.filename
+
+    ## Spectra
+    logging.info("Obtaining source spectra.")
+    try:
+        i = pampelmuse.hdulist.index_of("SPECTRA")
+        try:
+            j = pampelmuse.hdulist.index_of("SIGMASPC")
+            sources.open_spectra_hdu(pampelmuse.hdulist[i], sigma_hdu=pampelmuse.hdulist[j])
+        except KeyError:
+            sources.open_spectra_hdu(pampelmuse.hdulist[i])
+    except KeyError:
+        logging.critical("No spectra (HDU `SPECTRA') have been provided.")
+    ui.loadSpectra()
+
+    ## Positions
+    logging.info("Obtaining information about source coordinates.")
+
+    try:
+        i = pampelmuse.hdulist.index_of("POSITIONS")
+        sources.open_coordinates_hdu(pampelmuse.hdulist[i])
+        try:
+            i = pampelmuse.hdulist.index_of("INPOSITIONS")
+            sources.open_coordinates_hdu(pampelmuse.hdulist[i])
+        except KeyError:
+            pass
+        ui.loadPositions()
+    except KeyError:
+        pass
+
+    try:
+        i = pampelmuse.hdulist.index_of("POSPARS")
+        sources.transformation = Transformation(hdu=pampelmuse.hdulist[i])
+        ui.loadCoordTrans()
+        
+    except KeyError:
+        logging.warning("No coordinate transformation (HDU 'POSPARS') detected.")
+
+    sources.info()
+
+    ## Initializing PSF properties
+    try:
+        i = pampelmuse.hdulist.index_of("PSFPARS")
+        ui.loadPsfParameters(pampelmuse.hdulist[i])
+        ui.psf.info()
+    except KeyError:
+        logging.warning("No information available on PSF that was used (HDU 'PSFPARS').")
+
+    ## add information about caller routine to PampelMuse configuration
+    pampelmuse.polyfit.utc = datetime.datetime.utcnow().strftime("%y-%m-%d %H:%M:%S")
+    pampelmuse.polyfit.revision = __revision__
+
+    ui.show()
+    
+    sys.exit(app.exec_())
+

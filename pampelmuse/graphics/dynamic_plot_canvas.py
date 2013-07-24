@@ -1,40 +1,30 @@
 """
-DYNAMICPLOTCANVAS
-=================
-Routine is used to create a lineplot and interact with it. The PampelMuse Gui
-uses this routine to display spectral properties (source spectra, x- & y-
-positions, PSF parameters) and their polynomial fits.
+dynamic_plot_canvas.py
+======================
 
-CHANGELOG:
-----------
-2012/01/25, v0.0.1.1, added some documentation. Fixed bug that sometimes the
-                      vertical line indicating the current cursor position did
-                      not disappear upon updating  the data to be plotted.
-2012/01/25, v0.0.1.2, modified the dimensions of the plot to make it fit better
-                      into the surrounding frame.
-2013/02/04, v0.1.0.0, added possibility to add/update x- and y-labels. Minor
-                      changes to how canvas/axes are plotted.
-2013/05/06, v0.2.0.0, made code more robust with respect to user interaction.
-                      It should not happen any more that the 'masker' does
-                      not disappear after the button is released.
-                      Methods to zoom into a plot or out of it and to pan have
-                      been added.
-2013/05/14, v0.3.0.0, significantly enhanced documentation of the code.
-2013/05/15, v0.3.1.0, bugfix: a '*' was missing when emitting the 'rangeSelected'
-                              signal.
-2013/05/23, v0.3.2.0, bugfix: when updating the data, the lines that reset the
-                              heights of the rectangles were commented out. For this
-                              reason, the y limits of the plot were not adjusted
-                              properly.
-2013/06/20, v0.4.0.0, now using animations to only redraw the elements that are
-                      actually affected by a user interaction. This makes the inter-
-                      actions much smoother.
-2013/06/21, v0.4.1.0, for some reason I cannot figure out calling the blit()-method
-                      in call() causes the GUI to not update the axes ticks and labels
-                      until the GUI gets out of focus. So I commented that line out.
+Provides
+--------
+class pampelmuse.graphics.dynamic_plot_canvas.DynamicPlotCanvas
+
+Purpose
+-------
+The module provides the class DynamicPlotCanvas that is designed to
+display and interact with 1dim. data, such as spectra, IFS coordinates,
+or parameters of the PSF or coordinate transformation. The class
+supports the simultaneous display of more than one dataset. This is
+useful, e.g., to display data together with a polynomial fit.
+The possibilities to interact with the data include the masking of
+certain (wavelength) ranges, zooming, and panning.
+
+The class DynamicPlotCanvas is used by the PampelMuse GUI to show the
+top panel, named 'Spectrum Viewer'.
+
+Latest SVN revision
+-------------------
+103, 2013/07/17
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.4.1.0"
+__revision__ = 103
 
 import inspect, logging
 import matplotlib.pyplot

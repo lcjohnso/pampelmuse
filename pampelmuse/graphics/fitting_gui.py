@@ -1,22 +1,28 @@
 """
-FITTINGGUI
-==========
-The graphical back-bone of the StarFit-class defined in the fit_array.py
-file.
+fitting_gui.py
+==============
 
-CHANGELOG
----------
-<v0.1.0.0, ...2012/01/31, (c). S. Kamann
-0.1.0.0, 2012/01/31, changed interval of timer from 5s to 0.5s to avoid
-                     ridicolous overheads when fitting only fluxes.
-0.1.0.1, 2012/02/13, shortened interval to 0.1s (0.5s still included overhead)
-0.4.0.0, 2012/03/19, updated documentation; timeout-interval is now provided
-                     as a parameter to the __init__-instance of `FittingGui`;
-                     adapted version number to match overall PampelMuse-
-                     versioning
+Provides
+--------
+class pampelmuse.graphics.fitting_gui.FittingGui
+
+Purpose
+-------
+The module implements the class 'FittingGui' that provides a graphical
+user interface (GUI) to display the results of the ongoing analysis of
+IFS data via the PampelMuse routine CUBEFIT. The layer that is currently
+being analysed is displayed together with the residuals in that layer
+after the sources have been subtracted. To enable the GUI, PampelMuse must
+be started with the option 'USEQT' enabled. 
+WARNING: This module has not been revised since 2012/03/19 and probably
+         needs to be updated.
+
+Latest SVN revision
+-------------------
+103, 2013/07/23
 """
-__author__  = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.4.0.0"
+__author__   = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
+__revision__ = 103
 
 import numpy as np, sys, time
 from PyQt4 import QtCore, QtGui

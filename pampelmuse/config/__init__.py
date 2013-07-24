@@ -1,23 +1,31 @@
 """
-Two classes are defined that are used to carry the configuration
+pampelmuse.config
+=================
+
+Provides
+--------
+class pampelmuse.config.Namespace
+class pampelmuse.config.PampelMuseConfig
+
+Purpose
+-------
+The module implements two classes that are used to carry the configuration
 parameters of PampelMuse through the analysis.
-Namespace is, as the name suggests, a pure namespace, suited to store,
-update and read attributes. For each subroutine of PampelMuse, an
+The class 'Namespace' is, as the name suggests, a pure namespace, suited
+to store, update and read attributes. For each subroutine of PampelMuse, an
 individual instance of Namespace will be created.
-PampelMuseConfig is also designed as a pure namspace. However, it defines
-additional methods 'readHeader' and 'makeHeader' that can be used to read a
-configuration from a pyfits HDU and to store the current configuration of
-PampelMuse again in the header of a pyfits HDU.
+The class 'PampelMuseConfig' is also designed as a pure namspace. However,
+it defines two additional methods PampelMuseConfig.readHeader() and
+PampelMuseConfig.makeHeade() that can be used to read a configuration from
+a pyfits HDU and to store the current configuration of PampelMuse again in
+the header of a pyfits HDU.
 
-CHANGELOG:
-----------
-v0.1.0.0, 2013/05/26
-v0.2.0.0, added check for keywords of routine SUBTRES in makeHeader
-          method.
+Latest SVN revision
+-------------------
+103, 2013/07/23
 """
-__version__ = "0.2.0.0" ## 2013/05/31
-__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-
+__author__   = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
+__revision__ = 103
 
 
 import datetime, re
@@ -48,7 +56,7 @@ class PampelMuseConfig(Namespace):
             will scan the header of the HDU for hierarch keywords starting
             with PAMPELMUSE.
         """
-        self.configFinder = re.compile(r"PAMPELMUSE\s([A-Z]+)\s?([A-Z]+)?$")
+        self.configFinder = re.compile(r"PAMPELMUSE\s([A-Z]+)\s?([A-Z]\w+)?$")
         
         for entry in hdu.header.ascardlist():   
             match = self.configFinder.match(entry.key)
@@ -70,7 +78,7 @@ class PampelMuseConfig(Namespace):
             The HDU used to store the configuration, if none is provided,
             an empty HDU will be created.
         """
-        for entry in ["version", "utc", "ifu", "start", "stop", "smallifu", "globsky", "passband", "reslim", "updaterl", "confdens",
+        for entry in ["revision", "utc", "ifu", "start", "stop", "smallifu", "globsky", "passband", "reslim", "updaterl", "confdens",
                       "snrcut", "binrad", "useunres", "unresbin", "psfrad", "maxiter", "cpucount", "jumpstart",  "subunres", "subsky",
                       "verbose", "useqt", "aperrad", "apernois"]:
            
@@ -90,23 +98,34 @@ class PampelMuseConfig(Namespace):
 
 
         if hasattr(self, "initfit"):
-            for entry in ["version", "utc", "reslim", "photzero"]:
+            for entry in ["revision", "utc", "reslim", "photzero"]:
                 if hasattr(self.initfit, entry):
                     hdu.header.update("hierarch PAMPELMUSE INITFIT {0}".format(entry.upper()), getattr(self.initfit, entry))
 
         if hasattr(self, "cubefit"):
-            for entry in ["version", "utc", "status", "lastlayer"]:
+            for entry in ["revision", "utc", "status", "lastlayer"]:
                 if hasattr(self.cubefit, entry):
                     hdu.header.update("hierarch PAMPELMUSE CUBEFIT {0}".format(entry.upper()), getattr(self.cubefit, entry))
                     
         if hasattr(self, "polyfit"):
-            for entry in ["version", "utc"]:
+            for entry in ["revision", "utc"]:
                 if hasattr(self.polyfit, entry):
                     hdu.header.update("hierarch PAMPELMUSE POLYFIT {0}".format(entry.upper()), getattr(self.polyfit, entry))
 
         if hasattr(self, "subtres"):
-            for entry in ["version", "utc"]:
+            for entry in ["revision", "utc"]:
                 if hasattr(self.subtres, entry):
                     hdu.header.update("hierarch PAMPELMUSE SUBTRES {0}".format(entry.upper()), getattr(self.subtres, entry))
 
+        if hasattr(self, "shotnoi"):
+            for entry in ["revision", "utc"]:
+                if hasattr(self.shotnoi, entry):
+                    hdu.header.update("hierarch PAMPELMUSE SUBTRES {0}".format(entry.upper()), getattr(self.shotnoi, entry))
+
+        if hasattr(self, "addwcs"):
+            for entry in ["revision", "utc", "RADECSYS", "EQUINOX", "WCSDIM", "CTYPE1", "CTYPE2", "CRVAL1", "CRVAL2", "CRPIX1", "CRPIX2", "CD1_1", "CD1_2",
+                          "CD2_1", "CD2_2"]:
+                if hasattr(self.addwcs, entry.lower()):
+                    hdu.header.update("hierarch PAMPELMUSE ADDWCS {0}".format(entry.upper()), getattr(self.addwcs, entry.lower()))
+                    
         return hdu
