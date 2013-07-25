@@ -45,11 +45,11 @@ the data into memory yet but just checks whether the file(s) are valid.
 
 Latest SVN revision
 -------------------
-104, 2013/07/25
+105, 2013/07/25
 """
 __author__     = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__    = "0.10.1.1"
-__revision__   = 104
+__version__    = "0.10.2.1"
+__revision__   = 105
 
 
 
@@ -405,7 +405,7 @@ if not graphics or args.func!=initfit:
         if not hasattr(pampelmuse, "shotnoi"): pampelmuse.shotnoi = Namespace()
         pampelmuse.shotnoi.sourcelist = args.sourcelist
 
-    if args.func == addwcs:
+    if use_addwcs and args.func == addwcs:
         if not hasattr(pampelmuse, "addwcs"): pampelmuse.addwcs = Namespace()
         pampelmuse.addwcs.sourcelist = args.sourcelist
 
