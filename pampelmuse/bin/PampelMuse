@@ -45,11 +45,11 @@ the data into memory yet but just checks whether the file(s) are valid.
 
 Latest SVN revision
 -------------------
-105, 2013/07/25
+106, 2013/07/25
 """
 __author__     = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
 __version__    = "0.10.2.1"
-__revision__   = 105
+__revision__   = 106
 
 
 
@@ -387,7 +387,7 @@ pampelmuse.prefix = args.prefix
 pampelmuse.filename = "{0}.prm.fits".format(args.prefix)
 
 ## for subroutine ADDWCS, the IFS data must be opened in 'update'-mode, otherwise read-only is sufficient
-if args.func==addwcs: mode='update'
+if use_addwcs and args.func==addwcs: mode='update'
 else: mode='readonly'
 
 ## unless INITFIT should be called, open existing PRM file (first check for 'graphics' because initfit undefined if False)
