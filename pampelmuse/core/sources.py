@@ -21,10 +21,10 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-103, 2013/07/24
+104, 2013/07/25
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 103
+__revision__ = 105
 
 import logging, os, re
 import numpy as np, pyfits
@@ -1353,8 +1353,8 @@ class Sources(object):
                 yfit_i = yfit + np.median(self.ifs_coordinates[mask,i,1,0])
 
             elif function in ["step", "plain"]:
-                xfit_i = StepPolynomial.fit(self.ifs_coordinates[mask,i,0,0], order=order, bins=bins)
-                yfit_i = StepPolynomial.fit(self.ifs_coordinates[mask,i,1,0], order=order, bins=bins)
+                xfit_i = StepPolynomial.fit(self.wave[mask], self.ifs_coordinates[mask,i,0,0], order=order, bins=bins)
+                yfit_i = StepPolynomial.fit(self.wave[mask], self.ifs_coordinates[mask,i,1,0], order=order, bins=bins)
 
             elif function == "chebyshev":
                 xfit_i = Chebyshev.fit(self.wave[mask], self.ifs_coordinates[mask,i,0,0], order)
@@ -1612,9 +1612,9 @@ class Sources(object):
 
         if not fit: to_store = np.flatnonzero(self.ifs_coordinates_free[self.ifs_coordinates_loaded])
         else: to_store = np.flatnonzero(self.ifs_coordinates_fitted[self.ifs_coordinates_loaded])
-        
+
         ## make sure there is some data to be stored
-        if to_store.sum()==0:
+        if to_store.size==0:
             logging.critical("Cannot write IFS coordinates to HDU. No data available.")
             return NotImplemented
 

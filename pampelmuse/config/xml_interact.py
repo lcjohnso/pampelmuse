@@ -1,70 +1,42 @@
-#!/usr/bin/env python
 """
-XML_INTERACT
-============
+xml_interact.py
+===============
 
-PURPOSE:
+Provides
 --------
-The routines defined in the `ModifyConfig`-class provide several methods to
-update and to read the PampelMuse-configuration that is stored in the 
-XML-file '$pampelmuse_path/config/PMparams.xml'. For detailed instructions
-on the usage of this class check its documentation.
-Furthermore, some auxiliary routines are provided that allow to acces the
-PampelMuse-configuration from the command line. 
+function pampelmuse.config.xml_interact.transform_string
+class pampelmuse.config.xml_interact.ModifyConfig
 
-USAGE:
-------
-+++Command-line usage:
-Type 'PampelMuse CONFIG --help' for instructions on syntax and possible
-parameters if you want to change the configuration from the command-line.
-(not fully implemented yet)
-
-+++direct usage with class  `ModifyConfig`:
+Purpose
+-------
+The module implements the class 'ModifyConfig' which provides several methods
+to update and to read the PampelMuse-configuration that is stored in the 
+XML-file 'PMparams.xml' in the config/ folder of the PampelMuse distribution.
 When a new instance of the class is initialized, the user has to provide
 the path to the configuration-file and to its XML-Schema (a .xsd-file).
 After initialization, the methods 'add_parameter', 'update_parameter' and
 'get_parameter' allow interaction with the configuration file. Finally,
 the method 'save_changes' can be used to write to possible changes disk.
 
-EXAMPLE FOR USAGE:
-------------------
+Example for usage:
 >>> modifier = ModifyConfig('PMparams.xml', 'PMschema.xsd')
->>> modifier.add_parameter(name='PSFTYPE', value='moffat', category='psf',
-                           comment='A new PSF')
+>>> modifier.add_parameter(name='PSFTYPE', value='moffat', category='psf', comment='A new PSF')
 >>> modifier.update_parameter(name='PSFTYPE', value='gaussian')
 >>> print modifier.get_parameter(name='PSFTYPE')
 ['gaussian', 'A new PSF']
 >>> modifier.save_changes()
 
+The auxiliary function 'Transform_string' is designed to transfor a string into
+another type, such as a float or a list.
 
-CHANGELOG:
-----------
-2011/08/04, v0.0.0.0
-2011/08/05, v0.1.0.0, added documentation, modified command-line usage
-2011/08/08, v0.2.0.0, added parameter `abort_on_exception` for proper
-                      exception handling.
-                      added `get_all`-method to read the current configuration
-2011/08/09, v0.3.0.0, add options `ahead` and `after` to include new
-                      parameters in a specific place of the configuration.
-2011/08/10, v0.3.0.1, modified code to allow command-line usage and importing
-                      of the defined classes/functions.
-2011/08/31, v0.3.1.1, fixed bug in modes 'Update' and 'Read' 
-                      (replaced args.parameter with args.name)
-2011/09/01, v0.3.2.1, fixed bug in mode 'Update': Code didn't find 'dtype'
-                      -parameter, automatically set dtype to string, even if
-                      'None' given
-2011/09/09, v0.3.3.1, fixed bug in function `transform_string': The routine
-                      tried to convert a list/tuple of floats to integers.
-2012/07/24, v0.4.0.0, significantly modified the code. It now used `xml`
-                      instead of lxml because it is a standard python library.
-                      Also included logging module.
-2012/07/26, v0.4.0.1, modfied findall command in l384 because including an
-                      attribute in the search won't work for earlier
-                      xml-versions.
-2012/11/09, v0.4.1.0, fixed two bugs caused by misspelling of variables.
+Latest SVN revision
+-------------------
+104, 2013/07/25
 """
-__author__ = "Sebastian Kamann (skamann@aip.de)"
-__version__ = "0.4.1.0"
+__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
+__revision__ = 104
+
+
 import datetime, logging, os, re, string, sys
 from xml.etree import ElementTree
 from xml.dom.minidom import parseString
@@ -97,11 +69,7 @@ def transform_string(thestring, dtype, abort_on_exception=True):
         return int(thestring)
     elif dtype == 'bool':
         ## using regular expressions for the transformation to bool
-        return bool(int(re.sub("true", "1",
-                               re.sub("false", "0", string.lower(thestring))
-                               )
-                        )
-                    )
+        return bool(int(re.sub("true", "1", re.sub("false", "0", string.lower(thestring)))))
     elif dtype in ['list', 'tuple']:
         thenumbers = thestring[1:-1].split(',')
         if sum([len(re.findall('\.', s)) for s in thenumbers])==0:
@@ -176,8 +144,7 @@ class ModifyConfig:
         
         
 
-    def add_parameter(self, name, value, comment=None, category=None,
-                      inuse=None, ahead=None, after=None):
+    def add_parameter(self, name, value, comment=None, category=None, inuse=True, ahead=None, after=None):
         """
         Add a new parameter to the configuration. Note that this method
         should not be used to update existing parameters. For this
@@ -222,57 +189,45 @@ class ModifyConfig:
         ## only aplphanumeric characters are allowed 
         new_name = string.upper(name.strip())
         if ''.join(re.findall('[0-9A-Z]', new_name)) != new_name:
-            logging.error("Cannot add parameter '{0}' - invalid name!".format(\
-                    new_name))
+            logging.error("Cannot add parameter '{0}' - invalid name!".format(new_name))
             if self.AoE:
-                raise IOError, "Cannot add parameter '{0}' ".format(new_name)\
-                    + "since it contains invalid characters!"
+                raise IOError, "Cannot add parameter '{0}' since it contains invalid characters!".format(new_name)
             return 0
 
         ##  check if parameter is already present
         if new_name in self.pnames:
 
-            logging.error("Parameter '{0}' does already exist!".format(\
-                    new_name))
+            logging.error("Parameter '{0}' does already exist!".format(new_name))
             logging.error(" Use `update_parameter`-method!")
             if self.AoE:
-                raise IOError, "Parameter '{0}' does already exist!".format(\
-                    new_name)
+                raise IOError, "Parameter '{0}' does already exist!".format(new_name)
             return 0
 
         ## get type of parameter using reglular expressions
-        dtype = re.findall(r"(^<type)( ')([a-z0-9]*.[a-z0-9]*)('>)",
-                           str(type(value)))[0][2]
-                
+        dtype = re.findall(r"(^<type)( ')([a-z0-9]*.[a-z0-9]*)('>)",str(type(value)))[0][2]
+        
         ##  create new parameter as etree.SubElement of the root
         attrib = {}
         if category != None: attrib["category"] = category
         if inuse != None: attrib["inuse"] = inuse
-                
-        new_param = ElementTree.SubElement(\
-            self.ptree.getroot(), "{0}parameter".format(self.ns), attrib=attrib)
+        
+        new_param = ElementTree.SubElement(self.ptree.getroot(), "{0}parameter".format(self.ns), attrib=attrib)
 
-        thename = ElementTree.SubElement(\
-            new_param, "{0}name".format(self.ns))
+        thename = ElementTree.SubElement(new_param, "{0}name".format(self.ns))
         thename.text = new_name
 
-        thevalue = ElementTree.SubElement(\
-            new_param, "{0}value".format(self.ns), attrib={"dtype":str(dtype)})
+        thevalue = ElementTree.SubElement(new_param, "{0}value".format(self.ns), attrib={"dtype":str(dtype)})
         thevalue.text = str(value)
 
 
         if comment != None:
-            thecomment = ElementTree.SubElement(\
-                new_param, "{0}comment".format(self.ns))
+            thecomment = ElementTree.SubElement(new_param, "{0}comment".format(self.ns))
             thecomment.text = comment
 
         ## store information about the update in the configuration
-        theupdate = ElementTree.SubElement(\
-            new_param, "{0}updated".format(self.ns),
-            attrib={"timestamp":self.timestamp})
+        theupdate = ElementTree.SubElement(new_param, "{0}updated".format(self.ns), attrib={"timestamp":self.timestamp})
 
-        theupdate.text = "Appended parameter {0} to configuration file."\
-            .format(new_name)
+        theupdate.text = "Appended parameter {0} to configuration file.".format(new_name)
 
         ## check if any information about position of new parameter given
         if ahead!=None and after!=None:
@@ -303,8 +258,7 @@ class ModifyConfig:
         return 1
 
 
-    def update_parameter(self, name, value=None, comment=None, comment_r=None,
-                         category=None, inuse=None, force_update=False):
+    def update_parameter(self, name, value=None, comment=None, comment_r=None, category=None, inuse=None, force_update=False):
         """
         Update an existing parameter in the configuration. Note that this
         method should not be used to add new parameters. For this
@@ -363,12 +317,10 @@ class ModifyConfig:
 
         ## Found multiple occurences -> abort
         elif self.pnames.count(thename) > 1:
-            logging.crtitcal("Meaning of parameter '{0}' ambiguous!".format(\
-                thename))
+            logging.crtitcal("Meaning of parameter '{0}' ambiguous!".format(thename))
             logging.critical("Please verify XML-file!")
             if self.AoE:
-                raise IOError, "Meaning of parameter {0} ambiguous!".format(\
-                    thename)
+                raise IOError, "Meaning of parameter {0} ambiguous!".format(thename)
             return len(param_list)
 
 
@@ -378,8 +330,7 @@ class ModifyConfig:
         theparam = self.ptree.findall("./{0}parameter".format(self.ns))[index]
 
         if value != None:  ## check if value should be updated
-            dtype = re.findall(r"(^<type)( ')([a-z0-9]*.[a-z0-9]*)('>)",
-                               str(type(value)))[0][2]
+            dtype = re.findall(r"(^<type)( ')([a-z0-9]*.[a-z0-9]*)('>)", str(type(value)))[0][2]
 
 ##             thevalue = theparam.findall("./{0}value[@dtype]".format(self.ns))
 ##             including attributes only works in latest versions of xml
@@ -393,26 +344,20 @@ class ModifyConfig:
             old_dtype = thevalue[0].attrib["dtype"]
 
             if dtype != old_dtype: ## new data-type does not match old one
-                logging.warning("Unmatching `dtype` encountered: {0} vs {1}"\
-                                    .format(dtype, old_dtype))
+                logging.warning("Unmatching `dtype` encountered: {0} vs {1}".format(dtype, old_dtype))
                 if not force_update:
                     if self.AoE:
-                        raise IOError, "'{0}' requires '{1}', not '{2}'!"\
-                            .format(thename, old_dtype, dtype)
+                        raise IOError, "'{0}' requires '{1}', not '{2}'!".format(thename, old_dtype, dtype)
 
                     return 0
                 else:
-                    logging.warning("Changed dtype of parameter {0}:".format(\
-                            thename))
-                    logging.warning("   from {0} to {1}".format(\
-                            old_dtype, dtype))
+                    logging.warning("Changed dtype of parameter {0}:".format(thename))
+                    logging.warning("   from {0} to {1}".format(old_dtype, dtype))
    
             thevalue[0].text = str(value)
             theparam.insert(vindex, thevalue[0])
 
-            updates.append(\
-                "Changed default value of parameter {0} to {1} (was {2})"\
-                                   .format(thename, value, old_value))
+            updates.append("Changed default value of parameter {0} to {1} (was {2})".format(thename, value, old_value))
 
         if comment_r != None: ## check if comment should be replaced
             
@@ -423,8 +368,7 @@ class ModifyConfig:
             comment = comment_r
         
         if comment != None: ##  add new comment
-            newcomment = ElementTree.SubElement(\
-                theparam, "{0}comment".format(self.ns))
+            newcomment = ElementTree.SubElement(theparam, "{0}comment".format(self.ns))
             newcomment.text = comment
 
             ## schema requires that 'updated'-Elements are placed after
@@ -439,11 +383,10 @@ class ModifyConfig:
             
         if category != None:
             if theparam.attrib.has_key("category"):
-                old_category = theparam.attrib["category"] 
+                old_category = theparam.attrib["category"]
             else:
                 old_category = "None"
-            updates.append("Changed category to {0} (was {1})".format(\
-                    category, old_category))
+            updates.append("Changed category to {0} (was {1})".format(category, old_category))
 
             theparam.attrib["category"] = category
 
@@ -451,9 +394,7 @@ class ModifyConfig:
 
         if inuse != None: ## check if usage-flag should be updated
             if theparam.attrib.has_key("inuse"):
-                old_inuse = transform_string(\
-                    theparam.attrib["inuse"], "bool",
-                    abort_on_exception=self.AoE)
+                old_inuse = transform_string(theparam.attrib["inuse"], "bool", abort_on_exception=self.AoE)
             else:
                 old_inuse = True
 
@@ -466,9 +407,7 @@ class ModifyConfig:
 
             for update in updates: ## write update information to file
 
-                theupdate = ElementTree.SubElement(\
-                    theparam, "{0}updated".format(self.ns),
-                    attrib={"timestamp":self.timestamp})
+                theupdate = ElementTree.SubElement(theparam, "{0}updated".format(self.ns), attrib={"timestamp":self.timestamp})
                 theupdate.text = update
 
         self.ptree.getroot()[index] = theparam
@@ -508,12 +447,10 @@ class ModifyConfig:
                 raise IOError, " No such parameter: {0}".format(thename)
             return None
         elif self.pnames.count(thename) > 1: ## Multiple found -> abort
-            logging.crtitcal("Multiple occurences of parameter '{0}' found!"\
-                                 .format(thename))
+            logging.crtitcal("Multiple occurences of parameter '{0}' found!".format(thename))
             logging.critical("Please verify XML-file!")
             if self.AoE:
-                raise IOError, "Multiple occurences of parameter '{0}' found!"\
-                    .format(thename)
+                raise IOError, "Multiple occurences of parameter '{0}' found!".format(thename)
             return len(param_list)
 
 
@@ -532,12 +469,9 @@ class ModifyConfig:
             comment += "-{0}".format(comm.text)
 
         if return_comment:
-            return [transform_string(thevalue.text, thetype,
-                                     abort_on_exception=self.AoE), 
-                    comment]
+            return [transform_string(thevalue.text, thetype, abort_on_exception=self.AoE), comment]
         else:
-            return transform_string(thevalue.text, thetype,
-                                        abort_on_exception=self.AoE)
+            return transform_string(thevalue.text, thetype, abort_on_exception=self.AoE)
 
             
 
@@ -563,8 +497,7 @@ class ModifyConfig:
 
             thetype  = thevalue.attrib["dtype"]
 
-            config[thename.text] = transform_string(thevalue.text, thetype,
-                                                    abort_on_exception=self.AoE)
+            config[thename.text] = transform_string(thevalue.text, thetype, abort_on_exception=self.AoE)
 
         return config
 
@@ -576,11 +509,9 @@ class ModifyConfig:
 
         self.ptree.getroot().set("timestamp", self.timestamp)
 
-        txt = ElementTree.tostringlist(self.ptree.getroot(),
-                                       encoding='ISO-8859-1')
+        txt = ElementTree.tostringlist(self.ptree.getroot(), encoding='ISO-8859-1')
         if style != None:
-            txt.insert(1, '<?xml-stylesheet type="text/xsl" href="{0}"?>'\
-                           .format(style))
+            txt.insert(1, '<?xml-stylesheet type="text/xsl" href="{0}"?>'.format(style))
 
         outfile = open(filename, "w")
         outfile.write(parseString("".join(txt)).toprettyxml(indent="",newl=""))
@@ -589,128 +520,3 @@ class ModifyConfig:
 ##         self.ptree.write(filename, pretty_print=pretty_print,
 ##                          xml_declaration=xml_declaration,
 ##                          encoding=self.ptree.docinfo.encoding)
-
-
-
-
-### BEGINNING OF COMMAND LINE PART
-if __name__ == '__main__':
-    import argparse
-
-    CONFIGPATH = os.path.expandvars("$pampelmuse_path/config/")
-
-    class MergeComment(argparse.Action):
-        """
-        Short routine to merge the individual strings to a single comment
-        string. Used as 'action' by the '--comment' option.
-        """
-        def __call__(self, parser, namespace, values, option_string=None):
-            setattr(namespace, self.dest, " ".join(values))
-
-    class MakeUpper(argparse.Action):
-        """
-        Short routine to make a provided string uppercase.
-        Used as 'action' by the '--ahead' and '--after' options.
-        """
-        def __call__(self, parser, namespace, values, option_string=None):
-            setattr(namespace, self.dest, string.upper(values))
-
-
-
-
-
-    parser = argparse.ArgumentParser(prog="PampelMuse CONFIG",
-                                     description="""
-    Provides methods to change the PampelMuse configuration. The complete
-    configuration of PampelMuse is stored in a single XML-file. The methods
-    can be used to update the XML-file or to read parameters from it.
-    """)
-
-    parser.add_argument("method", type=str, choices=['U','A','R'],
-                        help="""Specifies whether a parameter should be [A]dded,
-                                [U]pdated or [R]ead.""")
-    parser.add_argument("name", type=str,
-                        help="""The name of the parameter. Must always be
-                                provided, regardless of which method is used.
-                                """)
-    parser.add_argument("value", type=str, nargs='?', default=None,
-                        help="""The (new) value of the parameter. Required if a
-                                new parameter is added, optional if an existing
-                                parameter is updated.""")
-    parser.add_argument("--type", type=str, default='str',
-                        help="""The type of the parameter. Should always be
-                                provided together with a value. Otherwise the
-                                value is assumed to be a string.""")
-    parser.add_argument("--comment",  type=str, nargs='*', action=MergeComment,
-                        help="""An ADDITIONAL comment to be included in the
-                                configuration file. Note that the comment does
-                                NOT replace existing comments (if any).""")
-    parser.add_argument("--replace_comment", action='store_true',
-                        help="""Replace existing comment(s) (if any) instead
-                                of appending the new one.""")
-    parser.add_argument("--exclude", action='store_false', default=None,
-                        help="""Flag to disable usage of an existing parameter
-                                """)
-    parser.add_argument("--include", action='store_true', default=None,
-                        help="""Flag to enable  usage of an existing  parameter
-                                """)
-    parser.add_argument("--category", type=str,
-                        help="""Keyword to indicate which part of the
-                                configuration is affected by a parameter""")
-    parser.add_argument("--ahead", type=str, action=MakeUpper,
-                        help="""If specified, a new parameter will be placed
-                                ahead of this one.""")
-    parser.add_argument("--after", type=str, action=MakeUpper,
-                        help="""If specified, a new parameter will be placed
-                                after this one.""")
-
-    args = parser.parse_args()
-
-    modifier = ModifyConfig("{0}PMparams.xml".format(CONFIGPATH),
-                            "{0}PMschema.xsd".format(CONFIGPATH))
-
-    inuse = max([args.include, args.exclude])
-
-
-    if args.method == "A":
-        success = modifier.add_parameter(name=args.name,
-                                         value=transform_string(args.value,
-                                                                args.type),
-                                         comment=args.comment,
-                                         category=args.category,
-                                         inuse=inuse,
-                                         ahead=args.ahead,
-                                         after=args.after
-                                         )
-    elif args.method == "U":
-
-        if args.replace_comment:
-            comment_r = args.comment
-            args.comment=None
-        else:
-            comment_r=None
-
-        if args.value != None:
-            value=transform_string(args.value, args.type)
-        else:
-            value=None
-
-        success = modifier.update_parameter(name=args.name,
-                                            value=value,
-                                            comment=args.comment,
-                                            comment_r=comment_r,
-                                            category=args.category,
-                                            inuse=inuse,
-                                            )
-
-    elif args.method == 'R':
-        query_result = modifier.get_parameter(args.name)
-        print "{0:10} {1:15}  {2}".format(string.upper(args.name), 
-                                          query_result[0],
-                                          query_result[1])
-
-    if args.method in ["A", "U"]:
-        os.system('cp {0}PMparams.xml {0}PMparams.xml.sav~'.format(CONFIGPATH))
-        modifier.save_changes(style="PMstyle.xsl")
-
-

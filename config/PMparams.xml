@@ -1,66 +1,66 @@
-<?xml version="1.0" ?><?xml-stylesheet type="text/xsl" href="PMstyle.xsl"?><ns0:configuration timestamp="2013-06-10T20:45:38Z" xmlns:ns0="http://www.tobedefined.com/pampelmuse" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.tobedefined.com/pampelmuse PMschema.xsd">
+<?xml version="1.0" ?><?xml-stylesheet type="text/xsl" href="PMstyle.xsl"?><ns0:configuration timestamp="2013-07-25T10:02:18Z" xmlns:ns0="http://www.tobedefined.com/pampelmuse" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.tobedefined.com/pampelmuse PMschema.xsd">
  
- <ns0:parameter category="1pho">
+ <ns0:parameter category="1pho" inuse="0">
   <ns0:name>CFPCOLS</ns0:name>
   <ns0:value dtype="tuple">(0, 1, 2, 3)</ns0:value>
   <ns0:comment>The columns of the crowded-field photometry file that contain: ID, x position, y position and magnitude of the stars</ns0:comment>
   <ns0:updated timestamp="2011-08-09T16:23:06Z">Appended parameter CFPCOLS to configuration file.</ns0:updated>
- </ns0:parameter>
- <ns0:parameter category="1pho">
+ <ns0:updated timestamp="2013-07-25T09:45:11Z">Disabled usage of parameter.</ns0:updated></ns0:parameter>
+ <ns0:parameter category="1pho" inuse="1">
    <ns0:name>PASSBAND</ns0:name>
    <ns0:value dtype="str">F814W</ns0:value>
    <ns0:comment>The photometric passband in which the provided magnitudes are given</ns0:comment>
    <ns0:updated timestamp="2011-11-29T21:03:10Z">Appended parameter PASSBAND to configuration file.</ns0:updated>
   </ns0:parameter>
-  <ns0:parameter category="1pho"><ns0:name>ZEROMAG</ns0:name><ns0:value dtype="float">99.9</ns0:value><ns0:comment>The magnitude zeropoint of the IFS data in the provided passband, i.e. the magnitude of a source triggering 1 count/layer. Set this parameter to 99.9 to let the routine determine the zeropoint from the data.</ns0:comment><ns0:updated timestamp="2013-06-10T20:45:38Z">Appended parameter ZEROMAG to configuration file.</ns0:updated></ns0:parameter><ns0:parameter category="1pho">
+  <ns0:parameter category="1pho" inuse="1"><ns0:name>ZEROMAG</ns0:name><ns0:value dtype="float">99.9</ns0:value><ns0:comment>The magnitude zeropoint of the IFS data in the provided passband, i.e. the magnitude of a source triggering 1 count/layer. Set this parameter to 99.9 to let the routine determine the zeropoint from the data.</ns0:comment><ns0:updated timestamp="2013-06-10T20:45:38Z">Appended parameter ZEROMAG to configuration file.</ns0:updated></ns0:parameter><ns0:parameter category="1pho" inuse="1">
   <ns0:name>PIXSCALE</ns0:name>
   <ns0:value dtype="float">10.0</ns0:value>
   <ns0:comment>The scaling of the IFU pixels with respect to the input coordinates. Same as the IFU pixelsize if the input coordinates are given in acrseconds. If the input coordinates are given in pixels, it is the ratio of IFU to input pixelsize.</ns0:comment>
   <ns0:updated timestamp="2012-03-14T09:13:10Z">Appended parameter PIXSCALE to configuration file.</ns0:updated>
  </ns0:parameter>
- <ns0:parameter category="2sel">
+ <ns0:parameter category="2sel" inuse="1">
   <ns0:name>APERRAD</ns0:name>
   <ns0:value dtype="float">3.0</ns0:value>
   <ns0:comment>Radius (in spaxels) used for aperture spectrophotometry</ns0:comment>
   <ns0:updated timestamp="2011-08-09T16:26:44Z">Appended parameter APERRAD to configuration file.</ns0:updated>
  </ns0:parameter>
- <ns0:parameter category="2sel">
+ <ns0:parameter category="2sel" inuse="1">
   <ns0:name>APERNOIS</ns0:name>
   <ns0:value dtype="float">0.1</ns0:value>
   <ns0:comment>The maximum allowed fraction of contaminating flux within APERRAD. Aperture spectrophotometry is performed only for sources whose nearby neighbors contribute less than APERNOIS to the measured flux.</ns0:comment>
   <ns0:updated timestamp="2011-08-31T08:10:40Z">Appended parameter APERNOIS to configuration file.</ns0:updated>
  </ns0:parameter>
- <ns0:parameter category="2sel">
+ <ns0:parameter category="2sel" inuse="1">
   <ns0:name>RESLIM</ns0:name>
   <ns0:value dtype="float">16.0</ns0:value>
   <ns0:comment>The magnitude down to which stars can possibly be resolved in the datacube.</ns0:comment>
   <ns0:updated timestamp="2011-08-31T08:13:37Z">Appended parameter RESLIM to configuration file.</ns0:updated>
- </ns0:parameter><ns0:parameter category="2sel"><ns0:name>UPDATERL</ns0:name><ns0:value dtype="bool">True</ns0:value><ns0:comment>If UPDATERL-flag is set, PampelMuse will determine the confusion limit and update RESLIM accordingly.</ns0:comment><ns0:updated timestamp="2012-04-16T16:49:15Z">Appended parameter UPDATERL to configuration file.</ns0:updated></ns0:parameter><ns0:parameter category="2sel"><ns0:name>CONFDENS</ns0:name><ns0:value dtype="float">0.4</ns0:value><ns0:comment>The confusion limit, i.e the number of stars per resultion element. A resolution element is defined as the FWHM \[pixel\] of the PSF squared. Only used if UPDATERL-flag is set.</ns0:comment><ns0:updated timestamp="2012-04-16T16:52:59Z">Appended parameter CONFDENS to configuration file.</ns0:updated></ns0:parameter>
- <ns0:parameter category="2sel">
+ </ns0:parameter><ns0:parameter category="2sel" inuse="1"><ns0:name>UPDATERL</ns0:name><ns0:value dtype="bool">True</ns0:value><ns0:comment>If UPDATERL-flag is set, PampelMuse will determine the confusion limit and update RESLIM accordingly.</ns0:comment><ns0:updated timestamp="2012-04-16T16:49:15Z">Appended parameter UPDATERL to configuration file.</ns0:updated></ns0:parameter><ns0:parameter category="2sel" inuse="1"><ns0:name>CONFDENS</ns0:name><ns0:value dtype="float">0.4</ns0:value><ns0:comment>The confusion limit, i.e the number of stars per resultion element. A resolution element is defined as the FWHM \[pixel\] of the PSF squared. Only used if UPDATERL-flag is set.</ns0:comment><ns0:updated timestamp="2012-04-16T16:52:59Z">Appended parameter CONFDENS to configuration file.</ns0:updated></ns0:parameter>
+ <ns0:parameter category="2sel" inuse="1">
   <ns0:name>SNRCUT</ns0:name>
   <ns0:value dtype="float">3.0</ns0:value>
   <ns0:comment>The cut in expected Signal-to-Noise below which no sources are selected. The Signal-to-Noise is determined from the estimated FWHM and the results of the aperture spectrophotometry .</ns0:comment>
   <ns0:updated timestamp="2011-09-01T16:18:18Z">Appended parameter SNRCUT to configuration file.</ns0:updated>
  </ns0:parameter>
- <ns0:parameter category="2sel">
+ <ns0:parameter category="2sel" inuse="1">
   <ns0:name>BINRAD</ns0:name>
   <ns0:value dtype="float">0.3</ns0:value>
   <ns0:comment>The minimum spatial separation [measured in units of the expected FWHM] of two resolved sources. Resolved sources with distances smaller BINRAD are combined.</ns0:comment>
   <ns0:updated timestamp="2011-09-01T16:25:46Z">Appended parameter BINRAD to configuration file.</ns0:updated>
  </ns0:parameter>
- <ns0:parameter category="3fit">
+ <ns0:parameter category="3fit" inuse="1">
   <ns0:name>GLOBSKY</ns0:name>
   <ns0:value dtype="bool">True</ns0:value>
   <ns0:comment>Flag determines whether a global sky background (i.e a component with constant surface brightness over the FoV) is included in the fit</ns0:comment>
   <ns0:updated timestamp="2011-11-28T19:40:14Z">Appended parameter GLOBSKY to configuration file.</ns0:updated>
  </ns0:parameter>
- <ns0:parameter category="2sel">
+ <ns0:parameter category="2sel" inuse="1">
   <ns0:name>USEUNRES</ns0:name>
   <ns0:value dtype="bool">False</ns0:value>
   <ns0:comment>Flag indicates whether the contribution from the unresolved sources should be included as an additional component in the analysis.</ns0:comment>
   <ns0:updated timestamp="2011-09-01T16:28:29Z">Appended parameter USEUNRES to configuration file.</ns0:updated>
- </ns0:parameter><ns0:parameter category="2sel"><ns0:name>UNRESBIN</ns0:name><ns0:value dtype="float">2.0</ns0:value><ns0:comment>Only has an effect if USEUNRES is enabled. In that case the contribution of the sources in the magnitude interval of width UNRESBIN below the confusion limit is combined in an unresolved stellar component</ns0:comment><ns0:updated timestamp="2012-04-16T16:45:23Z">Appended parameter UNRESBIN to configuration file.</ns0:updated></ns0:parameter>
- <ns0:parameter category="0general">
+ </ns0:parameter><ns0:parameter category="2sel" inuse="1"><ns0:name>UNRESBIN</ns0:name><ns0:value dtype="float">2.0</ns0:value><ns0:comment>Only has an effect if USEUNRES is enabled. In that case the contribution of the sources in the magnitude interval of width UNRESBIN below the confusion limit is combined in an unresolved stellar component</ns0:comment><ns0:updated timestamp="2012-04-16T16:45:23Z">Appended parameter UNRESBIN to configuration file.</ns0:updated></ns0:parameter>
+ <ns0:parameter category="0general" inuse="1">
   <ns0:name>SMALLIFU</ns0:name>
   <ns0:value dtype="bool">True</ns0:value>
   <ns0:comment>This flag defines how the determination of the PSF and the coordinate transformation is performed during the fit. If SMALLIFU is enabled, all sources are used for this purpose (recommended for IFUs with a small number of spatial pixels), otherwise bright, isolated stars are used (recommended for MUSE)</ns0:comment>
@@ -68,13 +68,13 @@
  </ns0:parameter>
 
  
- <ns0:parameter category="3fit"><ns0:name>LAYERRNG</ns0:name><ns0:value dtype="tuple">(0, -1)</ns0:value><ns0:comment>The spectral range of the datacube that should be analysed, given as the indices of the first and the last layer in that range. By default, the whole cube is analysed.</ns0:comment><ns0:updated timestamp="2013-03-26T14:10:43Z">Appended parameter LAYERRNG to configuration file.</ns0:updated></ns0:parameter><ns0:parameter category="3fit">
+ <ns0:parameter category="3fit" inuse="1"><ns0:name>LAYERRNG</ns0:name><ns0:value dtype="tuple">(0, -1)</ns0:value><ns0:comment>The spectral range of the datacube that should be analysed, given as the indices of the first and the last layer in that range. By default, the whole cube is analysed.</ns0:comment><ns0:updated timestamp="2013-03-26T14:10:43Z">Appended parameter LAYERRNG to configuration file.</ns0:updated></ns0:parameter><ns0:parameter category="3fit" inuse="1">
   <ns0:name>PSFRAD</ns0:name>
   <ns0:value dtype="float">10.0</ns0:value>
   <ns0:comment>The radius out to which the PSF of a source will be defined. Should be large enough to avoid annuli of flux around the brighter sources in the residuals</ns0:comment>
   <ns0:updated timestamp="2011-10-25T13:49:50Z">Appended parameter PSFRAD to configuration file.</ns0:updated>
  </ns0:parameter>
- <ns0:parameter category="3fit">
+ <ns0:parameter category="3fit" inuse="1">
   <ns0:name>POSFIT</ns0:name>
   <ns0:value dtype="int">0</ns0:value>
   <ns0:comment>Defines how source positions are handled in the fit:</ns0:comment>
@@ -84,46 +84,46 @@
   <ns0:comment>3 - Individual positions are fitted.</ns0:comment>
   <ns0:updated timestamp="2011-09-09T11:49:56Z">Appended parameter POSFIT to configuration file.</ns0:updated>
  </ns0:parameter>
- <ns0:parameter category="3fit">
+ <ns0:parameter category="3fit" inuse="1">
   <ns0:name>PSFTYPE</ns0:name>
   <ns0:value dtype="str">moffat</ns0:value>
   <ns0:comment>The analytical profile that is used to model the PSF.</ns0:comment>
   <ns0:updated timestamp="2011-09-09T12:02:53Z">Appended parameter PSFTYPE to configuration file.</ns0:updated>
  </ns0:parameter>
- <ns0:parameter category="3fit">
+ <ns0:parameter category="3fit" inuse="1">
   <ns0:name>PSFPARS</ns0:name>
   <ns0:value dtype="tuple">(2.5, 3.0, 0.0, 0.0)</ns0:value>
   <ns0:comment>The initial values of the PSF shape parameters. The meaning of the parameters for the individual profiles can be found in the manual.</ns0:comment>
   <ns0:updated timestamp="2011-09-09T12:08:06Z">Appended parameter PSFPARS to configuration file.</ns0:updated>
  </ns0:parameter>
- <ns0:parameter category="3fit">
+ <ns0:parameter category="3fit" inuse="1">
   <ns0:name>PSFFIT</ns0:name>
   <ns0:value dtype="int">6</ns0:value>
   <ns0:comment>The degree of PSF variablility, given as SUM(2**N), with N being the position in the PSFPARS array (starting with 1) of a PSF shape parameter that should be fitted</ns0:comment>
   <ns0:updated timestamp="2011-09-09T12:11:20Z">Appended parameter PSFFIT to configuration file.</ns0:updated>
  </ns0:parameter>
- <ns0:parameter>
+ <ns0:parameter inuse="1">
   <ns0:name>VERBOSE</ns0:name>
   <ns0:value dtype="int">2</ns0:value>
   <ns0:comment>The chattiness of PampelMuse, i.e. the amount of information that is printed out</ns0:comment>
   <ns0:updated timestamp="2011-11-28T20:13:30Z">Appended parameter VERBOSE to configuration file.</ns0:updated>
 </ns0:parameter>
-<ns0:parameter category="3fit">
+<ns0:parameter category="3fit" inuse="1">
   <ns0:name>JUMPSTART</ns0:name>
   <ns0:value dtype="bool">False</ns0:value>
   <ns0:comment>Flag indicates whether the fit starts directly or after presseing the START-button</ns0:comment>
   <ns0:updated timestamp="2012-02-13T21:21:21Z">Appended parameter JUMPSTART to configuration file.</ns0:updated>
  </ns0:parameter>
- <ns0:parameter category="3fit"><ns0:name>MAXITER</ns0:name><ns0:value dtype="int">1</ns0:value><ns0:comment>The maximum nuber of iterations performed for a single layer. Set to 1 to skip the iteration on individual layers.</ns0:comment><ns0:updated timestamp="2012-07-24T07:38:46Z">Appended parameter MAXITER to configuration file.</ns0:updated></ns0:parameter><ns0:parameter category="0gen">
+ <ns0:parameter category="3fit" inuse="1"><ns0:name>MAXITER</ns0:name><ns0:value dtype="int">1</ns0:value><ns0:comment>The maximum nuber of iterations performed for a single layer. Set to 1 to skip the iteration on individual layers.</ns0:comment><ns0:updated timestamp="2012-07-24T07:38:46Z">Appended parameter MAXITER to configuration file.</ns0:updated></ns0:parameter><ns0:parameter category="0gen" inuse="1">
   <ns0:name>USEQT</ns0:name>
   <ns0:value dtype="bool">True</ns0:value>
   <ns0:comment>Flag indicating whether Qt loaded to provide a graphical  interface for the analysis. Requires a system with PyQt4. Note that currently parallelization does not work with Qt.</ns0:comment>
   <ns0:updated timestamp="2012-03-23T16:23:10Z">Appended parameter USEQT to configuration file.</ns0:updated>
  </ns0:parameter>
- <ns0:parameter category="0gen">
+ <ns0:parameter category="0gen" inuse="1">
   <ns0:name>CPUCOUNT</ns0:name>
   <ns0:value dtype="int">1</ns0:value>
   <ns0:comment>The number of CPUs PampelMuse should use in the parallelized parts of the analysis. Set CPUCOUNT to -1 to use all available CPUs.</ns0:comment>
   <ns0:updated timestamp="2012-03-23T16:26:22Z">Appended parameter CPUCOUNT to configuration file.</ns0:updated>
  </ns0:parameter>
-<ns0:parameter category="4sub"><ns0:name>SUBUNRES</ns0:name><ns0:value dtype="bool">False</ns0:value><ns0:comment>If this flag is set, the contribution of the unresolved component will be subtracted when running the SUBTRES-script of PampelMuse.</ns0:comment><ns0:updated timestamp="2012-04-17T09:41:14Z">Appended parameter SUBUNRES to configuration file.</ns0:updated></ns0:parameter><ns0:parameter category="4sub"><ns0:name>SUBSKY</ns0:name><ns0:value dtype="bool">False</ns0:value><ns0:comment>If this flag is set, the contribution of the sky will be subtracted when running the SUBTRES-script of PampelMuse.</ns0:comment><ns0:updated timestamp="2012-04-17T09:41:35Z">Appended parameter SUBSKY to configuration file.</ns0:updated></ns0:parameter><ns0:parameter><ns0:name>IFU</ns0:name><ns0:value dtype="str">pmas</ns0:value><ns0:comment>The IFU used in the observations. This parameter is not stringly needed to run the code but it is useful to account for some instrument-specific features like the missing edges of the ARGUS-IFU.--category 0gen</ns0:comment><ns0:updated timestamp="2012-11-09T21:44:59Z">Appended parameter IFU to configuration file.</ns0:updated></ns0:parameter></ns0:configuration>
+<ns0:parameter category="4sub" inuse="1"><ns0:name>SUBUNRES</ns0:name><ns0:value dtype="bool">False</ns0:value><ns0:comment>If this flag is set, the contribution of the unresolved component will be subtracted when running the SUBTRES-script of PampelMuse.</ns0:comment><ns0:updated timestamp="2012-04-17T09:41:14Z">Appended parameter SUBUNRES to configuration file.</ns0:updated></ns0:parameter><ns0:parameter category="4sub" inuse="1"><ns0:name>SUBSKY</ns0:name><ns0:value dtype="bool">False</ns0:value><ns0:comment>If this flag is set, the contribution of the sky will be subtracted when running the SUBTRES-script of PampelMuse.</ns0:comment><ns0:updated timestamp="2012-04-17T09:41:35Z">Appended parameter SUBSKY to configuration file.</ns0:updated></ns0:parameter><ns0:parameter inuse="1"><ns0:name>IFU</ns0:name><ns0:value dtype="str">pmas</ns0:value><ns0:comment>The IFU used in the observations. This parameter is not stringly needed to run the code but it is useful to account for some instrument-specific features like the missing edges of the ARGUS-IFU.--category 0gen</ns0:comment><ns0:updated timestamp="2012-11-09T21:44:59Z">Appended parameter IFU to configuration file.</ns0:updated></ns0:parameter></ns0:configuration>

@@ -18,7 +18,7 @@
 	  </i>
 	</td>
       </tr>
-      <xsl:for-each select="/pm:configuration/pm:parameter">
+      <xsl:for-each select="/pm:configuration/pm:parameter[@inuse='1']">
 	<xsl:sort select="@category"/>
 	<tr>
 	  <td style="background-color:#FFD700;width:100px;text-align:top;">

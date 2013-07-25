@@ -5,8 +5,8 @@ PampelMuse
 
 Provides
 --------
-The main script of PampelMuse, the Potsdam Advanced Multi PSF Extraction
-Algorithm for MUSE. All analysis starts here.
+The main script of PampelMuse, the <P>otsdam <A>dvanced <M>ulti <P>SF
+<E>xtraction A<l>gorithm for <MUSE>. All analysis starts here.
 
 Purpose
 -------
@@ -45,11 +45,11 @@ the data into memory yet but just checks whether the file(s) are valid.
 
 Latest SVN revision
 -------------------
-103, 2013/07/24
+104, 2013/07/25
 """
 __author__     = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__    = "0.10.0.0"
-__revision__   = 103
+__version__    = "0.10.1.1"
+__revision__   = 104
 
 
 
@@ -108,8 +108,7 @@ if not graphics:
 
 
 ## required PampelMuse-packages ################################################
-from pampelmuse.bin import xml_interact
-from pampelmuse.config import PampelMuseConfig, Namespace
+from pampelmuse.config import ModifyConfig, Namespace, PampelMuseConfig
 from pampelmuse.core import Cube
 from pampelmuse.core.psf import Variables
 
@@ -341,7 +340,7 @@ if not graphics:
     pampelmuse.useqt = False
     
 ## open configuration file, and read default configuration into namespace
-cfg_interface = xml_interact.ModifyConfig(os.path.join(__configpath__,"PMparams.xml"), os.path.join(__configpath__, "PMschema.xsd"))
+cfg_interface = ModifyConfig(os.path.join(__configpath__,"PMparams.xml"), os.path.join(__configpath__, "PMschema.xsd"))
 for key, value in cfg_interface.get_all().iteritems():
     setattr(pampelmuse, key.lower(), value)
 

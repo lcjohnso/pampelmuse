@@ -9,10 +9,10 @@ The routine currently requires `pyraf` and `astLib` to work.
 
 Latest SVN revision
 -------------------
-103, 2013/07/23 
+104, 2013/07/25 
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 103
+__revision__ = 104
 
 import datetime, logging, os, sys, tempfile
 import numpy as np, pyfits
@@ -115,7 +115,9 @@ def addwcs(pampelmuse):
     
     ## a temporary FITS image needs to be created because the only possibility to turn the results from ccmap into useful
     ## header keywords (except for doing the calculations manually) is to update the header of an existing (2dim.!) FITS file
-    tmp_fits_name = "{0}.fits".format(pyfits.util._tmp_name("./"))
+    tmp_fits_root = pyfits.util._tmp_name("./")
+    os.remove(tmp_fits_root)
+    tmp_fits_name = "{0}.fits".format(tmp_fits_root)
     tmpHDU = pyfits.PrimaryHDU(np.zeros(pampelmuse.ifs_data.instrument.shape, dtype=np.int16))
     tmpHDU.writeto(tmp_fits_name)
     

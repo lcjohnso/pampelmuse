@@ -22,14 +22,17 @@ the header of a pyfits HDU.
 
 Latest SVN revision
 -------------------
-103, 2013/07/23
+104, 2013/07/25
 """
 __author__   = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 103
+__revision__ = 104
 
 
 import datetime, re
 import pyfits
+
+
+from xml_interact import ModifyConfig
 
 
 class Namespace(): pass
