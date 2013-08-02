@@ -21,10 +21,10 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-104, 2013/07/25
+107, 2013/08/02
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 105
+__revision__ = 107
 
 import logging, os, re
 import numpy as np, pyfits
@@ -1074,7 +1074,7 @@ class Sources(object):
 
         ## sanity checks on provided IDs and layers
         if ids != None:
-            assert isinstance(ids, (int, np.int, list, np.ndarray)), "If provided, parameter 'ids' must be single integer or array-like."
+            assert isinstance(ids, (int, np.integer, list, np.ndarray)), "If provided, parameter 'ids' must be single integer or array-like."
             ids = np.atleast_1d(ids)
         else:
             ids = self.ID[self.status<4]
