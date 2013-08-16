@@ -18,11 +18,10 @@ loaded from pampelmuse.core.cube
 
 Latest SVN revision
 -------------------
-103, 2013/07/23
-
+108, 2013/08/16
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 103
+__revision__ = 108
 
 import logging
 import matplotlib.transforms, matplotlib.artist, matplotlib.pyplot, numpy as np
@@ -277,10 +276,9 @@ class DynamicImaCanvas(FigureCanvas):
             cutpix = int((1-cutlev)*npix)
             
             if self.layer != -1: ## if cube loaded, only science fibers are used to determine cuts
-                _values = self.cube.get_layer(self.layer)[0]
+                _values = self.cube.get_layer(self.layer, return_sigma=False)
             else:
                 _values = self.image.copy().reshape(-1)
-            
             values = _values[_values==_values] ## remove NaN pixels
             
             if values.size == 0:

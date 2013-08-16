@@ -21,11 +21,11 @@ check whether the IFS data contains HDUs providing either uncertainties
 
 Latest SVN revision
 -------------------
-103, 2013/07/23
+108, 2013/08/16
 
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 103
+__revision__ = 108
 
 import logging
 import numpy as np, pyfits
@@ -404,7 +404,7 @@ class Cube:
         Returns
         -------
         layer : nd_array
-            The extracted lyer. Note that only science fibers are
+            The extracted layer. Note that only science fibers are
             returned if the instrument contains calibration or
             science fibers.
         """
