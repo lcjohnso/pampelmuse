@@ -21,11 +21,11 @@ check whether the IFS data contains HDUs providing either uncertainties
 
 Latest SVN revision
 -------------------
-108, 2013/08/16
+109, 2013/08/20
 
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 108
+__revision__ = 109
 
 import logging
 import numpy as np, pyfits
@@ -102,17 +102,18 @@ class Cube:
             if instrume == None:
                 instrume = instrument
 
-            if instrume.upper() in ["GIRAFFE", "ARGUS"]:
-                self.instrument = Argus()
-            elif instrume.upper == "PMAS":
-                self.instrument = Pmas()
+            if instrume != None:
+                if instrume.upper() in ["GIRAFFE", "ARGUS"]:
+                    self.instrument = Argus()
+                elif instrume.upper() == "PMAS":
+                    self.instrument = Pmas()
 #            elif instrume.upper() == "MUSE":
 #                self.instrument = Muse()
-            else:
-                if instrume is not None:
-                    logging.error("Unknown instrument specifier: '{0}'".format(instrume))
                 else:
-                    logging.warning("Cannot determine IFU in use.")
+                    logging.error("Unknown instrument specifier: '{0}'".format(instrume))
+                    self.instrument = Instrument()
+            else:
+                logging.warning("Cannot determine IFU in use.")
                 logging.warning("Some functions might not work properly.")
                 self.instrument = Instrument()
         else:
@@ -304,10 +305,14 @@ class Cube:
         else:
             hdulist = self.file
             
-        try:
-            self.mask_hdu = hdulist["MASK"]
-            logging.info("Detected extension 'MASK', assuming it contains the bad voxel mask.")
-        except KeyError:
+        for name in ["MASK", "BADPIX"]:
+            try:
+                self.mask_hdu = hdulist[name]
+                logging.info("Detected extension '{0}', assuming it contains the bad voxel mask.".format(name))
+            except KeyError:
+                pass
+                
+        if self.mask_hdu == None:
             if filename != None: self.mask_hdu = hdulist[0]
             else:
                 logging.warning("No HDU containing bad pixel mask detected.")
@@ -448,7 +453,7 @@ class Cube:
             return self.data_hdu.section[:, index]
         
         
-    def make_cube(self, asPrimary=False, **kwargs):
+    def make_cube(self, asPrimary=False, returnSigma=False, returnMask=False, **kwargs):
         """
         Create an actual datacube, i.e. a 3dim. data structure that can be
         opened with programs like QFitsView or ds9.
@@ -466,37 +471,66 @@ class Cube:
         Returns
         -------
         hdu : a pyfits ImageHDU-instance
-            The HDU that contains the 3dim. data. The header will is created
-            from the Header of the loaded IFS data by changing the axes
+            The HDU that contains the 3dim. data. The header will be created
+            from the header of the loaded IFS data by changing the axes
             information (CDELT?, CRVAL?, ...) to match the structure of the
             cube.
         """
         if self.ndim == 3:
             
             if isinstance(self.data_hdu, pyfits.PrimaryHDU) and not asPrimary:
-                return pyfits.ImageHDU(self.data_hdu.data, header=self.data_hdu.header)
-            elif isinstance(self.data_hdu) and asPrimary:
-                return pyfits.PrimaryHDU(self.data_hdu.data, header=self.data_hdu.header)
+                hdus = [pyfits.ImageHDU(self.data_hdu.data, header=self.data_hdu.header), ]
+            elif not isinstance(self.data_hdu, pyfits.PrimaryHDU) and asPrimary:
+                hdus = [pyfits.PrimaryHDU(self.data_hdu.data, header=self.data_hdu.header), ]
             else:
-                return self.data_hdu
+                hdus = [self.data_hdu,]
+                
+            if returnSigma:
+                if isinstance(self.sigma_hdu, pyfits.PrimaryHDU) and not asPrimary:
+                    hdus.append(pyfits.ImageHDU(self.sigma_hdu.data, header=self.sigma_hdu.header))
+                elif not isinstance(self.sigma_hdu, pyfits.PrimaryHDU) and asPrimary:
+                    hdus.append(pyfits.PrimaryHDU(self.sigma_hdu.data, header=self.sigma_hdu.header))
+                else:
+                    hdus.append(self.sigma_hdu)
+                    
+            if returnMask:
+                if isinstance(self.mask_hdu, pyfits.PrimaryHDU) and not asPrimary:
+                    hdus.append(pyfits.ImageHDU(self.mask_hdu.data, header=self.mask_hdu.header))
+                elif not isinstance(self.mask_hdu, pyfits.PrimaryHDU) and asPrimary:
+                    hdus.append(pyfits.PrimaryHDU(self.mask_hdu.data, header=self.mask_hdu.header))
+                else:
+                    hdus.append(self.mask_hdu)
+            
+            if returnSigma|returnMask: return hdus
+            else: return hdus[0]
+                    
         else:
-            outData = self.instrument.make_grid(self.data_hdu.data)
+            data = [self.instrument.make_grid(self.data_hdu.data), ]
+            if returnSigma: data.append(self.instrument.make_grid(self.sigma_hdu.data))
+            if returnMask: data.append(self.instrument.make_grid(self.mask_hdu.data))
             
             logging.info("Updating header information...")
-            outHeader = self.data_hdu.header
-            outHeader.update("CRPIX3", self.crpix, after="CRPIX2")
-            outHeader.update("CRVAL3", self.crval, after="CRVAL2")
-            outHeader.update("CDELT3", self.cdelt, after="CDELT2")
-            outHeader.update("CTYPE3", self.ctype, after="CTYPE2")
-            outHeader.update("CUNIT3", self.cunit, after="CUNIT2")
+            out_headers = [self.data_hdu.header, ]
+            if returnSigma: out_headers.append(self.sigma_hdu.header)
+            if returnMask: out_headers.append(self.mask_hdu.header)
+            
+            for key in ["crpix", "crval", "cdelt", "ctype", "cunit"]:
+                for header in out_headers:
+                    try:
+                        header.update("{0}3".format(key.upper()), getattr(self, key), after="{0}2".format(key.upper()))
+                    except KeyError:
+                        header.update("{0}3".format(key.upper()), getattr(self, key))
 
-            ## keywords for "old" dispersion axis are not valid anymore, so they are deleted (if present)
-            for key in ["CRPIX", "CRVAL", "CDELT", "CTYPE", "CUNIT"]:
-                if "{0}{1}".format(key, self.instrument.spectral_axis) in outHeader:
-                    del outHeader["{0}{1}".format(key, self.instrument.spectral_axis)]
+                    ## keywords for "old" dispersion axis are not valid anymore, so they are deleted (if present)
+                    if "{0}{1}".format(key.upper(), self.instrument.spectral_axis) in header:
+                        del header["{0}{1}".format(key.upper(), self.instrument.spectral_axis)]
     
-            if asPrimary: return pyfits.PrimaryHDU(outData, header=outHeader)
-            else: return pyfits.ImageHDU(outData, header=outHeader)
+            if asPrimary:
+                if returnSigma|returnMask: return [pyfits.PrimaryHDU(data[i], header=out_headers[i]) for i in xrange(len(data))]
+                else: return pyfits.PrimaryHDU(data[0], header=out_headers[0])
+            else: 
+                if returnSigma|returnMask: return [pyfits.ImageHDU(data[i], header=out_headers[i]) for i in xrange(len(data))]
+                return pyfits.ImageHDU(data[0], header=out_headers[0])
 
 
     def __del__(self):

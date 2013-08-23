@@ -25,10 +25,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-103, 2013/07/24
+109, 2013/08/23
 """ 
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 103
+__revision__ = 109
 
 import contextlib, logging, os, sys, time
 import numpy as np, pyfits
@@ -585,10 +585,12 @@ class StarFit(object):
                     threads.append(pool.apply_async(self.wrapper_optimize_single_psf, args=(x0, parNames, psf, flux)))
                 else:
                     result = self.wrapper_optimize_single_psf(x0=x0, names=parNames, psf=psf, flux=flux)
-                    allPars.append(result[0])
                     success.append((result[-1]>0)&(result[-1]<=4))
                     if not success[-1]:
                         logging.error("[@{0}] Coordinates fit failed for source #{1}: {2}".format(self.kk, psf.src_id, result[-2]))
+                        allPars.append(x0)
+                    else:
+                        allPars.append(result[0])
 
             if self.ncpu > 1:
                 pool.close()

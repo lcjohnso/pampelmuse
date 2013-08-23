@@ -279,6 +279,7 @@ class DynamicImaCanvas(FigureCanvas):
                 _values = self.cube.get_layer(self.layer, return_sigma=False)
             else:
                 _values = self.image.copy().reshape(-1)
+                print _values
             values = _values[_values==_values] ## remove NaN pixels
             
             if values.size == 0:
@@ -287,7 +288,6 @@ class DynamicImaCanvas(FigureCanvas):
             else:
                 ## sort pixel values    
                 values.sort()
-
                 self.cuts = (values[cutpix/2], 0.5*(values[-cutpix/2-1]+values[-cutpix/2-2]))
 
         ## change cuts and update canvas

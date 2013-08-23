@@ -21,10 +21,10 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-107, 2013/08/02
+109, 2013/08/20
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 107
+__revision__ = 109
 
 import logging, os, re
 import numpy as np, pyfits
@@ -827,7 +827,7 @@ class Sources(object):
                 self.data[:] = self.spectra_data_hdu.data
             else:
                 for i in xrange(nlayer):
-                    self.data[i] = self.spectra_data_hdu.section[i][components]
+                    self.data[i] = self.spectra_data_hdu.section[layers[i]][components]
        
 
     @property
@@ -1123,7 +1123,7 @@ class Sources(object):
                 self.ifs_coordinates[..., 0] = self.ifs_coordinates_data_hdu.data[:,hdu_indices]
             elif hdu_indices.size>0:
                 for i in xrange(nlayer):
-                    self.ifs_coordinates[i:i+1,processed,:,0:1] = self.ifs_coordinates_data_hdu.section[i][hdu_indices][...,np.newaxis]
+                    self.ifs_coordinates[i:i+1,processed,:,0:1] = self.ifs_coordinates_data_hdu.section[layers[i]][hdu_indices][...,np.newaxis]
 
         else:
             processed = np.zeros((len(ids),), dtype=np.bool)

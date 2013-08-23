@@ -15,10 +15,10 @@ if PampelMuse is started with the 'SUBTRES' option.
 
 Latest SVN revision
 -------------------
-103, 2013/07/23
+109, 2013/08/20
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 103
+__revision__ = 109
 import datetime, logging, os, sys
 import numpy as np, pyfits
 
@@ -144,7 +144,6 @@ def subtres(pampelmuse):
         for psf in PSF:
             i += 1
             j  = sources.specrow[i]
-            
             if sources.ifs_coordinates_loaded[i]:
                 psf.set_xc(sources.ifs_coordinates[0,ii,0,int(sources.ifs_coordinates_fitted[i])])
                 psf.set_yc(sources.ifs_coordinates[0,ii,1,int(sources.ifs_coordinates_fitted[i])])
@@ -157,7 +156,7 @@ def subtres(pampelmuse):
                     layer_kk[psf.used] -= sources.data[0,j,0]*psf.f
 
             elif pampelmuse.subsky:
-                layer_kk -= sources.data[jj,j,0]
+                layer_kk -= sources.data[0,j,0]
 
         if pampelmuse.ifs_data.instrument.spectral_axis == 2:
             data[jj] = layer_kk
