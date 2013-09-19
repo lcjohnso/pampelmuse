@@ -16,10 +16,10 @@ general framework for dealing with parameters within PampelMuse.
 
 Latest SVN revision
 -------------------
-103, 2013/07/23
+109, 2013/09/20
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 103
+__revision__ = 109
 
 import logging, os, re
 import numpy as np, pyfits
@@ -107,10 +107,18 @@ class Variables(Parameters):
             logging.critical("Invalid PSF type: '{0}'".format(profile))
             logging.critical("Supported types are: '{0}'".format("', '".join([psftype for psftype in self.PROFILES.keys()])))
         assert self.profile in self.PROFILES, "PSF of type '{0}' not supported.".format(self.profile)
-        
+
         ## check if all required parameters are available
         for name in self.PROFILES[self.profile]:
             if not name in self.names:
+                ## in earlier versions (<0.9?) different variable names were used for the FWHM of a Moffat (Mfwhm) or a Gaussian (Gfwhm) profile,
+                ## so the presence of one of these names is checked.  
+                if name == "fwhm" and np.in1d(self.names, ["Gfwhm", "Mfwhm"]).any(): 
+                    if "Gfwhm" in self.names: i=self.names.index("Gfwhm")
+                    elif "Mfwhm" in self.names: i = self.names.index("Mfwhm")
+                    logging.warning("Cannot find PSF parameter 'fwhm', using '{0}' instead.".format(self.names[i]))
+                    self.names[i] = "fwhm"
+                    continue
                 logging.critical("Missing required PSF parameter '{0}'.".format(name))
             assert name in self.names, "Cannot find '{0}' among available PSF parameters.".format(name)
 
