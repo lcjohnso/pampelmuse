@@ -1,0 +1,145 @@
+"""
+singlesrc.py
+============
+
+Provides
+--------
+function pampelmuse.routines.singlesrc.singlesrc
+
+Purpose
+-------
+The modeule contains the function 'singlesrc' that is used to prepare a data
+cube for the analysis for which no photometric or astrometric information is
+available. It prepares a PRM-file directly from a set of provided IFS coordi-
+nates and statuses. For each of the sources with status=3, aperture spectro-
+photmetry is performed and the initial guesses for the IFS coordinates are im-
+proved using the first order momentsm determined in the calclulation.
+ 
+Latest SVN revision
+-------------------
+113, 2013/09/20
+"""
+__author__ = "Sebastian Kamann (skamann@astro.physik.uni-gooettingen.de)"
+__revision__ = 113
+
+import datetime, logging, os, re, sys
+import numpy as np, pyfits
+
+## required PampelMuse routines
+from pampelmuse.core import AperPhoto, Sources
+from pampelmuse.core.psf import *
+
+
+def singlesrc(pampelmuse):
+
+    logging.info("Executing requested routine INITFIT [Revision {0:d}].".format(__revision__))
+    
+    ## get x, y, and status from user-provided strings
+    split_input = re.compile(r"(\-?[0-9\.]+),(\-?[0-9\.]+),([1-3])")
+    
+    sourcelist = []
+    i=1
+    for entry in pampelmuse.singlesrc.source:
+        source = split_input.match(entry)
+        if source == None:
+            logging.critical("Cannot grab source information from string '{0}'.".format(entry))
+            logging.critical("Source information must be provided as '<x>,<y>,<status>'.")
+            assert source!=None, "Invalid input for source: {0}".format(entry)
+        sourcelist.append((i, source.group(1), source.group(2), 0.0, source.group(3), i))
+        logging.info("Added source at ({0},{1}) with status {2} and ID {3}.".format(source.group(1),  source.group(2), source.group(3), i))
+        i += 1
+        
+    if pampelmuse.globsky:
+        sourcelist.append((-1, 0.0, 0.0, 0.0, 4, -1))
+        logging.info("Added global sky component.")
+        
+    ## initialize Sources instance
+    logging.info("Initializing the catalog of sources...")
+    input_catalog = np.array(sourcelist, dtype=[("id", "<i4"), ("x", "<f4"), ("y", "<f4"), ("mag", "<f4"), ("status", "<i2"), ("primary", "<i4")])
+    sources = Sources(input_catalog)
+    
+    ## initialize the PSF (attributes and profiles)
+    logging.info("Initializing the PSF...")
+    
+    psf_variables = Variables(profile=pampelmuse.psf.profile)
+
+    if pampelmuse.psf.profile == "moffat": PSF = Moffat
+    elif pampelmuse.psf.profile == "gauss": PSF = Gaussian
+
+    i=0
+    while hasattr(pampelmuse.psf, "parname{0}".format(i)):
+        parname_i = getattr(pampelmuse.psf, "parname{0}".format(i))
+        parvalue_i = getattr(pampelmuse.psf, "parvalue{0}".format(i))
+        
+        ## include value and fit request in PSF variables
+        j = psf_variables.names.index(parname_i)
+        psf_variables.data[0, j, 0] = parvalue_i
+        psf_variables.free[j] = getattr(pampelmuse.psf, "freepar{0}".format(i))
+
+        ## include value in PSF profiles
+        setattr(PSF, "set_{0}".format(parname_i),  parvalue_i)
+        
+        i += 1
+        
+    psf_variables.info()
+    
+    PSF.set_transform(pampelmuse.ifs_data.instrument.transform)
+    for i in xrange(sources.nsrc):
+        if sources.ID[i] <= 0: continue 
+
+        psf = PSF(Xc=sources.x[i], Yc=sources.y[i], mag=0, src_id=sources.ID[i], maxrad=10.)
+
+
+    ## include dispersion information in Sources catalogue
+    sources.ndisp = pampelmuse.stop-pampelmuse.start+1
+    sources.crval = pampelmuse.ifs_data.crval+pampelmuse.start*pampelmuse.ifs_data.cdelt
+    sources.cdelt = pampelmuse.ifs_data.cdelt
+    sources.ctype = pampelmuse.ifs_data.ctype
+    sources.cunit = pampelmuse.ifs_data.cunit
+    sources.load_spectra() ## create dummy data: every spectrum is empty
+
+    ## carry out aperture spectrophotometry for PSF sources
+    if (sources.status==3).any():
+        logging.info("Performing aperture spectrophotometry on PSF stars...")
+
+        make_aper = AperPhoto(pampelmuse.ifs_data, sources)
+        results = make_aper.aper_photo(r_aper=pampelmuse.aperrad, layer_range=(pampelmuse.start, pampelmuse.stop), PSF=PSF)
+        
+    else:
+        results = []
+        
+    sources.load_spectra()
+    sources.load_ifs_coordinates()
+    sources.ifs_coordinates_free[sources.ID>=0] = True 
+    
+    for i in xrange(len(results)):
+        ID = results["ID"][i]
+        if ID in sources.ID[sources.ifs_coordinates_loaded]:
+            j = np.where(sources.ID[sources.ifs_coordinates_loaded]==ID)[0][0]
+            sources.ifs_coordinates[:, j, 0, 0] = results["x"][i]
+            sources.ifs_coordinates[:, j, 1, 0] = results["y"][i]
+        if ID in sources.ID[sources.spectrum_loaded]:
+            j = np.where(sources.ID[sources.spectrum_loaded]==ID)[0][0]
+            sources.data[:, j, 0] = results["flux"][i]
+           
+           
+    logging.info("Saving source selection in file {0}.".format(pampelmuse.filename))
+
+    ## add information about routine to namespace
+    pampelmuse.singlesrc.utc = datetime.datetime.utcnow().strftime("%y-%m-%d %H:%M:%S")
+    pampelmuse.singlesrc.revision = __revision__
+
+    primary_hdu   = pampelmuse.makeHeader() ## create header from namespace
+    source_hdu    = sources.make_catalogue_hdu()
+    spectra_hdu   = sources.make_spectra_hdu()
+    positions_hdu = sources.make_ifs_coordinates_hdu()
+    psfpars_hdu   = psf_variables.make_hdu(include_fit=False)
+
+    hdu_list = pyfits.HDUList([primary_hdu, source_hdu, spectra_hdu, positions_hdu, psfpars_hdu])
+
+    if os.path.exists(pampelmuse.filename):
+        logging.warning("Overwriting existing PRM-file.")
+        os.remove(pampelmuse.filename)
+    hdu_list.writeto(pampelmuse.filename)
+      
+    
