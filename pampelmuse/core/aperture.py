@@ -20,10 +20,10 @@ estimates the global background in each layer of the data.
 
 Latest SVN revision
 -------------------
-103, 2013/07/23
+113, 2013/09/20
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 103
+__revision__ = 113
 
 import logging, sys
 import numpy as np
@@ -84,7 +84,7 @@ class AperPhoto:
 
         ## Checking which sources should be included in the calculation
         self.used = (self.sources.status>=min_status)&(self.sources.status<4)
-        logging.info("Will carry out aperture spectrophotometry for {0} sources with status>={1}.".format(self.used.sum(), min_status))
+        logging.info("Will carry out aperture spectrophotometry for {0} source[s] with status>={1}.".format(self.used.sum(), min_status))
 
 
     def aper_photo(self, r_aper=3., layer_range=(0, -1), PSF=None, calc_moments=True, thresh=3., local_background=True):
@@ -135,7 +135,7 @@ class AperPhoto:
         self.r_aper = r_aper
         self.start, self.stop = layer_range
         if self.start < 0: self.start = self.cube.ndisp - self.start
-        if self.stop < 0: self.stop = self.cube.ndisp - self.stop
+        if self.stop < 0: self.stop = self.cube.ndisp + self.stop
         self.Nlayer = self.stop-self.start+1
         self.PSF = PSF
         self.thresh = thresh
@@ -178,8 +178,8 @@ class AperPhoto:
 
             logging.debug("[@{0}] Calculating distances between source centroids and spaxels for all sources...".format(kk))
             ## load IFU coordinates for the requested sources
-            self.sources.loadIFUCoords(ids=self.sources.ID[self.used], index=jj)
-            centroids = np.hstack((self.sources.ydata[0], self.sources.xdata[0]))
+            self.sources.load_ifs_coordinates(ids=self.sources.ID[self.used], layers=jj)
+            centroids = self.sources.ifs_coordinates[...,0][0]
 
             ## for this layer, calculate distance of centroid of each source to each spaxel
             self.offsets = spatial.distance.cdist(centroids, spaxels)

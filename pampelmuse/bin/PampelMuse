@@ -45,11 +45,11 @@ the data into memory yet but just checks whether the file(s) are valid.
 
 Latest SVN revision
 -------------------
-111, 2013/09/19
+113, 2013/09/20
 """
 __author__     = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__    = "0.10.7.2"
-__revision__   = 112
+__version__    = "0.10.7.3"
+__revision__   = 113
 
 
 
@@ -113,7 +113,7 @@ from pampelmuse.core import Cube
 from pampelmuse.core.psf import Variables
 
 ## the PampelMuse subroutines
-from pampelmuse.routines import cubefit, subtres, shotnoi, makecube
+from pampelmuse.routines import cubefit, subtres, shotnoi, makecube, singlesrc
 if graphics: from pampelmuse.routines import initfit, polyfit
 if use_addwcs: from pampelmuse.routines import addwcs
 
@@ -237,6 +237,20 @@ named 'id', 'x', 'y', and <FNAME>, where <FNAME> is the name of the photo-
 metric filter used in the source selection process. If no header is available,
 the routine will use the first four columns.""")
     IFparser.set_defaults(func=initfit)
+    
+SSparser = PMsubparsers.add_parser("SINGLESRC", help="""
+This sub-routine is used to prepare the fitting of a data cube for which no
+photometric and astrometric information is available. It should not be used
+with crowded field data but is useful in combination with datacubes that only
+contain few stars (such as the standard star cubes).
+For each star that should be analysed, its status and an initial guess for the
+IFS coordinates must be provided. If the PSF should be optimized in the fit, at
+least one source with status=3 must be provided. For each PSF source, the
+initial guess for the IFS coordinates is improved via aperture spectrophoto-
+metry and moment calculation.""")
+SSparser.add_argument("source", nargs="+", type=str, help="""
+The IFS coordinates and the status of a source, provided as <x>,<y>,<status>.""")
+SSparser.set_defaults(func=singlesrc)
 
 CFparser = PMsubparsers.add_parser("CUBEFIT", help="""
 This sub-routine performs the actual PSF-fitting process, it is the workhorse
@@ -391,7 +405,7 @@ if use_addwcs and args.func==addwcs: mode='update'
 else: mode='readonly'
 
 ## unless INITFIT should be called, open existing PRM file (first check for 'graphics' because initfit undefined if False)
-if not graphics or args.func!=initfit:
+if not graphics or args.func not in [initfit, singlesrc]:
     
     logging.info("Reading PampelMuse-file: {0}".format(pampelmuse.filename))
     pampelmuse.hdulist  = pyfits.open(pampelmuse.filename, mode="update")
@@ -409,9 +423,12 @@ if not graphics or args.func!=initfit:
         if not hasattr(pampelmuse, "addwcs"): pampelmuse.addwcs = Namespace()
         pampelmuse.addwcs.sourcelist = args.sourcelist
 
-else: ## add reference catalogue to configuration
+elif args.func==initfit: ## add reference catalogue to configuration
     pampelmuse.initfit = Namespace()
     pampelmuse.initfit.sourcelist = args.sourcelist
+elif args.func==singlesrc:
+    pampelmuse.singlesrc = Namespace()
+    pampelmuse.singlesrc.source = args.source
 
 if graphics and args.func==polyfit:
     if not hasattr(pampelmuse, "polyfit"): pampelmuse.polyfit = Namespace()

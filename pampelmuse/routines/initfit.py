@@ -41,10 +41,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-103, 2013/07/24
+113, 2013/09/20
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 103
+__revision__ = 113
 
 import datetime, os, sys, logging
 import numpy as np, pyfits
@@ -470,38 +470,36 @@ def initfit(pampelmuse):
 
         ## carry out aperture spectrophotometry for PSF sources
         logging.info("Performing aperture spectrophotometry on PSF stars...")
-
-        ## load IFS coordinates for the PSF sources
-        sources.load_ifs_coordinates(ids=sources.ID[sources.status==3])
  
-        # TODO: update aperture photometry!!!
-        # include start/stop-values, replace, dataHDU and maskHDU with
-        # Cube-instances 
-        make_aper = AperPhoto(data=dataHDU, centers=aperData, mask=maskHDU)
+        ## initialize aperture routine
+        make_aper = AperPhoto(pampelmuse.ifs_data, sources)
         
-        ## !!! NEEDS TO  BE UPDATED !!!
-        aperResults = make_aper.aper_photo(rAper=pampelmuse.aperrad, psf=psf, calcMoments=True, thresh=3., localBG=True)
+        ## run it
+        results = make_aper.aper_photo(r_aper=pampelmuse.aperrad, layer_range=(pampelmuse.start, pampelmuse.stop), PSF=PSF)
         
-        if aperResults.size > 3:
+        ## write IFS coordinates into instance of Sources
+        # TODO: still needs debugging
+        sources.load_ifs_coordinates(ids=results["ID"])
+        sources.load_spectra()
+        for i in xrange(len(results)):
+            j = np.where(sources.ID[sources.ifs_coordinates_loaded]==results["ID"][i])[0][0]
+            sources.ifs_coordinates[:, j, 0, 0] = results["x"][i]
+            sources.ifs_coordinates[:, j, 1, 0] = results["y"][i]
+        
+            k = sources.specrow[np.where(sources.ID==results["ID"][i])[0][0]]
+            sources.spectra[:, k, 0] = results["flux"][i]
+        
+        # TODO: check if following if clause works
+        if results.size > 3:
             ## determine wavelength-dependent coordinate transformation
             logging.info("Determining wavelength-dependent coord. transf.")
-            stars     = (aperResults["ID"]>=0)
-            ifuCoords = aperResults[["x","y"]][stars].view(np.float32).reshape(stars.sum(), 2, -1)
-
-            sources.loadIFUCoords(data=np.rollaxis(ifuCoords, 1, 0), ids=aperResults["ID"][stars])
-            sources.calcTrans()
-            if posFit == 1:   sources.ctFree[2:] = True
-            elif posFit == 2: sources.ctFree[:] = True
+            fit_coordinate_transformation()
 
             ##  determine FWHM, E and THETA
             logging.info("Approximating PSF from measured moments.")
-            x2 = aperResults[["x2"]][stars].view(np.float32).reshape(stars.sum(), -1)
-            y2 = aperResults[["y2"]][stars].view(np.float32).reshape(stars.sum(), -1)
-            xy = aperResults[["xy"]][stars].view(np.float32).reshape(stars.sum(), -1)
-
-            psf_variables.delValues()
-            psf_variables.resizeStructure(ndisp=x2.shape[1])
-            psf_variables.makeValues()
+            x2 = results[["x2"]][stars].view(np.float32).reshape(stars.sum(), -1)
+            y2 = results[["y2"]][stars].view(np.float32).reshape(stars.sum(), -1)
+            xy = results[["xy"]][stars].view(np.float32).reshape(stars.sum(), -1)
 
             ## get A, B:
             A = np.sqrt((x2+y2)/2.+np.sqrt(((x2-y2)/2.)**2+xy**2))
@@ -524,11 +522,6 @@ def initfit(pampelmuse):
             psf_variables.values[psf_variables.parameters.index("theta")] = theta.mean(axis=0)
             logging.info("Mean position angle: {0:.2f}rad.".format(theta.mean()))
 
-            ##  copy spectra to sources instance
-            for i in xrange(aperResults.size):
-                j = np.where(sources.ID==aperResults["ID"][i])[0][0]
-                sources.data[sources.specrow[j]] = aperResults["spectrum"][i]
-            
     
     ## write results to file
     logging.info("Saving source selection in file {0}.".format(pampelmuse.filename))
