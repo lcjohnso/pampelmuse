@@ -16,7 +16,7 @@ general framework for dealing with parameters within PampelMuse.
 
 Latest SVN revision
 -------------------
-109, 2013/09/20
+111, 2013/09/19
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
 __revision__ = 109

@@ -21,10 +21,10 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-109, 2013/08/20
+109, 2013/09/20
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 109
+__revision__ = 112
 
 import logging, os, re
 import numpy as np, pyfits
@@ -810,7 +810,8 @@ class Sources(object):
             layers = np.atleast_1d(layers)
             nlayer = 1
         else:
-            layers = slice(None)
+##            layers = slice(None)
+            layers = np.arange(self.ndisp)
             nlayer = self.ndisp
 
         ## create boolean array that keeps track of which sources have spectra loaded
