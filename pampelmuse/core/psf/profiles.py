@@ -38,10 +38,10 @@ ces simultaneously without having to loop over them.
 
 Latest SVN revision
 -------------------
-103, 2013/07/24
+115, 2013/10/15
 """
 __author__   = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 103
+__revision__ = 115
 
 import logging
 import numpy as np
@@ -127,7 +127,7 @@ class Profile(object):
             len(value))
         
         if value != cls._size:
-            cls._spaxel = np.arange(value[0]*value[1], dtype=np.int16)
+            cls._spaxel = np.arange(value[0]*value[1], dtype=np.int32)
 
             ## Assumption is that spaxels cover a rectangular area with filling
             ## factor 1. Calculate x- & y-coordinates of each spaxel:
@@ -181,7 +181,7 @@ class Profile(object):
         ## set basic class properties
         cls._transform = np.asarray(value, dtype=np.float64)
         cls._size = (value.shape[0],)
-        cls._spaxel = np.arange(value.shape[0], dtype=np.int16)
+        cls._spaxel = np.arange(value.shape[0], dtype=np.int32)
 
         ## reset all properties calculates so far in any instance
         for inst in cls._registry:

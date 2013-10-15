@@ -45,11 +45,11 @@ the data into memory yet but just checks whether the file(s) are valid.
 
 Latest SVN revision
 -------------------
-113, 2013/09/20
+115, 2013/10/15
 """
 __author__     = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__    = "0.10.7.3"
-__revision__   = 113
+__version__    = "0.10.8.3"
+__revision__   = 115
 
 
 
@@ -470,11 +470,14 @@ pampelmuse.ifs_data = Cube(data_ifs, instrument=pampelmuse.ifu, sigma=sigma_ifs,
 
 ## set range of layers to be analyzed properly (in case negative values were provided)
 ## access start/stop information - get positive layer numbers for first and last layer that should be analysed
-pampelmuse.start = pampelmuse.layerrng[0]
-pampelmuse.stop = pampelmuse.layerrng[1]
+if not hasattr(pampelmuse, "start"):
+    pampelmuse.start = pampelmuse.layerrng[0]
+if not hasattr(pampelmuse, "stop"):
+    pampelmuse.stop = pampelmuse.layerrng[1]
 del pampelmuse.layerrng
 if pampelmuse.start < 0: pampelmuse.start = pampelmuse.ifs_data.ndisp + pampelmuse.start
 if pampelmuse.stop < 0: pampelmuse.stop = pampelmuse.ifs_data.ndisp + pampelmuse.stop 
+logging.info("Layer range used in analysis: {0}--{1}".format(pampelmuse.start, pampelmuse.stop))
 
 ## execute the function connected to the requested (sub)routine
 args.func(pampelmuse)

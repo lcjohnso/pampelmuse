@@ -20,10 +20,10 @@ estimates the global background in each layer of the data.
 
 Latest SVN revision
 -------------------
-113, 2013/09/20
+115, 2013/10/15
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 113
+__revision__ = 115
 
 import logging, sys
 import numpy as np

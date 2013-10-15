@@ -20,11 +20,11 @@ To import a function from this module (e.g. clip_sigma), proceed as follows:
 
 Latest SVN revision
 -------------------
-103, 2013/07/17
+115, 2013/10/15
 """
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 103
+__revision__ = 115
 
 import logging
 import numpy as np
@@ -61,14 +61,14 @@ def clip_sigma(data, axis=None, kappa=3.):
     else:
         workdata = np.sort(data, axis=0)
         
-    ## view the data as a masked array (no copy!)    
-    workdata_ma = np.ma.array(workdata)
+    ## view the data as a masked array (no copy!) and mask NaN pixels   
+    workdata_ma = np.ma.array(workdata, mask=(workdata!=workdata))
         
     i=0 ## the iteration index
     while True: ## perform clipping
         sigma  = workdata_ma.std(axis=0)
         median = np.ma.median(workdata_ma, axis=0)
-        
+
         toclip = (workdata_ma<(median-kappa*sigma))|(workdata_ma>(median+kappa*sigma))
         N = toclip.sum() ## the number of clipped data points in this iteration
         
@@ -82,12 +82,13 @@ def clip_sigma(data, axis=None, kappa=3.):
             break
         i += 1
 
-    ## locate original positions of datapoints that should be clipped
+    ## locate original positions of datapoints that should be clipped, again
+    ## clip also NaN pixels
     if axis in [None, 0, -data.ndim]:
         outmask = (data<(median-kappa*sigma))|(data>(median+kappa*sigma))
     else:
         outmask = np.rollaxis((np.rollaxis(data, axis, 0)<(median-kappa*sigma))|(np.rollaxis(data, axis, 0)>(median+kappa*sigma)), 0, axis+1)
 
     ## return the output
-    return np.ma.array(data, mask=outmask)
+    return np.ma.array(data, mask=(outmask|(data!=data)))
 
