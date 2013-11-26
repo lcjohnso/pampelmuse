@@ -38,10 +38,10 @@ ces simultaneously without having to loop over them.
 
 Latest SVN revision
 -------------------
-115, 2013/10/15
+116, 2013/11/26
 """
 __author__   = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 115
+__revision__ = 116
 
 import logging
 import numpy as np
