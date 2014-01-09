@@ -21,14 +21,15 @@ defines the methods that are called by Ui_PampelMuseGui.
 
 Latest SVN revision
 -------------------
-103, 2013/07/19
+117, 2014/01/09
 
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 103
+__revision__ = 117
 
 import datetime, logging, re, os, sys
-import matplotlib.pyplot as plt, numpy as np, pyfits
+import matplotlib, matplotlib.pyplot as plt, numpy as np, pyfits
+from matplotlib import patches
 from PyQt4.QtGui import QMainWindow, QHBoxLayout, QDoubleValidator, QFileDialog
 from PyQt4.QtCore import pyqtSignature, Qt, SIGNAL
 
@@ -470,6 +471,51 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         
         ## initialize picking of sources if possible (source catalogue must be available)
         self.pickSourcesOnRef(**kwargs)
+
+
+    def addFovToReference(self, dx, dy, angle=0, scaling=1.):
+        """
+        Add the footprint of the IFS to the reference image plot.
+        
+        Parameters
+        ----------
+        dx : float
+            The shift applied in x-direction
+        dy : float
+            The shift applied in y-direction
+        angle : float, optional
+            The rotation angle applied (in radian)
+        scaling : float, optional
+            The scaling factor applied to the field of view, e.g. to
+            account for a different pixel size.
+        """
+        if self.refLoaded:
+            ## get center of native FoV of IFS
+            bbox = self.instrument.edgepath.get_extents()
+            xc = scaling*(bbox.xmax+bbox.xmin)/2.
+            yc = scaling*(bbox.ymax+bbox.ymin)/2.
+            
+            ## initialize transformation from native position to position on refernce image
+            ## the x- and y-axes need to be swapped for some reason (I think)
+            t = matplotlib.transforms.Affine2D(np.array([[0, 1, 0], [1, 0, 0], [0, 0, 1]]))
+        
+            ## scale the field of view if needed
+            if scaling != 1: t.scale(scaling)
+        
+            ## translate it
+            t.translate(dx-xc, dy-yc)
+        
+            ## rotate it around central coordinate if needed
+            if angle!=0: t.rotate_around(dx, dy, angle)
+
+            ## perform transformation of IFS-Edgepath, as defined in Instrument-class
+            plotpath = self.instrument.edgepath.transformed(t)
+      
+            edgepatch = patches.PathPatch(plotpath, facecolor="None", edgecolor="#00FF00", lw=2, alpha=0.5)
+            self.refPlot.axes.add_patch(edgepatch)
+            self.refPlot.draw()
+        else:
+            logging.error("Can not overplot IFS FoV as no reference image has been loaded.")
 
 
     def on_ifuGrab_event(self, event):
@@ -1507,3 +1553,24 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             facecolors[i] = self.refPlot.edgecolors[i]
         self.refPlot.dataPlot.set_facecolors(facecolors)
         self.refPlot.draw()
+    
+    @pyqtSignature("bool")
+    def on_actionResiduals_toggled(self, p0):
+        """
+        Slot documentation goes here.
+        """
+        if p0 == True:
+            self.actionData.setChecked(False)
+        else:
+            self.actionResiduals.setChecked(True)
+
+    
+    @pyqtSignature("bool")
+    def on_actionData_toggled(self, p0):
+        """
+        Slot documentation goes here.
+        """
+        if p0 == True:
+            self.actionResiduals.setChecked(False)
+        else:
+            self.actionData.setChecked(True)

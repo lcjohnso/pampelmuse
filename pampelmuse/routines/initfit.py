@@ -41,10 +41,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-113, 2013/09/20
+117, 2014/01/09
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 113
+__revision__ = 117
 
 import datetime, os, sys, logging
 import numpy as np, pyfits
@@ -56,7 +56,7 @@ from pampelmuse.core import AperPhoto, Sources
 from pampelmuse.core.psf import *
 from pampelmuse.graphics import PampelMuseGui
 from pampelmuse.functions.io import read_asciifile
-
+from pampelmuse.functions.wcs import calc_offset
 
 ## class defines the exception that is raised when the parameters
 ## in the Pampel Muse-configuration are such that they do not allow
@@ -143,6 +143,22 @@ def initfit(pampelmuse):
 
     cfp_results = read_asciifile(pampelmuse.initfit.sourcelist, usecols=(0,1,2,3,4,5), usenames="id,x,y,{0},ra,dec".format(pampelmuse.passband),
                                  aliases={"F606W":["f606w", "Vvega", "V"], "F814W":["f814w", "Ivega", "I"], "ra":["RA", ], "dec":["Dec", "DEC"]})
+
+    ## make sure either  RA & Dec or x & y are available
+    ## if x, y not available, use RA & Dec to initialize pixel coordinates: calculate offsets to source with lowest RA and lowest Dec
+    ## along x & y. The coordinates are given then in units of arcseconds.
+    if "x" not in cfp_results.keys() or "y" not in cfp_results.keys():
+        if "ra" not in cfp_results.keys() or "dec" not in cfp_results.keys():
+            logging.critical("Cannot find input source coordinates.")
+            raise IOError, "Either x & y or RA & Dec must be provided with photometry."
+    
+        ra = np.asarray(cfp_results["ra"], dtype=np.float64)
+        dec = np.asarray(cfp_results["dec"], dtype=np.float64)
+    
+        x, y = calc_offset(ra.min(), dec.min(), ra, dec)
+        
+        cfp_results["x"] = (-x).tolist()
+        cfp_results["y"] = y.tolist()
 
     if pampelmuse.globsky: ## add sky component if requested
         cfp_results["id"].append("-1")
@@ -259,6 +275,9 @@ def initfit(pampelmuse):
     else:
         magZ = pampelmuse.zeromag
 
+    # TODO: check if RA and Dec coordinates for IFS pointing are available;
+    # if so, print pixel coordinates of field center in mock image
+
     identification_image  = np.zeros(PSF.size, dtype='float32')
     for i in xrange(sources.nsrc):
         if sources.ID[i] <= 0: continue 
@@ -274,6 +293,24 @@ def initfit(pampelmuse):
 
     app  = QtGui.QApplication(sys.argv)
     identifier = PampelMuseGui(sources=sources, ifsData=pampelmuse.ifs_data, refImage=identification_image, magCut=pampelmuse.reslim-1.)
+
+    ## try to include approximate position of IFS on reference image (at least RA and Dec of IFS data must be available)
+    ra = pampelmuse.ifs_data.get_key("RA")
+    dec = pampelmuse.ifs_data.get_key("Dec")
+    
+    if ra != None and dec != None:
+        logging.info("Found central coordinates of {0}-field:".format(pampelmuse.ifs_data.instrument.name.upper()))
+        logging.info("   RA={0}, DEC={1}".format(ra, dec))
+        
+        ## find source closest to this position, and use its x & y coordinates as central pixel coordinates
+        ic = np.argmin((ra-sources.ra)**2+(dec-sources.dec)**2)
+        xc = sources.x[ic]
+        yc = sources.y[ic]
+
+        ## for ARGUS, also look for rotation angle:
+        if pampelmuse.ifs_data.instrument.name == "argus": angle = pampelmuse.ifs_data.get_key("ESO ADA POSANG")
+        else: angle=0
+        identifier.addFovToReference(xc, yc, angle=np.radians(angle))
 
     identifier.show()
     app.exec_()
@@ -492,11 +529,13 @@ def initfit(pampelmuse):
         # TODO: check if following if clause works
         if results.size > 3:
             ## determine wavelength-dependent coordinate transformation
-            logging.info("Determining wavelength-dependent coord. transf.")
-            fit_coordinate_transformation()
+            logging.info("Determining wavelength-dependent coordinate transformation...")
+            sources.fit_coordinate_transformation()
 
             ##  determine FWHM, E and THETA
-            logging.info("Approximating PSF from measured moments.")
+            stars = (results["ID"]>=0)
+            
+            logging.info("Estimating PSF properties using measured moments...")
             x2 = results[["x2"]][stars].view(np.float32).reshape(stars.sum(), -1)
             y2 = results[["y2"]][stars].view(np.float32).reshape(stars.sum(), -1)
             xy = results[["xy"]][stars].view(np.float32).reshape(stars.sum(), -1)
@@ -507,21 +546,28 @@ def initfit(pampelmuse):
             
             ## FWHM
             fwhm = np.sqrt(8.*np.log(2))*np.mean(A, axis=0)
-##             psf_variables.values[psf_variables.parameters.index("fwhm")] = fwhm
+            # TODO: should FWMH be updated as well?
             logging.info("Mean FWHM: {0:.2f}pix.".format(fwhm.mean()))
 
             ## Ellipticity
-            e    = 1. - np.mean(np.where(B!=0, A/B, 1.), axis=0)
-            psf_variables.values[psf_variables.parameters.index("e")] = e
+            e = 1. - np.mean(np.where(A!=0, B/A, 1.), axis=0)
             logging.info("Mean ellipticity: {0:.2f}".format(e.mean()))
-        
+            ii = psf_variables.names.index("e")
+            if psf_variables.free[ii]:
+                ## need to check if dispersion information already included in PSF variables, otherwise, use numpy.resize that fills enlarged
+                ## array with repeated copies of available data
+                if psf_variables.data.shape[0] == 1: psf_variables.data =  np.resize(psf_variables.data, e.shape+psf_variables.data.shape[1:])
+                psf_variables.data[:, ii, 0] = e
+
             ## Position angle
             theta  = np.where(x2!=y2, 0.5*np.arctan(2*xy/(x2-y2)), 0.)
             theta -= (-1)**(theta<0)*np.pi/4.
             theta += (-1)**(xy>0)*np.pi/4.
-            psf_variables.values[psf_variables.parameters.index("theta")] = theta.mean(axis=0)
             logging.info("Mean position angle: {0:.2f}rad.".format(theta.mean()))
-
+            ii = psf_variables.names.index("theta")
+            if psf_variables.free[ii]:
+                if psf_variables.data.shape[0] == 1: psf_variables.data =  np.resize(psf_variables.data, theta.shape+psf_variables.data.shape[1:])
+                psf_variables.data[:, ii, 0] = theta.mean(axis=0)
     
     ## write results to file
     logging.info("Saving source selection in file {0}.".format(pampelmuse.filename))

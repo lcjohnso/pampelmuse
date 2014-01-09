@@ -21,11 +21,11 @@ check whether the IFS data contains HDUs providing either uncertainties
 
 Latest SVN revision
 -------------------
-109, 2013/08/20
+117, 2014/01/09
 
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 109
+__revision__ = 117
 
 import logging
 import numpy as np, pyfits
@@ -421,6 +421,30 @@ class Cube:
             return self.instrument.get_science(_hdu.section[:,index])
         else:
             return self.instrument.get_science(_hdu.section[index])
+        
+        
+    def get_key(self, name):
+        """
+        Read a keyword from the header of the data HDU.
+        
+        Parameters
+        ----------
+        name : string
+            The name of the keyword. Note that HIERARCH-keys should be
+            referenced without the HIERARCH-prefix.
+            
+        Returns
+        -------
+        value : int, float, or string
+            The value of the requested keyword if it exists, otherwise
+            None is returned.
+        """
+        
+        if name in self.data_hdu.header:
+            return self.data_hdu.header[name]
+        else:
+            logging.error("Keyword '{0}' missing in FITS header.".format(name))
+            return None
         
         
     def get_spectrum(self, index):
