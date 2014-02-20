@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-126, 2014/02/20
+127, 2014/02/20
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 126
+__revision__ = 127
 
 import datetime, os, sys, logging
 import numpy as np, pyfits
@@ -230,7 +230,10 @@ def initfit(pampelmuse):
             sigma_image[mask_i==0] += sigma_i[mask_i==0]*wht_i
             weight_image[mask_i==0] += wht_i
 
-#     weight_image[weight_image<1e-6] = 1e6
+    if (weight_image==0).any():
+        data_image[weight_image==0] = 0
+        sigma_image[weight_image==0] = 1
+        weight_image[weight_image==0] = 1
 
     data_image  /= weight_image
     sigma_image /= weight_image
