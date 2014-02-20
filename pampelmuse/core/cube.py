@@ -21,11 +21,11 @@ check whether the IFS data contains HDUs providing either uncertainties
 
 Latest SVN revision
 -------------------
-118, 2014/02/20
+120, 2014/02/20
 
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 118
+__revision__ = 120
 
 import logging, types
 import numpy as np, pyfits
@@ -272,7 +272,8 @@ class Cube:
         
         if self.sigma == None and filename != None:
             self.sigma = hdulist[0]
-        else:
+
+        if self.sigma==None:
             logging.error("No HDU containing uncertainties or variances detected.")
             return
                 
