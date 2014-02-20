@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-125, 2014/02/20
+126, 2014/02/20
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 125
+__revision__ = 126
 
 import datetime, os, sys, logging
 import numpy as np, pyfits
@@ -203,8 +203,9 @@ def initfit(pampelmuse):
     
 
     ## make loop to avoid extensive use of memory for large data-cubes
-    data_image  = np.zeros(pampelmuse.ifs_data.instrument.transform.shape[0], dtype=np.float32)
-    sigma_image = np.zeros(data_image.shape, dtype=np.float32) ## old method to determine noise was from SIGMA cube via integration over passband
+    data_image   = np.zeros(pampelmuse.ifs_data.instrument.transform.shape[0], dtype=np.float32)
+    sigma_image  = np.zeros(data_image.shape, dtype=np.float32) ## old method to determine noise was from SIGMA cube via integration over passband
+    weight_image = np.zeros(data_image.shape, dtype=np.float32)
     logging.debug("Images contain {0} spaxels.".format(data_image.size))
 
     for i in xrange(pampelmuse.start, pampelmuse.stop):
@@ -227,10 +228,12 @@ def initfit(pampelmuse):
 
             data_image[mask_i==0] += data_i[mask_i==0]*wht_i
             sigma_image[mask_i==0] += sigma_i[mask_i==0]*wht_i
-            fWht += wht_i
+            weight_image[mask_i==0] += wht_i
 
-    data_image  /= fWht
-    sigma_image /= fWht
+#     weight_image[weight_image<1e-6] = 1e6
+
+    data_image  /= weight_image
+    sigma_image /= weight_image
     sigma_image[sigma_image<1e-6] = 1e6 
 
     ## create pseudo observation from photometry results
