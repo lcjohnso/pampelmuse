@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file '/home/kamann/prog/DISTRIBUTE/kamann-code.2/trunk/pampelmuse/graphics/exit_dialog.ui'
 #
-# Created: Thu Jun 20 12:13:59 2013
+# Created: Mon Sep 30 10:37:10 2013
 #      by: PyQt4 UI code generator 4.9.1
 #
 # WARNING! All changes made in this file will be lost!

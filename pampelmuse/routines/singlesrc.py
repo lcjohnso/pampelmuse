@@ -17,10 +17,10 @@ proved using the first order momentsm determined in the calclulation.
  
 Latest SVN revision
 -------------------
-113, 2013/09/20
+118, 2014/02/20
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-gooettingen.de)"
-__revision__ = 113
+__revision__ = 118
 
 import datetime, logging, os, re, sys
 import numpy as np, pyfits
@@ -77,7 +77,7 @@ def singlesrc(pampelmuse):
         psf_variables.free[j] = getattr(pampelmuse.psf, "freepar{0}".format(i))
 
         ## include value in PSF profiles
-        setattr(PSF, "set_{0}".format(parname_i),  parvalue_i)
+        getattr(PSF, "set_{0}".format(parname_i))(parvalue_i)
         
         i += 1
         
@@ -123,6 +123,46 @@ def singlesrc(pampelmuse):
             sources.data[:, j, 0] = results["flux"][i]
            
            
+    ## determine wavelength-dependent coordinate transformation
+    # TODO: Make 'update_psf' a parameter in the PampelMuse configuration
+    update_psf = True
+    if update_psf:
+        stars = (results["ID"]>=0)
+            
+        ##  determine FWHM, E and THETA
+        logging.info("Estimating PSF properties using measured moments...")
+        x2 = results[["x2"]][stars].view(np.float32).reshape(stars.sum(), -1)
+        y2 = results[["y2"]][stars].view(np.float32).reshape(stars.sum(), -1)
+        xy = results[["xy"]][stars].view(np.float32).reshape(stars.sum(), -1)
+
+        ## get A, B:
+        A = np.sqrt((x2+y2)/2.+np.sqrt(((x2-y2)/2.)**2+xy**2))
+        B = np.sqrt((x2+y2)/2.-np.sqrt(((x2-y2)/2.)**2+xy**2))
+            
+        ## FWHM
+        fwhm = np.sqrt(8.*np.log(2))*np.mean(A, axis=0)
+        logging.info("Mean FWHM: {0:.2f}pix.".format(fwhm.mean()))
+
+        ## Ellipticity
+        e = 1. - np.mean(np.where(A!=0, B/A, 1.), axis=0)
+        logging.info("Mean ellipticity: {0:.2f}".format(e.mean()))
+        ii = psf_variables.names.index("e")
+        if psf_variables.free[ii]:
+            ## need to check if dispersion information already included in PSF variables, otherwise, use numpy.resize that fills enlarged
+            ## array with repeated copies of available data
+            if psf_variables.data.shape[0] == 1: psf_variables.data =  np.resize(psf_variables.data, e.shape+psf_variables.data.shape[1:])
+            psf_variables.data[:, ii, 0] = e
+
+        ## Position angle
+        theta  = np.where(x2!=y2, 0.5*np.arctan(2*xy/(x2-y2)), 0.)
+        theta -= (-1)**(theta<0)*np.pi/4.
+        theta += (-1)**(xy>0)*np.pi/4.
+        logging.info("Mean position angle: {0:.2f}rad.".format(theta.mean()))
+        ii = psf_variables.names.index("theta")
+        if psf_variables.free[ii]:
+            if psf_variables.data.shape[0] == 1: psf_variables.data =  np.resize(psf_variables.data, theta.shape+psf_variables.data.shape[1:])
+            psf_variables.data[:, ii, 0] = theta.mean(axis=0)
+
     logging.info("Saving source selection in file {0}.".format(pampelmuse.filename))
 
     ## add information about routine to namespace

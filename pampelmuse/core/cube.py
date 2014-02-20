@@ -21,13 +21,13 @@ check whether the IFS data contains HDUs providing either uncertainties
 
 Latest SVN revision
 -------------------
-117, 2014/01/09
+118, 2014/02/20
 
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 117
+__revision__ = 118
 
-import logging
+import logging, types
 import numpy as np, pyfits
 
 ## required PampelMuse routines
@@ -76,10 +76,11 @@ class Cube:
 
         self._wave = None
 
-        self.data_hdu  = None
-        self.sigma_hdu = None
-        self.mask_hdu  = None
-        self.calibration_hdu = None
+        self.data = None
+        self.sigma = None
+        self.mask = None
+        self.residuals = None
+        self.setup = None
 
         ## property to check whether uncertainties or variances are loaded
         self.is_var = False
@@ -103,14 +104,12 @@ class Cube:
                 instrume = instrument
 
             if instrume != None:
-                if instrume.upper() in ["GIRAFFE", "ARGUS"]:
-                    self.instrument = Argus()
-                elif instrume.upper() == "PMAS":
-                    self.instrument = Pmas()
+                if instrume.upper() in ["GIRAFFE", "ARGUS"]: self.instrument = Argus()
+                elif instrume.upper() == "PMAS": self.instrument = Pmas()
 #            elif instrume.upper() == "MUSE":
 #                self.instrument = Muse()
                 else:
-                    logging.error("Unknown instrument specifier: '{0}'".format(instrume))
+                    logging.warning("Unknown instrument specifier: '{0}'".format(instrume))
                     self.instrument = Instrument()
             else:
                 logging.warning("Cannot determine IFU in use.")
@@ -123,29 +122,36 @@ class Cube:
         if self.instrument.name == "argus":
             try:
                 setup_index = self.file.index_of("FIBER_SETUP")
-                self.calibration_hdu = self.file[setup_index]
-                self.instrument.read_fiber_setup(hdu=self.calibration_hdu)
+                self.setup  = self.file[setup_index]
+                self.instrument.read_fiber_setup(hdu=self.setup)
             except KeyError:
                 logging.warning("No HDU with fibre setup found for ARGUS data.")
     
+        ## for a more convenient access to spectra and layers, we add additional methods
+        ## to the pyfits.hdu.image._ImageBaseHDU class.  This is done by following the tutorial
+        ## at http://www.ianlewis.org/en/dynamically-adding-method-classes-or-class-instanc
+        ## All instances of this class created later can access these methods.
+        pyfits.hdu.image._ImageBaseHDU.spectrum = types.MethodType(self.instrument.get_spectrum, None, pyfits.hdu.image._ImageBaseHDU)
+        pyfits.hdu.image._ImageBaseHDU.layer = types.MethodType(self.instrument.get_layer, None, pyfits.hdu.image._ImageBaseHDU)
+    
         ## open data HDU - check if HDU "DATA" exists, otherwise use first HDU
-        try: self.data_hdu = self.file["DATA"]
-        except KeyError: self.data_hdu = self.file[0]
+        try: self.data = self.file["DATA"]
+        except KeyError: self.data = self.file[0]
 
         ## check dimensionality of data: must be 3D if transformation from spaxels
         ## to x- & y-coords unknown, otherwise 2dim. data is accepted
-        self.ndim = self.data_hdu.header["NAXIS"]
+        self.ndim = self.data.header["NAXIS"]
 
         if self.ndim != 3:
             if self.instrument.transform == None:
                 logging.error("Data must be 3dim. unless mapping from spaxels to x&y specified.")
                 assert self.ndim==3, "Expected 3dim. datacube, got {0}dim".format(self.ndim)
             else:
-                self.spectral_axis = self.instrument.spectral_axis
+                self.spectral_index = 1 if self.instrument.spectral_axis==1 else 2
         else:
             if self.instrument.shape == None: ## set spatial shape if needed
-                xdim = self.data_hdu.header["NAXIS1"]
-                ydim = self.data_hdu.header["NAXIS2"]
+                xdim = self.data.header["NAXIS1"]
+                ydim = self.data.header["NAXIS2"]
 
                 self.instrument.shape = (ydim, xdim)
 
@@ -154,34 +160,34 @@ class Cube:
                 y = np.arange(xdim*ydim, dtype=np.int32)//xdim
                 self.instrument.transform = np.vstack((y,x)).T
 
-            self.spectral_axis = 3
+            self.spectral_index = 3
 
         ## check if data compatible with coordinate transformation of the instrument
-        self.nvoxel = reduce(lambda x,y: x*y, self.data_hdu.data.shape)
-        self.nlayer = self.data_hdu.header["NAXIS{0}".format(self.spectral_axis)]
+        self.nvoxel = reduce(lambda x,y: x*y, self.data.data.shape)
+        self.nlayer = self.data.header["NAXIS{0}".format(self.spectral_index)]
 
 
         ## Reading information about wavelength coverage
-        self.crpix = self.data_hdu.header['CRPIX{0}'.format(self.spectral_axis)]
-        self.crval = self.data_hdu.header['CRVAL{0}'.format(self.spectral_axis)]
+        self.crpix = self.data.header['CRPIX{0}'.format(self.spectral_index)]
+        self.crval = self.data.header['CRVAL{0}'.format(self.spectral_index)]
         
-        try: self.cdelt = self.data_hdu.header['CDELT{0}'.format(self.spectral_axis)]
+        try: self.cdelt = self.data.header['CDELT{0}'.format(self.spectral_index)]
         except KeyError:
-            try: self.cdelt = self.data_hdu.header['CD{0}_{0}'.format(self.spectral_axis)]
+            try: self.cdelt = self.data.header['CD{0}_{0}'.format(self.spectral_index)]
             except KeyError:
-                logging.error("Cannot find dispersion keyword ('CDELT{0}' or 'CD{0}_{0}')".format(self.spectral_axis))
+                logging.error("Cannot find dispersion keyword ('CDELT{0}' or 'CD{0}_{0}')".format(self.spectral_index))
                 self.cdelt = None
 
         try:
-            self.ctype = self.data_hdu.header["CTYPE{0}".format(self.spectral_axis)]
+            self.ctype = self.data.header["CTYPE{0}".format(self.spectral_index)]
         except KeyError:
             self.ctype = "AWAV"
         try:
-            self.cunit = self.data_hdu.header["CUNIT{0}".format(self.spectral_axis)]
+            self.cunit = self.data.header["CUNIT{0}".format(self.spectral_index)]
         except KeyError:
             self.cunit = "Angstrom"
 
-        self.ndisp = self.data_hdu.header['NAXIS{0}'.format(self.spectral_axis)]
+        self.ndisp = self.data.header['NAXIS{0}'.format(self.spectral_index)]
 
         ## perform sanity checks if requested
         for key, value in checks.iteritems():
@@ -242,15 +248,14 @@ class Cube:
             variances.
         """
         if filename != None:
-            self.sigma_file = pyfits.open(filename, mode=self.mode)
-            hdulist = self.sigma_file
+            hdulist = pyfits.open(filename, mode=self.mode)
         else:
             hdulist = self.file
         
         ## check for uncertainties
         for name in ["ERROR", "SIGMA"]:
             try:
-                self.sigma_hdu = hdulist[name]
+                self.sigma = hdulist[name]
                 logging.info("Detected extension '{0}', assuming it contains uncertainties.".format(name))
                 break
             except KeyError:
@@ -259,29 +264,28 @@ class Cube:
         ## check for variances
         for name in ["STAT", ]:
             try:
-                self.sigma_hdu = hdulist[name]
+                self.sigma = hdulist[name]
                 self.is_var = True
                 logging.info("Detected extension '{0}', assuming it contains variances.".format(name))
             except KeyError:
                 pass
         
-        if self.sigma_hdu == None:
-            if filename != None:
-                self.sigma_hdu = hdulist[0]
-            else:
-                logging.error("No HDU containing uncertainties or variances detected.")
-                return
+        if self.sigma == None and filename != None:
+            self.sigma = hdulist[0]
+        else:
+            logging.error("No HDU containing uncertainties or variances detected.")
+            return
                 
         ##  consistency checks: must have same dimensions as data
-        if self.sigma_hdu.header["NAXIS"] != self.ndim:
+        if self.sigma.header["NAXIS"] != self.ndim:
             logging.error("Incompatible dimensionalities of uncertainties and science data.")
-            self.sigma_hdu = None
+            self.sigma = None
             return
             
         for key in ["NAXIS{0}".format(i) for i in xrange(1, self.ndim+1)]:
-            if self.sigma_hdu.header[key] != self.data_hdu.header[key]:
+            if self.sigma.header[key] != self.data.header[key]:
                 logging.error("Different values for header key {0} in uncertainties and science data.".format(key))
-                self.sigma_hdu = None
+                self.sigma = None
                 return
                 
         logging.info("Opening uncertaities/variances HDU successful.")
@@ -300,128 +304,127 @@ class Cube:
             The filename of the FITS file that contains the mask.
         """
         if filename != None:
-            self.mask_file = pyfits.open(filename, mode=self.mode)
-            hdulist = self.mask_file
+            hdulist = pyfits.open(filename, mode=self.mode)
         else:
             hdulist = self.file
             
         for name in ["MASK", "BADPIX"]:
             try:
-                self.mask_hdu = hdulist[name]
+                self.mask = hdulist[name]
                 logging.info("Detected extension '{0}', assuming it contains the bad voxel mask.".format(name))
             except KeyError:
                 pass
                 
-        if self.mask_hdu == None:
-            if filename != None: self.mask_hdu = hdulist[0]
+        if self.mask == None:
+            if filename != None: self.mask = hdulist[0]
             else:
                 logging.warning("No HDU containing bad pixel mask detected.")
                 return
                 
         ##  consistency checks: must have same dimensions as data
-        if self.mask_hdu.header["NAXIS"] != self.ndim:
+        if self.mask.header["NAXIS"] != self.ndim:
             logging.error("Incompatible dimensionalities of mask and science data.")
-            self.mask_hdu = None
+            self.mask = None
             return
             
         for key in ["NAXIS{0}".format(i) for i in xrange(1, self.ndim+1)]:
-            if self.mask_hdu.header[key] != self.data_hdu.header[key]:
+            if self.mask.header[key] != self.data.header[key]:
                 logging.error("Different values for header key {0} in mask and science data.".format(key))
-                self.mask_hdu = None
+                self.mask = None
                 return
                 
         logging.info("Opening mask HDU successful.")
         
     
-    def get_mask_for_layer(self, index):
-        """
-        Return the bad pixel mask for a single layer.
-       
-        Parameters
-        ----------
-        index : int
-            The index of the layer for which the mask should be returned.
-            
-        Returns
-        -------
-        mask or None, depending on whether a mask is available
-        """
-        if self.mask_hdu == None:  return np.zeros(self.instrument.nspaxel, dtype=np.int16)
-        else: return self._get_layer(self.mask_hdu, index)
-        
-        
-    def get_layer(self, index, apply_mask=True, return_sigma=True):
-        """
-        Return the data (and uncertainties if requested) in a layer. Note that
-        the data is flattened if necessary and the bad pixel mask is applied
-        if (available and) requested. If the loaded data is 2dimensional and the 
-        instrument contains calibration/sky fibers, only the science fibers are
-        returned.
-        
-        Parameters
-        ----------
-        index : int
-            The index of the layer to be loaded.
-        apply_mask : bool, optional
-            Flag indicating whether the bad-pixel mask should be applied before the
-            data is returned.
-        return_sigma : bool, optional
-            Flag indicating whether besides the data the uncertainties should be
-            returned.
-            
-        Returns
-        -------
-        data_i : nd_array
-            The data stored in the requested layer.
-        sigma_i : nd_array, optional
-            The uncertainties for the returned data (only if requested).
-        """
-        if apply_mask and self.mask_hdu != None:
-            valid = self.get_mask_for_layer(index)==0
-        
-            if return_sigma:
-                if not self.is_var: return self._get_layer(self.data_hdu, index)[valid], self._get_layer(self.sigma_hdu, index)[valid]
-                else: return self._get_layer(self.data_hdu, index)[valid], np.sqrt(self._get_layer(self.sigma_hdu, index)[valid])
-            else:
-                return self._get_layer(self.data_hdu, index)[valid]
-        else:
-            if return_sigma:
-                if not self.is_var: return self._get_layer(self.data_hdu, index), self._get_layer(self.sigma_hdu, index)
-                else: return self._get_layer(self.data_hdu, index), np.sqrt(self._get_layer(self.sigma_hdu, index))
-            else:
-                return self._get_layer(self.data_hdu, index)
-        
-        
-    def _get_layer(self, _hdu, index):
-        """
-        Extract a layer from a provided HDU. This routines is mainly used
-        internally and is called by Cube.get_layer() and Cube.get_mask_for_layer()
-        methods. It checks the dimensionality of the data and the  properties of
-        the instrument to determine how to slice the data to obtain a layer.
-        
-        Parameters
-        ----------
-        _hdu : a pyfits.PrimaryHDU  or pyfits.ImageHDU instance
-            The HDU from which a layer should be returned.
-        index : int
-            The index of the layer to be returned.
-            
-        Returns
-        -------
-        layer : nd_array
-            The extracted layer. Note that only science fibers are
-            returned if the instrument contains calibration or
-            science fibers.
-        """
-        
-        if self.ndim == 3:
-            ## Note: np.ndarray.flatten -> returns copy
-            return _hdu.section[index].flatten()
-        elif self.instrument.spectral_axis==1:
-            return self.instrument.get_science(_hdu.section[:,index])
-        else:
-            return self.instrument.get_science(_hdu.section[index])
-        
+#    def get_mask_for_layer(self, index):
+#        """
+#        Return the bad pixel mask for a single layer.
+#       
+#        Parameters
+#        ----------
+#        index : int
+#            The index of the layer for which the mask should be returned.
+#            
+#        Returns
+#        -------
+#        mask or None, depending on whether a mask is available
+#        """
+#        if self.mask_hdu == None: return np.zeros(self.instrument.nspaxel, dtype=np.int16)
+#        else: return self._get_layer(self.mask_hdu, index)
+#        
+#        
+#    def get_layer(self, index, apply_mask=True, return_sigma=True):
+#        """
+#        Return the data (and uncertainties if requested) in a layer. Note that
+#        the data is flattened if necessary and the bad pixel mask is applied
+#        if (available and) requested. If the loaded data is 2dimensional and the 
+#        instrument contains calibration/sky fibers, only the science fibers are
+#        returned.
+#        
+#        Parameters
+#        ----------
+#        index : int
+#            The index of the layer to be loaded.
+#        apply_mask : bool, optional
+#            Flag indicating whether the bad-pixel mask should be applied before the
+#            data is returned.
+#        return_sigma : bool, optional
+#            Flag indicating whether besides the data the uncertainties should be
+#            returned.
+#            
+#        Returns
+#        -------
+#        data_i : nd_array
+#            The data stored in the requested layer.
+#        sigma_i : nd_array, optional
+#            The uncertainties for the returned data (only if requested).
+#        """
+#        if apply_mask and self.mask_hdu != None:
+#            valid = self.get_mask_for_layer(index)==0
+#        
+#            if return_sigma:
+#                if not self.is_var: return self._get_layer(self.data, index)[valid], self._get_layer(self.sigma_hdu, index)[valid]
+#                else: return self._get_layer(self.data, index)[valid], np.sqrt(self._get_layer(self.sigma_hdu, index)[valid])
+#            else:
+#                return self._get_layer(self.data, index)[valid]
+#        else:
+#            if return_sigma:
+#                if not self.is_var: return self._get_layer(self.data, index), self._get_layer(self.sigma_hdu, index)
+#                else: return self._get_layer(self.data, index), np.sqrt(self._get_layer(self.sigma_hdu, index))
+#            else:
+#                return self._get_layer(self.data, index)
+#        
+#        
+#    def _get_layer(self, _hdu, index):
+#        """
+#        Extract a layer from a provided HDU. This routines is mainly used
+#        internally and is called by Cube.get_layer() and Cube.get_mask_for_layer()
+#        methods. It checks the dimensionality of the data and the  properties of
+#        the instrument to determine how to slice the data to obtain a layer.
+#        
+#        Parameters
+#        ----------
+#        _hdu : a pyfits.PrimaryHDU  or pyfits.ImageHDU instance
+#            The HDU from which a layer should be returned.
+#        index : int
+#            The index of the layer to be returned.
+#            
+#        Returns
+#        -------
+#        layer : nd_array
+#            The extracted layer. Note that only science fibers are
+#            returned if the instrument contains calibration or
+#            science fibers.
+#        """
+#        
+#        if self.ndim == 3:
+#            ## Note: np.ndarray.flatten -> returns copy
+#            return _hdu.section[index].flatten()
+#        elif self.instrument.spectral_axis==1:
+#            return self.instrument.get_science(_hdu.section[:,index])
+#        else:
+#            return self.instrument.get_science(_hdu.section[index])
+#        
         
     def get_key(self, name):
         """
@@ -440,41 +443,11 @@ class Cube:
             None is returned.
         """
         
-        if name in self.data_hdu.header:
-            return self.data_hdu.header[name]
+        if name in self.data.header:
+            return self.data.header[name]
         else:
             logging.error("Keyword '{0}' missing in FITS header.".format(name))
             return None
-        
-        
-    def get_spectrum(self, index):
-        """
-        Return the spectrum from spaxel 'index'. Note that 'index' may refer
-        to a calibration or a sky fiber if the instrument includes such fibers.
-        
-        Parameters
-        ----------
-        index : int
-            The index of the spaxel for which the spectrum should be returned.
-            
-        Returns
-        -------
-        spectrum : nd_array
-            The spectrum in spaxel 'index'.
-        """
-        ## check if provided index is valid
-        if index>=self.instrument.nfiber or index<-self.instrument.nfiber:
-            logging.error("Fiber index ({0}) out of range. Must be <{1}.".format(index, self.instrument.nfiber))
-        assert index<self.instrument.nfiber and index>=-self.instrument.nfiber, "Fiber index out of range."
-        
-        if self.ndim == 3:
-            ## for 3dim. data, there are no calibration or sky fibers, thus nfiber=len(transform)
-            j, k = self.instrument.transform[index]
-            return self.data_hdu.section[:, j, k]
-        elif self.instrument.spectral_axis==1:
-            return self.data_hdu.section[index]
-        else:
-            return self.data_hdu.section[:, index]
         
         
     def make_cube(self, asPrimary=False, returnSigma=False, returnMask=False, **kwargs):
@@ -502,12 +475,12 @@ class Cube:
         """
         if self.ndim == 3:
             
-            if isinstance(self.data_hdu, pyfits.PrimaryHDU) and not asPrimary:
-                hdus = [pyfits.ImageHDU(self.data_hdu.data, header=self.data_hdu.header), ]
-            elif not isinstance(self.data_hdu, pyfits.PrimaryHDU) and asPrimary:
-                hdus = [pyfits.PrimaryHDU(self.data_hdu.data, header=self.data_hdu.header), ]
+            if isinstance(self.data, pyfits.PrimaryHDU) and not asPrimary:
+                hdus = [pyfits.ImageHDU(self.data.data, header=self.data.header), ]
+            elif not isinstance(self.data, pyfits.PrimaryHDU) and asPrimary:
+                hdus = [pyfits.PrimaryHDU(self.data.data, header=self.data.header), ]
             else:
-                hdus = [self.data_hdu,]
+                hdus = [self.data,]
                 
             if returnSigma:
                 if isinstance(self.sigma_hdu, pyfits.PrimaryHDU) and not asPrimary:
@@ -529,12 +502,12 @@ class Cube:
             else: return hdus[0]
                     
         else:
-            data = [self.instrument.make_grid(self.data_hdu.data), ]
+            data = [self.instrument.make_grid(self.data.data), ]
             if returnSigma: data.append(self.instrument.make_grid(self.sigma_hdu.data))
             if returnMask: data.append(self.instrument.make_grid(self.mask_hdu.data))
             
             logging.info("Updating header information...")
-            out_headers = [self.data_hdu.header, ]
+            out_headers = [self.data.header, ]
             if returnSigma: out_headers.append(self.sigma_hdu.header)
             if returnMask: out_headers.append(self.mask_hdu.header)
             
@@ -546,8 +519,8 @@ class Cube:
                         header.update("{0}3".format(key.upper()), getattr(self, key))
 
                     ## keywords for "old" dispersion axis are not valid anymore, so they are deleted (if present)
-                    if "{0}{1}".format(key.upper(), self.instrument.spectral_axis) in header:
-                        del header["{0}{1}".format(key.upper(), self.instrument.spectral_axis)]
+                    if "{0}{1}".format(key.upper(), 1 if self.instrument.spectral_axis==1 else 2) in header:
+                        del header["{0}{1}".format(key.upper(), 1 if self.instrument.spectral_axis==1 else 2)]
     
             if asPrimary:
                 if returnSigma|returnMask: return [pyfits.PrimaryHDU(data[i], header=out_headers[i]) for i in xrange(len(data))]
@@ -559,7 +532,8 @@ class Cube:
 
     def __del__(self):
 
-        ## close FITS files that were  opened by instance 
+        ## close FITS files that were opened by instance 
         self.file.close()
-        if hasattr(self, "sigma_file"): self.sigma_file.close()
-        if hasattr(self, "mask_file"): self.mask_file.close()
+        if self.sigma!=None: self.sigma._file.close()
+        if self.mask!=None: self.mask._file.close()
+        

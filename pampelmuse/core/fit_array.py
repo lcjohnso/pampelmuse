@@ -25,10 +25,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-109, 2013/08/23
+118, 2014/02/20
 """ 
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 109
+__revision__ = 118
 
 import contextlib, logging, os, sys, time
 import numpy as np, pyfits
@@ -335,7 +335,20 @@ class StarFit(object):
             ii += 1
 
         ## WORK ON IFS DATA
-        mask = self.ifs_data.get_mask_for_layer(self.kk)
+        data  = self.ifs_data.data.layer(self.kk)
+        sigma = self.ifs_data.sigma.layer(self.kk)
+
+        ## check if mask is available, otherwise only NaN pixels will be masked
+        if self.ifs_data.mask==None:
+            mask = (data!=data)
+        else:
+            mask = self.ifs_data.mask.layer(self.kk)&(data!=data)
+            
+        self.data = data[mask==False]
+        if self.ifs_data.is_var:
+            self.sigma = np.sqrt(sigma[mask==False])
+        else:
+            self.sigma = sigma[mask==False]
             
         logging.debug("[@{0}] {1} masked pixels".format(self.kk, (mask==True).sum()))
 
@@ -343,8 +356,6 @@ class StarFit(object):
         ## of the Instrument instance and the mask
         self.PSF.set_transform(self.ifs_data.instrument.transform[mask==0])
 
-        ## load data
-        self.data, self.sigma = self.ifs_data.get_layer(self.kk)
 
         ## Start iteration
         n_iter = 1

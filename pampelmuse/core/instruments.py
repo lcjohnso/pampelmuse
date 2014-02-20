@@ -26,10 +26,10 @@ like dead fibers or holes in the FoV are not handled.
 
 Latest SVN revision
 -------------------
-103, 2013/07/23
+118, 2014/02/20
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 103
+__revision__ = 118
 import logging, re
 import numpy as np
 from matplotlib import path
@@ -54,9 +54,10 @@ class Instrument(object):
     _sky_fibers = []  ## The indices of the sky fibers
     _cal_fibers = []  ## The indices of the calibration fibers
 
-    spectral_axis = 1 ## The index of the spectral axis; NOTE that numpy
-                      ## swaps the axes, so spectral_axis=1 corresponds
-                      ## to the second axis in numpy notation
+    spectral_axis = 1 ## The index of the spectral axis in numpy notation;
+                      ## NOTE that numpy swaps the axes, so spectral_axis=1
+                      ## corresponds to the first axis when opening the data
+                      ## with fv, ds9 or similar programs.
     shape = None ## will contain the spatial shape of the field of view
     
     def __init__(self, transform=None, edgepix=None, badspax=[], **kwargs):
@@ -373,7 +374,7 @@ class Instrument(object):
             swaps the axes, so spatial_axis=2 corresponds to the first axis
             in numpy notation.
         """
-        if self.spectral_axis==1: return 2
+        if self.spectral_axis==1: return 0
         else: return 1
 
 
@@ -465,6 +466,74 @@ class Instrument(object):
         return edist
 
 
+    def get_spectrum(self, hdu, i):
+        """
+        Extract an individual spectrum from the provided HDU. To keep the memory
+        usage low, the spectrum is extracted using Section-class provided by
+        pyfits.
+        
+        Parameters
+        ----------
+        hdu : instance of pyfits.PrimaryHDU or pyfits.ImageHDU
+            The HDU from which the spectrum should be extracted
+        i : int
+            The index of the fiber/spaxel for which the spectrum should be
+            extracted. Note that for 3dim. data, the x- & y-position of the
+            spaxel is obtained from the attribute 'transform'.
+            
+        Returns
+        -------
+        spectrum : nd_array
+            The extracted spectrum
+        """
+        
+        
+        if i < -self.nspaxel or i >= self.nspaxel:
+            logging.error("Spaxel index must be <{0} but is {1}.".format(self.nspaxel, index))
+            return None
+            
+        if hdu.header["NAXIS"] == 2:
+            if self.naux>0: i = np.flatnonzero(np.cumsum(self.isscience)==(i+1))[0] ## ignore non-science fibers
+            if self.spectral_axis==1: return hdu.section[i]
+            else: return hdu.data[:, i] ## hdu.section[:, i]
+        elif hdu.header["NAXIS"] == 3:
+            j, k = self.transform[i]
+            return hdu.data[:, j, k] ## hdu.section[:, j, k]
+            
+
+    def get_layer(self, hdu, i, return_grid=False):
+        """
+        Extract the monochromatic layer with index i from the provided HDU.
+        To keep the memory usage low, the spectrum is extracted using Section
+        -class provided by pyfits.
+        
+        Parameters
+        ----------
+        hdu : instance of pyfits.PrimaryHDU or pyfits.ImageHDU
+            The HDU from which the monochromatic layer should be extracted
+        i : int
+            The index of the monochromatic layer that should be extracted.
+        return_grid : boolean, optional
+            Set this flag to return the layer as a 2dim. grid. By default,
+            a 1dim. array is returned.
+            
+        Returns
+        -------
+        layer : nd_array
+            The extracted monochromatic layer.
+        """
+        if hdu.header["NAXIS"] == 3:
+            if not return_grid: return hdu.section[i].flatten()
+            else: return hdu.section[i]
+        elif self.spectral_axis == 0:
+            layer = hdu.section[i]
+        else:
+            layer = hdu.section[:,i]
+        if self.naux>0: layer = layer[self.isscience]
+        if not return_grid: return layer
+        else: return self.make_grid(layer)
+
+
     def make_grid(self, data, grid=None, shape=None, method='linear', fill_value=np.nan,  **kwargs):
         """
         Calculate a representation of an observed dataset of the current 
@@ -496,19 +565,16 @@ class Instrument(object):
         out_data : nd_array
             The data representation on the regular grid in the (x,y)-plane.
         """
-        logging.info("Arranging spatial pixels in (x,y) plane...")
-        
-        ## The index of the spatial axis in numpy-counting.
-        np_spatial_axis = np.mod(self.spatial_axis,2)
+        logging.debug("Arranging spatial pixels in (x,y) plane...")
 
         ## extract science signal
         sci_data = self.get_science(data)
 
         ## Get right dimension for calculation
-        if np_spatial_axis == 1 and data.ndim == 1:
+        if self.spatial_axis == 1 and data.ndim == 1:
             ## add pseudo-spectral axis to handle 1dim. data (single layer):
             calc_data = sci_data.reshape((1,sci_data.shape[0]))
-        elif np_spatial_axis == 0 and data.ndim == 1:
+        elif self.spatial_axis == 0 and data.ndim == 1:
             ## add pseudo-spectral axis to handle 1dim. data (single layer):
             calc_data = sci_data.reshape((sci_data.shape[0],1))
         else:
@@ -540,7 +606,7 @@ class Instrument(object):
             for i in xrange(calc_data.shape[1]):
                 out_data[i] = griddata((self.y, self.x), calc_data[:,i], (grid_y, grid_x), method=method, fill_value=fill_value)
 
-        logging.info("...processed {0} spectral layer(s).".format(i+1))
+        logging.debug("...processed {0} spectral layer(s).".format(i+1))
         return np.squeeze(out_data) ## remove pseudo-spectral axis if needed
 
 
@@ -566,15 +632,12 @@ class Instrument(object):
             The extracted science data.
         """    
 
-        ## The index of the spatial axis in numpy-counting.
-        np_spatial_axis = np.mod(self.spatial_axis,2)
-
         ## Perform sanity checks
         ## - Dimensionality
-        if np_spatial_axis == 1 and data.ndim == 1:
+        if self.spatial_axis == 1 and data.ndim == 1:
             ## add pseudo-spectral axis to handle 1dim. data (single layer):
             calc_data = data.reshape((1,data.shape[0]))
-        elif np_spatial_axis == 0 and data.ndim == 1:
+        elif self.spatial_axis == 0 and data.ndim == 1:
             ## add pseudo-spectral axis to handle 1dim. data (single layer):
             calc_data = data.reshape((data.shape[0],1))
         else:
@@ -585,18 +648,18 @@ class Instrument(object):
         assert calc_data.ndim == 2, "Data must be 1D or 2D"
 
         ## - Number of spaxels
-        if calc_data.shape[np_spatial_axis] == self.nspaxel:
+        if calc_data.shape[self.spatial_axis] == self.nspaxel:
             return np.squeeze(calc_data)
 
-        elif calc_data.shape[np_spatial_axis] == (self.nspaxel + self.naux):
+        elif calc_data.shape[self.spatial_axis] == (self.nspaxel + self.naux):
             if self.spatial_axis==2:
                 return np.squeeze(calc_data[self.isscience])
             else:
                 return np.squeeze(calc_data[:,self.isscience])
         else:
             logging.error("Provided data has invalid dimensions.")
-            if self.naux>0: logging.error("Expected {0:d} or {1:d} fibres but got {2:d}.".format(self.nspaxel, self.nspaxel+self.naux, calc_data.shape[np_spatial_axis]))
-            else: logging.error("Expected {0:d} fibres but got {1:d}.".format(self.nspaxel, calc_data.shape[np_spatial_axis]))
+            if self.naux>0: logging.error("Expected {0:d} or {1:d} fibres but got {2:d}.".format(self.nspaxel, self.nspaxel+self.naux, calc_data.shape[self.spatial_axis]))
+            else: logging.error("Expected {0:d} fibres but got {1:d}.".format(self.nspaxel, calc_data.shape[self.spatial_axis]))
             return None
 
 
@@ -648,7 +711,7 @@ class Argus(Instrument):
     """
     name = "argus"
     shape = (14,22)  ## numpy notation - first y, then x
-    spectral_axis = 2
+    spectral_axis = 0
 
     ## The indices of the dedicated sky fibers
     _sky_fibers = np.array([20,41,63,84,105,127,148,169,191,212,233,255,276,297,319], dtype=np.int16)

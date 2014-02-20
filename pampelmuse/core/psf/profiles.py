@@ -38,10 +38,10 @@ ces simultaneously without having to loop over them.
 
 Latest SVN revision
 -------------------
-116, 2013/11/26
+118, 2014/02/20
 """
 __author__   = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 116
+__revision__ = 118
 
 import logging
 import numpy as np
@@ -1449,7 +1449,7 @@ class Gaussian(Profile):
         """
         Delete the value of the FWHM for this instance.
         """
-        if self._own_fwhm: return
+        if self._own_fwhm==None: return
         
         self._own_fwhm = None
 
@@ -1986,7 +1986,7 @@ class Moffat(Profile):
         """
         Delete the FWHM set for this instance.
         """
-        if self._own_beta == None: return
+        if self._own_fwhm == None: return
         
         self._own_fwhm = None
 

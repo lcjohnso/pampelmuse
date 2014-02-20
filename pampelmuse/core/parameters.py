@@ -24,10 +24,10 @@ currently not possible to add parameters afterwards.
 
 Latest SVN revision
 -------------------
-103, 2013/07/16
+118, 2014/02/20
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 103
+__revision__ = 118
 
 ## import required python modules
 import logging, re
@@ -176,7 +176,7 @@ class Parameters(object):
         Returns
         -------
         defined : ndarray
-            A 1dim. boolean array of length 'npars' that  specifies if the
+            A 1dim. boolean array of length 'npars' that specifies if the
             value of each PSF parameter has been defined.
         """
         return (self._data[...,0]==self._data[...,0]).all(axis=0)
@@ -188,7 +188,7 @@ class Parameters(object):
         Returns
         -------
         fitted : ndarray
-            A 1dim. boolean array of length 'npars' that  specifies if the
+            A 1dim. boolean array of length 'npars' that specifies if the
             value of each PSF parameter has been fitted.
         """
         return (self._data[...,1]==self._data[...,1]).all(axis=0)

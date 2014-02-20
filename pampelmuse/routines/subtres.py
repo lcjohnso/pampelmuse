@@ -15,10 +15,10 @@ if PampelMuse is started with the 'SUBTRES' option.
 
 Latest SVN revision
 -------------------
-109, 2013/08/20
+118, 2014/02/20
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 109
+__revision__ = 118
 import datetime, logging, os, sys
 import numpy as np, pyfits
 
@@ -115,7 +115,7 @@ def subtres(pampelmuse):
 
     ## load full(!) cube into memory.
     logging.info("Creating an array to hold the results...")
-    if pampelmuse.ifs_data.instrument.spectral_axis == 2:
+    if pampelmuse.ifs_data.instrument.spectral_axis == 0:
         data = np.zeros((sources.ndisp, pampelmuse.ifs_data.instrument.nspaxel), dtype=np.float32)
     else:
         data = np.zeros((pampelmuse.ifs_data.instrument.nspaxel, sources.ndisp), dtype=np.float32)
@@ -127,7 +127,7 @@ def subtres(pampelmuse):
         jj = kk - pampelmuse.start
 
         ## get current layer 
-        layer_kk = pampelmuse.ifs_data.get_layer(index=kk, apply_mask=False, return_sigma=False)
+        layer_kk = pampelmuse.ifs_data.data.layer(kk)
 
         ## update PSF instances of the sources with the variables fitted for current layer
         i = 0 
@@ -158,7 +158,7 @@ def subtres(pampelmuse):
             elif pampelmuse.subsky:
                 layer_kk -= sources.data[0,j,0]
 
-        if pampelmuse.ifs_data.instrument.spectral_axis == 2:
+        if pampelmuse.ifs_data.instrument.spectral_axis == 0:
             data[jj] = layer_kk
         else:
             data[:,jj] = layer_kk
@@ -184,8 +184,8 @@ def subtres(pampelmuse):
         logging.warning("Existing residual cube has been overwritten.")
 
     ## save output (including HDU with fiber setup if available)
-    if pampelmuse.ifs_data.calibration_hdu != None:
-        HDUList = pyfits.HDUList([outHDU, pampelmuse.ifs_data.calibration_hdu])
+    if pampelmuse.ifs_data.setup != None:
+        HDUList = pyfits.HDUList([outHDU, pampelmuse.ifs_data.setup])
         HDUList.writeto("{0}.res.fits".format(pampelmuse.prefix))
     else:
         outHDU.writeto("{0}.res.fits".format(pampelmuse.prefix))

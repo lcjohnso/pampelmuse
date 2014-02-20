@@ -32,23 +32,19 @@ guration of PampelMuse does not allow for an analysis of the provided IFS data.
 For example, a ConfigurationError is raised if no sources that pass the criteria
 for the selection of PSF sources are detected.
 
-The function 'calculate_noise' is currently unused. It is designed to calculate
-the S/N in a spaxel-by-spaxel manner following the prescription of Siebert et al.,
-(2011), AJ, 141, 187.
-
 The function 'estimate_snr' is designed to estimate the S/N of all sources in a
 catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-117, 2014/01/09
+118, 2014/02/20
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 117
+__revision__ = 118
 
 import datetime, os, sys, logging
 import numpy as np, pyfits
-from scipy import interpolate, ndimage
+from scipy import spatial, interpolate, ndimage
 from PyQt4 import QtGui
 
 ## required PampelMuse routines
@@ -66,32 +62,6 @@ class ConfigurationError(EnvironmentError):
         self.value = value
     def __str__(self):
         return repr(self.value)
-
-
-## Routine to  estimate the S/N in the spectra. Adapted from the RAVE DR3
-## method described in Siebert et al. (2011)
-def calculate_noise(spectrum, norm=1):
-
-    mask       = np.ones(spectrum.shape, dtype=np.bool)
-    clippedPix = 0
-
-    while True:
-        smooth    = ndimage.uniform_filter1d(spectrum[mask], size=3)
-        residuals = spectrum[mask] - smooth
-        sigma     = residuals.std()
-        
-        mask[np.flatnonzero(mask)[abs(residuals)>(2.*sigma)]] = False
-
-        if (mask==False).sum() == clippedPix:
-            break
-        else:
-            clippedPix = (mask==False).sum()
-
-    sigma_i = np.zeros((mask.sum()-2,), dtype=np.float32)
-    for j in xrange(sigma_i.size):
-        sigma_i[j] = np.std(residuals[j:j+3])
-
-    return (1.62*norm)*np.median(sigma_i)
 
 
 
@@ -116,8 +86,6 @@ def estimate_snr(class_psf, sigma):
             The integrated flux of all point sources over the individual
             spaxels.
         """
-        logging.info("Determining Signal-to-Noise ratio (S/N) of sources...")
-
         snRatios = []
         totFlux  = 0.
 
@@ -142,16 +110,16 @@ def initfit(pampelmuse):
     logging.info("Reading photometry results from file '{0}'...".format(pampelmuse.initfit.sourcelist))
 
     cfp_results = read_asciifile(pampelmuse.initfit.sourcelist, usecols=(0,1,2,3,4,5), usenames="id,x,y,{0},ra,dec".format(pampelmuse.passband),
-                                 aliases={"F606W":["f606w", "Vvega", "V"], "F814W":["f814w", "Ivega", "I"], "ra":["RA", ], "dec":["Dec", "DEC"]})
+                                 aliases={"F606W":["Vvega", "V"], "F814W":["Ivega", "I"]})
 
-    ## make sure either  RA & Dec or x & y are available
-    ## if x, y not available, use RA & Dec to initialize pixel coordinates: calculate offsets to source with lowest RA and lowest Dec
-    ## along x & y. The coordinates are given then in units of arcseconds.
-    if "x" not in cfp_results.keys() or "y" not in cfp_results.keys():
-        if "ra" not in cfp_results.keys() or "dec" not in cfp_results.keys():
+    ## make sure either RA & Dec or x & y are available
+    ## if both are available, RA & Dec are preferred over x & y. Pixel coordinates are obtained by calculating the offsets to the sources 
+    ## with the lowest RA and Dec, respectively in units of arcseconds.
+    if "ra" not in cfp_results.keys() or "dec" not in cfp_results.keys():
+        if "x" not in cfp_results.keys() or "y" not in cfp_results.keys():
             logging.critical("Cannot find input source coordinates.")
             raise IOError, "Either x & y or RA & Dec must be provided with photometry."
-    
+    else:
         ra = np.asarray(cfp_results["ra"], dtype=np.float64)
         dec = np.asarray(cfp_results["dec"], dtype=np.float64)
     
@@ -164,7 +132,7 @@ def initfit(pampelmuse):
         cfp_results["id"].append("-1")
         cfp_results["x"].append("0")
         cfp_results["y"].append("0")
-        cfp_results[pampelmuse.passband].append("0")
+        cfp_results[pampelmuse.passband.lower()].append("0")
         if "ra" in cfp_results.keys(): cfp_results["ra"].append("0")
         if "dec" in cfp_results.keys():  cfp_results["dec"].append("0")
 
@@ -172,7 +140,7 @@ def initfit(pampelmuse):
     sources     = Sources(ids=np.asarray(cfp_results["id"], dtype=np.int32))
     sources.x   = np.asarray(cfp_results["x"], dtype=np.float32)
     sources.y   = np.asarray(cfp_results["y"], dtype=np.float32)
-    sources.mag = np.asarray(cfp_results[pampelmuse.passband], dtype=np.float32)
+    sources.mag = np.asarray(cfp_results[pampelmuse.passband.lower()], dtype=np.float32)
     if "ra" in cfp_results.keys(): sources.ra = np.asarray(cfp_results["ra"], dtype=np.float64)
     if "dec" in cfp_results.keys(): sources.dec = np.asarray(cfp_results["dec"], dtype=np.float64)
 
@@ -209,36 +177,25 @@ def initfit(pampelmuse):
         psf_variables.free[j] = getattr(pampelmuse.psf, "freepar{0}".format(i))
 
         ## include value in PSF profiles
-        setattr(PSF, "set_{0}".format(parname_i),  parvalue_i)
-        
-        i += 1
-        
-    psf_variables.info()
+        getattr(PSF, "set_{0}".format(parname_i))(parvalue_i)
 
+        i += 1
+    
+    psf_variables.info()
     
     ## collapse data-cube to image in the provided photometric filter
     logging.info("Creating mock {0}-band image from IFS data...".format(pampelmuse.passband))
     
     ## get location of ascii-file with photometric filter & open it
     this_dir = os.path.dirname(__file__)
-    filterfile  = os.path.join(this_dir, os.pardir, os.pardir, "data", pampelmuse.passband)
+    filterfile  = os.path.join(this_dir, os.pardir, os.pardir, "data", pampelmuse.passband.upper())
     filtercurve = np.genfromtxt(filterfile, usecols=(0,1), dtype=[("wl", np.float32), ("tp", np.float32)])
 
     f = interpolate.UnivariateSpline(filtercurve["wl"], filtercurve["tp"], k=3, s=0)
     fMin = filtercurve["wl"].min()
     fMax = filtercurve["wl"].max()
     fWht = 0.
-
-    ## estimate noise using the method described by Siebert et al. (2001). This is currently too slow
-    # TODO: increase speed of calculation
-#    sigma_image = np.zeros(pampelmuse.ifs_data.instrument.transform.shape[0], dtype=np.float32)
-#    i=0
-#    j=0
-#    for isscience in pampelmuse.ifs_data.instrument.isscience:
-#        if isscience:
-#            sigma_image[j] = calculate_noise(pampelmuse.ifs_data.get_spectrum(i)[1000:-1000], norm=1.3)
-#            j += 1
-#        i += 1
+    
 
     ## make loop to avoid extensive use of memory for large data-cubes
     data_image  = np.zeros(pampelmuse.ifs_data.instrument.transform.shape[0], dtype=np.float32)
@@ -246,13 +203,19 @@ def initfit(pampelmuse):
     logging.debug("Images contain {0} spaxels.".format(data_image.size))
 
     for i in xrange(pampelmuse.start, pampelmuse.stop):
-        logging.debug("Working on layer {0:0{1}d}/{2:{1}d}".format(i+1, len(str(pampelmuse.stop-pampelmuse.start)), pampelmuse.stop-pampelmuse.start))
+        logging.debug("Working on layer {0:0{1}d}/{2:{1}d}".format(i-pampelmuse.start+1, len(str(pampelmuse.stop-pampelmuse.start)), pampelmuse.stop-pampelmuse.start))
         wave_i = pampelmuse.ifs_data.crval+i*pampelmuse.ifs_data.cdelt
         if pampelmuse.ifs_data.ctype == "nm": wave_i *= 10
         if wave_i > fMin and wave_i < fMax:
             wht_i = f(wave_i)
-            mask_i = pampelmuse.ifs_data.get_mask_for_layer(i)
-            data_i, sigma_i = pampelmuse.ifs_data.get_layer(i)
+            
+            data_i  = pampelmuse.ifs_data.data.layer(i)
+            sigma_i = pampelmuse.ifs_data.sigma.layer(i)
+
+            if pampelmuse.ifs_data.mask is not None:
+                mask_i = (data_i!=data_i)&pampelmuse.ifs_data.mask.layer(i)
+            else:
+                mask_i = (data_i!=data_i)
 
             data_image[mask_i==0] += data_i*wht_i
             sigma_image[mask_i==0] += sigma_i*wht_i
@@ -278,15 +241,20 @@ def initfit(pampelmuse):
     # TODO: check if RA and Dec coordinates for IFS pointing are available;
     # if so, print pixel coordinates of field center in mock image
 
-    identification_image  = np.zeros(PSF.size, dtype='float32')
-    for i in xrange(sources.nsrc):
-        if sources.ID[i] <= 0: continue 
-
+    _image  = np.zeros((PSF.transform.shape[0], ), dtype='float32')
+    for i in xrange(sources.nsrc-pampelmuse.globsky):
+#        if sources.ID[i] <= 0: continue 
+        logging.debug("Adding source {0:0{1}d}/{2:0{1}d}".format(i, len(str(sources.nsrc)), sources.nsrc))
+        
         psf = PSF(Xc=sources.x[i], Yc=sources.y[i], mag=sources.mag[i]-magZ, src_id=sources.ID[i], maxrad=10.)
 
-        identification_image[np.asarray(psf.y[psf.used], dtype=np.int16), np.asarray(psf.x[psf.used], dtype=np.int16)] += psf.f
+        _image[psf.used] += psf.f
 
-    identification_image += np.random.normal(loc=0., scale=10, size=PSF.size)
+    _image += np.random.normal(loc=0., scale=10, size=_image.shape)
+
+    ## resample image on regular (x, y) grid
+    grid_y, grid_x = np.mgrid[0:PSF.size[0]-1:1j*PSF.size[0], 0:PSF.size[1]-1:1j*PSF.size[1]]
+    identification_image = interpolate.griddata((PSF.y, PSF.x), _image, (grid_y, grid_x), method="linear", fill_value=np.nan)
 
     ## start source identification GUI to identify bright(est) stars
     logging.info("Preparing GUI for source identification...")
@@ -343,35 +311,17 @@ def initfit(pampelmuse):
     if pampelmuse.posfit == 1: sources.transformation.free[2:] = True
     elif pampelmuse.posfit == 2: sources.transformation.free[:] = True
 
-    ## add coordinate transformation to PSF
+    ## add coordinate transformation to PSF instances
     i=0
     for prm in sources.transformation.names:
         getattr(PSF, "set_{0}".format(prm))(sources.transformation.data[0,i,0])
         i+=1
 
-    ## Source selection process 
-    logging.info("Selecting sources to be used in PSF fitting...")
-
-    ## Gather some basic information about sources: position in FoV, distance to next brighter source,...
-    ## load IFS coordinates for all (point) sources
-    sources.load_ifs_coordinates(ids=sources.ID[sources.ID>=0])
-
-    ## Position in Fov/distance to edge of FoV
-    edge_distance = pampelmuse.ifs_data.instrument.distance_to_edge(sources.ifs_coordinates[...,0].mean(axis=0))
-
-    ## distance to next brighter source
-    distance_to_brighter, ID_brighter = sources.distance_to_brighter()
-    if (distance_to_brighter < 1e-5).any:
-        for i in (distance_to_brighter < 1e-5).nonzero()[0]:
-            logging.warning("Source #{0} might be double.".format(sources.ID[i]))
-
-    if not pampelmuse.smallifu:
-        shoulder_drop = sources.shoulder_drop(r=pampelmuse.psfrad)
-
-
     ## Perform photometric calibration (unless provided) and S/N estimation:
+    logging.info("Estimating S/N for all sources...")
     signal_to_noise, intFlux = estimate_snr(PSF, sigma_image)
-    
+
+    logging.info("Estimating the photometric zeropoint...")
     ## Calculate ratio between expected flux for current zeropoint and flux in image
     fratio = intFlux/data_image.sum()
     dmag = -2.5*np.log10(fratio)
@@ -382,95 +332,123 @@ def initfit(pampelmuse):
         magZ += dmag
         logging.info("Estimated photometric zeropoint ({0}) is {1:.2f}".format(pampelmuse.passband, float(magZ)))
     elif fratio > (2./3.) and fratio < 1.5:
-        logging.info("The difference between provided and estimated photometric zeropoint ({0}) is {1:.2f}mag".format(pampelmuse.passband, abs(dmag)))
+        logging.info("Offset between provided and estimated photometric zeropoint ({0}) is {1:.2f}mag".format(pampelmuse.passband, abs(dmag)))
     else:
-        logging.warning("The difference between provided and estimated photometric zeropoint ({0}) is {1:.2f}mag".format(pampelmuse.passband, abs(dmag)))
-    
+        logging.warning("Offset between provided and estimated photometric zeropoint ({0}) is {1:.2f}mag".format(pampelmuse.passband, abs(dmag)))
+
     pampelmuse.initfit.photzero = magZ
 
-    ## collect FWHM of sources in single array
-    fwhm = np.asarray([psf.fwhm for psf in PSF])
-
-    ##  modify S/N of sources close to brighter neighbor:
-    close = distance_to_brighter<fwhm
-    signal_to_noise[close] *= (1.+0.9*np.log10(distance_to_brighter[close]/fwhm[close]))
-
-    ##  penalize S/N of sources outside FoV:
-    outside = edge_distance<0
-    signal_to_noise[outside] *= np.exp(-(edge_distance[outside]/fwhm[outside])**2)
-
-
-    ## determine status of all sources in catalogue:
+    ## Source selection process, the status of a source can be one of the following:
     ##  4 - global sky spectrum
     ##  3 - resolved, own spectrum
     ##  2 - resolved, inferred spectrum
     ##  1 - resolved, but next to brighter source
     ##  0 - unresolved
     ## -1 - excluded
+    logging.info("Selecting sources to be used in PSF fitting...")
 
-    ## Determine confusion limit, update parameter if requested
-    magPS = sources.mag[sources.ifs_coordinates_loaded]
-    mcut = magPS[edge_distance>0].min()
-    while True:
-        mcut += 0.1
-#         if (magPS[edge_distance>0]<mcut).sum() > pampelmuse.confdens*data_image.size/(fwhm.mean()*fwhm.mean()):
-#             mcut -= 0.1
-#             break
-        if not (magPS[edge_distance>0]>mcut).any():
-            logging.info("No stars below m_{0}={1:.1f} detected.".format(pampelmuse.passband, mcut))
-            break
-        if signal_to_noise[edge_distance>0][magPS[edge_distance>0]>mcut].max() < pampelmuse.snrcut:
-            logging.info("No stars below m_{0}={1:.1f} pass S/N-cut.".format(pampelmuse.passband, mcut))
-            break
-    logging.info("Estimated confusion limit: m_{0}={1:.1f}".format(pampelmuse.passband, mcut))
-    
-    ## Note that the configuuration may contain two different values for "RESLIM": The initial one provided
-    ## by the user and the one just determined from the source list.
-    pampelmuse.initfit.reslim = mcut
-    if pampelmuse.updaterl: reslim = mcut
-    else: reslim = pampelmuse.reslim
- 
-    if pampelmuse.useunres: unreslim = reslim+pampelmuse.unresbin
+    ## collect FWHM of sources in single array
+    fwhm = np.asarray([psf.fwhm for psf in PSF])
 
+    ## get magnitude-sorted list of indices of the sources the Sources-class (brightest sources first)
+    idx_magsorted = np.argsort(sources.mag[sources.ID>=0])
+
+    ## list will contain IFS coordinates of sources brighter than the current one:
+    ifs_coords_brighter = [] 
+
+    ## arrays to keep track of the status of each source and the ID of the brightest source in
+    ## its component (that is identical to the source ID unless a brighter source is so close
+    ## that the two cannot be separated and are fitted as a single component)
     status  = -np.ones((sources.nsrc,), dtype=np.int16)
     primary = np.zeros((sources.nsrc,), dtype=np.int32)
+    
+    ## If confusion limit should be refined, we initially set it to 99. and later set it to the
+    ## magnitude of the faintest star that is included in the fit (as a resolved source)
+    reslim = 99. if pampelmuse.updaterl else pampelmuse.reslim
 
-    logging.info("Results of source selection:")
-    logging.info("       ID   mag   S/N  d_bright  d_edge  status")
-    for i in xrange(sources.nsrc):
+    logging.info("       ID   mag   S/N  d_bright   d_edge   status")
+    logging.info("                       [spaxel]  [spaxel]        ")
+    for i in idx_magsorted:
+    
+        ## stop loop if current source falls below (fixed) confusion limit
+        if sources.mag[i]>reslim: break
+    
+        sources.load_ifs_coordinates(ids=sources.ID[i])
+        x = sources.ifs_coordinates[0,0,0,0]
+        y = sources.ifs_coordinates[0,0,1,0]
+    
+        ## get S/N estimate for the source
+        snr = signal_to_noise[i]
+        if snr < pampelmuse.snrcut: continue
         
-        if sources.ID[i] < 0:
-            status[i]  = 4
-            primary[i] = sources.ID[i]
-        elif sources.mag[i] <= reslim:
-            if signal_to_noise[i] > pampelmuse.snrcut:
-                if distance_to_brighter[i] < pampelmuse.binrad*fwhm[i]:
-                    status[i]  = 1
-                    primary[i] = ID_brighter[i]
-                else:
-                    status[i]  = 2
-                    primary[i] = sources.ID[i]
-            else:
-                if edge_distance[i] < 0:
+        ## penalize S/N if source is outside FoV:
+        edgedist = pampelmuse.ifs_data.instrument.distance_to_edge([[x, y]])[0]
+        if edgedist<0:
+            snr *= np.exp(-(edgedist/fwhm[i])**2)
+            if snr < pampelmuse.snrcut: continue
+
+        ## calculate distance to next brighter source
+        if len(ifs_coords_brighter)>0:
+            dr = spatial.distance.cdist([[x, y]], ifs_coords_brighter)[0]
+            j_near = dr.argmin()
+        
+            ## issue warning if two sources have basically the same IFS coordinates
+            if dr[j_near]<1e-5: logging.warning("Source #{0} might be double.".format(sources.ID[i]))
+
+            ## penalize S/N if a brighter source is located inside the FWHM of the PSF
+            if dr[j_near]<fwhm[i]:
+                snr *= (1.+0.9*np.log10(dr[j_near]/fwhm[i]))
+                print sources.ID[i], fwhm[i]
+                if dr[j_near]<(pampelmuse.binrad*fwhm[i]) or snr < pampelmuse.snrcut:
+                    status[i] = 1
+                    primary[i] = sources.ID[status==2][j_near]
+                    logging.info("   {0:6d}  {1:5.2f}  {2:5.1f}  {3:5.2f}  {4:5.2f}  1".format(\
+                        int(sources.ID[i]), float(sources.mag[i]), float(snr), float(dr[j_near]), float(edgedist)))
                     continue
-#                 if distance_to_brighter[i] < 2*pampelmuse.binrad*fwhm[i]:
-#                     status[i]  = 1
-#                     primary[i] = ID_brighter[i]
-                else:
-                    status[i]  = 0
-                    primary[i] = -2 ## sources.ID[i]
-
-            logging.info("   {0:6d}  {1:5.2f}  {2:5.1f}  {3:5.2f}  {4:5.2f}  {5:6d}".format(\
-                int(sources.ID[i]), float(sources.mag[i]), float(signal_to_noise[i]), float(distance_to_brighter[i]), float(edge_distance[i]), int(status[i])))
+                    
+        status[i] = 2
+        primary[i] = sources.ID[i]
+        ifs_coords_brighter.append([x, y])
+        logging.info("   {0:6d}  {1:5.2f}  {2:5.1f}         {3:5.2f}  2".format(int(sources.ID[i]), float(sources.mag[i]), float(snr), float(edgedist)))
+    
+    ## set status of sky component if it is included
+    if pampelmuse.globsky:
+        status[-1] = 4
+        primary[i] = -1
+    
+    ## if requested, update confusion limit. Note that the configuration that is stored in the header of the prm-file may contain two different
+    ## values for "RESLIM": the initial one provided by the user and the one just determined from the source list.
+    if pampelmuse.updaterl:
+        reslim = sources.mag[status==2].max()
+        logging.info("Estimated confusion limit is m_{0}={1:.1f}".format(pampelmuse.passband, float(reslim)))
+    pampelmuse.initfit.reslim = reslim
+        
+    ## if requested, add a component of unresolved stars
+    if pampelmuse.useunres:
+        pampelmuse.initfit.unreslim  = pampelmuse.unresbin + pampelmuse.initfit.reslim
+        
+        logging.info("Combining sources in magnitude range from {0:.2f} to {1:.2f} to unresolved component...".format(\
+                float(pampelmuse.initfit.reslim), float(pampelmuse.initfit.unreslim)))
+        
+        for i in idx_magsorted:
+        
+            if status[i]>0: continue
+            elif sources.mag[i] > pampelmuse.initfit.unreslim: break
             
-        elif pampelmuse.useunres:
-            if sources.mag[i]<=unreslim and edge_distance[i]>-fwhm[i]:
-                status[i]  = 0
+            sources.load_ifs_coordinates(ids=sources.ID[i])
+            x = sources.ifs_coordinates[0,0,0,0]
+            y = sources.ifs_coordinates[0,0,1,0]
+            
+            edgedist = pampelmuse.ifs_data.instrument.distance_to_edge([[x, y]])[0]
+            if edgedist>-1:
+                status[i] = 0
                 primary[i] = -2
-
-    sources.primary = primary
-    sources.status  = status
-
+            
+        logging.info("Unresolved component contains {0} sources.".format(int((status==0).sum())))
+        
+        sources.primary = primary
+        sources.status  = status
+        
     ## include dispersion information in Sources catalogue
     sources.ndisp = pampelmuse.stop-pampelmuse.start+1
     sources.crval = pampelmuse.ifs_data.crval+pampelmuse.start*pampelmuse.ifs_data.cdelt
@@ -479,8 +457,9 @@ def initfit(pampelmuse):
     sources.cunit = pampelmuse.ifs_data.cunit
     sources.load_spectra() ## create dummy data: every spectrum is empty
 
-
     if not pampelmuse.smallifu:
+        shoulder_drop = sources.shoulder_drop(r=pampelmuse.psfrad)
+
         logging.info("Searching for useful PSF stars...")
         ## searching photometry results for usefuls PSF stars
         ## must fulfil following criteria:

@@ -18,10 +18,10 @@ loaded from pampelmuse.core.cube
 
 Latest SVN revision
 -------------------
-108, 2013/08/16
+118, 2014/02/20
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 108
+__revision__ = 118
 
 import logging
 import matplotlib.transforms, matplotlib.artist, matplotlib.pyplot, numpy as np
@@ -209,7 +209,7 @@ class DynamicImaCanvas(FigureCanvas):
         self.axes.add_patch(edgepatch)
       
       
-    def loadLayer(self, i,  **kwargs):
+    def loadLayer(self, i, residuals=False, **kwargs):
         """
         Display an individual layer from a loaded datacube. To display the
         data, the method will call 'addImage'.
@@ -218,6 +218,9 @@ class DynamicImaCanvas(FigureCanvas):
         ----------
         i : int
             The layer of the IFU data that should be loaded.
+        residuals : boolean, optional
+            Set this flag if the fit residuals should be displayed instead
+            of the data.
         kwargs
             Any keyword arguments provided to this function will be passed
             on to the call of 'addImage' that is used to display the layer.
@@ -227,15 +230,24 @@ class DynamicImaCanvas(FigureCanvas):
             logging.error("Cannot load layer as no cube is open.")
             return
             
-        ## get the requested layer, this depends on structure of the data
-        elif self.cube.ndim==3:
-            self.addImage(self.cube.data_hdu.section[i], **kwargs)
-        elif self.cube.instrument.spectral_axis==2:
-            self.addImage(self.cube.instrument.make_grid(self.cube.data_hdu.section[i],  fill_value=0.), **kwargs)
+        ## get the requested layer and pass it on to the addImage-method
+        if not residuals:
+            self.addImage(self.cube.data.layer(i, return_grid=True), **kwargs)
         else:
-            self.addImage(self.cube.instrument.make_grid(self.cube.data_hdu.section[:, i],  fill_value=0.), **kwargs)
+            if self.cube.residuals == None:
+                logging.error("Cannot display fit residuals because no residuals HDU is loaded.")
+                return
+            else:
+                self.addImage(self.cube.residuals.layer(i, return_grid=True), **kwargs)
 
-        ## store currrent wavelength and number of layer
+#        elif self.cube.ndim==3:
+#            self.addImage(self.cube.data_hdu.section[i], **kwargs)
+#        elif self.cube.instrument.spectral_axis==0:
+#            self.addImage(self.cube.instrument.make_grid(self.cube.data_hdu.section[i],  fill_value=0.), **kwargs)
+#        else:
+#            self.addImage(self.cube.instrument.make_grid(self.cube.data_hdu.section[:, i],  fill_value=0.), **kwargs)
+
+        ## store current wavelength and number of layer
         self.wave = self.cube.wave[i]
         self.layer = i
 
@@ -275,11 +287,11 @@ class DynamicImaCanvas(FigureCanvas):
             npix   = self.image.size
             cutpix = int((1-cutlev)*npix)
             
-            if self.layer != -1: ## if cube loaded, only science fibers are used to determine cuts
-                _values = self.cube.get_layer(self.layer, return_sigma=False)
-            else:
-                _values = self.image.copy().reshape(-1)
-                print _values
+#            if self.layer != -1: ## if cube loaded, only science fibers are used to determine cuts
+#                _values = self.cube.get_layer(self.layer, return_sigma=False)
+#            else:
+#                _values = self.image.copy().reshape(-1)
+            _values = self.image.copy().reshape(-1)
             values = _values[_values==_values] ## remove NaN pixels
             
             if values.size == 0:
@@ -347,21 +359,27 @@ class DynamicImaCanvas(FigureCanvas):
         ## return if no cube is loaded
         if self.cube == None: return
         
-        ## get requested section of HDU
-        elif self.cube.ndim == 3:
-            return self.cube.data_hdu.section[:, int(round(y)), int(round(x))]
-        else:
-            dr = self.cube.instrument.dist2spax(x, y)
-
-            ## need to take into account calibration/sky fibers that might be present
-            ## in the data.
-            i_min  = dr.argmin()
-            f_min  = np.where((np.cumsum(self.cube.instrument.isscience)-1)==i_min)[0][0]
+        dr = self.cube.instrument.dist2spax(x, y)
+        i_min  = dr.argmin()
+        logging.debug("Loading spectrum for spaxel #{0}, x={1}, y={2}...".format(i_min, self.cube.instrument.x[i_min], self.cube.instrument.y[i_min]))
         
-            if self.cube.instrument.spectral_axis==2:
-                return self.cube.data_hdu.section[:, f_min]
-            else:
-                return self.cube.data_hdu.section[f_min]
+        return self.cube.data.spectrum(i_min)
+        
+#        ## get requested section of HDU
+#        elif self.cube.ndim == 3:
+#            return self.cube.data.spectrum[:, int(round(y)), int(round(x))]
+#        else:
+#            dr = self.cube.instrument.dist2spax(x, y)
+#
+#            ## need to take into account calibration/sky fibers that might be present
+#            ## in the data.
+#            i_min  = dr.argmin()
+#            f_min  = np.where((np.cumsum(self.cube.instrument.isscience)-1)==i_min)[0][0]
+#        
+#            if self.cube.instrument.spectral_axis==0:
+#                return self.cube.data_hdu.section[:, f_min]
+#            else:
+#                return self.cube.data_hdu.section[f_min]
 
 
     def addData(self, x, y, ids=None, **kwargs):

@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file '/home/kamann/prog/DISTRIBUTE/kamann-code.2/trunk/pampelmuse/graphics/pampelmuse_gui.ui'
 #
-# Created: Thu Jun 20 12:13:59 2013
+# Created: Mon Sep 30 10:45:50 2013
 #      by: PyQt4 UI code generator 4.9.1
 #
 # WARNING! All changes made in this file will be lost!
@@ -317,6 +317,10 @@ class Ui_PampelMuseGui(object):
         self.menuSpectrum.setObjectName(_fromUtf8("menuSpectrum"))
         self.menuFitting = QtGui.QMenu(self.menuSpectrum)
         self.menuFitting.setObjectName(_fromUtf8("menuFitting"))
+        self.menuIFS = QtGui.QMenu(self.menuBar)
+        self.menuIFS.setObjectName(_fromUtf8("menuIFS"))
+        self.menuDisplay = QtGui.QMenu(self.menuIFS)
+        self.menuDisplay.setObjectName(_fromUtf8("menuDisplay"))
         PampelMuseGui.setMenuBar(self.menuBar)
         self.toolBar = QtGui.QToolBar(PampelMuseGui)
         self.toolBar.setObjectName(_fromUtf8("toolBar"))
@@ -351,6 +355,13 @@ class Ui_PampelMuseGui(object):
         icon7.addPixmap(QtGui.QPixmap(_fromUtf8(":/icons/icons/save_as.png")), QtGui.QIcon.Normal, QtGui.QIcon.Off)
         self.actionSaveAs.setIcon(icon7)
         self.actionSaveAs.setObjectName(_fromUtf8("actionSaveAs"))
+        self.actionData = QtGui.QAction(PampelMuseGui)
+        self.actionData.setCheckable(True)
+        self.actionData.setChecked(True)
+        self.actionData.setObjectName(_fromUtf8("actionData"))
+        self.actionResiduals = QtGui.QAction(PampelMuseGui)
+        self.actionResiduals.setCheckable(True)
+        self.actionResiduals.setObjectName(_fromUtf8("actionResiduals"))
         self.menuFile.addAction(self.actionSave)
         self.menuFile.addAction(self.actionSaveAs)
         self.menuFile.addSeparator()
@@ -358,8 +369,13 @@ class Ui_PampelMuseGui(object):
         self.menuFitting.addAction(self.actionFit_all_positions)
         self.menuFitting.addAction(self.actionForce_common_slope)
         self.menuSpectrum.addAction(self.menuFitting.menuAction())
+        self.menuDisplay.addSeparator()
+        self.menuDisplay.addAction(self.actionData)
+        self.menuDisplay.addAction(self.actionResiduals)
+        self.menuIFS.addAction(self.menuDisplay.menuAction())
         self.menuBar.addAction(self.menuFile.menuAction())
         self.menuBar.addAction(self.menuSpectrum.menuAction())
+        self.menuBar.addAction(self.menuIFS.menuAction())
         self.toolBar.addAction(self.actionSave)
         self.toolBar.addAction(self.actionSaveAs)
         self.toolBar.addAction(self.actionQuit)
@@ -401,7 +417,7 @@ class Ui_PampelMuseGui(object):
         self.refCutsComboBox.setItemText(6, QtGui.QApplication.translate("PampelMuseGui", "95.0%", None, QtGui.QApplication.UnicodeUTF8))
         self.refCutsComboBox.setItemText(7, QtGui.QApplication.translate("PampelMuseGui", "90.0%", None, QtGui.QApplication.UnicodeUTF8))
         self.refCutsComboBox.setItemText(8, QtGui.QApplication.translate("PampelMuseGui", "User", None, QtGui.QApplication.UnicodeUTF8))
-        self.ifuHeadLabel.setText(QtGui.QApplication.translate("PampelMuseGui", "IFU View", None, QtGui.QApplication.UnicodeUTF8))
+        self.ifuHeadLabel.setText(QtGui.QApplication.translate("PampelMuseGui", "IFS View", None, QtGui.QApplication.UnicodeUTF8))
         self.ifuBack.setText(QtGui.QApplication.translate("PampelMuseGui", "...", None, QtGui.QApplication.UnicodeUTF8))
         self.ifuForth.setText(QtGui.QApplication.translate("PampelMuseGui", "...", None, QtGui.QApplication.UnicodeUTF8))
         self.ifuZoom.setText(QtGui.QApplication.translate("PampelMuseGui", "...", None, QtGui.QApplication.UnicodeUTF8))
@@ -418,6 +434,8 @@ class Ui_PampelMuseGui(object):
         self.menuFile.setTitle(QtGui.QApplication.translate("PampelMuseGui", "File", None, QtGui.QApplication.UnicodeUTF8))
         self.menuSpectrum.setTitle(QtGui.QApplication.translate("PampelMuseGui", "Spectrum", None, QtGui.QApplication.UnicodeUTF8))
         self.menuFitting.setTitle(QtGui.QApplication.translate("PampelMuseGui", "Fitting", None, QtGui.QApplication.UnicodeUTF8))
+        self.menuIFS.setTitle(QtGui.QApplication.translate("PampelMuseGui", "IFS", None, QtGui.QApplication.UnicodeUTF8))
+        self.menuDisplay.setTitle(QtGui.QApplication.translate("PampelMuseGui", "Display", None, QtGui.QApplication.UnicodeUTF8))
         self.toolBar.setWindowTitle(QtGui.QApplication.translate("PampelMuseGui", "toolBar", None, QtGui.QApplication.UnicodeUTF8))
         self.actionSave.setText(QtGui.QApplication.translate("PampelMuseGui", "&Save", None, QtGui.QApplication.UnicodeUTF8))
         self.actionSave.setShortcut(QtGui.QApplication.translate("PampelMuseGui", "Ctrl+S", None, QtGui.QApplication.UnicodeUTF8))
@@ -430,6 +448,10 @@ class Ui_PampelMuseGui(object):
         self.actionForce_common_slope.setShortcut(QtGui.QApplication.translate("PampelMuseGui", "Alt+C", None, QtGui.QApplication.UnicodeUTF8))
         self.actionSaveAs.setText(QtGui.QApplication.translate("PampelMuseGui", "Save &As...", None, QtGui.QApplication.UnicodeUTF8))
         self.actionSaveAs.setShortcut(QtGui.QApplication.translate("PampelMuseGui", "Ctrl+A", None, QtGui.QApplication.UnicodeUTF8))
+        self.actionData.setText(QtGui.QApplication.translate("PampelMuseGui", "Data", None, QtGui.QApplication.UnicodeUTF8))
+        self.actionData.setToolTip(QtGui.QApplication.translate("PampelMuseGui", "Display the IFS data", None, QtGui.QApplication.UnicodeUTF8))
+        self.actionResiduals.setText(QtGui.QApplication.translate("PampelMuseGui", "Residuals", None, QtGui.QApplication.UnicodeUTF8))
+        self.actionResiduals.setToolTip(QtGui.QApplication.translate("PampelMuseGui", "Display the residuals of the fit (if available)", None, QtGui.QApplication.UnicodeUTF8))
 
 import pampelmuse_gui_rc
 

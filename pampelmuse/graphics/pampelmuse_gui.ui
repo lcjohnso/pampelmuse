@@ -439,7 +439,7 @@
               </font>
              </property>
              <property name="text">
-              <string>IFU View</string>
+              <string>IFS View</string>
              </property>
             </widget>
            </item>
@@ -646,8 +646,23 @@
     </widget>
     <addaction name="menuFitting"/>
    </widget>
+   <widget class="QMenu" name="menuIFS">
+    <property name="title">
+     <string>IFS</string>
+    </property>
+    <widget class="QMenu" name="menuDisplay">
+     <property name="title">
+      <string>Display</string>
+     </property>
+     <addaction name="separator"/>
+     <addaction name="actionData"/>
+     <addaction name="actionResiduals"/>
+    </widget>
+    <addaction name="menuDisplay"/>
+   </widget>
    <addaction name="menuFile"/>
    <addaction name="menuSpectrum"/>
+   <addaction name="menuIFS"/>
   </widget>
   <widget class="QToolBar" name="toolBar">
    <property name="windowTitle">
@@ -737,6 +752,31 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+A</string>
+   </property>
+  </action>
+  <action name="actionData">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Data</string>
+   </property>
+   <property name="toolTip">
+    <string>Display the IFS data</string>
+   </property>
+  </action>
+  <action name="actionResiduals">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Residuals</string>
+   </property>
+   <property name="toolTip">
+    <string>Display the residuals of the fit (if available)</string>
    </property>
   </action>
  </widget>

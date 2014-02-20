@@ -21,10 +21,10 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-109, 2013/09/20
+118, 2014/02/20
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 112
+__revision__ = 118
 
 import logging, os, re
 import numpy as np, pyfits
@@ -60,9 +60,17 @@ def match_on_id(parent, child):
     """
     c = np.asarray(child, dtype=np.int32)
     p = np.asarray(parent, dtype=np.int32)
-    return np.nonzero((c[:,np.newaxis]-p)==0)[1]
 
+    ##  The following statement works but quickly eats up the whole memory if p or c are large
+#    return np.nonzero((c[:,np.newaxis]-p)==0)[1]
+    
+    ## following the suggestion from http://stackoverflow.com/questions/17374547/matching-elements-in-numpy-array
+    sort_idx = np.argsort(p)
+    sorted_insert = np.searchsorted(p[sort_idx], c, side="left")
 
+    # The following is equivalent to unsorted_insert = sort_idx[sorted_insert] but faster
+    unsorted_insert = np.take(sort_idx, sorted_insert)
+    return unsorted_insert
 
 
 class Sources(object):
@@ -1135,11 +1143,11 @@ class Sources(object):
             
             if self.transformation.valid: ## second option: fill in IFS coordinates via coordinate transformation
                 self.ifs_coordinates[:,src_indices, :, 0:1] = self.transformation(ref_coords)[layers][..., np.newaxis]
-                
+
                 ## 4th entry in square brackets must be slice; if an index (i.e. 0) is used, the shape of the resulting subarray is not as expected
             else: ## third option: just use reference coordinates
                 self.ifs_coordinates[:,src_indices,:,0:1] = ref_coords[:,:,np.newaxis]
-
+                
         if self.ifs_coordinates_fit_hdu != None: ## the fits to the IFS coordinates can either be loaded from an available HDU
             
             in_fit_hdu = np.in1d(ids, self.ifs_coordinates_fit_id)
@@ -1381,6 +1389,7 @@ class Sources(object):
 
     def distance_to_brighter(self):
         """
+        DEPRECATED - not used anymore since revisison 118
         Calculate the distance of a source to the nearest source that has
         is brighter as the source itself. This calculation is performed
         for all sources that have IFS coordinates available.

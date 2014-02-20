@@ -20,10 +20,10 @@ To import a function from this module (e.g. read_asciifile),
 
 Latest SVN revision
 -------------------
-103, 2013/07/24
+118, 2014/02/18
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 103
+__revision__ = 118
 
 
 import logging, re
@@ -89,6 +89,7 @@ def read_asciifile(filename, usenames=None, usecols=None, aliases={}):
         if i==0: ## first (i.e. index=0) valid line may be header line
             line0 = line ## save line in case it is a data line and must be added later
             headerline = re_header.findall(line0)
+            headerline = [name.lower() for name in headerline] ## make all column names lowercase
             ## check if some columns have the same name, if so, names of successive occurrences get trailing '_'s
             for j in xrange(len(headerline)):
                 while headerline[j] in headerline[:j]: headerline[j] = headerline[j]+"_"
@@ -100,8 +101,11 @@ def read_asciifile(filename, usenames=None, usecols=None, aliases={}):
 
             if len(dataline1) == len(headerline): ## case 1: same number of entries in first two lines - first line is header
 
-                if usenames != None: ## column names provided - ignore possibly provided column indices (parameter 'usecols')
-                    if isinstance(usenames, str): usenames = usenames.split(",") ## in case single string was provided
+                if usenames != None:
+                    ## column names provided - ignore possibly provided column indices (parameter 'usecols')
+                    ## Note that lowercase letters will be used for all names 
+                    if isinstance(usenames, str): usenames = [name.lower() for name in usenames.split(",")] ## in case single string was provided
+                    else: usenames = [name.lower() for name in usenames]
                     usecols = []
 
                     assert hasattr(usenames, "__iter__"), "not iterable: {0}".format(usenames)
@@ -114,9 +118,9 @@ def read_asciifile(filename, usenames=None, usecols=None, aliases={}):
                             for alias in aliases[name]:
                                 if alias in headerline:
                                     indices[name] = headerline.index(alias)
-                                    logging.warning("Using column '{0}' as an alias for column '{1}'.".format(alias, name))
+                                    logging.info("Using column '{0}' as an alias for column '{1}'.".format(alias, name))
                         if not name in indices.keys():
-                            logging.error("Unable to match a column to name '{0}' (or one of its aliases).".format(name))
+                            logging.warning("Unable to match a column to name '{0}' (or one of its aliases).".format(name))
 
                 elif usecols != None: ## columns indices provided
                     assert hasattr(usecols, "__iter__"), "not iterable : {0}".format(usecols)
