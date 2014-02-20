@@ -39,10 +39,10 @@ D' = -(A*D+B*C)/(A*A+B*B)
 
 Latest SVN revision
 -------------------
-103, 2013/07/17
+128, 2014/02/20
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ =  103
+__revision__ =  128
 
 import logging, re
 import numpy as np, pyfits
@@ -287,7 +287,7 @@ class Transformation(Parameters):
                 outsigma = None
 
         ## perform the actual fit and initialize the values of the parameters of the coordinate transformation.
-        self.set_data(self._fit_to_data(indata, outdata, outsigma=outsigma)[0])
+        self.set_data(self._fit_to_data(indata, outdata, outsigma=outsigma))
 
         ## Only logging from this line to end of method
         logging.info("Determined coord. transformation for {0} image(s).".format(outdata.shape[0]))

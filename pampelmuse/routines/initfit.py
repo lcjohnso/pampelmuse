@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-127, 2014/02/20
+128, 2014/02/20
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 127
+__revision__ = 128
 
 import datetime, os, sys, logging
 import numpy as np, pyfits
@@ -128,7 +128,7 @@ def initfit(pampelmuse):
         ra = np.asarray(cfp_results["ra"], dtype=np.float64)
         dec = np.asarray(cfp_results["dec"], dtype=np.float64)
     
-        x, y = calc_offset(ra.min(), dec.min(), ra, dec)
+        x, y = calc_offset(ra.max(), dec.min(), ra, dec)
         
         cfp_results["x"] = (-x).tolist()
         cfp_results["y"] = y.tolist()
@@ -199,8 +199,6 @@ def initfit(pampelmuse):
     f = interpolate.UnivariateSpline(filtercurve["wl"], filtercurve["tp"], k=3, s=0)
     fMin = filtercurve["wl"].min()
     fMax = filtercurve["wl"].max()
-    fWht = 0.
-    
 
     ## make loop to avoid extensive use of memory for large data-cubes
     data_image   = np.zeros(pampelmuse.ifs_data.instrument.transform.shape[0], dtype=np.float32)
@@ -369,8 +367,9 @@ def initfit(pampelmuse):
     ## get magnitude-sorted list of indices of the sources the Sources-class (brightest sources first)
     idx_magsorted = np.argsort(sources.mag[sources.ID>=0])
 
-    ## list will contain IFS coordinates of sources brighter than the current one:
-    ifs_coords_brighter = [] 
+    ## load IFS coordinates for all stars
+    sources.load_ifs_coordinates()
+    ifs_coordinates = sources.ifs_coordinates[0,...,0]
 
     ## arrays to keep track of the status of each source and the ID of the brightest source in
     ## its component (that is identical to the source ID unless a brighter source is so close
@@ -388,24 +387,20 @@ def initfit(pampelmuse):
     
         ## stop loop if current source falls below (fixed) confusion limit
         if sources.mag[i]>reslim: break
-    
-        sources.load_ifs_coordinates(ids=sources.ID[i])
-        x = sources.ifs_coordinates[0,0,0,0]
-        y = sources.ifs_coordinates[0,0,1,0]
-    
+
         ## get S/N estimate for the source
         snr = signal_to_noise[i]
         if snr < pampelmuse.snrcut: continue
         
         ## penalize S/N if source is outside FoV:
-        edgedist = pampelmuse.ifs_data.instrument.distance_to_edge([[x, y]])[0]
+        edgedist = pampelmuse.ifs_data.instrument.distance_to_edge(ifs_coordinates[[i]])[0]
         if edgedist<0:
             snr *= np.exp(-(edgedist/fwhm[i])**2)
             if snr < pampelmuse.snrcut: continue
 
         ## calculate distance to next brighter source
-        if len(ifs_coords_brighter)>0:
-            dr = spatial.distance.cdist([[x, y]], ifs_coords_brighter)[0]
+        if (status==2).any():
+            dr = spatial.distance.cdist(ifs_coordinates[[i]], ifs_coordinates[status==2])[0]
             j_near = dr.argmin()
         
             ## issue warning if two sources have basically the same IFS coordinates
@@ -424,8 +419,9 @@ def initfit(pampelmuse):
                     
         status[i] = 2
         primary[i] = sources.ID[i]
-        ifs_coords_brighter.append([x, y])
         logging.info("   {0:6d}  {1:5.2f}  {2:5.1f}         {3:5.2f}  2".format(int(sources.ID[i]), float(sources.mag[i]), float(snr), float(edgedist)))
+    
+    logging.info("Results of source selection: {0} resolved, {1} nearby sources.".format(int((status==2).sum()), int((status==1).sum())))
     
     ## set status of sky component if it is included
     if pampelmuse.globsky:
@@ -451,11 +447,7 @@ def initfit(pampelmuse):
             if status[i]>0: continue
             elif sources.mag[i] > pampelmuse.initfit.unreslim: break
             
-            sources.load_ifs_coordinates(ids=sources.ID[i])
-            x = sources.ifs_coordinates[0,0,0,0]
-            y = sources.ifs_coordinates[0,0,1,0]
-            
-            edgedist = pampelmuse.ifs_data.instrument.distance_to_edge([[x, y]])[0]
+            edgedist = pampelmuse.ifs_data.instrument.distance_to_edge(ifs_coordinates[[i]])[0]
             if edgedist>-1:
                 status[i] = 0
                 primary[i] = -2
@@ -472,27 +464,38 @@ def initfit(pampelmuse):
     sources.ctype = pampelmuse.ifs_data.ctype
     sources.cunit = pampelmuse.ifs_data.cunit
     sources.load_spectra() ## create dummy data: every spectrum is empty
+    sources.transformation.resize(sources.ndisp)
 
     if not pampelmuse.smallifu:
-        shoulder_drop = sources.shoulder_drop(r=pampelmuse.psfrad)
 
         logging.info("Searching for useful PSF stars...")
-        ## searching photometry results for usefuls PSF stars
-        ## must fulfil following criteria:
-        ## (1) at least 3 magnitudes brighter than provided resolution limit
-        ##      (parameter `RESLIM')
-        ## (2) at a distance of of at least 1 pixel from the edge of the FoV 
-        ## (3) isolation criterium (relative contribution from neighboring
-        ##      sources smaller than value of `APERNOIS'-parameter)
+        ## searching photometry results for usefuls PSF stars must fulfil following criteria:
+        ## (1) at least 3 magnitudes brighter than provided resolution limit (parameter `RESLIM')
+        ## (2) must have been identified as resolved (i.e. status==2) in the source selection 
+        ## (3) at a distance of of at least 1 pixel from the edge of the FoV 
+        ## (4) isolation criterium (relative contribution from neighboring sources smaller than value of `APERNOIS'-parameter)
+
+        ## The isolation of a star is measured using a slightly modified version of the shoulder drop or topographic prominence
+        ## (for the exact definition of the topographic prominence, see http://en.wikipedia.org/wiki/Topographic_prominence).
+        ## It is a measure for how strongly a source dominates its surroundings. The measure used here is the flux ratio of the
+        ## source itself and the brightest source within a distance r that we set to the value of PSFRAD parameter.
 
         logging.info("IDs of stars that fullfil search criteria:")
         logging.info("       ID    mag  shoulder_drop")
-        for i in xrange(sources.nsrc):
+        for i in idx_magsorted:
             
-            if sources.status[i] == 2 and sources.mag[i] <= (reslim-3) and edge_distance[i] > fwhm[i] and shoulder_drop[i] < pampelmuse.apernois:
+            if sources.mag[i] > (reslim-3): break
+            if sources.status[i] != 2: continue
+            if pampelmuse.ifs_data.instrument.distance_to_edge(ifs_coordinates[[i]])[0] < 1: continue
 
-                sources.status[i] = 3
-                logging.info("   {0:6d}  {1:5.2f}  {2:14.2f}".format(int(sources.ID[i]), float(sources.mag[i]), float(shoulder_drop[i])))
+            ## calculate shoulder drop
+            dr   = spatial.distance.cdist(ifs_coordinates[[i]], ifs_coordinates[idx_magsorted!=i])[0]
+            dmag = (sources.mag[dr<pampelmuse.psfrad]-sources.mag[i]).min()
+            sd   = 10**(-0.4*dmag)
+            if sd>pampelmuse.apernois: continue
+            
+            sources.status[i] = 3
+            logging.info("   {0:6d}  {1:5.2f}  {2:14.2f}".format(int(sources.ID[i]), float(sources.mag[i]), float(sd)))
 
         if len(sources.psf_indices) == 0:
             logging.error("No useful PSF sources found!")
@@ -510,19 +513,19 @@ def initfit(pampelmuse):
         results = make_aper.aper_photo(r_aper=pampelmuse.aperrad, layer_range=(pampelmuse.start, pampelmuse.stop), PSF=PSF)
         
         ## write IFS coordinates into instance of Sources
-        # TODO: still needs debugging
-        sources.load_ifs_coordinates(ids=results["ID"])
-        sources.load_spectra()
+        sources.load_ifs_coordinates(ids=results["ID"][results["ID"]>=0])
+
         for i in xrange(len(results)):
-            j = np.where(sources.ID[sources.ifs_coordinates_loaded]==results["ID"][i])[0][0]
-            sources.ifs_coordinates[:, j, 0, 0] = results["x"][i]
-            sources.ifs_coordinates[:, j, 1, 0] = results["y"][i]
+            if results["ID"][i]>=0:
+                j = np.where(sources.ID[sources.ifs_coordinates_loaded]==results["ID"][i])[0][0]
+                sources.ifs_coordinates[:, j, 0, 0] = results["x"][i]
+                sources.ifs_coordinates[:, j, 1, 0] = results["y"][i]
         
             k = sources.specrow[np.where(sources.ID==results["ID"][i])[0][0]]
-            sources.spectra[:, k, 0] = results["flux"][i]
+            sources.data[:, k, 0] = results["flux"][i]
         
         # TODO: check if following if clause works
-        if results.size > 3:
+        if results.size > 2:
             ## determine wavelength-dependent coordinate transformation
             logging.info("Determining wavelength-dependent coordinate transformation...")
             sources.fit_coordinate_transformation()

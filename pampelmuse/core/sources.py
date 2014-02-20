@@ -21,10 +21,10 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-118, 2014/02/20
+128, 2014/02/20
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 118
+__revision__ = 128
 
 import logging, os, re
 import numpy as np, pyfits
@@ -1143,7 +1143,6 @@ class Sources(object):
             
             if self.transformation.valid: ## second option: fill in IFS coordinates via coordinate transformation
                 self.ifs_coordinates[:,src_indices, :, 0:1] = self.transformation(ref_coords)[layers][..., np.newaxis]
-
                 ## 4th entry in square brackets must be slice; if an index (i.e. 0) is used, the shape of the resulting subarray is not as expected
             else: ## third option: just use reference coordinates
                 self.ifs_coordinates[:,src_indices,:,0:1] = ref_coords[:,:,np.newaxis]

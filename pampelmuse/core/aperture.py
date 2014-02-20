@@ -20,10 +20,10 @@ estimates the global background in each layer of the data.
 
 Latest SVN revision
 -------------------
-115, 2013/10/15
+128, 2014/02/20
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 115
+__revision__ = 128
 
 import logging, sys
 import numpy as np
@@ -166,27 +166,32 @@ class AperPhoto:
 
             ## collect information for current layer
             ## data & mask
-            curData = self.cube.get_layer(kk, return_sigma=False)
-            curMask = self.cube.get_mask_for_layer(kk)
+            curData = self.cube.data.layer(kk)
+            if self.cube.mask!=None:
+                curMask = self.cube.mask.layer(kk)&(curData!=curData)
+            else:
+                curMask = (curData!=curData)
 
-            if not (curMask==False).any():
+            if not (curMask==0).any():
                 logging.error("[@{0}] This layer contains no unmasked voxels.".format(kk))
                 continue
 
             ## spaxel coordinates
-            spaxels = self.cube.instrument.transform[curMask==False]
+            spaxels = self.cube.instrument.transform[curMask==0]
 
             logging.debug("[@{0}] Calculating distances between source centroids and spaxels for all sources...".format(kk))
             ## load IFU coordinates for the requested sources
             self.sources.load_ifs_coordinates(ids=self.sources.ID[self.used], layers=jj)
-            centroids = self.sources.ifs_coordinates[...,0][0]
+            centroids = self.sources.ifs_coordinates[0,...,0]
 
             ## for this layer, calculate distance of centroid of each source to each spaxel
-            self.offsets = spatial.distance.cdist(centroids, spaxels)
+            ## Note that the shape of the returned array is (N_spaxels, N_sources)
+            self.offsets = self.cube.instrument.dist2spax(centroids[:,0], centroids[:,1])[curMask==0]
 
             ##  estimate global background value. For this, all spaxels within a distance r_aper to any source centroid are masked out
             logging.debug("[@{0}] Determining global background...".format(kk))
-            backpix = (self.offsets>self.r_aper).all(axis=0)
+            backpix = (self.offsets>self.r_aper).all(axis=1)
+
             if backpix.sum() < 20: logging.warn("[@{0}] Using < 20 pixels to estimate global background.".format(kk))
             
             ## perform kappa-sigma clipping to determine background level and noise
@@ -209,7 +214,7 @@ class AperPhoto:
 
                 ## estimate local background (if requested, otherwise use global background)
                 if local_background:
-                    backpix = (self.offsets[N]>2*self.r_aper)&(self.offsets[N]<=4*self.r_aper)
+                    backpix = (self.offsets[:, N]>2*self.r_aper)&(self.offsets[:, N]<=4*self.r_aper)
 
                     if backpix.sum() < 10: logging.warn("[@{0}, #{1}] Using < 10 pixels to estimate local background.".format(kk, self.sources.ID[n]))
         
@@ -221,7 +226,7 @@ class AperPhoto:
 
 
                 ## Get array for calculations & subtract background estimate
-                fluxpix  = self.offsets[N]<=self.r_aper
+                fluxpix  = self.offsets[:, N]<=self.r_aper
                 fluxdata = curData[fluxpix] - backval
 
                 ## Moment calculation, only if requested:
