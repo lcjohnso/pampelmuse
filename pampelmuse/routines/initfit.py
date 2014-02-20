@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-123, 2014/02/20
+124, 2014/02/20
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 123
+__revision__ = 124
 
 import datetime, os, sys, logging
 import numpy as np, pyfits
@@ -93,9 +93,8 @@ def estimate_snr(class_psf, sigma):
 
             logging.debug("Estimating S/N  for source #{0}.".format(psf.src_id))
 
-            if psf.used.sum()==0:
-                snRatios.append(0)
-                continue
+            if (sigma[psf.used]==0).any():
+                logging.error("Sigma image contains invalid pixels with values <=0.")
 
             ## measure S/N
             snRatios.append(np.sqrt(((psf.f/sigma[psf.used])**2).sum()))
@@ -216,7 +215,10 @@ def initfit(pampelmuse):
             wht_i = f(wave_i)
             
             data_i  = pampelmuse.ifs_data.data.layer(i)
-            sigma_i = pampelmuse.ifs_data.sigma.layer(i)
+            if pampelmuse.ifs_data.isvar:
+                sigma_i = np.sqrt(pampelmuse.ifs_data.sigma.layer(i))
+            else:
+                sigma_i = pampelmuse.ifs_data.sigma.layer(i)
 
             if pampelmuse.ifs_data.mask is not None:
                 mask_i = (data_i!=data_i)&pampelmuse.ifs_data.mask.layer(i)
@@ -229,6 +231,7 @@ def initfit(pampelmuse):
 
     data_image  /= fWht
     sigma_image /= fWht
+    sigma_image[sigma_image<1e-6] = 1e6 
 
     ## create pseudo observation from photometry results
     ## PSF is same as in IFU, with FWHM scaled by `pixScale'-Parameter
@@ -249,14 +252,14 @@ def initfit(pampelmuse):
 
     _image  = np.zeros((PSF.transform.shape[0], ), dtype='float32')
     for i in xrange(sources.nsrc-pampelmuse.globsky):
-#        if sources.ID[i] <= 0: continue 
-        logging.debug("Adding source {0:0{1}d}/{2:0{1}d}".format(i, len(str(sources.nsrc)), sources.nsrc))
+        logging.debug("Adding source {0:0{1}d}/{2:0{1}d} to mock image.".format(i+1, len(str(sources.nsrc)), sources.nsrc-pampelmuse.globsky))
         
         psf = PSF(Xc=sources.x[i], Yc=sources.y[i], mag=sources.mag[i]-magZ, src_id=sources.ID[i], maxrad=10.)
 
         if (psf.mag+magZ) <= pampelmuse.reslim: ## only add sources that are likely resolved
             _image[psf.used] += psf.f
 
+    logging.debug("Adding noise to mock image.")
     _image += np.random.normal(loc=0., scale=10, size=_image.shape)
 
     ## resample image on regular (x, y) grid
