@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-122, 2014/02/20
+123, 2014/02/20
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 122
+__revision__ = 123
 
 import datetime, os, sys, logging
 import numpy as np, pyfits
@@ -254,7 +254,7 @@ def initfit(pampelmuse):
         
         psf = PSF(Xc=sources.x[i], Yc=sources.y[i], mag=sources.mag[i]-magZ, src_id=sources.ID[i], maxrad=10.)
 
-        if psf.mag <= pampelmuse.reslim: ## only add sources that are likely resolved
+        if (psf.mag+magZ) <= pampelmuse.reslim: ## only add sources that are likely resolved
             _image[psf.used] += psf.f
 
     _image += np.random.normal(loc=0., scale=10, size=_image.shape)
