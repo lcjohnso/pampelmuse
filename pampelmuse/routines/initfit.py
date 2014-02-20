@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-124, 2014/02/20
+125, 2014/02/20
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 124
+__revision__ = 125
 
 import datetime, os, sys, logging
 import numpy as np, pyfits
@@ -215,7 +215,7 @@ def initfit(pampelmuse):
             wht_i = f(wave_i)
             
             data_i  = pampelmuse.ifs_data.data.layer(i)
-            if pampelmuse.ifs_data.isvar:
+            if pampelmuse.ifs_data.is_var:
                 sigma_i = np.sqrt(pampelmuse.ifs_data.sigma.layer(i))
             else:
                 sigma_i = pampelmuse.ifs_data.sigma.layer(i)
