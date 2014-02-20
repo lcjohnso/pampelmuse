@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-120, 2014/02/20
+121, 2014/02/20
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 120
+__revision__ = 121
 
 import datetime, os, sys, logging
 import numpy as np, pyfits
@@ -90,7 +90,13 @@ def estimate_snr(class_psf, sigma):
         totFlux  = 0.
 
         for psf in class_psf:
-            
+
+            logging.debug("Estimating S/N  for source #{0}.".format(psf.src_id))
+
+            if psf.used.sum()==0:
+                snRatios.append(0)
+                continue
+
             ## measure S/N
             snRatios.append(np.sqrt(((psf.f/sigma[psf.used])**2).sum()))
 
@@ -398,7 +404,7 @@ def initfit(pampelmuse):
             ## penalize S/N if a brighter source is located inside the FWHM of the PSF
             if dr[j_near]<fwhm[i]:
                 snr *= (1.+0.9*np.log10(dr[j_near]/fwhm[i]))
-                print sources.ID[i], fwhm[i]
+
                 if dr[j_near]<(pampelmuse.binrad*fwhm[i]) or snr < pampelmuse.snrcut:
                     status[i] = 1
                     primary[i] = sources.ID[status==2][j_near]
