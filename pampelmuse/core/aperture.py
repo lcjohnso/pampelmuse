@@ -20,10 +20,10 @@ estimates the global background in each layer of the data.
 
 Latest SVN revision
 -------------------
-128, 2014/02/20
+129, 2014/02/21
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 128
+__revision__ = 129
 
 import logging, sys
 import numpy as np
@@ -166,11 +166,12 @@ class AperPhoto:
 
             ## collect information for current layer
             ## data & mask
-            curData = self.cube.data.layer(kk)
+            _data = self.cube.data.layer(kk)
             if self.cube.mask!=None:
-                curMask = self.cube.mask.layer(kk)&(curData!=curData)
+                curMask = self.cube.mask.layer(kk)&(_data!=_data)
             else:
-                curMask = (curData!=curData)
+                curMask = (_data!=_data)
+            curData = _data[curMask]
 
             if not (curMask==0).any():
                 logging.error("[@{0}] This layer contains no unmasked voxels.".format(kk))
