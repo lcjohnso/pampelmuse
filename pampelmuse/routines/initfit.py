@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-132, 2014/02/21
+133, 2014/02/21
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 132
+__revision__ = 133
 
 import datetime, os, sys, logging
 import numpy as np, pyfits
@@ -454,8 +454,8 @@ def initfit(pampelmuse):
             
         logging.info("Unresolved component contains {0} sources.".format(int((status==0).sum())))
         
-        sources.primary = primary
-        sources.status  = status
+    sources.primary = primary
+    sources.status  = status
         
     ## include dispersion information in Sources catalogue
     sources.ndisp = pampelmuse.stop-pampelmuse.start+1
