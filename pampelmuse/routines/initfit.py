@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-131, 2014/02/21
+132, 2014/02/21
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 131
+__revision__ = 132
 
 import datetime, os, sys, logging
 import numpy as np, pyfits
@@ -426,7 +426,7 @@ def initfit(pampelmuse):
     ## set status of sky component if it is included
     if pampelmuse.globsky:
         status[-1] = 4
-        primary[i] = -1
+        primary[-1] = -1
     
     ## if requested, update confusion limit. Note that the configuration that is stored in the header of the prm-file may contain two different
     ## values for "RESLIM": the initial one provided by the user and the one just determined from the source list.
@@ -517,7 +517,7 @@ def initfit(pampelmuse):
 
         for i in xrange(len(results)):
             if results["ID"][i]>=0:
-                j = np.where(sources.ID[sources.ifs_coordinates_loaded]==results["ID"][i])[0][0]
+                j = np.flatnonzero(sources.ID[sources.ifs_coordinates_loaded]==results["ID"][i])[0]
                 sources.ifs_coordinates[:, j, 0, 0] = results["x"][i]
                 sources.ifs_coordinates[:, j, 1, 0] = results["y"][i]
         
