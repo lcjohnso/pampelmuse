@@ -20,10 +20,10 @@ estimates the global background in each layer of the data.
 
 Latest SVN revision
 -------------------
-132, 2014/02/21
+133, 2014/02/21
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 132
+__revision__ = 133
 
 import logging, sys
 import numpy as np
@@ -163,9 +163,11 @@ class AperPhoto:
                                        ("y2", np.float32, (self.Nlayer,)), ("xy", np.float32, (self.Nlayer,))])
         self.results = np.zeros(self.used.sum()+(background=="global"), dtype=dtype)
         
-        self.results["ID"][:-1] = self.sources.ID[self.used]
         if background == "global":
+            self.results["ID"][:-1] = self.sources.ID[self.used]
             self.results["ID"][-1] = -1 ## last entry in the results array is reserved for the sky estimate 
+        else:
+            self.results["ID"][:] = self.sources.ID[self.used]
 
         ## calculation is started on the central layer of the requested range and moves to both sides simultaneously
         for i in xrange(self.Nlayer):
