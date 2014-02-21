@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-128, 2014/02/20
+131, 2014/02/21
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 128
+__revision__ = 131
 
 import datetime, os, sys, logging
 import numpy as np, pyfits
@@ -510,7 +510,7 @@ def initfit(pampelmuse):
         make_aper = AperPhoto(pampelmuse.ifs_data, sources)
         
         ## run it
-        results = make_aper.aper_photo(r_aper=pampelmuse.aperrad, layer_range=(pampelmuse.start, pampelmuse.stop), PSF=PSF)
+        results = make_aper.aper_photo(r_aper=pampelmuse.aperrad, layer_range=(pampelmuse.start, pampelmuse.stop), PSF=PSF, background="local")
         
         ## write IFS coordinates into instance of Sources
         sources.load_ifs_coordinates(ids=results["ID"][results["ID"]>=0])
@@ -525,7 +525,7 @@ def initfit(pampelmuse):
             sources.data[:, k, 0] = results["flux"][i]
         
         # TODO: check if following if clause works
-        if results.size > 2:
+        if results.size > 3:
             ## determine wavelength-dependent coordinate transformation
             logging.info("Determining wavelength-dependent coordinate transformation...")
             sources.fit_coordinate_transformation()

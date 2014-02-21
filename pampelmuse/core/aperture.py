@@ -20,10 +20,10 @@ estimates the global background in each layer of the data.
 
 Latest SVN revision
 -------------------
-130, 2014/02/21
+131, 2014/02/21
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 130
+__revision__ = 131
 
 import logging, sys
 import numpy as np
@@ -87,7 +87,7 @@ class AperPhoto:
         logging.info("Will carry out aperture spectrophotometry for {0} source[s] with status>={1}.".format(self.used.sum(), min_status))
 
 
-    def aper_photo(self, r_aper=3., layer_range=(0, -1), PSF=None, calc_moments=True, thresh=3., local_background=True):
+    def aper_photo(self, r_aper=3., layer_range=(0, -1), PSF=None, calc_moments=True, thresh=3., background="global"):
         """
         Method performs the actual aperture (spectro)photometry (and
         measures the moments if requested). An estimate of the global
@@ -119,9 +119,11 @@ class AperPhoto:
             Only pixels with values larger than <thresh> times the
            estimated background noise are considered in the moment
             calculation.
-        local_background : boolean, optional
-            Flag indicating whether a local background for every source
-            should be estimated.
+        background : str, optional
+            Can be either set to 'global' or to 'local'. In the former case,
+            a global background for each layer is obtained, while in the
+            latter case, the background is calulated locally in an annulus
+            around each source.
             
         Returns
         -------
@@ -129,8 +131,9 @@ class AperPhoto:
             For every source, the flux/spectrum is provided in field
             'spectrum' and moments are provided in fields 'x', 'y', 'x2',
             'y2' and 'xy'.
-            Note that the global background flux/spectrum is stored in the
-            'spectrum' slot of a hypothetical source with 'ID' -1.
+            Note that if the parameter 'background' is set to 'global' the
+            spectrum of the background will be stored in the 'spectrum'
+            field of a hypothetical source with ID=-1.
         """
         self.r_aper = r_aper
         self.start, self.stop = layer_range
@@ -141,28 +144,35 @@ class AperPhoto:
         self.thresh = thresh
         self.calc_moments = calc_moments
         
+        if background not in ["local", "global"]:
+            logging.critical("Unknown value '{0}' for parameter 'background'. Must be either 'local' or 'global'.".format(background))
+        assert background in ["local", "global"],  "Parameter 'background' must be  either 'local' or 'global', not '{0}'.".format(background)
+        
         logging.info("Aperture photometry - starting calulation, using the following setup:")
-        logging.info("+Aperture radius (r_aper) = {0:.1f}pixel".format(self.r_aper))
-        logging.info("+Included layers (layer_range): {0}-{1}".format(self.start, self.stop))
-        logging.info("+Pixel threshold (thresh) = {0}sigma".format(self.thresh))
-        logging.info("+Moment calculation? (calc_moments) - {0}".format(self.calc_moments))
-        logging.info("+Local background calculation? (local_background) - {0}".format(local_background))
-        logging.info("+Aperture correction via PSF estimate? (PSF) - {0}.".format(self.PSF!=None))
+        logging.info("- Aperture radius [r_ape]: {0:.1f}pixel".format(self.r_aper))
+        logging.info("- Included layers [layer_range]: {0}-{1}".format(self.start, self.stop))
+        logging.info("- Pixel threshold [thresh]: {0}sigma".format(self.thresh))
+        logging.info("- Moment calculation [calc_moments]: {0}".format(self.calc_moments))
+        logging.info("- Background estimation: [background]: {0}".format(background))
+        logging.info("- Aperture correction via PSF estimate [PSF]: {0}.".format(self.PSF!=None))
 
         ## prepare record array that will contains output.
         logging.info("Preparing array to contain results...")
-        self.results = np.zeros(self.used.sum()+1, dtype=[("ID",np.int32), ("flux", np.float32, (self.Nlayer,)), ("x", np.float32, (self.Nlayer,)),
-                                                          ("y", np.float32, (self.Nlayer,)), ("x2", np.float32, (self.Nlayer,)), ("y2", np.float32, (self.Nlayer,)),
-                                                          ("xy", np.float32, (self.Nlayer,))])
-        self.results["ID"][:-1] = self.sources.ID[self.used]
-        self.results["ID"][-1] = -1 ## last entry in the results array is reserved for the sky estimate 
+        dtype = [("ID",np.int32), ("flux", np.float32, (self.Nlayer,))]
+        if calc_moments: dtype.extend([("x", np.float32, (self.Nlayer,)), ("y", np.float32, (self.Nlayer,)), ("x2", np.float32, (self.Nlayer,)),
+                                       ("y2", np.float32, (self.Nlayer,)), ("xy", np.float32, (self.Nlayer,))])
+        self.results = np.zeros(self.used.sum()+(background=="global"), dtype=dtype)
+        
+        if background == "global":
+            self.results["ID"][:-1] = self.sources.ID[self.used]
+            self.results["ID"][-1] = -1 ## last entry in the results array is reserved for the sky estimate 
 
         ## calculation is started on the central layer of the requested range and moves to both sides simultaneously
         for i in xrange(self.Nlayer):
             jj = (self.Nlayer>>1) - 1 - int(i/2) + i*np.mod(i, 2) + np.mod(self.Nlayer, 2)
             kk = jj + self.start
             
-            logging.info("Aperture spectrophotometry - processing layer #{0} [{1}/{2}]".format(kk, i+1, self.Nlayer))
+            logging.info("Aperture photometry - processing layer #{0} [{1}/{2}]".format(kk, i+1, self.Nlayer))
 
             ## collect information for current layer
             ## data & mask
@@ -180,8 +190,8 @@ class AperPhoto:
             ## spaxel coordinates
             spaxels = self.cube.instrument.transform[curMask==0]
 
-            logging.debug("[@{0}] Calculating distances between source centroids and spaxels for all sources...".format(kk))
             ## load IFU coordinates for the requested sources
+            logging.debug("[@{0}] Calculating distances between source centroids and spaxels for all sources...".format(kk))
             self.sources.load_ifs_coordinates(ids=self.sources.ID[self.used], layers=jj)
             centroids = self.sources.ifs_coordinates[0,...,0]
 
@@ -190,17 +200,18 @@ class AperPhoto:
             self.offsets = self.cube.instrument.dist2spax(centroids[:,0], centroids[:,1])[curMask==0]
 
             ##  estimate global background value. For this, all spaxels within a distance r_aper to any source centroid are masked out
-            logging.debug("[@{0}] Determining global background...".format(kk))
-            backpix = (self.offsets>self.r_aper).all(axis=1)
+            if background=="global":
+                logging.debug("[@{0}] Determining global background...".format(kk))
+                backpix = (self.offsets>self.r_aper).all(axis=1)
 
-            if backpix.sum() < 20: logging.warn("[@{0}] Using < 20 pixels to estimate global background.".format(kk))
+                if backpix.sum() < 20: logging.warn("[@{0}] Using < 20 pixels to estimate global background.".format(kk))
             
-            ## perform kappa-sigma clipping to determine background level and noise
-            backdata = clip_sigma(curData[backpix], axis=None)
-            backval = backdata.mean()
-            backstd = backdata.std()
-            self.results["flux"][-1, jj] = backval
-            logging.debug("[@{0}] Global background is {1:.2f}/pixel".format(kk, backval))
+                ## perform kappa-sigma clipping to determine background level and noise
+                backdata = clip_sigma(curData[backpix], axis=None)
+                backval = backdata.mean()
+                backstd = backdata.std()
+                self.results["flux"][-1, jj] = backval
+                logging.debug("[@{0}] Global background is {1:.2f}/pixel".format(kk, backval))
 
             ## a loop over all sources (index n), but calculations are only performed if source n is included in the
             ## list of sources for which the aperture spectrophotometry should be performed. N is the index for those
@@ -214,7 +225,7 @@ class AperPhoto:
                 logging.debug("[@{0}] Processing source #{0} [{1}/{2}]:".format(kk, self.sources.ID[n], N+1, self.used.sum()))
 
                 ## estimate local background (if requested, otherwise use global background)
-                if local_background:
+                if background=="local":
                     backpix = (self.offsets[:, N]>2*self.r_aper)&(self.offsets[:, N]<=4*self.r_aper)
 
                     if backpix.sum() < 10: logging.warn("[@{0}, #{1}] Using < 10 pixels to estimate local background.".format(kk, self.sources.ID[n]))
