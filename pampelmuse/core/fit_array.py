@@ -25,10 +25,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-118, 2014/02/20
+135, 2014/02/23
 """ 
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 118
+__revision__ = 135
 
 import contextlib, logging, os, sys, time
 import numpy as np, pyfits
@@ -140,7 +140,8 @@ class StarFit(object):
         self.PSF.set_transform(self.ifs_data.instrument.transform)
         
         for i in xrange(self.sources.nsrc):
-            self.PSF(Xc=self.sources.x[i], Yc=self.sources.y[i], mag=sources.weights[i], maxrad=maxrad, osfactor=osfactor, osradius=osradius)
+            self.PSF(Xc=self.sources.x[i], Yc=self.sources.y[i], mag=sources.weights[i], src_id=self.sources.ID[i], maxrad=maxrad,
+                     osfactor=osfactor, osradius=osradius)
 
         ## Check if individual source positions should be fitted
         self.full_coordinates_fit = (self.sources.ifs_coordinates_free&(self.sources.ifs_coordinates_fitted==False)).any()
@@ -491,8 +492,7 @@ class StarFit(object):
 
             if j == self.sources.specrow_unresolved and not update_unresolved: 
                 if not unres_added:
-                ## if unresolved component should not be recalculated,
-                ## add existing one to data.
+                    ## if unresolved component should not be recalculated, add existing one to data.
                     nValues = self.unresIndices.size
 
                     coeffs.resize(coeffs.size+nValues)
@@ -572,18 +572,17 @@ class StarFit(object):
                 pool    = Pool(self.ncpu)
                 threads = []
 
-            ## Loop over all PSF sources; add source to residuals, fit
-            ## resulting array and subtract source again.
+            ## Loop over all PSF sources; add source to residuals, fit resulting array and subtract source again.
             i=-1
             
             for psf in self.PSF: 
                 i += 1
 
-                ## ignore sources unless they have been flagged as proper PSF
-                ## candidates
-                if not self.update_coordinates[i]: continue
-# TODO: check if this also works when using a coordinate transformation
-#                if not i in self.sources.psf_indices: continue
+                ## ignore sources unless they have been flagged as proper PSFcandidates
+                if self.sources.transformation.valid:
+                    if not i in self.sources.psf_indices: continue
+                else:
+                    if not self.update_coordinates[i]: continue
                 
                 ## get index of source in array of IFU coordinates, save them to place updated coords at the right indices
                 assert self.sources.ifs_coordinates_loaded[i], "PSF source has no IFU coordinates available."
@@ -601,6 +600,7 @@ class StarFit(object):
                         logging.error("[@{0}] Coordinates fit failed for source #{1}: {2}".format(self.kk, psf.src_id, result[-2]))
                         allPars.append(x0)
                     else:
+                        logging.debug("[@{0}] Fitted centroids of source #{1}: ({2:.1f}, {3:.1f})".format(self.kk, psf.src_id, result[0][1], result[0][1]))
                         allPars.append(result[0])
 
             if self.ncpu > 1:
@@ -624,10 +624,10 @@ class StarFit(object):
                     logging.error("[@{0}] Cannot update coord. transf. because <2 sources fitted successfully.".format(self.kk))
                 else:
                     ref_indices = self.update_coordinates[np.array(success, dtype=np.bool)]
-                    ref_coords  = np.hstack((self.sources.x[ref_indices, np.newaxis], self.sources.y[ref_indices, np.newaxis]))
+                    ref_coords  = np.vstack((self.sources.x[ref_indices], self.sources.y[ref_indices])).T
                     ifs_coords  = np.asarray(allPars)[success]
                     
-                    self.sources.transformation.data[self.jj,:,0] = self.sources._fit_to_data(ref_coords, ifs_coords)[0]
+                    self.sources.transformation.data[self.jj,:,0] = self.sources.transformation._fit_to_data(ref_coords, ifs_coords)[0]
         
                     for i in xrange(self.sources.transformation.npars):
                         ## updating the parameters in the PSF-class overwrites the (direct) source positions used for the fit
@@ -726,7 +726,7 @@ class StarFit(object):
         ## add current PSF estimate of source to residuals
         _current   = np.copy(self.current)
         _current[psf.used] += psf.f/self.sigma[psf.used]*flux
-
+        logging.debug("Pixels used in PSF fit of source #{0}: x={1}, y={2}".format(psf.src_id, psf.x[psf.used], psf.y[psf.used]))
         # TODO: implement usage of Jacobi matrix: Dfun=self.jacobi_single_psf
 
         ## call non-linear least squares fit
