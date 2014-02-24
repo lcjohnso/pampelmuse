@@ -25,10 +25,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-136, 2014/02/24
+137, 2014/02/24
 """ 
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 135
+__revision__ = 137
 
 import contextlib, logging, os, sys, time
 import numpy as np, pyfits
@@ -589,7 +589,7 @@ class StarFit(object):
                 coordIndices.append(self.sources.ifs_coordinates_loaded[:i].sum())
 
                 x0   = self.sources.ifs_coordinates[self.jj*self.full_coordinates_fit,coordIndices[-1],:,0]
-                flux = self.sources.data[self.jj,i,0]
+                flux = self.sources.data[self.jj,self.sources.specrow[i],0]
 
                 if self.ncpu > 1:
                     threads.append(pool.apply_async(self.wrapper_optimize_single_psf, args=(x0, parNames, psf, flux)))
@@ -631,10 +631,12 @@ class StarFit(object):
                     
                     self.sources.transformation.data[self.jj,:,0] = self.sources.transformation._fit_to_data(ref_coords, ifs_coords)
         
+                    logstring = "[@{0}] Fitted coordinate transformation: "
                     for i in xrange(self.sources.transformation.npars):
                         ## updating the parameters in the PSF-class overwrites the (direct) source positions used for the fit
                         getattr(self.PSF, "set_{0}".format(self.sources.transformation.names[i]))(self.sources.transformation.data[self.jj,i,0])
-
+                        logstring += "{0}={1:.3f} ".format(self.sources.transformation.names[i], float(self.sources.transformation.data[self.jj,i,0]))
+                    logging.info(logstring)
 
         if self.psf_attributes.contains_free_parameters: ## fit PSF
 
@@ -734,7 +736,6 @@ class StarFit(object):
         ## add current PSF estimate of source to residuals
         _current   = np.copy(self.current)
         _current[psf.used] += psf.f/self.sigma[psf.used]*flux
-        logging.debug("Pixels used in PSF fit of source #{0}: x={1}, y={2}".format(psf.src_id, psf.x[psf.used], psf.y[psf.used]))
         # TODO: implement usage of Jacobi matrix: Dfun=self.jacobi_single_psf
 
         ## call non-linear least squares fit
