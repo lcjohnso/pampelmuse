@@ -25,7 +25,7 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-135, 2014/02/23
+136, 2014/02/24
 """ 
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
 __revision__ = 135
@@ -345,13 +345,13 @@ class StarFit(object):
         else:
             mask = self.ifs_data.mask.layer(self.kk)&(data!=data)
             
-        self.data = data[mask==False]
+        self.data = data[mask==0]
         if self.ifs_data.is_var:
-            self.sigma = np.sqrt(sigma[mask==False])
+            self.sigma = np.sqrt(sigma[mask==0])
         else:
-            self.sigma = sigma[mask==False]
+            self.sigma = sigma[mask==0]
             
-        logging.debug("[@{0}] {1} masked pixels".format(self.kk, (mask==True).sum()))
+        logging.debug("[@{0}] {1} masked pixels".format(self.kk, (mask==1).sum()))
 
         ## Set spaxel to (x,y) transformation of the PSF-instances, using the transformation
         ## of the Instrument instance and the mask
@@ -562,8 +562,8 @@ class StarFit(object):
         if self.sources.contains_free_coordinates:
 
             ## list will contain results of all fits
-            allPars = []
-            success = []
+            allPars  = []
+            _success = []
             coordIndices = []
             parNames = ["xc", "yc"]
     
@@ -588,19 +588,19 @@ class StarFit(object):
                 assert self.sources.ifs_coordinates_loaded[i], "PSF source has no IFU coordinates available."
                 coordIndices.append(self.sources.ifs_coordinates_loaded[:i].sum())
 
-                x0   = self.sources.ifs_coordinates[self.jj,coordIndices[-1],:,0]
+                x0   = self.sources.ifs_coordinates[self.jj*self.full_coordinates_fit,coordIndices[-1],:,0]
                 flux = self.sources.data[self.jj,i,0]
 
                 if self.ncpu > 1:
                     threads.append(pool.apply_async(self.wrapper_optimize_single_psf, args=(x0, parNames, psf, flux)))
                 else:
                     result = self.wrapper_optimize_single_psf(x0=x0, names=parNames, psf=psf, flux=flux)
-                    success.append((result[-1]>0)&(result[-1]<=4))
-                    if not success[-1]:
+                    _success.append((result[-1]>0)&(result[-1]<=4))
+                    if not _success[-1]:
                         logging.error("[@{0}] Coordinates fit failed for source #{1}: {2}".format(self.kk, psf.src_id, result[-2]))
                         allPars.append(x0)
                     else:
-                        logging.debug("[@{0}] Fitted centroids of source #{1}: ({2:.1f}, {3:.1f})".format(self.kk, psf.src_id, result[0][1], result[0][1]))
+                        logging.debug("[@{0}] Fitted centroids of source #{1}: ({2:.1f}, {3:.1f})".format(self.kk, psf.src_id, result[0][0], result[0][1]))
                         allPars.append(result[0])
 
             if self.ncpu > 1:
@@ -609,9 +609,11 @@ class StarFit(object):
                 for i in xrange(self.sources.psf_indices.size):
                     results = threads[j].get()
                     allPars.append(result[0])
-                    success.append((result[-1]>0)&(result[-1]<=4))
-                    if not success[-1]:
+                    _success.append((result[-1]>0)&(result[-1]<=4))
+                    if not _success[-1]:
                         logging.error("[@{0}] Coordinates fit failed for source #{1}: {2}".format(self.kk, self.sources.ID[self.update_coordinates[i]], result[-2]))
+
+            success = np.asarray(_success, dtype=np.bool)
 
             ## update parameters
             if self.full_coordinates_fit: ## if IFS coordinates should be fitted, update them directly
@@ -623,11 +625,11 @@ class StarFit(object):
                 if np.sum(success) < 2:
                     logging.error("[@{0}] Cannot update coord. transf. because <2 sources fitted successfully.".format(self.kk))
                 else:
-                    ref_indices = self.update_coordinates[np.array(success, dtype=np.bool)]
+                    ref_indices = self.sources.psf_indices[success]
                     ref_coords  = np.vstack((self.sources.x[ref_indices], self.sources.y[ref_indices])).T
                     ifs_coords  = np.asarray(allPars)[success]
                     
-                    self.sources.transformation.data[self.jj,:,0] = self.sources.transformation._fit_to_data(ref_coords, ifs_coords)[0]
+                    self.sources.transformation.data[self.jj,:,0] = self.sources.transformation._fit_to_data(ref_coords, ifs_coords)
         
                     for i in xrange(self.sources.transformation.npars):
                         ## updating the parameters in the PSF-class overwrites the (direct) source positions used for the fit
@@ -636,8 +638,7 @@ class StarFit(object):
 
         if self.psf_attributes.contains_free_parameters: ## fit PSF
 
-            allPars = []
-            success = []
+            fitresults = []
             ## collect names and initial values of free PSF parameters
             parNames = []
             x0       = []
@@ -664,36 +665,43 @@ class StarFit(object):
                     threads.append(pool.apply_async(self.wrapper_optimize_single_psf, args=(x0, parNames, psf, flux)))
                 else:
                     result = self.wrapper_optimize_single_psf(x0=x0, names=parNames, psf=psf, flux=flux)
-                    allPars.append(result[0])
-                    success.append((result[-1]>0)&(result[-1]<=4))
-                    if not success[-1]:
+                    success = (result[-1]>0)&(result[-1]<=4)
+                    if not success:
                         logging.error("[@{0}] PSF fit failed for source #{1}: {2}".format(self.kk, psf.src_id, result[-2]))
+                    else:
+                        fitresults.append(result[0])
+                        logging.debug("[@{0}] Fitted PSF parameters for source #{1}: {2}".format(self.kk, psf.src_id, result[0]))
         
             if self.ncpu > 1: ## only parallelization
                 pool.close()
                 pool.join()
                 for i in xrange(self.sources.psf_indices.size):
                     result = threads[j].get()
-                    allPars.append(result[0])
-                    success.append((result[-1]>0)&(result[-1]<=4))
-                    if not success[-1]:
+                    success = (result[-1]>0)&(result[-1]<=4)
+                    if not success:
                         logging.error("[@{0}] PSF fit failed for source #{1}: {2}".format(self.kk, self.sources.ID[self.sources.psf_indices[i]], result[-2]))
+                    else:
+                        fitresults.append(result[0])
+                        logging.debug("[@{0}] Fitted PSF parameters for source #{1}: {2}".format(self.kk, psf.src_id, result[0]))
                 
             ## update parameter values in the attributes of the PSF and in the actual PSF profiles; for this, only
             ##  the results of the successful fits are used. If no fit was successful, nothing is updated.
-            if np.sum(success) == 0:
+            if len(fitresults) == 0:
                 logging.error("[@{0}] Cannot update PSF parameters because no star yielded a successful fit.".format(self.kk))
             else:
-                successIndices = np.flatnonzero(np.array(success, dtype=np.bool))
                 i = 0
+                logstring = "[@{0}] Updated PSF parameters:".format(self.kk)
                 for par in parNames:
 
                     ii = self.psf_attributes.names.index(par)
                 
-                    self.psf_attributes.data[self.jj,ii,0] = np.mean([allPars[k][i] for k in successIndices])
+                    self.psf_attributes.data[self.jj,ii,0] = np.mean([v[i] for v in fitresults])
                     getattr(self.PSF, "set_{0}".format(par))(self.psf_attributes.data[self.jj,ii,0])
                 
+                    logstring += "{0}={1:.2f} ".format(par, float(self.psf_attributes.data[self.jj,ii,0]))
                     i += 1
+                    
+                logging.info(logstring)
 
 
     def wrapper_optimize_single_psf(self, x0, names, psf, flux):
