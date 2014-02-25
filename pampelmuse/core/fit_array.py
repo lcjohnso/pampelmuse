@@ -25,10 +25,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-137, 2014/02/24
+139, 2014/02/25
 """ 
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 137
+__revision__ = 139
 
 import contextlib, logging, os, sys, time
 import numpy as np, pyfits
@@ -631,7 +631,7 @@ class StarFit(object):
                     
                     self.sources.transformation.data[self.jj,:,0] = self.sources.transformation._fit_to_data(ref_coords, ifs_coords)
         
-                    logstring = "[@{0}] Fitted coordinate transformation: "
+                    logstring = "[@{0}] Fitted coordinate transformation: ".format(self.kk)
                     for i in xrange(self.sources.transformation.npars):
                         ## updating the parameters in the PSF-class overwrites the (direct) source positions used for the fit
                         getattr(self.PSF, "set_{0}".format(self.sources.transformation.names[i]))(self.sources.transformation.data[self.jj,i,0])

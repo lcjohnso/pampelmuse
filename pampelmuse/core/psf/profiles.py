@@ -38,10 +38,10 @@ ces simultaneously without having to loop over them.
 
 Latest SVN revision
 -------------------
-118, 2014/02/20
+139, 2014/02/25
 """
 __author__   = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 118
+__revision__ = 139
 
 import logging
 import numpy as np
@@ -969,7 +969,7 @@ class Profile(object):
             Its length is equal to the number of used spaxels
             (property 'Nspaxel').
         """
-        if self.osf<=1:
+        if self.osf<=1 or self.Nos>0:
             return data
         else:
             tmp_data = np.r_[0, data.cumsum()][self.ossummer]
