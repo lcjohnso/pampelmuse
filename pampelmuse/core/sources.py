@@ -21,14 +21,14 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-128, 2014/02/20
+138, 2014/02/25
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 128
+__revision__ = 138
 
 import logging, os, re
 import numpy as np, pyfits
-from numpy.polynomial import Chebyshev, Legendre
+from numpy.polynomial import Chebyshev, Legendre, Hermite, Polynomial
 
 ## check if PyQt is available 
 try: from PyQt4 import QtCore
@@ -36,7 +36,7 @@ except ImportError: pass
 
 ## required PampelMuse-packages
 from pampelmuse.core.coordinates import Transformation
-from pampelmuse.functions.fitting import StepPolynomial
+# from pampelmuse.functions.fitting import StepPolynomial
 
 
 
@@ -1278,7 +1278,8 @@ class Sources(object):
             The order of the polynomial used to perform the fit
         bins : int, optional
             The number of bins in case a step-polynomial is used as fitting
-            function
+            function. IMPORTANT: Not used anymore because step polynomials
+            are not used anymore.
         mask : array_like or None, optional
             An optional bad-pixel mask. If specified, must have as many pixels
             as spectral pixels are available. Good pixels should be set to
@@ -1293,14 +1294,11 @@ class Sources(object):
         instrument : instance of pampelmuse.core.instruments.Instrument, optional
             The IFS instrument used to obtain the data. This information is used
             to restrict the selection to sources inside the FoV when determining
-            the mean slope of a coordinate  with wavelength.
-
-        Notes
-        -----
-        In versions <0.5, it  had to be specified which coordinate (x or y)
-        should be fitted. This option was removed in v0.5 and the fit is now
-        performed automatically for both coordinates.
+            the mean slope of a coordinate with wavelength.
         """
+        
+        if bins != 1:
+            logging.warning("Parameter 'bins' is not used anymore.")
         
         ## find the indices of the source(s) to be fitted in the catalogue
         if ids==None:
@@ -1313,15 +1311,11 @@ class Sources(object):
             self.load_ifs_coordinates(ids=self.ID[indices2Fit])
 
         ## check if fit function is valid:
-        available = ["step",  "plain",  "chebyshev"]
-        if not function.lower() in available:
-            logging.error("Unknown fitting function provided: {0}".format(function))
-            assert function.lower() in available, "Unknown fitting function."
-        else:
-            function = function.lower()
+        available = {"chebyshev": Chebyshev, "legendre":Legendre, "hermite":Hermite, "plain":Polynomial}
 
-        ##  prepare wavelength coordinate
-##         self.wave = np.arange(self.ndisp, dtype=np.float32)
+        if not function.lower() in available.keys():
+            logging.critical("Unknown fitting function provided: {0}".format(function))
+        Fitfunction = available[function.lower()]
 
         ## create pseudo-mask if None provided
         if mask == None:
@@ -1339,15 +1333,15 @@ class Sources(object):
                 used = used&instrument.infov(self.ifs_coordinates[...,0].mean(axis=0))
 
             meanCoord = np.mean(self.ifs_coordinates[:, used], axis=1)
-            meanCoord -= np.median(meanCoord, axis=0)
 
-            if function in ["step", "plain"]:
-                xfit = StepPolynomial.fit(self.wave[mask], meanCoord[mask,0,0], order=order, bins=bins)
-                yfit = StepPolynomial.fit(self.wave[mask], meanCoord[mask,1,0], order=order, bins=bins)
-            elif function == "chebyshev":
-                xfit = Chebyshev.fit(self.wave[mask], meanCoord[mask,0,0], order)
-                yfit = Chebyshev.fit(self.wave[mask], meanCoord[mask,1,0], order)
-
+            xfit = Fitfunction.fit(self.wave[mask], meanCoord[mask,0,0], order)
+            yfit = Fitfunction.fit(self.wave[mask], meanCoord[mask,1,0], order)
+            
+            order = 0 ## all individual coordinates are now "fitted" with zeroth order polynomials
+        else: ## create dummy polynomials that have value zero everywhere
+            xfit = Fitfunction(0)
+            yfit = Fitfunction(0)
+            
 
         ## loop over selected sources and get their polynomial coordinate fits
         k = 1
@@ -1356,17 +1350,8 @@ class Sources(object):
             ## get index of source in array of IFS coordinates
             i = self.ifs_coordinates_loaded.cumsum()[j]-1
         
-            if commonSlope:
-                xfit_i = xfit + np.median(self.ifs_coordinates[mask,i,0,0])
-                yfit_i = yfit + np.median(self.ifs_coordinates[mask,i,1,0])
-
-            elif function in ["step", "plain"]:
-                xfit_i = StepPolynomial.fit(self.wave[mask], self.ifs_coordinates[mask,i,0,0], order=order, bins=bins)
-                yfit_i = StepPolynomial.fit(self.wave[mask], self.ifs_coordinates[mask,i,1,0], order=order, bins=bins)
-
-            elif function == "chebyshev":
-                xfit_i = Chebyshev.fit(self.wave[mask], self.ifs_coordinates[mask,i,0,0], order)
-                yfit_i = Chebyshev.fit(self.wave[mask], self.ifs_coordinates[mask,i,1,0], order)
+            xfit_i = xfit + Fitfunction(self.wave[mask], self.ifs_coordinates[mask, i, 0, 0]-xfit(self.wave[mask]), order)
+            yfit_i = yfit + Fitfunction(self.wave[mask], self.ifs_coordinates[mask, i, 1, 0]-yfit(self.wave[mask]), order)
     
             self.ifs_coordinates_fit_functions[self.ID[j]] = [xfit_i, yfit_i]
             
@@ -1425,6 +1410,7 @@ class Sources(object):
 
     def shoulder_drop(self, r):
         """
+        DEPRECATED - not used anymore since revisison 130 (or so)
         This method determines the shoulder drop or topographic prominence
         of the sources that is a measure for how strongly a source dominates
         its surroundings. The measure used here is the flux ratio of the source
