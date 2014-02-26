@@ -25,12 +25,12 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-140, 2014/02/26
+142, 2014/02/26
 """ 
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 140
+__revision__ = 142
 
-import contextlib, logging, os, sys, time
+import contextlib, itertools, logging, os, sys, time
 import numpy as np, pyfits
 from scipy import sparse, optimize
 from scipy.sparse.linalg import lsqr
@@ -48,6 +48,21 @@ def printoptions(*args, **kwargs):
     np.set_printoptions(*args, **kwargs)
     yield 
     np.set_printoptions(**original)
+
+
+def sum_by_group(values, groups):
+    ## taken from http://stackoverflow.com/questions/4373631/sum-array-by-number-in-numpy?lq=1
+    order = np.argsort(groups)
+    groups = np.asarray(groups)[order]
+    values = np.asarray(values)[order]
+    values.cumsum(out=values)
+    index = np.ones(len(groups), 'bool')
+    index[:-1] = groups[1:] != groups[:-1]
+    values = values[index]
+    groups = groups[index]
+    values[1:] = values[1:] - values[:-1]
+    return values, groups
+
 
 
 class StarFit(object):
@@ -139,9 +154,11 @@ class StarFit(object):
         ## initialize PSF-class for every source included
         self.PSF.set_transform(self.ifs_data.instrument.transform)
         
+        self.psf_instances = []
         for i in xrange(self.sources.nsrc):
-            self.PSF(Xc=self.sources.x[i], Yc=self.sources.y[i], mag=sources.weights[i], src_id=self.sources.ID[i], maxrad=maxrad,
-                     osfactor=osfactor, osradius=osradius)
+            if self.status[i] == 4: self.psf_instances.append(None)
+            else: self.psf_instances.append(self.PSF(Xc=self.sources.x[i], Yc=self.sources.y[i], mag=sources.weights[i], src_id=self.sources.ID[i], maxrad=maxrad,
+                                                     osfactor=osfactor, osradius=osradius))
 
         ## Check if individual source positions should be fitted
         self.full_coordinates_fit = (self.sources.ifs_coordinates_free&(self.sources.ifs_coordinates_fitted==False)).any()
@@ -369,12 +386,13 @@ class StarFit(object):
                 logging.info("[@{0}] Iteration {1} (of max. {2})".format(self.kk, n_iter, self.maxiter))
 
             ## create model matrix & update noise values
-            self.Apsf = self.fill_matrix()
-            self.sources.data[self.jj,:,1] = 1./np.sqrt(self.Apsf.multiply(self.Apsf).sum(axis=0))
+            self.build_matrix()
+            self.sources.data[self.jj,self.valid_components,1] = 1./np.sqrt(self.Apsf.multiply(self.Apsf).sum(axis=0))
+            self.sources.data[self.jj,self.valid_components,1] /= self.fluxfactors[self.valid_components]
 
             ## initial fit of fluxes
             bestFit = lsqr(self.Apsf, self.current)
-            self.sources.data[self.jj,:,0] += bestFit[0]
+            self.sources.data[self.jj,self.valid_components,0] += bestFit[0]/self.fluxfactors[self.valid_components]
 
             indata = np.zeros((self.ifs_data.instrument.transform.shape[0],), dtype=np.float32)
             indata[mask==False] = self.current
@@ -383,7 +401,7 @@ class StarFit(object):
             outHDU.writeto("{0}_{1}.fits".format(self.jj, n_iter), clobber=True)
             
             ## determine relative change in fluxes
-            delta_flux = bestFit[0]/self.sources.data[self.jj,:,0]
+            delta_flux = bestFit[0]/self.sources.data[self.jj,self.valid_components,0]
 
             ## some logging
             logging.info("[@{0}] Chi**2 of current fit: {1:.1f}".format(self.kk, bestFit[4]**2))
@@ -418,12 +436,10 @@ class StarFit(object):
             self.last_fitted_layers.remove(self.last_fitted_layers[0])
             
 
-
     @property
     def model(self):
         """Create the current best-fit model"""
-        return self.Apsf*sparse.dia_matrix((self.sources.data[self.jj,:,0],[0]), shape=(self.sources.ncmp, self.sources.ncmp))
-
+        return self.Apsf*sparse.dia_matrix((self.sources.data[self.jj,self.valid_components,0],[0]), shape=(self.valid_components.sum(), self.valid_components.sum()))
 
 
     @property
@@ -433,9 +449,8 @@ class StarFit(object):
         ## `getA1' returns a flattened numpy.ndarray
         return (self.data/self.sigma)-self.model.sum(axis=1).getA1()
 
-
     
-    def fill_matrix(self, update_unresolved=True, log=True):
+    def build_matrix(self, update_unresolved=True, log=True):
         """
         Define the source matrix. The source matrix is a sparse matrix that
         contains the spatial profiles of all resolved components, one per
@@ -470,92 +485,152 @@ class StarFit(object):
 
         ## Initialize parallelization (if requested)
         if self.ncpu > 1:
-
             pool    = Pool(self.ncpu)
             threads = []
             
-            i = -1
-            for psf in self.PSF:
-                i += 1
-                if self.sources.specrow[i] == self.sources.specrow_unresolved and not update_unresolved: continue
-                if self.sources.specrow[i] == self.sources.specrow_sky: continue
-
-                threads.append(pool.apply_async(psf.get_flux))
-
+            ## determine which sources should be calculated by which CPU
+            m = (self.sources.nsrc+1)//self.ncpu
+            
+            for n in xrange(self.ncpu):
+                imin = n*m
+                imax = min((n+1)*m, self.sources.nsrc)
+                threads.append(pool.apply_async(self.get_psf_data, args=(imin, imax)))
+        
             pool.close()
             pool.join()
-
-        coeffs   = np.array([], dtype='float32')  ## PSF coefficents
-        indices0 = np.array([], dtype='int32')    ## row indices
-        indices1 = np.array([], dtype='int32')    ## column indices
-
-        n = 0   ## iterator over threads (only if parallelization enabled)
-        i = -1  ## iterator over all sources
-        unres_added = False  ## flag indicating if unresolved component has
-                             ##  already been added
-
-        ## loop over all sources
-        for psf in self.PSF: 
-            i += 1
-            j  = self.sources.specrow[i]
-
-            if j == self.sources.specrow_unresolved and not update_unresolved: 
-                if not unres_added:
-                    ## if unresolved component should not be recalculated, add existing one to data.
-                    nValues = self.unresIndices.size
-
-                    coeffs.resize(coeffs.size+nValues)
-                    indices0.resize(indices0.size+nValues)
-                    indices1.resize(indices1.size+nValues)
-                    
-                    coeffs[-nValues:]   = self.unresCoeffs
-                    indices0[-nValues:] = self.unresIndices
-                    indices1[-nValues:] = j*np.ones(nValues, dtype=np.int32)
-                    
-                    unres_added = True
-
-                continue
-
-            if j == self.sources.specrow_sky: ## add constant sky component
-                nValues = self.PSF.transform.shape[0]
-
-                coeffs.resize(coeffs.size+nValues)
-                indices0.resize(indices0.size+nValues)
-                indices1.resize(indices1.size+nValues)
-
-                coeffs[-nValues:]   = np.ones(nValues, dtype=np.float32)/(nValues*self.sigma)
-                indices0[-nValues:] = np.arange(nValues, dtype=np.int32)
-                indices1[-nValues:] = j*np.ones(nValues, dtype=np.int32)
-                continue
-
-            if self.ncpu > 1:
-                spaxels, fluxes = threads[n].get()
-                n += 1
-            else:
-                spaxels, fluxes = psf.get_flux()
-
-            nValues    = psf.used.sum()
             
-            if nValues > 0: ## resize arrays and add new data
-                coeffs.resize(coeffs.size+nValues)
-                indices0.resize(indices0.size+nValues)
-                indices1.resize(indices1.size+nValues)
+            results = list(itertools.chain.from_iterable([threads[n].get() for n in self.ncpu]))
+        else:
+            results = self.get_psf_data(0, self.sources.nsrc)
+        
+        ## check if any row does not contribute at all
+        self.fluxfactors, specrows = sum_by_group([r[-1] for r in results], self.sources.specrow)
+        self.valid_components = (self.fluxfactors>0)
+    
+        if (self.valid_components==False).any():
+            logging.error("Encountered component(s) that contribute zero flux: {0}".format(specrows[self.valid_components==False]))
 
-                ## divide by flux uncertainties before adding coefficents:
-                coeffs[-nValues:]   = fluxes/self.sigma[psf.used]
+        _A = sparse.lil_matrix(self.data.size, self.sources.ncmp-cmp_mask.sum())
+            
+        for i in xrange(self.sources.ncmp): ## loop over all independent components
+            if cmp_mask[i]==0: continue
+            
+            jj = i - cmp_mask[:i].cumsum() ## the index of the matrix _A where to insert the current component
+            
+            indices = self.sources.indexmap[i]
+            if len(indices)==1:
+                data = results[index[0]][1]
+                spaxels = results[indices[0]][0]
+            else:
+                _spaxels = np.hstack((results[ii][0] for ii in indices))
+                _data = np.hstack((results[ii][1] for ii in indices))
+                data, spaxels = sum_by_group(_data, _spaxels)
                 
-                indices0[-nValues:] = spaxels
-                indices1[-nValues:] = j*np.ones((nValues,), dtype=np.int16)
+            _A[spaxels, jj] = data/self.fluxfactors[i]
                 
-            elif log:
-                logging.error("[@{0}] Source #{1} entirely outside FoV.".format(self.kk, self.sources.ID[i]))
-                
-        ## save unresolved component for later recovery
-        if self.sources.includes_unresolved and update_unresolved:
-            self.unresIndices = indices0[indices1==self.sources.specrow_unresolved]
-            self.unresCoeffs  = coeffs[indices1==self.sources.specrow_unresolved]
-                              
-        return sparse.coo_matrix((coeffs, (indices0, indices1)), shape=(self.PSF.transform.shape[0], self.sources.ncmp)).tocsc()
+        self.Apsf = _A.tocsc()
+        
+#            i = -1
+#            for psf in self.PSF:
+#                i += 1
+#                if self.sources.specrow[i] == self.sources.specrow_unresolved and not update_unresolved: continue
+#                if self.sources.specrow[i] == self.sources.specrow_sky: continue
+#
+#                threads.append(pool.apply_async(psf.get_flux))
+#
+#            pool.close()
+#            pool.join()
+#
+#        coeffs   = np.array([], dtype='float32')  ## PSF coefficents
+#        indices0 = np.array([], dtype='int32')    ## row indices
+#        indices1 = np.array([], dtype='int32')    ## column indices
+#
+#        n = 0   ## iterator over threads (only if parallelization enabled)
+#        i = -1  ## iterator over all sources
+#        unres_added = False  ## flag indicating if unresolved component has
+#                             ##  already been added
+#
+#        ## loop over all sources
+#        for psf in self.PSF: 
+#            i += 1
+#            j  = self.sources.specrow[i]
+#
+#            if j == self.sources.specrow_unresolved and not update_unresolved: 
+#                if not unres_added:
+#                    ## if unresolved component should not be recalculated, add existing one to data.
+#                    nValues = self.unresIndices.size
+#
+#                    coeffs.resize(coeffs.size+nValues)
+#                    indices0.resize(indices0.size+nValues)
+#                    indices1.resize(indices1.size+nValues)
+#                    
+#                    coeffs[-nValues:]   = self.unresCoeffs
+#                    indices0[-nValues:] = self.unresIndices
+#                    indices1[-nValues:] = j*np.ones(nValues, dtype=np.int32)
+#                    
+#                    unres_added = True
+#
+#                continue
+#
+#            if j == self.sources.specrow_sky: ## add constant sky component
+#                nValues = self.PSF.transform.shape[0]
+#
+#                coeffs.resize(coeffs.size+nValues)
+#                indices0.resize(indices0.size+nValues)
+#                indices1.resize(indices1.size+nValues)
+#
+#                coeffs[-nValues:]   = np.ones(nValues, dtype=np.float32)/(nValues*self.sigma)
+#                indices0[-nValues:] = np.arange(nValues, dtype=np.int32)
+#                indices1[-nValues:] = j*np.ones(nValues, dtype=np.int32)
+#                continue
+#
+#            if self.ncpu > 1:
+#                spaxels, fluxes = threads[n].get()
+#                n += 1
+#            else:
+#                spaxels, fluxes = psf.get_flux()
+#
+#            nValues    = psf.used.sum()
+#            
+#            if nValues > 0: ## resize arrays and add new data
+#                coeffs.resize(coeffs.size+nValues)
+#                indices0.resize(indices0.size+nValues)
+#                indices1.resize(indices1.size+nValues)
+#
+#                ## divide by flux uncertainties before adding coefficents:
+#                coeffs[-nValues:]   = fluxes/self.sigma[psf.used]
+#                
+#                indices0[-nValues:] = spaxels
+#                indices1[-nValues:] = j*np.ones((nValues,), dtype=np.int16)
+#                
+#            elif log:
+#                logging.error("[@{0}] Source #{1} entirely outside FoV.".format(self.kk, self.sources.ID[i]))
+#                
+#        ## save unresolved component for later recovery
+#        if self.sources.includes_unresolved and update_unresolved:
+#            self.unresIndices = indices0[indices1==self.sources.specrow_unresolved]
+#            self.unresCoeffs  = coeffs[indices1==self.sources.specrow_unresolved]
+#                              
+#        return sparse.coo_matrix((coeffs, (indices0, indices1)), shape=(self.PSF.transform.shape[0], self.sources.ncmp)).tocsc()
+
+
+    def get_psf_data(self, imin, imax):
+
+        results = []
+
+        for psf in self.psf_instances[imin:imax]:
+            
+            if psf==None: ## sky component
+                results.append([np.arange(self.data.size, dtype=np.float32), 1./self.sigma, 1.])
+
+            else: ## stellar component
+                spaxels, fluxes = psf.get_flux()
+                n = spaxels.size
+                if n==0: logging.warning("[@{0}] Source #{1} entirely outside FoV.".format(self.kk, self.sources.ID[i]))
+                intflux = fluxes.sum()
+                results.append([spaxels, fluxes, intflux])
+
+        return results
 
 
     def parameter_fit_on_large_ifu(self):
@@ -665,7 +740,7 @@ class StarFit(object):
                     
             self.sources.transformation.data[self.jj,:,0] = self.sources.transformation._fit_to_data(np.asarray(ref_coords), np.asarray(ifs_coords))
         
-            logstring = "[@{0}] Fitted coordinate transformation: "
+            logstring = "[@{0}] Fitted coordinate transformation: ".format(self.kk)
             for i in xrange(self.sources.transformation.npars):
                 ## updating the parameters in the PSF-class overwrites the (direct) source positions used for the fit
                 getattr(self.PSF, "set_{0}".format(self.sources.transformation.names[i]))(self.sources.transformation.data[self.jj,i,0])
