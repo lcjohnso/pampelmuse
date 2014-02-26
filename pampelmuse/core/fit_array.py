@@ -25,10 +25,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-142, 2014/02/26
+143, 2014/02/26
 """ 
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 142
+__revision__ = 143
 
 import contextlib, itertools, logging, os, sys, time
 import numpy as np, pyfits
@@ -156,7 +156,7 @@ class StarFit(object):
         
         self.psf_instances = []
         for i in xrange(self.sources.nsrc):
-            if self.status[i] == 4: self.psf_instances.append(None)
+            if self.sources.status[i] == 4: self.psf_instances.append(None)
             else: self.psf_instances.append(self.PSF(Xc=self.sources.x[i], Yc=self.sources.y[i], mag=sources.weights[i], src_id=self.sources.ID[i], maxrad=maxrad,
                                                      osfactor=osfactor, osradius=osradius))
 
@@ -260,6 +260,9 @@ class StarFit(object):
             j += 1
 
         self.asSmallIFU = asSmallIFU
+
+        ## for large IFS data, get indices of sources used to fit PSF/positions
+        if not self.asSmallIFU: self.psf_indices = np.union1d(np.flatnonzero(self.update_coordinates), self.psf_indices)
 
         ## if individual source positions should be fitted, we need to load the initial guesses for the positions of all sources on all layers
         ## into memory from the start
@@ -387,7 +390,7 @@ class StarFit(object):
 
             ## create model matrix & update noise values
             self.build_matrix()
-            self.sources.data[self.jj,self.valid_components,1] = 1./np.sqrt(self.Apsf.multiply(self.Apsf).sum(axis=0))
+            self.sources.data[self.jj,self.valid_components,1] = 1./np.sqrt(self.Apsf.multiply(self.Apsf).sum(axis=0)).getA1()
             self.sources.data[self.jj,self.valid_components,1] /= self.fluxfactors[self.valid_components]
 
             ## initial fit of fluxes
@@ -395,13 +398,13 @@ class StarFit(object):
             self.sources.data[self.jj,self.valid_components,0] += bestFit[0]/self.fluxfactors[self.valid_components]
 
             indata = np.zeros((self.ifs_data.instrument.transform.shape[0],), dtype=np.float32)
-            indata[mask==False] = self.current
+            indata[mask==False] = np.asarray(self.current, dtype=np.float32)
             outdata = self.ifs_data.instrument.make_grid(indata)
             outHDU = pyfits.PrimaryHDU(outdata)
             outHDU.writeto("{0}_{1}.fits".format(self.jj, n_iter), clobber=True)
             
             ## determine relative change in fluxes
-            delta_flux = bestFit[0]/self.sources.data[self.jj,self.valid_components,0]
+            delta_flux = (bestFit[0]/self.fluxfactors[self.valid_components])/self.sources.data[self.jj,self.valid_components,0]
 
             ## some logging
             logging.info("[@{0}] Chi**2 of current fit: {1:.1f}".format(self.kk, bestFit[4]**2))
@@ -439,7 +442,8 @@ class StarFit(object):
     @property
     def model(self):
         """Create the current best-fit model"""
-        return self.Apsf*sparse.dia_matrix((self.sources.data[self.jj,self.valid_components,0],[0]), shape=(self.valid_components.sum(), self.valid_components.sum()))
+        return self.Apsf*sparse.dia_matrix((self.sources.data[self.jj,self.valid_components,0]*self.fluxfactors[self.valid_components],[0]),
+                                           shape=(self.valid_components.sum(), self.valid_components.sum()))
 
 
     @property
@@ -510,25 +514,25 @@ class StarFit(object):
         if (self.valid_components==False).any():
             logging.error("Encountered component(s) that contribute zero flux: {0}".format(specrows[self.valid_components==False]))
 
-        _A = sparse.lil_matrix(self.data.size, self.sources.ncmp-cmp_mask.sum())
+        _A = sparse.lil_matrix((self.sources.ncmp-(self.valid_components==False).sum(), self.data.size))
             
         for i in xrange(self.sources.ncmp): ## loop over all independent components
-            if cmp_mask[i]==0: continue
+            if not self.valid_components[i]: continue
             
-            jj = i - cmp_mask[:i].cumsum() ## the index of the matrix _A where to insert the current component
+            jj = i - (self.valid_components==False)[:i].sum() ## the index of the matrix _A where to insert the current component
             
             indices = self.sources.indexmap[i]
             if len(indices)==1:
-                data = results[index[0]][1]
+                data = results[indices[0]][1]
                 spaxels = results[indices[0]][0]
             else:
                 _spaxels = np.hstack((results[ii][0] for ii in indices))
                 _data = np.hstack((results[ii][1] for ii in indices))
                 data, spaxels = sum_by_group(_data, _spaxels)
                 
-            _A[spaxels, jj] = data/self.fluxfactors[i]
+            _A[jj, spaxels] = data/self.fluxfactors[i]
                 
-        self.Apsf = _A.tocsc()
+        self.Apsf = _A.transpose().tocsc()
         
 #            i = -1
 #            for psf in self.PSF:
@@ -621,14 +625,14 @@ class StarFit(object):
         for psf in self.psf_instances[imin:imax]:
             
             if psf==None: ## sky component
-                results.append([np.arange(self.data.size, dtype=np.float32), 1./self.sigma, 1.])
+                results.append([np.arange(self.data.size, dtype=np.int32), 1./self.sigma, 1.])
 
             else: ## stellar component
                 spaxels, fluxes = psf.get_flux()
                 n = spaxels.size
-                if n==0: logging.warning("[@{0}] Source #{1} entirely outside FoV.".format(self.kk, self.sources.ID[i]))
+                if n==0: logging.warning("[@{0}] Source #{1} entirely outside FoV.".format(self.kk, psf.src_id))
                 intflux = fluxes.sum()
-                results.append([spaxels, fluxes, intflux])
+                results.append([spaxels, fluxes/self.sigma[psf_used], intflux])
 
         return results
 
@@ -657,18 +661,11 @@ class StarFit(object):
 
         ## Initialize arrays that will hold results
         results    = []
-        srcindices = [] ## The index of each source for which a PSF fit is performed in the original source catalogue
         posfitted  = [] ## for each source, a boolean flag indicating if the source coordinates are fitted
         psffitted  = [] ## for each source, a boolean flag indicating if the PSF parameters are fitted
 
         ## Loop over all PSF sources; add source to residuals, fit resulting array and subtract source again.
-        i=-1            
-        for psf in self.PSF: 
-            i += 1
-
-            ## ignore sources unless they have been flagged as proper PSF candidates
-            if not self.update_coordinates[i] and i not in self.sources.psf_indices:
-                continue
+        for i in self.psf_indices: 
            
             ## get index of this
             srcindices.append(np.flatnonzero(self.sources.ID==psf.src_id)[0])
@@ -698,12 +695,12 @@ class StarFit(object):
                 psffitted.append(False)
 
             if self.ncpu > 1:
-                threads.append(pool.apply_async(self.wrapper_optimize_single_psf, args=(x0, names, psf, flux)))
+                threads.append(pool.apply_async(self.wrapper_optimize_single_psf, args=(x0, names, self.psf_instances[i], flux)))
             else:
-                results.append(self.wrapper_optimize_single_psf(x0=x0, names=names, psf=psf, flux=flux))
+                results.append(self.wrapper_optimize_single_psf(x0=x0, names=names, psf=self.psf_instances[i], flux=flux))
 
         if self.ncpu>1:
-            results = [threads[j].get() for j in len(srcindices)]
+            results = [threads[j].get() for j in len(self.psf_indices)]
 
         ## collect results from individual PSF fits
         ifs_coords  = []
@@ -712,7 +709,7 @@ class StarFit(object):
 
         for n in xrange(len(results)):
             result = results[n]
-            i = srcindices[n]
+            i = self.psf_indices[n]
 
             success = (result[-1]>0)&(result[-1]<=4)
             if not success:
