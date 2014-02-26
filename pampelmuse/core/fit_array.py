@@ -25,10 +25,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-139, 2014/02/25
+140, 2014/02/26
 """ 
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 139
+__revision__ = 140
 
 import contextlib, logging, os, sys, time
 import numpy as np, pyfits
@@ -145,8 +145,11 @@ class StarFit(object):
 
         ## Check if individual source positions should be fitted
         self.full_coordinates_fit = (self.sources.ifs_coordinates_free&(self.sources.ifs_coordinates_fitted==False)).any()
-        self.update_coordinates   = self.sources.ifs_coordinates_free&(self.sources.ifs_coordinates_fitted==False)
-        if self.full_coordinates_fit: logging.warning("Fit of individual source positions requested.")
+        if self.full_coordinates_fit:
+            logging.warning("Fit of individual source positions requested.")
+            self.update_coordinates = (self.sources.ifs_coordinates_fitted==False)
+        else:
+            self.update_coordinates = (self.sources.status==3)&(self.sources.ifs_coordinates_fitted==False)
 
 
     def __call__(self, layerRange=(0,-1), Ntrack=10, lastFitIndex=None, asSmallIFU=False, ncpu=1, maxiter=20, clip=5., **kwargs):
@@ -373,6 +376,12 @@ class StarFit(object):
             bestFit = lsqr(self.Apsf, self.current)
             self.sources.data[self.jj,:,0] += bestFit[0]
 
+            indata = np.zeros((self.ifs_data.instrument.transform.shape[0],), dtype=np.float32)
+            indata[mask==False] = self.current
+            outdata = self.ifs_data.instrument.make_grid(indata)
+            outHDU = pyfits.PrimaryHDU(outdata)
+            outHDU.writeto("{0}_{1}.fits".format(self.jj, n_iter), clobber=True)
+            
             ## determine relative change in fluxes
             delta_flux = bestFit[0]/self.sources.data[self.jj,:,0]
 
@@ -558,152 +567,136 @@ class StarFit(object):
         The results of the individual fits are afterwards used to update
         the PSF and/or the coordinate transformation.
         """
-        ## fit source coordinates (if requested)
-        if self.sources.contains_free_coordinates:
+        ## Initialize parallelization (if requested)
+        if self.ncpu > 1:
+            pool    = Pool(self.ncpu)
+            threads = []
 
-            ## list will contain results of all fits
-            allPars  = []
-            _success = []
-            coordIndices = []
-            parNames = ["xc", "yc"]
-    
-            ## Initialize parallelization (if requested)
-            if self.ncpu > 1:
-                pool    = Pool(self.ncpu)
-                threads = []
+        ## check if (and which) PSF parameters should be fitted
+        psf_names  = []
+        psf_values = []
+        for i in xrange(self.psf_attributes.npars):
+            if self.psf_attributes.free[i] and not self.psf_attributes.fitted[i]:
+                psf_names.append(self.psf_attributes.names[i])
+                psf_values.append(self.psf_attributes.data[self.jj,i,0])
 
-            ## Loop over all PSF sources; add source to residuals, fit resulting array and subtract source again.
-            i=-1
-            
-            for psf in self.PSF: 
-                i += 1
+        ## Initialize arrays that will hold results
+        results    = []
+        srcindices = [] ## The index of each source for which a PSF fit is performed in the original source catalogue
+        posfitted  = [] ## for each source, a boolean flag indicating if the source coordinates are fitted
+        psffitted  = [] ## for each source, a boolean flag indicating if the PSF parameters are fitted
 
-                ## ignore sources unless they have been flagged as proper PSFcandidates
-                if self.sources.transformation.valid:
-                    if not i in self.sources.psf_indices: continue
-                else:
-                    if not self.update_coordinates[i]: continue
-                
-                ## get index of source in array of IFU coordinates, save them to place updated coords at the right indices
+        ## Loop over all PSF sources; add source to residuals, fit resulting array and subtract source again.
+        i=-1            
+        for psf in self.PSF: 
+            i += 1
+
+            ## ignore sources unless they have been flagged as proper PSF candidates
+            if not self.update_coordinates[i] and i not in self.sources.psf_indices:
+                continue
+           
+            ## get index of this
+            srcindices.append(np.flatnonzero(self.sources.ID==psf.src_id)[0])
+
+            flux  = self.sources.data[self.jj,self.sources.specrow[i],0]
+            names = [] ## the names of the free parameters for this PSF
+            x0    = [] ## the initial guesses for the parameter fit for this PSF
+
+            if self.update_coordinates[i]:
+                        
+                ## get index of source in array of IFS coordinates, save them to place updated coordinates at the right index
                 assert self.sources.ifs_coordinates_loaded[i], "PSF source has no IFU coordinates available."
-                coordIndices.append(self.sources.ifs_coordinates_loaded[:i].sum())
+                posindex = self.sources.ifs_coordinates_loaded[:i].sum()
 
-                x0   = self.sources.ifs_coordinates[self.jj*self.full_coordinates_fit,coordIndices[-1],:,0]
-                flux = self.sources.data[self.jj,self.sources.specrow[i],0]
+                names.extend(["x_c", "y_c"])
+                x0.extend([self.sources.ifs_coordinates[self.jj*self.full_coordinates_fit, posindex, 0, 0],
+                           self.sources.ifs_coordinates[self.jj*self.full_coordinates_fit, posindex, 1, 0]])
+                posfitted.append(True)
+            else:
+                posfitted.append(False)
 
-                if self.ncpu > 1:
-                    threads.append(pool.apply_async(self.wrapper_optimize_single_psf, args=(x0, parNames, psf, flux)))
-                else:
-                    result = self.wrapper_optimize_single_psf(x0=x0, names=parNames, psf=psf, flux=flux)
-                    _success.append((result[-1]>0)&(result[-1]<=4))
-                    if not _success[-1]:
-                        logging.error("[@{0}] Coordinates fit failed for source #{1}: {2}".format(self.kk, psf.src_id, result[-2]))
-                        allPars.append(x0)
-                    else:
-                        logging.debug("[@{0}] Fitted centroids of source #{1}: ({2:.1f}, {3:.1f})".format(self.kk, psf.src_id, result[0][0], result[0][1]))
-                        allPars.append(result[0])
+            if i in self.sources.psf_indices:
+                names.extend(psf_names)
+                x0.extend(psf_values)
+                psffitted.append(True)
+            else:
+                psffitted.append(False)
 
             if self.ncpu > 1:
-                pool.close()
-                pool.join()
-                for i in xrange(self.sources.psf_indices.size):
-                    results = threads[j].get()
-                    allPars.append(result[0])
-                    _success.append((result[-1]>0)&(result[-1]<=4))
-                    if not _success[-1]:
-                        logging.error("[@{0}] Coordinates fit failed for source #{1}: {2}".format(self.kk, self.sources.ID[self.update_coordinates[i]], result[-2]))
+                threads.append(pool.apply_async(self.wrapper_optimize_single_psf, args=(x0, names, psf, flux)))
+            else:
+                results.append(self.wrapper_optimize_single_psf(x0=x0, names=names, psf=psf, flux=flux))
 
-            success = np.asarray(_success, dtype=np.bool)
+        if self.ncpu>1:
+            results = [threads[j].get() for j in len(srcindices)]
 
-            ## update parameters
-            if self.full_coordinates_fit: ## if IFS coordinates should be fitted, update them directly
-                for i in xrange(len(allPars)):
-                    if success[i]:
-                        self.sources.ifs_coordinates[self.jj,coordIndices[i],:,0] = allPars[i]
+        ## collect results from individual PSF fits
+        ifs_coords  = []
+        ref_coords  = []
+        psf_pars    = []
 
-            else: ## otherwise, update coordinate transformation
-                if np.sum(success) < 2:
-                    logging.error("[@{0}] Cannot update coord. transf. because <2 sources fitted successfully.".format(self.kk))
-                else:
-                    ref_indices = self.sources.psf_indices[success]
-                    ref_coords  = np.vstack((self.sources.x[ref_indices], self.sources.y[ref_indices])).T
-                    ifs_coords  = np.asarray(allPars)[success]
-                    
-                    self.sources.transformation.data[self.jj,:,0] = self.sources.transformation._fit_to_data(ref_coords, ifs_coords)
-        
-                    logstring = "[@{0}] Fitted coordinate transformation: ".format(self.kk)
-                    for i in xrange(self.sources.transformation.npars):
-                        ## updating the parameters in the PSF-class overwrites the (direct) source positions used for the fit
-                        getattr(self.PSF, "set_{0}".format(self.sources.transformation.names[i]))(self.sources.transformation.data[self.jj,i,0])
-                        logstring += "{0}={1:.3f} ".format(self.sources.transformation.names[i], float(self.sources.transformation.data[self.jj,i,0]))
-                    logging.info(logstring)
+        for n in xrange(len(results)):
+            result = results[n]
+            i = srcindices[n]
 
-        if self.psf_attributes.contains_free_parameters: ## fit PSF
-
-            fitresults = []
-            ## collect names and initial values of free PSF parameters
-            parNames = []
-            x0       = []
-            for i in xrange(self.psf_attributes.npars):
-                if self.psf_attributes.free[i] and not self.psf_attributes.fitted[i]:
-                    x0.append(self.psf_attributes.data[self.jj,i,0])
-                    parNames.append(self.psf_attributes.names[i])
-
-            ## Initialize parallelization (if requested)
-            if self.ncpu > 1:
-                pool    = Pool(self.ncpu)
-                threads = []
-
-            ## Loop over all PSF sources; add source to residuals, fit
-            ## resulting array and subtract source again.
-            i=-1
-            for psf in self.PSF: ## ignore sources unless they have been flagged as proper PSF candidates
-                i += 1
-                if not i in self.sources.psf_indices: continue
+            success = (result[-1]>0)&(result[-1]<=4)
+            if not success:
+                logging.error("[@{0}] PSF fit failed for source #{1}: {2}".format(self.kk, self.sources.ID[i], result[-2]))
+                continue
             
-                flux = self.sources.data[self.jj,i,0]
+            logstring = "[@{0}] Successfully fitted PSF of source #{1}:".format(self.kk, self.sources.ID[i])
 
-                if self.ncpu > 1:
-                    threads.append(pool.apply_async(self.wrapper_optimize_single_psf, args=(x0, parNames, psf, flux)))
-                else:
-                    result = self.wrapper_optimize_single_psf(x0=x0, names=parNames, psf=psf, flux=flux)
-                    success = (result[-1]>0)&(result[-1]<=4)
-                    if not success:
-                        logging.error("[@{0}] PSF fit failed for source #{1}: {2}".format(self.kk, psf.src_id, result[-2]))
-                    else:
-                        fitresults.append(result[0])
-                        logging.debug("[@{0}] Fitted PSF parameters for source #{1}: {2}".format(self.kk, psf.src_id, result[0]))
+            if posfitted[n]:
+                if self.full_coordinates_fit: ## if IFS coordinates should be fitted, update them directly
+                    j = self.sources.ifs_coordinates_loaded[:i].sum() ## get index of source in IFS coordinates array
+                    self.sources.ifs_coordinates[self.jj,j,:,0] = result[0][:2]
+                else: ## save the coordinates to fit the transformation afterwards
+                    ifs_coords.append(result[0][:2])
+                    ref_coords.append([self.sources.x[i], self.sources.y[i]])
+                logstring += " x_c={0:.2f} y_c={1:.2f}".format(float(result[0][0]), float(result[0][1]))
+            if psffitted[n]:
+                psf_pars.append(result[0][-len(psf_names):])
+                for j in xrange(len(psf_names)): logstring += " {0}={1:.2f}".format(psf_names[j], float(psf_pars[-1][j]))
+            logging.debug(logstring)
+
+
+        ## update coordinate transformation if available and possible
+        if len(ifs_coords)>=2:
+                    
+            self.sources.transformation.data[self.jj,:,0] = self.sources.transformation._fit_to_data(np.asarray(ref_coords), np.asarray(ifs_coords))
         
-            if self.ncpu > 1: ## only parallelization
-                pool.close()
-                pool.join()
-                for i in xrange(self.sources.psf_indices.size):
-                    result = threads[j].get()
-                    success = (result[-1]>0)&(result[-1]<=4)
-                    if not success:
-                        logging.error("[@{0}] PSF fit failed for source #{1}: {2}".format(self.kk, self.sources.ID[self.sources.psf_indices[i]], result[-2]))
-                    else:
-                        fitresults.append(result[0])
-                        logging.debug("[@{0}] Fitted PSF parameters for source #{1}: {2}".format(self.kk, psf.src_id, result[0]))
+            logstring = "[@{0}] Fitted coordinate transformation: "
+            for i in xrange(self.sources.transformation.npars):
+                ## updating the parameters in the PSF-class overwrites the (direct) source positions used for the fit
+                getattr(self.PSF, "set_{0}".format(self.sources.transformation.names[i]))(self.sources.transformation.data[self.jj,i,0])
+                logstring += "{0}={1:.3f} ".format(self.sources.transformation.names[i], float(self.sources.transformation.data[self.jj,i,0]))
+            logging.info(logstring)
+
+        elif not self.full_coordinates_fit:
+            logging.error("[@{0}] Cannot update coord. transf. because <2 sources fitted successfully.".format(self.kk))
+
+        ## update PSF parameters
+        if self.psf_attributes.contains_free_parameters: ## fit PSF
                 
             ## update parameter values in the attributes of the PSF and in the actual PSF profiles; for this, only
             ##  the results of the successful fits are used. If no fit was successful, nothing is updated.
-            if len(fitresults) == 0:
+            if len(psf_pars) == 0:
                 logging.error("[@{0}] Cannot update PSF parameters because no star yielded a successful fit.".format(self.kk))
             else:
                 i = 0
                 logstring = "[@{0}] Updated PSF parameters:".format(self.kk)
-                for par in parNames:
+                for par in psf_names:
 
                     ii = self.psf_attributes.names.index(par)
                 
-                    self.psf_attributes.data[self.jj,ii,0] = np.mean([v[i] for v in fitresults])
+                    self.psf_attributes.data[self.jj,ii,0] = np.mean([v[i] for v in psf_pars])
                     getattr(self.PSF, "set_{0}".format(par))(self.psf_attributes.data[self.jj,ii,0])
                 
                     logstring += "{0}={1:.2f} ".format(par, float(self.psf_attributes.data[self.jj,ii,0]))
                     i += 1
                     
                 logging.info(logstring)
+
 
 
     def wrapper_optimize_single_psf(self, x0, names, psf, flux):
