@@ -49,8 +49,8 @@ Latest SVN revision
 """
 __author__     = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
 
-__version__    = "0.11.14.7"
-__revision__   = 140
+__version__    = "0.11.15.7"
+__revision__   = 141
 
 
 
