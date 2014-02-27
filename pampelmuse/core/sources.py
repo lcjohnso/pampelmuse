@@ -21,10 +21,10 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-138, 2014/02/25
+144, 2014/02/27
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 138
+__revision__ = 144
 
 import logging, os, re
 import numpy as np, pyfits
@@ -1349,9 +1349,9 @@ class Sources(object):
             
             ## get index of source in array of IFS coordinates
             i = self.ifs_coordinates_loaded.cumsum()[j]-1
-        
-            xfit_i = xfit + Fitfunction(self.wave[mask], self.ifs_coordinates[mask, i, 0, 0]-xfit(self.wave[mask]), order)
-            yfit_i = yfit + Fitfunction(self.wave[mask], self.ifs_coordinates[mask, i, 1, 0]-yfit(self.wave[mask]), order)
+
+            xfit_i = xfit + Fitfunction.fit(self.wave[mask], self.ifs_coordinates[mask, i, 0, 0]-xfit(self.wave[mask]), order)
+            yfit_i = yfit + Fitfunction.fit(self.wave[mask], self.ifs_coordinates[mask, i, 1, 0]-yfit(self.wave[mask]), order)
     
             self.ifs_coordinates_fit_functions[self.ID[j]] = [xfit_i, yfit_i]
             
