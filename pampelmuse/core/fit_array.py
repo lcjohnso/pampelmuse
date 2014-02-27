@@ -25,10 +25,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-144, 2014/02/27
+145, 2014/02/27
 """ 
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 144
+__revision__ = 145
 
 import contextlib, itertools, logging, os, sys, time
 import numpy as np, pyfits
@@ -459,7 +459,7 @@ class StarFit(object):
             self.sources.data[self.jj,self.valid_components,1] = (1./np.sqrt(self.Apsf.multiply(self.Apsf).sum(axis=0)).getA1())/self.fluxfactors[self.valid_components]
 
             ## initial fit of fluxes
-            bestFit = lsqr(self.Apsf, self.current)
+            bestFit = lsmr(self.Apsf, self.current)
             self.sources.data[self.jj,self.valid_components,0] += bestFit[0]/self.fluxfactors[self.valid_components]
 
             indata = np.zeros((self.ifs_data.instrument.transform.shape[0],), dtype=np.float32)

@@ -30,7 +30,7 @@ PampelMuse can be called with either of the two options '--fromline' and
 provided as comma-separated <key>=<value> pairs in the command line after
 '--fromline'. In the latter case, '--fromfile' should be followed by the
 name of a plain ascii file that contains the <key>=<value> pairs, one per
-row. An overview of the parameters that PampelMuse uses can be found in the
+row. An overview of the parameters that PampelMusea  uses can be found in the
 manual.
 
 (ii) via the header of the primary HDU of the PampelMuse PRM-file
@@ -45,12 +45,12 @@ the data into memory yet but just checks whether the file(s) are valid.
 
 Latest SVN revision
 -------------------
-144, 2014/02/27
+145, 2014/02/27
 """
 __author__     = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
 
-__version__    = "0.11.17.8"
-__revision__   = 144
+__version__    = "0.11.18.8"
+__revision__   = 145
 
 
 
