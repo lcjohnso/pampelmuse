@@ -25,10 +25,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-147, 2014/02/28
+148, 2014/02/28
 """ 
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 147
+__revision__ = 148
 
 import contextlib, itertools, logging, os, sys, time
 import numpy as np, pyfits, scipy
@@ -391,7 +391,6 @@ class StarFit(object):
         (iv) estimate the uncertainty of the individual flux of each
              component.
         """
-
         ## update parameter initial guesses (if any):
         self.update_parameters() 
 
@@ -449,6 +448,8 @@ class StarFit(object):
         ## of the Instrument instance and the mask
         self.PSF.set_transform(self.ifs_data.instrument.transform[mask==0])
 
+        ## Reset possibly excisting unresolved component from last layer
+        self.unresolved_psf = None
 
         ## Start iteration
         n_iter = 1
@@ -554,6 +555,11 @@ class StarFit(object):
             This is the PSF coefficient matrix that is used in the linear
             least-squares fit to determine the source fluxes.
         """
+        ##  if unresolved component exists and should not be updated, extract sublist of resolved sources
+        if self.sources.includes_unresolved and not update_unresolved:
+            psf_instances = [self.psf_instances[i] for i in np.flatnonzero(self.sources.status>0)]
+        else: ## otherwise hust use full ist
+            psf_instances = self.psf_instances
 
         ## Initialize parallelization (if requested)
         if self.ncpu > 1:
@@ -561,13 +567,13 @@ class StarFit(object):
             threads = []
             
             ## determine which sources should be calculated by which CPU
-            m = (self.sources.nsrc//self.ncpu) + 1
+            m = (len(psf_instances)//self.ncpu) + 1
             
             for n in xrange(self.ncpu):
                 imin = n*m
                 imax = min((n+1)*m, self.sources.nsrc)
                 
-                threads.append(pool.apply_async(get_psf_data, args=(self.psf_instances[imin:imax], self.sigma)))
+                threads.append(pool.apply_async(get_psf_data, args=(psf_instances[imin:imax], self.sigma)))
         
             pool.close()
             pool.join()
@@ -575,8 +581,15 @@ class StarFit(object):
             # TODO: parallelization seems not to work when calling class methods. The different packages are still processed sequentially
             results = list(itertools.chain.from_iterable([threads[n].get() for n in xrange(self.ncpu)]))
         else:
-            results = get_psf_data(self.psf_instances, self.sigma)
-        
+            results = get_psf_data(psf_instances, self.sigma)
+
+        if self.sources.includes_unresolved: ## handle the unresolved component
+            if update_unresolved  or self.unresolved_psf==None: ## just store the unresolved sources as a list for later re-use
+                self.unresolved_psf = [results[i] for i in np.flatnonzero(self.sources.status==0)]
+            else: ## add the existing unresolved PSFs at the right indices
+                indices = np.flatnonzero(self.sources.status==0)
+                for i in xrange(len(self.unresolved_psf)): results.insert(indices[i], self.unresolved_psf[i])
+
         ## check if any row does not contribute at all
         self.fluxfactors, specrows = sum_by_group([r[-1] for r in results], self.sources.specrow)
         self.valid_components = (self.fluxfactors>0)
@@ -659,7 +672,7 @@ class StarFit(object):
         the PSF and/or the coordinate transformation.
         """
         ## Initialize parallelization (if requested)
-        # TODO: enable parallelizationa again and make it work
+        # TODO: enable parallelization again and make it work
         # if self.ncpu > 1:
         #     pool    = Pool(self.ncpu)
         #     threads = []
@@ -741,7 +754,7 @@ class StarFit(object):
             if psffitted[n]:
                 psf_pars.append(result[0][-len(psf_names):])
                 for j in xrange(len(psf_names)): logstring += " {0}={1:.2f}".format(psf_names[j], float(psf_pars[-1][j]))
-            logging.debug(logstring)
+            logging.info(logstring)
 
 
         ## update coordinate transformation if available and possible
@@ -996,8 +1009,8 @@ class StarFit(object):
                 raise np.linalg.linalg.LinAlgError("Invalid value '{0}' for parameter '{1}'.".format(x0[i], names[i]))
 
         ## calculate new model
-        Aprm = self.fill_matrix(update_unresolved=False, log=False)
-        model =  Aprm*sparse.dia_matrix((self.sources.data[self.jj,:,0],[0]), shape=(self.sources.ncmp, self.sources.ncmp))
+        self.build_matrix(update_unresolved=False, log=False)
+        model =  self.Apsf*sparse.dia_matrix((self.sources.data[self.jj,:,0],[0]), shape=(self.sources.ncmp, self.sources.ncmp))
 
         ## return residuals
         return (self.data/self.sigma) - model.sum(axis=1).getA1()

@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-137, 2014/02/24
+148, 2014/02/28
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 137
+__revision__ = 148
 
 import datetime, os, sys, logging
 import numpy as np, pyfits
@@ -479,7 +479,7 @@ def initfit(pampelmuse):
         ## The isolation of a star is measured using a slightly modified version of the shoulder drop or topographic prominence
         ## (for the exact definition of the topographic prominence, see http://en.wikipedia.org/wiki/Topographic_prominence).
         ## It is a measure for how strongly a source dominates its surroundings. The measure used here is the flux ratio of the
-        ## source itself and the brightest source within a distance r that we set to 2x the value of the PSFRAD parameter.
+        ## source itself and the brightest source within a distance r that we set to the value of the PSFRAD parameter.
 
         logging.info("IDs of stars that fullfil search criteria:")
         logging.info("       ID    mag  shoulder_drop")
@@ -492,7 +492,7 @@ def initfit(pampelmuse):
 
             ## calculate shoulder drop
             dr   = spatial.distance.cdist(ifs_coordinates[[i]], ifs_coordinates[idx_magsorted!=i])[0]
-            dmag = (sources.mag[dr<(2*pampelmuse.psfrad)]-sources.mag[i]).min()
+            dmag = (sources.mag[dr<pampelmuse.psfrad]-sources.mag[i]).min()
             sd   = 10**(-0.4*dmag)
             if sd>pampelmuse.apernois: continue
             
