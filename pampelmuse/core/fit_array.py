@@ -25,16 +25,21 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-145, 2014/02/27
+146, 2014/02/28
 """ 
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 145
+__revision__ = 146
 
 import contextlib, itertools, logging, os, sys, time
-import numpy as np, pyfits
-from scipy import sparse, optimize
-from scipy.sparse.linalg import lsmr ## lsmr does the same as lsqr but faster (i.e. the Max Power way), it will only work for scipy versions >=0.10
+import numpy as np, pyfits, scipy
 from multiprocessing import cpu_count, Pool
+from scipy import sparse, optimize
+if int(scipy.__version__.split(".")[1])<10:
+    logging.warning("Version of SciPy is <0.10, using sparse.linalg.lsqr instead of faster scipy.linalg.lsmr")
+    from scipy.sparse.linalg import lsqr as lsmr
+else:
+    from scipy.sparse.linalg import lsmr
+## lsmr does the same as lsqr but faster (i.e. the Max Power way), it will only work for scipy versions >=0.10
 
 ## required PampelMuse-packages
 from pampelmuse.core.psf import Gaussian, Moffat
@@ -372,7 +377,7 @@ class StarFit(object):
             self.iter_fit_layer()
 
             self.i += 1
-
+            if self.i==100: break
 
     def iter_fit_layer(self):
         """
@@ -410,19 +415,17 @@ class StarFit(object):
                 i += 1
 
         ## -with direct positions if required
-        i  = -1
-        ii =  0
+        i  = 0
         ll = self.jj*self.full_coordinates_fit ## spectral index in sources.ifs_coordinates
-        for psf in self.PSF:
-            i += 1
-            if not self.sources.ifs_coordinates_loaded[i]: continue
+        for psf in self.psf_instances:
+            if not psf==None: continue
             if self.sources.ifs_coordinates_fitted[i]:
-                psf.set_xc(self.sources.ifs_coordinates[ll,ii,0,1])
-                psf.set_yc(self.sources.ifs_coordinates[ll,ii,1,1])
+                psf.set_xc(self.sources.ifs_coordinates[ll,i,0,1])
+                psf.set_yc(self.sources.ifs_coordinates[ll,i,1,1])
             elif self.sources.ifs_coordinates_free[i]:
-                psf.set_xc(self.sources.ifs_coordinates[ll,ii,0,0])
-                psf.set_yc(self.sources.ifs_coordinates[ll,ii,1,0])
-            ii += 1
+                psf.set_xc(self.sources.ifs_coordinates[ll,i,0,0])
+                psf.set_yc(self.sources.ifs_coordinates[ll,i,1,0])
+            i += 1
 
         ## WORK ON IFS DATA
         data  = self.ifs_data.data.layer(self.kk)
@@ -462,11 +465,11 @@ class StarFit(object):
             bestFit = lsmr(self.Apsf, self.current)
             self.sources.data[self.jj,self.valid_components,0] += bestFit[0]/self.fluxfactors[self.valid_components]
 
-            indata = np.zeros((self.ifs_data.instrument.transform.shape[0],), dtype=np.float32)
-            indata[mask==False] = np.asarray(self.current, dtype=np.float32)
-            outdata = self.ifs_data.instrument.make_grid(indata)
-            outHDU = pyfits.PrimaryHDU(outdata)
-            outHDU.writeto("{0}_{1}.fits".format(self.jj, n_iter), clobber=True)
+#            indata = np.zeros((self.ifs_data.instrument.transform.shape[0],), dtype=np.float32)
+#            indata[mask==False] = np.asarray(self.current, dtype=np.float32)
+#            outdata = self.ifs_data.instrument.make_grid(indata)
+#            outHDU = pyfits.PrimaryHDU(outdata)
+#            outHDU.writeto("{0}_{1}.fits".format(self.jj, n_iter), clobber=True)
             
             ## determine relative change in fluxes
             delta_flux = (bestFit[0]/self.fluxfactors[self.valid_components])/self.sources.data[self.jj,self.valid_components,0]
@@ -584,13 +587,14 @@ class StarFit(object):
 
         ## fill the matrix: the indices and intensities of all PSF instances are combined and serve as row indices and values of
         ## the matrix. To obtain the column indices of the matrix, we use the property 'specrow' of the Sources class and correct
-        ## for components with zero flux contribution (if they exist) 
+        ## for components with zero flux contribution (if they exist)
         i0 = np.hstack((r[0] for r in results)) ## the row indices
 
         i1 = np.hstack((len(results[i][0])*[self.sources.specrow[i]] for i in xrange(self.sources.nsrc))) ## the column indices
         for bad_index in specrows[self.component_mask][::-1]: i1[i1>bad_index] -= 1 ## correct for components that do not contribute
 
         f  = np.hstack((r[1] for r in results)) ## the fluxes
+        f /= self.fluxfactors[self.valid_components][i1] ## bring all components to an integrated flux of 1
 
         ## first, a coo-matrix is constructed. Note that it handles the case when the input data contains multiple entries for the
         ## some indices (row, column). After construction, the matrix is converted to a csc matrix to speed up future usage of it.

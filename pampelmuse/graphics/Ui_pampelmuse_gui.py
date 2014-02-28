@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file '/home/kamann/prog/DISTRIBUTE/kamann-code.2/trunk/pampelmuse/graphics/pampelmuse_gui.ui'
 #
-# Created: Mon Sep 30 10:45:50 2013
+# Created: Fri Feb 28 12:27:29 2014
 #      by: PyQt4 UI code generator 4.9.1
 #
 # WARNING! All changes made in this file will be lost!
@@ -361,6 +361,7 @@ class Ui_PampelMuseGui(object):
         self.actionData.setObjectName(_fromUtf8("actionData"))
         self.actionResiduals = QtGui.QAction(PampelMuseGui)
         self.actionResiduals.setCheckable(True)
+        self.actionResiduals.setEnabled(False)
         self.actionResiduals.setObjectName(_fromUtf8("actionResiduals"))
         self.menuFile.addAction(self.actionSave)
         self.menuFile.addAction(self.actionSaveAs)

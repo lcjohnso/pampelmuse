@@ -21,11 +21,11 @@ check whether the IFS data contains HDUs providing either uncertainties
 
 Latest SVN revision
 -------------------
-120, 2014/02/20
+146, 2014/02/28
 
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 120
+__revision__ = 146
 
 import logging, types
 import numpy as np, pyfits
@@ -43,7 +43,7 @@ class Cube:
     is available.
     """
     
-    def __init__(self, name, sigma=None, mask=None, instrument=None, mode='readonly', checks={}):
+    def __init__(self, name, sigma=None, mask=None, residuals=None, instrument=None, mode='readonly', checks={}):
         """
         Initialize a new instance of the 'Cube' class.
         
@@ -55,9 +55,15 @@ class Cube:
         sigma : string, optional
             The path to the uncertainties of the data. If none is provided, the
             routine will check whether the data file contains an extension 'ERROR'
+            or 'SIGMA'. If an HDU named 'STAT' is detected, ithe routine assumes
+            it contains variances.
         mask : string, optional
             The path to the bad pixel mask of the cube. If none is provided, the
             routine will check whether the data file contains an extension 'MASK'.
+        residuals : string, optional
+            The path to a file containing the fit residuals of the cube. If none is
+            provided, the routine will check whether the data file contains an
+            extension 'RESIDUAL'.
         instrument : pampelmuse.core.instruments.Instrument instance, string or None,
             optional
             Can be used to provide informations about the instrument used to observe
@@ -202,11 +208,19 @@ class Cube:
         logging.info("Opening data HDU successful.")
     
         ## check if file with uncertainties is available, otherwise check data file:
-        self.open_sigma(sigma)
+        i = self.load_auxiliary_hdu("sigma", filename=sigma, hduname=["SIGMA", "ERROR", "STAT"])
+        if self.sigma==None: logging.error("Unable to load uncertainties for IFS data.")
+        else: logging.info("Loaded uncertainties from HDU {0} of file {1}.".format(self.sigma.name if self.sigma.name!='' else i, self.sigma._file.name))
 
         ## check if file with masked pixels is available, otherwise check data file:
-        self.open_mask(mask)
-
+        i = self.load_auxiliary_hdu("mask", filename=mask, hduname="MASK")
+        if self.mask==None: logging.warning("Unable to load bad-pixel mask for IFS data.")
+        else: logging.info("Loaded bad-pixel mask from HDU {0} of file {1}.".format(self.mask.name if self.mask.name!='' else i, self.mask._file.name))
+        
+        ## check if file or HDU with fit residuals  is available
+        i = self.load_auxiliary_hdu("residuals", filename=residuals, hduname="RESIDUAL")
+        if self.residuals!=None:
+            logging.info("Loaded residuals from HDU {0} of file {1}.".format(self.residuals.name if self.residuals.name!='' else i, self.residuals._file.name))
 
     @property
     def wave(self):
@@ -233,107 +247,172 @@ class Cube:
             return r"\mathrm{{{0}}}".format(self.cunit)
 
     
-    def open_sigma(self, filename=None):
+    def load_auxiliary_hdu(self, attribute, filename=None, hduname=None):
         """
-        Open the uncertainties or variances of the data and check their
-        validity. Uncertainties should be either in the first extension of
-        a file or in an extension named 'ERROR' or 'SIGMA'. Variance should
-        be in an extension named 'STAT'. Note that if no file is provided,
-        the routine will check the data file for the information.
+        Loads an auxiliary HDU of the one containing the IFS data and adds
+        it to the instance by setting the provided attribute.
         
         Parameters
         ----------
-        filename : string, optional
-            The filename of the FITS file that contains the uncertainties or
-            variances.
+        attribute : string
+            The name of the attribute that should be set to the HDU using the
+            setattr-method.
+        hdunames : string or iterable
+            One or more names to identify the HDU in the file (if no filename
+            is provided, the list of HDUs of the file containing the IFS data
+            is searched.
+        filename, string, optional
+            The name of the file containing the HDU.
+
+        Returns
+        -------
+        i : int
+            The index of the HDU containing the requested data. If no matching
+            HDU is found, None is returned.
         """
+        if hduname!=None and not hasattr(hduname, "__iter__"):
+            hduname = [hduname] ##  make sure hduname is iterable
+
         if filename != None:
             hdulist = pyfits.open(filename, mode=self.mode)
         else:
             hdulist = self.file
-        
-        ## check for uncertainties
-        for name in ["ERROR", "SIGMA"]:
-            try:
-                self.sigma = hdulist[name]
-                logging.info("Detected extension '{0}', assuming it contains uncertainties.".format(name))
-                break
-            except KeyError:
-                pass
-
-        ## check for variances
-        for name in ["STAT", ]:
-            try:
-                self.sigma = hdulist[name]
-                self.is_var = True
-                logging.info("Detected extension '{0}', assuming it contains variances.".format(name))
-            except KeyError:
-                pass
-        
-        if self.sigma == None and filename != None:
-            self.sigma = hdulist[0]
-
-        if self.sigma==None:
-            logging.error("No HDU containing uncertainties or variances detected.")
-            return
-                
-        ##  consistency checks: must have same dimensions as data
-        if self.sigma.header["NAXIS"] != self.ndim:
-            logging.error("Incompatible dimensionalities of uncertainties and science data.")
-            self.sigma = None
-            return
-            
-        for key in ["NAXIS{0}".format(i) for i in xrange(1, self.ndim+1)]:
-            if self.sigma.header[key] != self.data.header[key]:
-                logging.error("Different values for header key {0} in uncertainties and science data.".format(key))
-                self.sigma = None
-                return
-                
-        logging.info("Opening uncertaities/variances HDU successful.")
-        
     
-    def open_mask(self, filename=None):
-        """
-        Open the bad pixel mask of the data and check its validity. The
-        mask should be either in the first extension of a file or in an
-        extension named 'MASK'. Not that if no file is provided, the
-        routine will check the data file for the information.
+        available_names = [hdu.name for hdu in hdulist]
+    
+        i = None ## will contain the index of the HDU to be loaded
         
-        Parameters
-        ----------
-        filename : string, optional
-            The filename of the FITS file that contains the mask.
-        """
-        if filename != None:
-            hdulist = pyfits.open(filename, mode=self.mode)
-        else:
-            hdulist = self.file
-            
-        for name in ["MASK", "BADPIX"]:
+        ## check if one of the provided names is available in the list of HDUs
+        for name in hduname:
             try:
-                self.mask = hdulist[name]
-                logging.info("Detected extension '{0}', assuming it contains the bad voxel mask.".format(name))
-            except KeyError:
+                i = available_names.index(name)
+                if attribute=="sigma" and available_names[i] == "STAT": self.is_var=True
+                break
+            except ValueError:
                 pass
-                
-        if self.mask == None:
-            if filename != None: self.mask = hdulist[0]
-            else:
-                logging.warning("No HDU containing bad pixel mask detected.")
-                return
-                
+    
+        if i == None:
+            if filename != None: i=0
+            else: return None
+
         ##  consistency checks: must have same dimensions as data
-        if self.mask.header["NAXIS"] != self.ndim:
-            logging.error("Incompatible dimensionalities of mask and science data.")
-            self.mask = None
+        if hdulist[i].header["NAXIS"] != self.ndim:
+            logging.error("Loaded HDU has different dimensionality than IFS data.")
             return
             
-        for key in ["NAXIS{0}".format(i) for i in xrange(1, self.ndim+1)]:
-            if self.mask.header[key] != self.data.header[key]:
-                logging.error("Different values for header key {0} in mask and science data.".format(key))
-                self.mask = None
-                return
-                
+        ## lengths of individual axes can be different, e.g. residuals are stored without calibration/sky fibers and only for the wavelength range
+        ## that is analysed
+        for key in ["NAXIS{0}".format(j) for j in xrange(1, self.ndim+1)]:
+            if hdulist[i].header[key] != self.data.header[key]:
+                logging.warning("Loaded HDU has different axis dimensions than IFS data.".format(key))
+##                 return None
+
+        setattr(self, attribute, hdulist[i])
+        
+        return i
+    
+    
+#    def open_sigma(self, filename=None):
+#        """
+#        Open the uncertainties or variances of the data and check their
+#        validity. Uncertainties should be either in the first extension of
+#        a file or in an extension named 'ERROR' or 'SIGMA'. Variance should
+#        be in an extension named 'STAT'. Note that if no file is provided,
+#        the routine will check the data file for the information.
+#        
+#        Parameters
+#        ----------
+#        filename : string, optional
+#            The filename of the FITS file that contains the uncertainties or
+#            variances.
+#        """
+#        if filename != None:
+#            hdulist = pyfits.open(filename, mode=self.mode)
+#        else:
+#            hdulist = self.file
+#        
+#        ## check for uncertainties
+#        for name in ["ERROR", "SIGMA"]:
+#            try:
+#                self.sigma = hdulist[name]
+#                logging.info("Detected extension '{0}', assuming it contains uncertainties.".format(name))
+#                break
+#            except KeyError:
+#                pass
+#
+#        ## check for variances
+#        for name in ["STAT", ]:
+#            try:
+#                self.sigma = hdulist[name]
+#                self.is_var = True
+#                logging.info("Detected extension '{0}', assuming it contains variances.".format(name))
+#            except KeyError:
+#                pass
+#        
+#        if self.sigma == None and filename != None:
+#            self.sigma = hdulist[0]
+#
+#        if self.sigma==None:
+#            logging.error("No HDU containing uncertainties or variances detected.")
+#            return
+#                
+#        ##  consistency checks: must have same dimensions as data
+#        if self.sigma.header["NAXIS"] != self.ndim:
+#            logging.error("Incompatible dimensionalities of uncertainties and science data.")
+#            self.sigma = None
+#            return
+#            
+#        for key in ["NAXIS{0}".format(i) for i in xrange(1, self.ndim+1)]:
+#            if self.sigma.header[key] != self.data.header[key]:
+#                logging.error("Different values for header key {0} in uncertainties and science data.".format(key))
+#                self.sigma = None
+#                return
+#                
+#        logging.info("Opening uncertaities/variances HDU successful.")
+#        
+#    
+#    def open_mask(self, filename=None):
+#        """
+#        Open the bad pixel mask of the data and check its validity. The
+#        mask should be either in the first extension of a file or in an
+#        extension named 'MASK'. Not that if no file is provided, the
+#        routine will check the data file for the information.
+#        
+#        Parameters
+#        ----------
+#        filename : string, optional
+#            The filename of the FITS file that contains the mask.
+#        """
+#        if filename != None:
+#            hdulist = pyfits.open(filename, mode=self.mode)
+#        else:
+#            hdulist = self.file
+#            
+#        for name in ["MASK", "BADPIX"]:
+#            try:
+#                self.mask = hdulist[name]
+#                logging.info("Detected extension '{0}', assuming it contains the bad voxel mask.".format(name))
+#            except KeyError:
+#                pass
+#                
+#        if self.mask == None:
+#            if filename != None: self.mask = hdulist[0]
+#            else:
+#                logging.warning("No HDU containing bad pixel mask detected.")
+#                return
+#                
+#        ##  consistency checks: must have same dimensions as data
+#        if self.mask.header["NAXIS"] != self.ndim:
+#            logging.error("Incompatible dimensionalities of mask and science data.")
+#            self.mask = None
+#            return
+#            
+#        for key in ["NAXIS{0}".format(i) for i in xrange(1, self.ndim+1)]:
+#            if self.mask.header[key] != self.data.header[key]:
+#                logging.error("Different values for header key {0} in mask and science data.".format(key))
+#                self.mask = None
+#                return
+#                
         logging.info("Opening mask HDU successful.")
         
     
@@ -484,33 +563,33 @@ class Cube:
                 hdus = [self.data,]
                 
             if returnSigma:
-                if isinstance(self.sigma_hdu, pyfits.PrimaryHDU) and not asPrimary:
-                    hdus.append(pyfits.ImageHDU(self.sigma_hdu.data, header=self.sigma_hdu.header))
-                elif not isinstance(self.sigma_hdu, pyfits.PrimaryHDU) and asPrimary:
-                    hdus.append(pyfits.PrimaryHDU(self.sigma_hdu.data, header=self.sigma_hdu.header))
+                if isinstance(self.sigma, pyfits.PrimaryHDU) and not asPrimary:
+                    hdus.append(pyfits.ImageHDU(self.sigma.data, header=self.sigma.header))
+                elif not isinstance(self.sigma, pyfits.PrimaryHDU) and asPrimary:
+                    hdus.append(pyfits.PrimaryHDU(self.sigma.data, header=self.sigma.header))
                 else:
-                    hdus.append(self.sigma_hdu)
+                    hdus.append(self.sigma)
                     
             if returnMask:
-                if isinstance(self.mask_hdu, pyfits.PrimaryHDU) and not asPrimary:
-                    hdus.append(pyfits.ImageHDU(self.mask_hdu.data, header=self.mask_hdu.header))
-                elif not isinstance(self.mask_hdu, pyfits.PrimaryHDU) and asPrimary:
-                    hdus.append(pyfits.PrimaryHDU(self.mask_hdu.data, header=self.mask_hdu.header))
+                if isinstance(self.mask, pyfits.PrimaryHDU) and not asPrimary:
+                    hdus.append(pyfits.ImageHDU(self.mask.data, header=self.mask.header))
+                elif not isinstance(self.mask, pyfits.PrimaryHDU) and asPrimary:
+                    hdus.append(pyfits.PrimaryHDU(self.mask.data, header=self.mask.header))
                 else:
-                    hdus.append(self.mask_hdu)
+                    hdus.append(self.mask)
             
             if returnSigma|returnMask: return hdus
             else: return hdus[0]
                     
         else:
             data = [self.instrument.make_grid(self.data.data), ]
-            if returnSigma: data.append(self.instrument.make_grid(self.sigma_hdu.data))
-            if returnMask: data.append(self.instrument.make_grid(self.mask_hdu.data))
+            if returnSigma: data.append(self.instrument.make_grid(self.sigma.data))
+            if returnMask: data.append(self.instrument.make_grid(self.mask.data))
             
             logging.info("Updating header information...")
             out_headers = [self.data.header, ]
-            if returnSigma: out_headers.append(self.sigma_hdu.header)
-            if returnMask: out_headers.append(self.mask_hdu.header)
+            if returnSigma: out_headers.append(self.sigma.header)
+            if returnMask: out_headers.append(self.mask.header)
             
             for key in ["crpix", "crval", "cdelt", "ctype", "cunit"]:
                 for header in out_headers:

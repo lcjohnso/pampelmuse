@@ -15,10 +15,10 @@ if PampelMuse is started with the 'SUBTRES' option.
 
 Latest SVN revision
 -------------------
-118, 2014/02/20
+146, 2014/02/28
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 118
+__revision__ = 146
 import datetime, logging, os, sys
 import numpy as np, pyfits
 
@@ -172,7 +172,7 @@ def subtres(pampelmuse):
     logging.info("Creating HDU from processed data...")
     if pampelmuse.ifs_data.ndim==3: ## make output data 3D if input was 3D
         data = pampelmuse.ifs_data.instrument.make_grid(data)
-    outHDU = pyfits.PrimaryHDU(data, header=pampelmuse.ifs_data.data_hdu.header)
+    outHDU = pyfits.PrimaryHDU(data, header=pampelmuse.ifs_data.data.header)
     
     ## add PampelMuse configuration to HDU just created:
     outHDU = pampelmuse.makeHeader(hdu=outHDU)

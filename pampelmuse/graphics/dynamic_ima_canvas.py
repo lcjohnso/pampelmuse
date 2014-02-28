@@ -18,10 +18,10 @@ loaded from pampelmuse.core.cube
 
 Latest SVN revision
 -------------------
-118, 2014/02/20
+146, 2014/02/28
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 118
+__revision__ = 146
 
 import logging
 import matplotlib.transforms, matplotlib.artist, matplotlib.pyplot, numpy as np
@@ -238,14 +238,7 @@ class DynamicImaCanvas(FigureCanvas):
                 logging.error("Cannot display fit residuals because no residuals HDU is loaded.")
                 return
             else:
-                self.addImage(self.cube.residuals.layer(i, return_grid=True), **kwargs)
-
-#        elif self.cube.ndim==3:
-#            self.addImage(self.cube.data_hdu.section[i], **kwargs)
-#        elif self.cube.instrument.spectral_axis==0:
-#            self.addImage(self.cube.instrument.make_grid(self.cube.data_hdu.section[i],  fill_value=0.), **kwargs)
-#        else:
-#            self.addImage(self.cube.instrument.make_grid(self.cube.data_hdu.section[:, i],  fill_value=0.), **kwargs)
+                self.addImage(self.cube.residuals.layer(i, return_grid=True, return_aux=True), **kwargs)
 
         ## store current wavelength and number of layer
         self.wave = self.cube.wave[i]
@@ -627,11 +620,15 @@ class DynamicImaCanvas(FigureCanvas):
 
     def on_mouseMotion_notify(self, event):
         """
-        Handle event when mouse is moved over the axis with
-        a button pressed. The behavior depends on the selected
-        mode. In normal mode, nothing happens. In zoom mode, a
-        rectangle is spanned indicating the selected window.
-        And in pan mode, the x- and y-limits of the plots are
+        Handle event when mouse is moved over the axis with a
+        button pressed. The behavior depends on the selected
+        mode:
+        In normal mode, nothing happens except for that the
+        method emits a signal providing the x- and y-coord.
+        of the pixel and its flux.
+        In zoom mode, a rectangle is spanned indicating the
+        selected window.
+        In pan mode, the x- and y-limits of the plots are
         updated while the mouse moves.
         
         Parameters
@@ -643,7 +640,12 @@ class DynamicImaCanvas(FigureCanvas):
         if event.inaxes != self.axes:
             return
 
-        self.emit(QtCore.SIGNAL("coordsChanged"), int(event.xdata), int(event.ydata))
+        x = int(round(event.xdata))
+        y = int(round(event.ydata))
+        try: f = float(self.image[y, x])
+        except IndexError: f = np.nan
+
+        self.emit(QtCore.SIGNAL("coordsChanged"), x, y, f)
 
         if self.xInit == None or self.yInit == None:
             return

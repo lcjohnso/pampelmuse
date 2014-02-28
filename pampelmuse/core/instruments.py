@@ -26,10 +26,10 @@ like dead fibers or holes in the FoV are not handled.
 
 Latest SVN revision
 -------------------
-118, 2014/02/20
+146, 2014/02/28
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 118
+__revision__ = 146
 import logging, re
 import numpy as np
 from matplotlib import path
@@ -501,7 +501,7 @@ class Instrument(object):
             return hdu.data[:, j, k] ## hdu.section[:, j, k]
             
 
-    def get_layer(self, hdu, i, return_grid=False):
+    def get_layer(self, hdu, i, return_grid=False, return_aux=False):
         """
         Extract the monochromatic layer with index i from the provided HDU.
         To keep the memory usage low, the spectrum is extracted using Section
@@ -529,7 +529,7 @@ class Instrument(object):
             layer = hdu.section[i]
         else:
             layer = hdu.section[:,i]
-        if self.naux>0: layer = layer[self.isscience]
+        if self.naux>0 and not return_aux: layer = layer[self.isscience]
         if not return_grid: return layer
         else: return self.make_grid(layer)
 

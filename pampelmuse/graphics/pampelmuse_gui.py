@@ -21,11 +21,11 @@ defines the methods that are called by Ui_PampelMuseGui.
 
 Latest SVN revision
 -------------------
-117, 2014/01/09
+146, 2014/02/28
 
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 117
+__revision__ = 146
 
 import datetime, logging, re, os, sys
 import matplotlib, matplotlib.pyplot as plt, numpy as np, pyfits
@@ -391,13 +391,16 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         self.ifsPlot = DynamicImaCanvas()
         self.ifsPlot.loadCube(input)
         
+        ## enable display of fit residualas if they are available
+        if self.ifsPlot.cube.residuals != None: self.actionResiduals.setEnabled(True)
+        
         ## include this instance in GUI
         ifsFrame = QHBoxLayout(self.ifuViewWidget)
         ifsFrame.addWidget(self.ifsPlot)
         ifsFrame.setAlignment(Qt.AlignCenter)
     
         ## load first layer by default
-        self.ifsPlot.loadLayer(0, cmap=plt.cm.Blues, interpolation="nearest")
+        self.ifsPlot.loadLayer(0, residuals=self.actionResiduals.isChecked(), cmap=plt.cm.Blues, interpolation="nearest")
             
         ## adapt layer range to match spectral dimension of datacube
         self.ifuLayerSelectSlider.setMaximum(self.ifsPlot.cube.ndisp-1)
@@ -424,7 +427,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         self.ifsLoaded = True ## set flag that a cube is available to True
 
         ## log current position of mouse cursor in status bar
-        self.connect(self.ifsPlot, SIGNAL("coordsChanged"), lambda x, y: self.statusBar.showMessage("x={0:3d}, y={1:3d}".format(x, y), 5000))
+        self.connect(self.ifsPlot, SIGNAL("coordsChanged"), lambda x, y, f: self.statusBar.showMessage("x={0}, y={1}, f={2:.3g}".format(x, y, f), 5000))
 
         ## If possible, i.e. when IFU positions are available, the interaction mode is changed to 'grab', meaning
         ## that a list of sources is overplotted on the cube display and when a source is selected, its spectrum
@@ -1139,8 +1142,12 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         
         ## show new layer if IFU data
         if self.ifsLoaded:
-            self.ifsPlot.loadLayer(p0)
+            self.ifsPlot.loadLayer(p0, residuals=self.actionResiduals.isChecked())
  
+            ## change cuts unless absolute values were set by the user:
+            if self.ifuCutsComboBox.currentText()!="User":
+                self.on_ifuCutsComboBox_currentIndexChanged(self.ifuCutsComboBox.currentText())
+
             ##  also update position of pointer if it is currently animated
             if self.dataPlot.vLine.get_animated():
                 self.dataPlot.vLine.set_data([self.ifsPlot.wave, self.ifsPlot.wave], self.dataPlot.axes.get_ylim())
@@ -1554,23 +1561,30 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         self.refPlot.dataPlot.set_facecolors(facecolors)
         self.refPlot.draw()
     
-    @pyqtSignature("bool")
-    def on_actionResiduals_toggled(self, p0):
-        """
-        Slot documentation goes here.
-        """
-        if p0 == True:
-            self.actionData.setChecked(False)
-        else:
-            self.actionResiduals.setChecked(True)
-
     
     @pyqtSignature("bool")
-    def on_actionData_toggled(self, p0):
+    def on_actionData_triggered(self, checked):
         """
         Slot documentation goes here.
         """
-        if p0 == True:
-            self.actionResiduals.setChecked(False)
-        else:
-            self.actionData.setChecked(True)
+        # TODO: not implemented yet
+        self.actionResiduals.setChecked(checked==False)
+        
+        self.ifsPlot.loadLayer(self.ifuLayerSelectSlider.value(), residuals=False)
+        
+        ## change cuts unless absolute values were set by the user:
+        if self.ifuCutsComboBox.currentText()!="User":
+            self.on_ifuCutsComboBox_currentIndexChanged(self.ifuCutsComboBox.currentText())
+    
+    @pyqtSignature("bool")
+    def on_actionResiduals_triggered(self, checked):
+        """
+        Slot documentation goes here.
+        """
+        self.actionData.setChecked(checked==False)
+        
+        self.ifsPlot.loadLayer(self.ifuLayerSelectSlider.value(), residuals=True)
+        
+        ## change cuts unless absolute values were set by the user:
+        if self.ifuCutsComboBox.currentText()!="User":
+            self.on_ifuCutsComboBox_currentIndexChanged(self.ifuCutsComboBox.currentText())
