@@ -25,10 +25,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-146, 2014/02/28
+147, 2014/02/28
 """ 
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 146
+__revision__ = 147
 
 import contextlib, itertools, logging, os, sys, time
 import numpy as np, pyfits, scipy
@@ -377,7 +377,7 @@ class StarFit(object):
             self.iter_fit_layer()
 
             self.i += 1
-            if self.i==100: break
+
 
     def iter_fit_layer(self):
         """
