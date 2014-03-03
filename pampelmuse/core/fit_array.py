@@ -6,6 +6,8 @@ Provides
 --------
 class pampelmuse.core.fit_array.StarFit
 function pampelmuse.core.fit_array.printoptions
+function pampelmuse.core.fit_array.sum_by_group
+function pampelmuse.core.fit_array.get_psf_data
 
 Purpose
 -------
@@ -25,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-148, 2014/02/28
+149, 2014/03/03
 """ 
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 148
+__revision__ = 149
 
 import contextlib, itertools, logging, os, sys, time
 import numpy as np, pyfits, scipy
@@ -99,7 +101,8 @@ def get_psf_data(psf_instances, sigma):
     together with the spaxels for which the PSF profile
     is defined.
     NOTE that this method is supposed to be replaced by
-    the instance StarFit.get_psf_data at some point.
+    the instance StarFit.get_psf_data at some point. The
+    function is also used by the SUBTRES routine.
     
     Parameters
     ----------
@@ -417,7 +420,7 @@ class StarFit(object):
         i  = 0
         ll = self.jj*self.full_coordinates_fit ## spectral index in sources.ifs_coordinates
         for psf in self.psf_instances:
-            if not psf==None: continue
+            if psf==None: continue
             if self.sources.ifs_coordinates_fitted[i]:
                 psf.set_xc(self.sources.ifs_coordinates[ll,i,0,1])
                 psf.set_yc(self.sources.ifs_coordinates[ll,i,1,1])
