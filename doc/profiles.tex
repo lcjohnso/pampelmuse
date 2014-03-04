@@ -26,13 +26,13 @@ An overview of the functional forms of the analytical PSF profiles that PampelMu
 \section{Handling of positions}
 \label{sec:positions}
 
-All profiles are defined as a function of $r$, with $r$ giving the distance of a pixel ($x_i$, $y_i$) to the centroid. In the most general case, the PSF will be of elliptical shape, with its semi-major rotated by an angle $\theta$ with respect to the $x$-axis. For this reason, we define a coordinate system (${\hat x}$, ${\hat y}$), that has the same origin as the PSF profile and has the ${\hat x}$-axis aligned with the semi-major axis. Assuming the central coordinates of profile $n$ ($n\in[0,N)$) in the original system are ($x^n$, $y^n$), the transformation is defined as
+All profiles are defined as a function of $r$, with $r$ giving the distance of a pixel ($x_i$, $y_i$) to the centroid. In the most general case, the PSF will be of elliptical shape, with its semi-major rotated by an angle $\theta$ \textbf{with respect to the $y$-axis}. For this reason, we define a coordinate system (${\hat x}$, ${\hat y}$), that has the same origin as the PSF profile and has the ${\hat x}$-axis aligned with the semi-major axis. Assuming the central coordinates of profile $n$ ($n\in[0,N)$) in the original system are ($x^n$, $y^n$), the transformation is defined as
 %
 \begin{align} 
- {\hat x} = (x-x^n)\cos\theta - (y-y^n)\sin\theta\,,
+ {\hat x} = (x-x^n)\sin\theta - (y-y^n)\cos\theta\,,
 \label{eq:psf_x} \\
 %
- {\hat y} = (x-x^n)\sin\theta + (y-y^n)\cos\theta\,.
+ {\hat y} = (x-x^n)\cos\theta + (y-y^n)\sin\theta\,.
 \label{eq:psf_y}
 \end{align}
 %

@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-149, 2014/03/03
+150, 2014/03/04
 """ 
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 149
+__revision__ = 150
 
 import contextlib, itertools, logging, os, sys, time
 import numpy as np, pyfits, scipy
@@ -826,13 +826,12 @@ class StarFit(object):
             The values of the free parameters obtained in the fit.
         """
         ## add current PSF estimate of source to residuals
-        _current   = np.copy(self.current)
-        _current[psf.used] += psf.f/self.sigma[psf.used]*flux
-        # TODO: implement usage of Jacobi matrix: Dfun=self.jacobi_single_psf
+        _data  = np.copy(self.current)
+        _data[psf.used] += flux*psf.f/self.sigma[psf.used]
 
         ## call non-linear least squares fit
         try:
-            return optimize.leastsq(self.optimize_single_psf, x0=x0, args=(names, psf, flux, _current), full_output=1, epsfcn=0.0)
+            return optimize.leastsq(self.optimize_single_psf, x0=x0, Dfun=self.jacobi_single_psf, args=(names, psf, flux, _data), full_output=1, epsfcn=0.0)
         except optimize.minpack.error as error: ## error handler to avoid code that code crashes completely
             return (x0, {}, "Exception of type optimize.minpack.error encountered while executing fit.", 99)
 
@@ -879,7 +878,7 @@ class StarFit(object):
                 raise np.linalg.linalg.LinAlgError("Invalid value '{0}' for parameter '{1}'.".format(x0[i], names[i]))
 
         ## return residuals
-        return (data[psf.used] - psf.f/self.sigma[psf.used]*flux)
+        return (data[psf.used] - flux*psf.f/self.sigma[psf.used])
 
 
     def jacobi_single_psf(self, x0, names, psf, flux, data):
@@ -898,8 +897,6 @@ class StarFit(object):
             The Jacobi matrix with respect to the model parameters included
             in 'x0'.
         """
-        # TODO: Need to define partial derivatives diff_xc and diff_yc in module pampelmuse.core.psf.profiles
-        raise NotImplementedError
 
         jacob = np.zeros((len(x0), psf.used.sum()), dtype=np.float64)
         for i in xrange(len(x0)):

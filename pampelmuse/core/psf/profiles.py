@@ -38,10 +38,10 @@ ces simultaneously without having to loop over them.
 
 Latest SVN revision
 -------------------
-141, 2014/02/26
+150, 2014/03/04
 """
 __author__   = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 141
+__revision__ = 150
 
 import logging
 import numpy as np
@@ -120,19 +120,16 @@ class Profile(object):
            following the numpy counting, the first number gives the size in
            y-direction.
         """
-        assert isinstance(value, (tuple, list)), \
-            "'size' should be a tuple, not {0}".format(type(value).__name__)
+        assert isinstance(value, (tuple, list)), "'size' should be a tuple, not {0}".format(type(value).__name__)
 
-        assert len(value) == 2, "Array must be 2D, not {0:d}D".format(\
-            len(value))
+        assert len(value) == 2, "Array must be 2D, not {0:d}D".format(len(value))
         
         if value != cls._size:
             cls._spaxel = np.arange(value[0]*value[1], dtype=np.int32)
 
             ## Assumption is that spaxels cover a rectangular area with filling
             ## factor 1. Calculate x- & y-coordinates of each spaxel:
-            _x = np.resize(np.arange(value[1], dtype=np.float64),
-                               (value[0]*value[1],))
+            _x = np.resize(np.arange(value[1], dtype=np.float64), (value[0]*value[1],))
             _y = np.arange(value[0]*value[1], dtype=np.float64)//value[1]
             
             cls._transform = np.vstack((_y, _x)).T
@@ -235,8 +232,7 @@ class Profile(object):
             The position angle, given in radian. Note that 'theta' is measured
             from the y-axis in counter-clockwise direction.
         """
-        assert isinstance(value, (float, np.float32, np.float64)), \
-            "'theta' must be a float, not {0:s}".format(type(value).__name__)
+        assert isinstance(value, (float, np.float32, np.float64)), "'theta' must be a float, not {0:s}".format(type(value).__name__)
 
         if value != cls._theta:
             cls._theta = value
@@ -248,8 +244,7 @@ class Profile(object):
                 ## instance
                 inst._own_theta = None  
                 for prop in inst.profile_properties:
-                    if not prop in ["_used", "_oversampled", "_osmap", 
-                                    "_ossummer", "_xos", "_yos"]:
+                    if not prop in ["_used", "_oversampled", "_osmap", "_ossummer", "_xos", "_yos"]:
                         inst.__dict__[prop] = None
 
 
@@ -266,18 +261,14 @@ class Profile(object):
             The ellipticity of the profiles must be in the interval [0,1).
             value=0 corresponds to a round profile.
         """
-        assert isinstance(value, (float, np.float32, np.float64)), \
-            "'e' must be a float, not {0:s}".format(type(value).__name__)
+        assert isinstance(value, (float, np.float32, np.float64)), "'e' must be a float, not {0:s}".format(type(value).__name__)
 
         if not value >= 0 and value < 1:
-            logging.error(\
-                "'e' must be in interval [0,1) but is {0:.1f}".format(\
-                    float(value)))
+            logging.error("'e' must be in interval [0,1) but is {0:.1f}".format(float(value)))
 ##             cls.BADPRM = True
 ##             return ## no update
 ##         cls.BADPRM = False
-        assert value>=-1e-3 and value<1, \
-            "'e' must be in interval [0,1) but is {0:.1f}".format(float(value))
+        assert value>=-1e-3 and value<1, "'e' must be in interval [0,1) but is {0:.1f}".format(float(value))
 
         if value != cls._e:
             cls._e = value
@@ -288,8 +279,7 @@ class Profile(object):
                 ## remove possible ellipticity of the specific instance.
                 inst._own_e = None
                 for prop in inst.profile_properties:
-                    if not prop in ["_used", "_oversampled", "_osmap", 
-                                    "_ossummer", "_xos", "_yos", "_u", "_v"]:
+                    if not prop in ["_used", "_oversampled", "_osmap", "_ossummer", "_xos", "_yos", "_u", "_v"]:
                         inst.__dict__[prop] = None
 
 
@@ -306,8 +296,7 @@ class Profile(object):
         value : float
             The parameter 'A' of the coordinate transformation.
         """
-        assert isinstance(value, (float, int, np.float32, np.float64)), \
-            "'A' must be a float or int, not {0:s}".format(type(value).__name__)
+        assert isinstance(value, (float, int, np.float32, np.float64)), "'A' must be a float or int, not {0:s}".format(type(value).__name__)
 
         if value !=  cls._A:
             cls._A = value
@@ -345,8 +334,7 @@ class Profile(object):
         value : float
             The parameter 'B' of the coordinate transformation.
         """
-        assert isinstance(value, (float, int, np.float32, np.float64)), \
-            "'B' must be a float or int, not {0:s}".format(type(value).__name__)
+        assert isinstance(value, (float, int, np.float32, np.float64)), "'B' must be a float or int, not {0:s}".format(type(value).__name__)
 
         if value !=  cls._B:
             cls._B = value
@@ -384,8 +372,7 @@ class Profile(object):
         value : float
             The parameter 'C' of the coordinate transformation.
         """
-        assert isinstance(value, (float, int, np.float32, np.float64)), \
-            "'C' must be a float or int, not {0:s}".format(type(value).__name__)
+        assert isinstance(value, (float, int, np.float32, np.float64)), "'C' must be a float or int, not {0:s}".format(type(value).__name__)
 
         if value !=  cls._C:
             cls._C = value
@@ -423,8 +410,7 @@ class Profile(object):
         value : float
             The parameter 'D' of the coordinate transformation.
         """
-        assert isinstance(value, (float, int, np.float32, np.float64)), \
-            "'D' must be a float or int, not {0:s}".format(type(value).__name__)
+        assert isinstance(value, (float, int, np.float32, np.float64)), "'D' must be a float or int, not {0:s}".format(type(value).__name__)
 
         if value !=  cls._D:
             cls._D = value
@@ -482,8 +468,7 @@ class Profile(object):
         if self.transform == None:
             logging.error("No (x,y)-coordinate system for spaxels defined.")
 
-        assert self.transform is not None, \
-            "Specify size first or provide x- & y-coordinates of each spaxel."
+        assert self.transform is not None, "Specify size first or provide x- & y-coordinates of each spaxel."
 
         ## add instance to registry of class (needed to iterate over instances)
         self._registry.append(self)
@@ -495,13 +480,11 @@ class Profile(object):
         self.src_id = src_id
 
         self.maxrad = maxrad
-        self._used  = None ## will be a boolean array with all spaxels within
-                           ## 'maxrad' set to True.
-        self._oversampled = None ## will be a boolean array with all super-
-                                 ## sampled spaxels set to True.
+        self._used  = None ## will be a boolean array with all spaxels within 'maxrad' set to True.
+        self._oversampled = None ## will be a boolean array with all supersampled spaxels set to True.
 
-        self._xc = None ## can contain direct coordinates for the centroid 
-        self._yc = None ##  of the profile
+        self._xc = None ## can contain direct coordinates for the centroid of the profile
+        self._yc = None
         
         self._own_e = None     ## can contain instance-specific values for 
         self._own_theta = None ## the ellipticity and position angle.
@@ -521,6 +504,8 @@ class Profile(object):
         ## The partial derivatives wrt the individual  parameters  
         self._diff_e = None
         self._diff_theta = None
+        self._diff_xc = None
+        self._diff_yc = None
         self._diff_A = None
         self._diff_B = None
         self._diff_C = None
@@ -528,10 +513,8 @@ class Profile(object):
 
         ## These properties of the profile must eventually be recalculated
         ## if certain parameters are changed.
-        self.profile_properties = ["_used", "_oversampled", "_osmap",
-                                   "_ossummer", "_xos", "_yos", "_u", "_v",
-                                   "_r", "_f", "_diff_e", "_diff_theta",
-                                   "_diff_A", "_diff_B", "_diff_C", "_diff_D"]
+        self.profile_properties = ["_used", "_oversampled", "_osmap", "_ossummer", "_xos", "_yos", "_u", "_v", "_r", "_f",
+                                   "_diff_e", "_diff_theta", "_diff_xc", "_diff_yc", "_diff_A", "_diff_B", "_diff_C", "_diff_D"]
 
         ## Properly implement possibility to oversample central spaxels
         self.osr   = osradius
@@ -544,8 +527,7 @@ class Profile(object):
 
             ## osxgrid and osygrid specify the offset (in spaxels) of the
             ## individual sub-spaxels wrt. to oversampled spaxel.
-            osgrid = np.linspace(\
-                -0.5+1./(2*self.osf), 0.5-1./(2*self.osf), self.osf)
+            osgrid = np.linspace(-0.5+1./(2*self.osf), 0.5-1./(2*self.osf), self.osf)
             self.osxgrid = np.resize(osgrid,(self.osf*self.osf,))
             self.osygrid = np.sort(self.osxgrid)
 
@@ -561,17 +543,14 @@ class Profile(object):
             The integrated magnitude. A magnitude of zero yields a flux of
             one, i.e. f=10^(-0.4*m).
         """
-        assert isinstance(value, (float, np.float32,  np.float64)), \
-            "'mag' must be a float, not {0:s}".format(type(value).__name__)
+        assert isinstance(value, (float, np.float32,  np.float64)), "'mag' must be a float, not {0:s}".format(type(value).__name__)
 
         if value != self._mag:
             self._mag = value
 
             ## Flag the affected parameters for recalculation
             for prop in self.profile_properties:
-                    if not prop in ["_used", "_oversampled", "_osmap",
-                                    "_ossummer", "_xos", "yos",
-                                    "_u", "_v", "_r"]:
+                    if not prop in ["_used", "_oversampled", "_osmap", "_ossummer", "_xos", "yos", "_u", "_v", "_r"]:
                         self.__dict__[prop] = None
 
 
@@ -599,8 +578,7 @@ class Profile(object):
         xc : float
             The centroid of the profile along the x-axis in units of spaxels.
         """
-        if self._xc == None: ## use coordinate transformation if no direct
-                             ## centroid available
+        if self._xc == None: ## use coordinate transformation if no direct centroid available
             return self.A*self.Xc + self.B*self.Yc + self.C
         else:
             return self._xc
@@ -617,8 +595,9 @@ class Profile(object):
         """
         assert isinstance(value, (float, np.float32, np.float64)), "'xc' must be a float, not {0:s}".format(type(value).__name__)
 
-        assert (spatial.distance.cdist([[self.yc, value]], self.transform)>=-self.maxrad).any(), \
-            "Provided xc={0:.2f} places source #{1} at distance >maxrad to FoV.".format(float(value), self.src_id)
+# Turned off following check as it turned out to be quite time-consuming
+#        assert (spatial.distance.cdist([[self.yc, value]], self.transform)>=-self.maxrad).any(), \
+#            "Provided xc={0:.2f} places source #{1} at distance >maxrad to FoV.".format(float(value), self.src_id)
 
         if value != self._xc:
             self._xc = value
@@ -675,8 +654,9 @@ class Profile(object):
         """
         assert isinstance(value, (float, np.float32, np.float64)), "'yc' must be a float, not {0:s}".format(type(value).__name__)
 
-        assert (spatial.distance.cdist([[value, self.xc]], self.transform)>=-self.maxrad).any(), \
-            "Provided yc={0:.2f} places source #{1} at distance >maxrad to FoV.".format(value, self.src_id)
+# Turned off following check as it turned out to be quite time-consuming
+#        assert (spatial.distance.cdist([[value, self.xc]], self.transform)>=-self.maxrad).any(), \
+#            "Provided yc={0:.2f} places source #{1} at distance >maxrad to FoV.".format(value, self.src_id)
 
         if value  !=  self._yc:
             self._yc = value
@@ -700,8 +680,7 @@ class Profile(object):
             self.__dict__[prop] = None
 
 
-    yc = property(get_yc, set_yc, del_yc,
-                  "The centroid of the profile along the y-axis.")
+    yc = property(get_yc, set_yc, del_yc, "The centroid of the profile along the y-axis.")
 
 
 
@@ -717,8 +696,7 @@ class Profile(object):
         theta : float
             The position angle in radian.
         """
-        if self._own_theta == None: ## if no instance-specific angle has been
-                                    ## defined, use the one of the class.
+        if self._own_theta == None: ## if no instance-specific angle has been defined, use the one of the class.
             return self._theta
         else:
             return self._own_theta
@@ -733,8 +711,7 @@ class Profile(object):
         value : float
             The position angle should be provided in radian.
         """
-        assert isinstance(value, (float, np.float32, np.float64)), \
-           "'theta' must be a float, not {0:s}".format(type(value).__name__)
+        assert isinstance(value, (float, np.float32, np.float64)), "'theta' must be a float, not {0:s}".format(type(value).__name__)
 
         if value != self._own_theta:
             self._own_theta = value
@@ -761,8 +738,7 @@ class Profile(object):
                 self.__dict__[prop] = None
 
 
-    theta = property(get_theta, set_own_theta, del_own_theta,
-                     "The position angle theta of the PSF.")
+    theta = property(get_theta, set_own_theta, del_own_theta, "The position angle theta of the PSF.")
 
 
 ## Define the 'e' property to set and return the ellipticity of the profile ####
@@ -777,8 +753,7 @@ class Profile(object):
         e : float
             The ellipticity of the profile.
         """
-        if self._own_e == None: ## if no specific value available, use the one
-                                ## defined for the class.
+        if self._own_e == None: ## if no specific value available, use the one defined for the class.
             return self._e
         else:
             return self._own_e
@@ -793,10 +768,8 @@ class Profile(object):
         value : float
             The ellipticity of the profile.
         """
-        assert isinstance(value, (float, np.float32, np.float64)), \
-            "'e' must be a float, not {0:s}".format(type(value).__name__)
-        assert value>=0 and value<1, \
-           "'e' must be in interval [0,1), but is {0:.1f}".format(float(value))
+        assert isinstance(value, (float, np.float32, np.float64)), "'e' must be a float, not {0:s}".format(type(value).__name__)
+        assert value>=0 and value<1, "'e' must be in interval [0,1), but is {0:.1f}".format(float(value))
 
         if value != self._own_e:
             self._own_e = value
@@ -804,8 +777,7 @@ class Profile(object):
             ## all properties that build up on the radius r to the centroid
             ## of the profile must be recalculated.
             for prop in self.profile_properties:
-                if not prop in ["_used", "_oversampled", "_osmap", "_ossummer",
-                                "_xos", "_yos", "_u", "_v"]:
+                if not prop in ["_used", "_oversampled", "_osmap", "_ossummer", "_xos", "_yos", "_u", "_v"]:
                     self.__dict__[prop] = None
 
         
@@ -822,8 +794,7 @@ class Profile(object):
                 self.__dict__[prop] = None
 
 
-    e = property(get_e, set_own_e, del_own_e,
-                 "The ellipticity 'e' of the PSF.")
+    e = property(get_e, set_own_e, del_own_e, "The ellipticity 'e' of the PSF.")
 
 
 
@@ -991,8 +962,7 @@ class Profile(object):
             self._xos = self.x[self.osmap]
             if self.osf>1:
                 ## add offsets of sub-spaxel wrt. parent spaxel along x-axis
-                self._xos[np.in1d(self.osmap,np.flatnonzero(self.oversampled))]\
-                    += np.resize(self.osxgrid, (self.Nos*self.osxgrid.size,))
+                self._xos[np.in1d(self.osmap,np.flatnonzero(self.oversampled))] += np.resize(self.osxgrid, (self.Nos*self.osxgrid.size,))
         return self._xos
     
 
@@ -1010,8 +980,7 @@ class Profile(object):
             self._yos = self.y[self.osmap]
             if self.osf>1:
                 ## add offsets of sub-spaxel wrt. parent spaxel along y-axis
-                self._yos[np.in1d(self.osmap,np.flatnonzero(self.oversampled))]\
-                    += np.resize(self.osygrid, (self.Nos*self.osygrid.size,))
+                self._yos[np.in1d(self.osmap,np.flatnonzero(self.oversampled))] += np.resize(self.osygrid, (self.Nos*self.osygrid.size,))
         return self._yos
 
 
@@ -1026,8 +995,7 @@ class Profile(object):
             i.e. along the semi-major axis of the profile.
         """
         if self._u == None:
-            self._u = (self.xos - self.xc)*np.sin(self.theta) \
-                -(self.yos - self.yc)*np.cos(self.theta)
+            self._u = (self.xos - self.xc)*np.sin(self.theta) - (self.yos - self.yc)*np.cos(self.theta)
         return self._u
 
 
@@ -1042,8 +1010,7 @@ class Profile(object):
             i.e. along the semi-minor axis of the profile.
         """
         if self._v == None:
-            self._v = (self.yos - self.yc)*np.sin(self.theta) \
-                +(self.xos - self.xc)*np.cos(self.theta)
+            self._v = (self.yos - self.yc)*np.sin(self.theta) + (self.xos - self.xc)*np.cos(self.theta)
         return self._v
 
 
@@ -1088,13 +1055,12 @@ class Profile(object):
 
         return 0
 
-    f = property(get_f, None, None, 
-                 "A place-holder for the intensity distribution of the PSF.")
+    f = property(get_f, None, None, "A place-holder for the intensity distribution of the PSF.")
 
     
 
 ## The property 'diff_e' that returns the partial derivative of the intensity
-## profile wrt. the ellipticity 'e'.                                         ###
+## profile wrt. the ellipticity 'e'.
     def get_diff_e(self, integrate=True):
         """
         Calculate the partial derivative of the profile wrt. the ellipticity
@@ -1120,9 +1086,7 @@ class Profile(object):
             return self._diff_e
 
 
-    diff_e = property(\
-        get_diff_e, None, None,
-        "The partial derivative of the profile wrt. the ellipticity 'e'.")
+    diff_e = property(get_diff_e, None, None, "The partial derivative of the profile wrt. the ellipticity 'e'.")
 
 
 ## The property 'diff_theta' that returns the partial derivative of the
@@ -1151,10 +1115,63 @@ class Profile(object):
         else:
             return self._diff_theta
 
-    diff_theta = property(\
-        get_diff_theta, None, None,
-        "The partial derivative of the profile wrt. the pos. angle 'theta'.")
+    diff_theta = property(get_diff_theta, None, None, "The partial derivative of the profile wrt. the pos. angle 'theta'.")
     
+    
+    
+    def get_diff_xc(self, integrate=True):
+        """
+        Calculate the partial derivative of the  profile wrt. xc, the centroid
+        of the profile in x direction.
+        
+        Parameters
+        ----------
+        integrate : bool, optional
+            Whether or not the values should be averaged over the individual
+            sub-spaxels before they are returned.
+            
+        Returns
+        -------
+        diff_xc : nd_array
+            The partial derivative, either for all (sub-)spaxels or after
+            averaging over the sub-spaxels.
+        """
+        if self._diff_xc == None: ## only re-calculate if necessary
+            self._diff_xc = -(self.u*np.sin(self.theta) + (self.v/(1-self.e)**2)*np.cos(self.theta))/self.r
+        if integrate:
+            return self.sum_os(self._diff_xc)
+        else:
+            return self._diff_xc
+            
+    diff_xc = property(get_diff_xc, None, None, "The partial derivative of the profile wrt. xc, the x-centroid of the profile.")
+    
+            
+    def get_diff_yc(self, integrate=True):
+        """
+        Calculate the partial derivative of the  profile wrt. xc, the centroid
+        of the profile in y direction.
+        
+        Parameters
+        ----------
+        integrate : bool, optional
+            Whether or not the values should be averaged over the individual
+            sub-spaxels before they are returned.
+            
+        Returns
+        -------
+        diff_yc : nd_array
+            The partial derivative, either for all (sub-)spaxels or after
+            averaging over the sub-spaxels.
+        """
+        if self._diff_yc != None: ## only re-calculate if necessary
+            self._diff_yc = (self.u*np.cos(self.theta) + (self.v/(1-self.e)**2)*np.sin(self.theta))/self.r
+        if integrate:
+            return self.sum_os(self._diff_yc)
+        else:
+            return self._diff_yc
+            
+    diff_yc = property(get_diff_yc, None, None, "The partial derivative of the profile wrt. yc, the y-centroid of the profile.")
+
 
 
 ## The property 'diff_A' that returns the partial derivative of the intensity
@@ -1177,19 +1194,14 @@ class Profile(object):
             averaging over the sub-spaxels.
         """
         if self._diff_A == None: ## only re-calculate if necessary
-            self._diff_A \
-                = -(self.u*(self.Xc*np.sin(self.theta)\
-                                -self.Yc*np.cos(self.theta)) \
-                        + self.v/(1.-self.e)**2\
-                        *(self.Yc*np.sin(self.theta) \
-                              + self.Xc*np.cos(self.theta)))/self.r
+            self._diff_A = -(self.u*(self.Xc*np.sin(self.theta) - self.Yc*np.cos(self.theta)) \
+                                + (self.v/(1.-self.e)**2)*(self.Yc*np.sin(self.theta) + self.Xc*np.cos(self.theta)))/self.r
         if integrate:
             return self.sum_os(self._diff_A)
         else:
             return self._diff_A
         
-    diff_A = property(get_diff_A, None, None,
-                      "The partial derivative of the profile wrt. 'A'.")
+    diff_A = property(get_diff_A, None, None, "The partial derivative of the profile wrt. 'A'.")
 
 
     
@@ -1213,19 +1225,14 @@ class Profile(object):
             averaging over the sub-spaxels.
         """
         if self._diff_B == None: ## only re-calculate if necessary
-            self._diff_B \
-                = -(self.u*(self.Yc*np.sin(self.theta) \
-                                + self.Xc*np.cos(self.theta)) \
-                        + self.v/(1.-self.e)**2\
-                        *(-self.Xc*np.sin(self.theta) \
-                               + self.Yc*np.cos(self.theta)))/self.r
+            self._diff_B = -(self.u*(self.Yc*np.sin(self.theta) + self.Xc*np.cos(self.theta)) \
+                                + (self.v/(1.-self.e)**2)*(-self.Xc*np.sin(self.theta) + self.Yc*np.cos(self.theta)))/self.r
         if integrate:
             return self.sum_os(self._diff_B)
         else:
             return self._diff_B
 
-    diff_B = property(get_diff_B, None, None,
-                      "The partial derivative of the profile wrt. 'B'.")
+    diff_B = property(get_diff_B, None, None, "The partial derivative of the profile wrt. 'B'.")
 
 
 
@@ -1249,16 +1256,13 @@ class Profile(object):
             averaging over the sub-spaxels.
         """
         if self._diff_C == None: ## only re-calculate if necessary
-            self._diff_C \
-                = -(self.u*np.sin(self.theta) \
-                        + self.v/(1.-self.e)**2*np.cos(self.theta))/self.r
+            self._diff_C = -(self.u*np.sin(self.theta) + (self.v/(1.-self.e)**2)*np.cos(self.theta))/self.r
         if integrate:
             return self.sum_os(self._diff_C)
         else:
             return self._diff_C
 
-    diff_C = property(get_diff_C, None, None,
-                      "The partial derivative of the profile wrt. 'C'.")
+    diff_C = property(get_diff_C, None, None, "The partial derivative of the profile wrt. 'C'.")
 
 
 
@@ -1282,17 +1286,14 @@ class Profile(object):
             averaging over the sub-spaxels.
         """
         if self._diff_D == None: ## only re-calculate if necessary
-            self._diff_D \
-                = (self.u*np.cos(self.theta) - \
-                       self.v/(1.-self.e)**2*np.sin(self.theta))/self.r
+            self._diff_D = (self.u*np.cos(self.theta) - (self.v/(1.-self.e)**2)*np.sin(self.theta))/self.r
         if integrate:
             return self.sum_os(self._diff_D)
         else:
             return self._diff_D
 
 
-    diff_D = property(get_diff_D, None, None,
-                      "The partial derivative of the profile wrt. 'D'.")
+    diff_D = property(get_diff_D, None, None, "The partial derivative of the profile wrt. 'D'.")
 
 
     
@@ -1343,8 +1344,7 @@ class Gaussian(Profile):
         value : float
             The FWHM, given in spaxels
         """
-        assert isinstance(value, (float, np.float32, np.float64)), \
-            "'fwhm' must be a float, not {0:s}".format(type(value).__name__)
+        assert isinstance(value, (float, np.float32, np.float64)), "'fwhm' must be a float, not {0:s}".format(type(value).__name__)
         assert value>0, "'fwhm' must be >0 but is {0:.1f}".format(float(value))
 
         if value != cls._fwhm:
@@ -1354,9 +1354,7 @@ class Gaussian(Profile):
                 inst._own_fwhm = None ## reset possible instance-specific value
                 ## all properties that include the FWHM need to be recalculated
                 for prop in inst.profile_properties:
-                    if not prop in ["_used", "_oversampled", "_osmap",
-                                    "_ossummer", "_xos", "_yos", "_u", "_v",
-                                    "_r"]:
+                    if not prop in ["_used", "_oversampled", "_osmap", "_ossummer", "_xos", "_yos", "_u", "_v", "_r"]:
                         inst.__dict__[prop] = None
 
 
@@ -1395,12 +1393,9 @@ class Gaussian(Profile):
         self._own_fwhm = None ## can be set to an instance-specififc FWHM
 
         ## call super-class
-        super(Gaussian, self).__init__(Xc=Xc, Yc=Yc, mag=mag, src_id=src_id,
-                                       maxrad=maxrad, osradius=osradius,
-                                       osfactor=osfactor, **kwargs)
+        super(Gaussian, self).__init__(Xc=Xc, Yc=Yc, mag=mag, src_id=src_id, maxrad=maxrad, osradius=osradius, osfactor=osfactor, **kwargs)
 
-        self._diff_fwhm = None  ## place-holder for partial differential wrt.
-                                ## the FWHM
+        self._diff_fwhm = None  ## place-holder for partial differential wrt. the FWHM
         self.profile_properties.append("_diff_fwhm")
 
 
@@ -1431,8 +1426,7 @@ class Gaussian(Profile):
         value : float
             The FWHM of the profile.
         """
-        assert isinstance(value, (float, np.float32, np.float64)), \
-            "'fwhm' must be a float, not {0:s}".format(type(value).__name__)
+        assert isinstance(value, (float, np.float32, np.float64)), "'fwhm' must be a float, not {0:s}".format(type(value).__name__)
         assert value>0, "'fwhm' must be >0 but is {0:.1f}".format(float(value))
 
         if value != self._own_fwhm:
@@ -1440,8 +1434,7 @@ class Gaussian(Profile):
             
             for prop in self.profile_properties:
                 ## all properties that use the FWHM need to  be recalculated
-                if not prop in ["_used", "_oversampled", "_osmap", "_ossummer",
-                                "_xos", "_yos", "_u", "_v", "_r"]:
+                if not prop in ["_used", "_oversampled", "_osmap", "_ossummer", "_xos", "_yos", "_u", "_v", "_r"]:
                     self.__dict__[prop] = None
 
         
@@ -1454,13 +1447,11 @@ class Gaussian(Profile):
         self._own_fwhm = None
 
         for prop in self.profile_properties:
-            if not prop in ["_used", "_oversampled", "_osmap", "_ossummer",
-                            "_xos", "_yos", "_u", "_v", "_r"]:
+            if not prop in ["_used", "_oversampled", "_osmap", "_ossummer", "_xos", "_yos", "_u", "_v", "_r"]:
                 self.__dict__[prop] = None
 
 
-    fwhm = property(get_fwhm, set_own_fwhm, del_own_fwhm,
-                    "The FWHM of the profile.")
+    fwhm = property(get_fwhm, set_own_fwhm, del_own_fwhm, "The FWHM of the profile.")
 
         
 
@@ -1498,17 +1489,13 @@ class Gaussian(Profile):
             for the parents spaxels after averaging over the sub-spaxels.
         """
         if self._f == None:
-            self._f \
-                = 10**(-0.4*self.mag)/(2.*np.pi*self.std**2*(1.-self.e))\
-                *np.exp(-self.r**2/(2.*self.std**2))\
-                +super(Gaussian, self).get_f(integrate=False)
+            self._f = 10**(-0.4*self.mag)/(2.*np.pi*self.std**2*(1.-self.e))*np.exp(-self.r**2/(2.*self.std**2)) + super(Gaussian, self).get_f(integrate=False)
         if integrate:
             return self.sum_os(self._f)
         else:
             return self._f
     
-    f = property(get_f, None, None,
-                 "The intensity distribution corresponding to the current PSF.")
+    f = property(get_f, None, None, "The intensity distribution corresponding to the current PSF.")
 
 
 ## In the following, the properties are provided to calculate the partial
@@ -1534,16 +1521,13 @@ class Gaussian(Profile):
             averaging over the sub-spaxels.
         """
         if self._diff_fwhm == None:
-            self._diff_fwhm \
-                = self.get_f(integrate=False)*(self.r**2/self.std**3 \
-                                                   -2./self.std)
+            self._diff_fwhm = self.get_f(integrate=False)*(self.r**2/self.std**3 - 2./self.std)
         if integrate:
             return self.sum_os(self._diff_fwhm)
         else:
             return self._diff_fwhm
                  
-    diff_fwhm = property(get_diff_fwhm, None, None,
-                         "The partial derivative of the PSF wrt. the FWHM.")
+    diff_fwhm = property(get_diff_fwhm, None, None, "The partial derivative of the PSF wrt. the FWHM.")
 
 
 ## The ellipticity 'e'
@@ -1565,17 +1549,13 @@ class Gaussian(Profile):
             averaging over the sub-spaxels.
         """
         if self._diff_e == None:
-            self._diff_e \
-                = self.get_f(integrate=False)\
-                *(1./(1.-self.e) - self.r/self.std**2\
-                      *super(Gaussian, self).get_diff_e(integrate=False))
+            self._diff_e = self.get_f(integrate=False)*(1./(1.-self.e) - self.r/(self.std**2)*super(Gaussian, self).get_diff_e(integrate=False))
         if integrate:
             return self.sum_os(self._diff_fwhm)
         else:
             return self._diff_e
     
-    diff_e = property(get_diff_e, None, None,
-                      "The partial derivative of the PSF wrt. the ellipticity.")
+    diff_e = property(get_diff_e, None, None, "The partial derivative of the PSF wrt. the ellipticity.")
 
     
 ## The position angle 'theta'
@@ -1597,18 +1577,68 @@ class Gaussian(Profile):
             averaging over the sub-spaxels.
         """
         if self._diff_theta == None:
-            self._diff_theta = \
-                -self.get_f(integrate=False)*self.r/self.std**2\
-                *super(Gaussian, self).get_diff_theta(integrate=False)
+            self._diff_theta = -self.get_f(integrate=False)*self.r/(self.std**2)*super(Gaussian, self).get_diff_theta(integrate=False)
         if integrate:
             return self.sum_os(self._diff_theta)
         else:
             return self._diff_theta
 
-    diff_theta = property(\
-        get_diff_theta, None, None,
-        "The partial derivative of the PSF wrt. the pos. angle 'theta'.")
+    diff_theta = property(get_diff_theta, None, None, "The partial derivative of the PSF wrt. the pos. angle 'theta'.")
 
+
+    def get_diff_xc(self, integrate=True):
+        """
+        Calculate the partial derivative of the Gaussian profile wrt. xc, the
+        centroid of the profile in x-direction.
+        
+        Parameters
+        ----------
+        integrate : bool, optional
+            Whether or not the values should be averaged over the individual
+            sub-spaxels before they are returned.
+            
+        Returns
+        -------
+        diff_xc : nd_array
+            The partial derivative, either for all (sub-)spaxels or after
+            averaging over the sub-spaxels.
+        """
+        if self._diff_xc == None:
+            self._diff_xc = -self.get_f(integrate=False)*self.r/(self.std**2)*super(Gaussian, self).get_diff_xc(integrate=False)
+        if integrate:
+            return self.sum_os(self._diff_xc)
+        else:
+            return self._diff_xc
+            
+    diff_xc = property(get_diff_xc, None, None, "The partial derivative of the Gaussian  PSF wrt. xc, the x-centroid of the profile.")
+
+
+    def get_diff_yc(self, integrate=True):
+        """
+        Calculate the partial derivative of the Gaussian profile wrt. yc, the
+        centroid of the profile in y-direction.
+        
+        Parameters
+        ----------
+        integrate : bool, optional
+            Whether or not the values should be averaged over the individual
+            sub-spaxels before they are returned.
+            
+        Returns
+        -------
+        diff_yc : nd_array
+            The partial derivative, either for all (sub-)spaxels or after
+            averaging over the sub-spaxels.
+        """
+        if self._diff_yc == None:
+            self._diff_yc =  -self.get_f(integrate=False)*self.r/(self.std**2)*super(Gaussian, self).get_diff_yc(integrate=False)
+        if integrate:
+            return self.sum_os(self._diff_yc)
+        else:
+            return self._diff_yc
+
+        diff_yc = property(get_diff_yc, None, None, "The partial derivative of the Gaussian  PSF wrt. yc, the y-centroid of the profile.")
+        
 
 ## The parameter 'A' of the coordinate transformation
     def get_diff_A(self, integrate=True):
@@ -1629,16 +1659,13 @@ class Gaussian(Profile):
             averaging over the sub-spaxels.
         """
         if self._diff_A == None:
-            self._diff_A = \
-                -self.get_f(integrate=False)*self.r/self.std**2\
-                *super(Gaussian, self).get_diff_A(integrate=False)
+            self._diff_A = -self.get_f(integrate=False)*self.r/(self.std**2)*super(Gaussian, self).get_diff_A(integrate=False)
         if integrate:
             return self.sum_os(self._diff_A)
         else:
             return self._diff_A
     
-    diff_A = property(get_diff_A, None, None,
-                      "The partial derivative of the PSF wrt. 'A'.")
+    diff_A = property(get_diff_A, None, None, "The partial derivative of the PSF wrt. 'A'.")
 
 
 ## The parameter 'B' of the coordinate transformation
@@ -1660,16 +1687,13 @@ class Gaussian(Profile):
             averaging over the sub-spaxels.
         """
         if self._diff_B == None:
-            self._diff_B = \
-                -self.get_f(integrate=False)*self.r/self.std**2\
-                *super(Gaussian, self).get_diff_B(integrate=False)
+            self._diff_B = -self.get_f(integrate=False)*self.r/self.std**2*super(Gaussian, self).get_diff_B(integrate=False)
         if integrate:
             return self.sum_os(self._diff_B)
         else:
             return self._diff_B
 
-    diff_B = property(get_diff_B, None, None,
-                      "The partial derivative of the PSF wrt. 'B'.")
+    diff_B = property(get_diff_B, None, None, "The partial derivative of the PSF wrt. 'B'.")
 
 
 ## The parameter 'C' of the coordinate transformation
@@ -1692,16 +1716,13 @@ class Gaussian(Profile):
         """
 
         if self._diff_C == None:
-            self._diff_C = \
-                -self.get_f(integrate=False)*self.r/self.std**2\
-                *super(Gaussian, self).get_diff_C(integrate=False)
+            self._diff_C = -self.get_f(integrate=False)*self.r/self.std**2*super(Gaussian, self).get_diff_C(integrate=False)
         if integrate:
             return self.sum_os(self._diff_C)
         else:
             return self._diff_C
 
-    diff_C = property(get_diff_C, None, None,
-                      "The partial derivative of the PSF wrt. 'C'.")
+    diff_C = property(get_diff_C, None, None, "The partial derivative of the PSF wrt. 'C'.")
 
     
 ## The parameter 'D' of the coordinate transformation
@@ -1723,16 +1744,13 @@ class Gaussian(Profile):
             averaging over the sub-spaxels.
         """
         if self._diff_D == None:
-            self._diff_D = \
-                -self.get_f(integrate=False)*self.r/self.std**2\
-                *super(Gaussian, self).get_diff_D(integrate=False)
+            self._diff_D = -self.get_f(integrate=False)*self.r/self.std**2*super(Gaussian, self).get_diff_D(integrate=False)
         if integrate:
             return self.sum_os(self._diff_D)
         else:
             return self._diff_D
 
-    diff_D = property(get_diff_D, None, None,
-                      "The partial derivative of the PSF wrt. 'D'.")
+    diff_D = property(get_diff_D, None, None, "The partial derivative of the PSF wrt. 'D'.")
 
 
 
@@ -1771,20 +1789,15 @@ class Moffat(Profile):
         value : float
             The 'beta' parameter
         """
-        assert isinstance(value, (float, np.float32, np.float64)), \
-            "'beta' must be a float, not {0:s}".format(type(value).__name__)
+        assert isinstance(value, (float, np.float32, np.float64)), "'beta' must be a float, not {0:s}".format(type(value).__name__)
 
         if not value > 1 and value < 20:
-            logging.error("'beta' must be >=1 but is {0:.1f}.".format(\
-                    float(value)))
+            logging.error("'beta' must be >=1 but is {0:.1f}.".format(float(value)))
 ##             cls.BADPRM = True
 ##             return
 ##         cls.BADPRM = False
-        assert value>1, "'beta' must be >1 but is {0:.1f}".format(\
-            float(value))
-        assert value<20, "'beta' must be <20 but is {0:.1f}".format(\
-            float(value))
-
+        assert value>1, "'beta' must be >1 but is {0:.1f}".format(float(value))
+        assert value<20, "'beta' must be <20 but is {0:.1f}".format(float(value))
 
         if value != cls._beta:
             cls._beta = value
@@ -1792,11 +1805,8 @@ class Moffat(Profile):
             for inst in cls._registry:
                 inst._own_beta = None ## reset possible instance-specific value
                 for prop in inst.profile_properties:
-                    ## all properties that depend on 'beta' need to be
-                    ## recalculated.
-                    if not prop in ["_used", "_oversampled", "_osmap",
-                                    "_ossummer", "_xos", "_yos",
-                                    "_u", "_v", "_r"]:
+                    ## all properties that depend on 'beta' need to be recalculated.
+                    if not prop in ["_used", "_oversampled", "_osmap", "_ossummer", "_xos", "_yos", "_u", "_v", "_r"]:
                         inst.__dict__[prop] = None
 
 
@@ -1813,8 +1823,7 @@ class Moffat(Profile):
         value : float
             The FWHM, given in spaxels
         """
-        assert isinstance(value, (float, np.float32, np.float64)), \
-            "'fwhm' must be a float, not {0:s}".format(type(value).__name__)
+        assert isinstance(value, (float, np.float32, np.float64)), "'fwhm' must be a float, not {0:s}".format(type(value).__name__)
         assert value>0, "'fwhm' must be >0 but is {0:.1f}".format(float(value))
 
         if value != cls._fwhm:
@@ -1823,11 +1832,8 @@ class Moffat(Profile):
             for inst in cls._registry:
                 inst._own_fwhm = None ## reset possible instance-specific value
                 for prop in inst.profile_properties:
-                    ## all properties that depend on the FWHM need to be
-                    ## recalculated.
-                    if not prop in ["_used", "_oversampled", "_osmap",
-                                    "_ossummer", "_xos", "_yos",
-                                    "_u", "_v", "_r"]:
+                    ## all properties that depend on the FWHM need to be recalculated.
+                    if not prop in ["_used", "_oversampled", "_osmap", "_ossummer", "_xos", "_yos", "_u", "_v", "_r"]:
                         inst.__dict__[prop] = None
 
 
@@ -1862,9 +1868,7 @@ class Moffat(Profile):
             Any other keyword provided to this method will be parsed to the
             'get_f' method of the current super-class.
         """
-        super(Moffat, self).__init__(Xc=Xc, Yc=Yc, mag=mag, src_id=src_id,
-                                     maxrad=maxrad, osradius=osradius,
-                                     osfactor=osfactor, **kwargs)
+        super(Moffat, self).__init__(Xc=Xc, Yc=Yc, mag=mag, src_id=src_id, maxrad=maxrad, osradius=osradius, osfactor=osfactor, **kwargs)
 
         self._own_beta = None ## can be set to an instance-specififc 'beta'
         self._own_fwhm = None ## can be set to an instance-specififc FWHM
@@ -1872,8 +1876,7 @@ class Moffat(Profile):
         self._diff_beta = None ## place-holder for partial derivatives wrt.
         self._diff_fwhm = None ## 'beta' and the FWHM
     
-        ## add new partial derivatives to list of parameter-dependent
-        ## properties
+        ## add new partial derivatives to list of parameter-dependent properties
         self.profile_properties.extend(["_diff_beta", "_diff_fwhm"])
         
 
@@ -1906,8 +1909,7 @@ class Moffat(Profile):
         value : float
             The 'beta' parameter of the profile.
         """
-        assert isinstance(value, (float, np.float32, np.float64)), \
-            "'beta' must be a float, not {0:s}".format(type(value).__name__)
+        assert isinstance(value, (float, np.float32, np.float64)), "'beta' must be a float, not {0:s}".format(type(value).__name__)
         assert value>1, "'beta' must be >1 but is {0:.1f}".format(float(value))
         assert value<20, "'beta' must be <20 but is {0:.1f}".format(float(value))
 
@@ -1917,8 +1919,7 @@ class Moffat(Profile):
 
             ## all properties that depend on 'beta' must be recalculated
             for prop in self.profile_properties:
-                if not prop in ["_used", "_oversampled", "_osmap", "_ossummer",
-                                "_xos", "_yos", "_u", "_v", "_r"]:
+                if not prop in ["_used", "_oversampled", "_osmap", "_ossummer", "_xos", "_yos", "_u", "_v", "_r"]:
                     self.__dict__[prop] = None
 
         
@@ -1932,13 +1933,11 @@ class Moffat(Profile):
 
         ## all properties that depend on 'beta' must be recalculated
         for prop in self.profile_properties:
-            if not prop in ["_used", "_oversampled", "_osmap", "_ossummer",
-                            "_xos", "_yos", "_u", "_v", "_r"]:
+            if not prop in ["_used", "_oversampled", "_osmap", "_ossummer", "_xos", "_yos", "_u", "_v", "_r"]:
                 self.__dict__[prop] = None
 
 
-    beta = property(get_beta, set_own_beta, del_own_beta,
-                    "The 'beta'parameter of the profile.")
+    beta = property(get_beta, set_own_beta, del_own_beta, "The 'beta'parameter of the profile.")
 
 
 ## Define the 'fwhm' property to set and return the FWHM of the profile ########
@@ -1968,8 +1967,7 @@ class Moffat(Profile):
         value : float
             The FWHM of the profile.
         """
-        assert isinstance(value, (float, np.float32, np.float64)), \
-            "'fwhm' must be a float, not {0:s}".format(type(value).__name__)
+        assert isinstance(value, (float, np.float32, np.float64)), "'fwhm' must be a float, not {0:s}".format(type(value).__name__)
         assert value>0, "'fwhm' must be >0 but is {0:.1f}".format(float(value))
 
         if value != self._own_fwhm:
@@ -1977,8 +1975,7 @@ class Moffat(Profile):
             
             ## all properties that depend on 'beta' must be recalculated
             for prop in self.profile_properties:
-                if not prop in ["_used", "_oversampled", "_osmap", "_ossummer",
-                                "_xos", "_yos", "_u", "_v", "_r"]:
+                if not prop in ["_used", "_oversampled", "_osmap", "_ossummer", "_xos", "_yos", "_u", "_v", "_r"]:
                     self.__dict__[prop] = None
 
         
@@ -1992,13 +1989,11 @@ class Moffat(Profile):
 
         ## all properties that depend on the FWHM must be recalculated
         for prop in self.profile_properties:
-            if not prop in ["_used", "_oversampled", "_osmap", "_ossummer",
-                            "_xos", "_yos", "_u", "_v", "_r"]:
+            if not prop in ["_used", "_oversampled", "_osmap", "_ossummer", "_xos", "_yos", "_u", "_v", "_r"]:
                 self.__dict__[prop] = None
 
 
-    fwhm = property(get_fwhm, set_own_fwhm, del_own_fwhm,
-                    "The FWHM of the profile.")
+    fwhm = property(get_fwhm, set_own_fwhm, del_own_fwhm, "The FWHM of the profile.")
 
 
     @property
@@ -2034,19 +2029,14 @@ class Moffat(Profile):
             for the parents spaxels after averaging over the sub-spaxels.
         """
         if self._f == None:
-            self._f \
-                = 10**(-0.4*self.mag)\
-                *(self.beta-1.)/(np.pi*(self.r_d**2)*(1.-self.e))\
-                *(1. + (self.r/self.r_d)**2)**(-self.beta)\
-                +super(Moffat, self).get_f(integrate=False)
+            self._f = 10**(-0.4*self.mag)*(self.beta-1.)/(np.pi*(self.r_d**2)*(1.-self.e))*(1. + (self.r/self.r_d)**2)**(-self.beta) \
+                        + super(Moffat, self).get_f(integrate=False)
         if integrate:
             return self.sum_os(self._f)
         else:
             return self._f
 
-
-    f = property(get_f, None, None,
-                 "The intensity distribution of the current PSF profile.")
+    f = property(get_f, None, None, "The intensity distribution of the current PSF profile.")
 
 
 
@@ -2073,20 +2063,14 @@ class Moffat(Profile):
             averaging over the sub-spaxels.
         """
         if self._diff_beta == None:
-            self._diff_beta \
-                = self.get_f(integrate=False)\
-                *(1./(self.beta-1.) \
-                      - np.log(1.+(self.r/self.r_d)**2)\
-                      + np.log(2.)/(self.beta*(1.-2.**(-1./self.beta)))\
-                      *((self.r/self.r_d)**2/(1.+(self.r/self.r_d)**2)\
-                          - 1./self.beta))
+            self._diff_beta = self.get_f(integrate=False)*(1./(self.beta-1.) - np.log(1.+(self.r/self.r_d)**2) + np.log(2.)/(self.beta*(1.-2.**(-1./self.beta)))\
+                                *((self.r/self.r_d)**2/(1.+(self.r/self.r_d)**2) - 1./self.beta))
         if integrate:
             return self.sum_os(self._diff_beta)
         else:
             return self._diff_beta
 
-    diff_beta = property(get_diff_beta, None, None,
-                         "The partial derivative of the PSF wrt. 'beta'.")
+    diff_beta = property(get_diff_beta, None, None, "The partial derivative of the PSF wrt. 'beta'.")
 
 
 ## The FWHM
@@ -2107,17 +2091,13 @@ class Moffat(Profile):
             averaging over the sub-spaxels.
         """
         if self._diff_fwhm == None:
-            self._diff_fwhm \
-                = self.get_f(integrate=False)\
-                /(self.r_d*np.sqrt(2.**(1./self.beta)-1.))\
-                *(self.beta*(self.r/self.r_d)**2/(1.+(self.r/self.r_d)**2) - 1.)
+            self._diff_fwhm = self.get_f(integrate=False)/(self.r_d*np.sqrt(2.**(1./self.beta)-1.))*(self.beta*(self.r/self.r_d)**2/(1.+(self.r/self.r_d)**2) - 1.)
         if integrate:
             return self.sum_os(self._diff_fwhm)
         else:
             return self._diff_fwhm
 
-    diff_fwhm = property(get_diff_fwhm, None, None,
-                         "The partial derivative of the PSF wrt. the FWHM.")
+    diff_fwhm = property(get_diff_fwhm, None, None, "The partial derivative of the PSF wrt. the FWHM.")
 
 
 ## The ellipticity 'e'
@@ -2139,19 +2119,14 @@ class Moffat(Profile):
             averaging over the sub-spaxels.
         """
         if self._diff_e == None:
-            self._diff_e \
-                = self.get_f(integrate=False)\
-                *(1./(1.-self.e) - 2.*self.beta*self.r\
-                      /(self.r_d**2*(1.+(self.r/self.r_d)**2))\
-                      *super(Moffat, self).get_diff_e(integrate=False))
+            self._diff_e = self.get_f(integrate=False)*(1./(1.-self.e) - 2.*self.beta*self.r/((self.r_d**2)*(1. + (self.r/self.r_d)**2))\
+                                                            *super(Moffat, self).get_diff_e(integrate=False))
         if integrate:
             return self.sum_os(self._diff_e)
         else:
             return self._diff_e
 
-    diff_e = property(\
-        get_diff_e, None, None,
-        "The partial derivative of the PSF wrt. the ellipticity 'e'.")
+    diff_e = property(get_diff_e, None, None, "The partial derivative of the PSF wrt. the ellipticity 'e'.")
 
 
 ## The position angle 'theta'
@@ -2173,18 +2148,68 @@ class Moffat(Profile):
             averaging over the sub-spaxels.
         """
         if self._diff_theta  == None:
-            self._diff_theta \
-                = self.get_f(integrate=False)\
-                *-2.*self.beta*self.r/(self.r_d**2*(1.+(self.r/self.r_d)**2))\
-                *super(Moffat, self).get_diff_theta(integrate=False)
+            self._diff_theta = self.get_f(integrate=False)*-2.*self.beta*self.r/(self.r_d**2*(1. + (self.r/self.r_d)**2))*super(Moffat, self).get_diff_theta(integrate=False)
         if integrate:
             return self.sum_os(self._diff_theta)
         else:
             return self._diff_theta
 
-    diff_theta = property(\
-        get_diff_theta, None, None,
-        "The partial derivative of the PSF wrt. the pos. angle 'theta'.")
+    diff_theta = property(get_diff_theta, None, None, "The partial derivative of the PSF wrt. the pos. angle 'theta'.")
+
+
+    def get_diff_xc(self, integrate=True):
+        """
+        Calculate the partial derivative of the Moffat profile wrt. xc, the
+        centroid of the profile in x-direction.
+        
+        Parameters
+        ----------
+        integrate : bool, optional
+            Whether or not the values should be averaged over the individual
+            sub-spaxels before they are returned.
+            
+        Returns
+        -------
+        diff_xc : nd_array
+            The partial derivative, either for all (sub-)spaxels or after
+            averaging over the sub-spaxels.
+        """
+        if self._diff_xc == None:
+            self._diff_xc = self.get_f(integrate=False)*-2.*self.beta*self.r/(self.r_d**2*(1. + (self.r/self.r_d)**2))*super(Moffat, self).get_diff_xc(integrate=False)
+        if integrate:
+            return self.sum_os(self._diff_xc)
+        else:
+            return self._diff_xc
+
+        diff_xc = property(get_diff_xc, None, None, "The partial derivative of the Moffat PSF wrt. xc, the x-centroid.")
+
+
+    def get_diff_yc(self, integrate=True):
+        """
+        Calculate the partial derivative of the Moffat profile wrt. yc, the
+        centroid of the profile in y-direction.
+        
+        Parameters
+        ----------
+        integrate : bool, optional
+            Whether or not the values should be averaged over the individual
+            sub-spaxels before they are returned.
+            
+        Returns
+        -------
+        diff_yc : nd_array
+            The partial derivative, either for all (sub-)spaxels or after
+            averaging over the sub-spaxels.
+        """
+        if self._diff_yc == None:
+            self._diff_yc = self.get_f(integrate=False)*-2.*self.beta*self.r/(self.r_d**2*(1. + (self.r/self.r_d)**2))*super(Moffat, self).get_diff_yc(integrate=False)
+        if integrate:
+            return self.sum_os(self._diff_yc)
+        else:
+            return self._diff_yc
+
+        diff_yc = property(get_diff_yc, None, None, "The partial derivative of the Moffat PSF wrt. yc, the y-centroid.")
+
 
 
 ## The parameter 'A' of the coordinate transformation
@@ -2206,17 +2231,13 @@ class Moffat(Profile):
             averaging over the sub-spaxels.
         """
         if self._diff_A == None:
-            self._diff_A \
-                = self.get_f(integrate=False)\
-                *-2.*self.beta*self.r/(self.r_d**2*(1.+(self.r/self.r_d)**2))\
-                *super(Moffat, self).get_diff_A(integrate=False)
+            self._diff_A = self.get_f(integrate=False)*-2.*self.beta*self.r/(self.r_d**2*(1. + (self.r/self.r_d)**2))*super(Moffat, self).get_diff_A(integrate=False)
         if integrate:
             return self.sum_os(self._diff_A)
         else:
             return self._diff_A
 
-    diff_A = property(get_diff_A, None, None,
-                      "The partial derivative of the PSF wrt. 'A'.")
+    diff_A = property(get_diff_A, None, None, "The partial derivative of the PSF wrt. 'A'.")
     
 
 ## The parameter 'B' of the coordinate transformation
@@ -2238,17 +2259,13 @@ class Moffat(Profile):
             averaging over the sub-spaxels.
         """
         if self._diff_B == None:
-            self._diff_B \
-                = self.get_f(integrate=False)\
-                *-2.*self.beta*self.r/(self.r_d**2*(1.+(self.r/self.r_d)**2))\
-                *super(Moffat, self).get_diff_B(integrate=False)
+            self._diff_B = self.get_f(integrate=False)*-2.*self.beta*self.r/(self.r_d**2*(1. + (self.r/self.r_d)**2))*super(Moffat, self).get_diff_B(integrate=False)
         if integrate:
             return self.sum_os(self._diff_B)
         else:
             return self._diff_B
 
-    diff_B = property(get_diff_B, None, None,
-                      "The partial derivative of the PSF wrt. 'B'.")
+    diff_B = property(get_diff_B, None, None, "The partial derivative of the PSF wrt. 'B'.")
 
 
 ## The parameter 'C' of the coordinate transformation
@@ -2270,17 +2287,13 @@ class Moffat(Profile):
             averaging over the sub-spaxels.
         """
         if self._diff_C == None:
-            self._diff_C \
-                = self.get_f(integrate=False)\
-                *-2.*self.beta*self.r/(self.r_d**2*(1.+(self.r/self.r_d)**2))\
-                *super(Moffat, self).get_diff_C(integrate=False)
+            self._diff_C = self.get_f(integrate=False)*-2.*self.beta*self.r/(self.r_d**2*(1. + (self.r/self.r_d)**2))*super(Moffat, self).get_diff_C(integrate=False)
         if integrate:
             return self.sum_os(self._diff_C)
         else:
             return self._diff_C
 
-    diff_C = property(get_diff_C, None, None,
-                      "The partial derivative of the PSF wrt. 'C'.")
+    diff_C = property(get_diff_C, None, None, "The partial derivative of the PSF wrt. 'C'.")
 
 
 ## The parameter 'D' of the coordinate transformation
@@ -2302,16 +2315,12 @@ class Moffat(Profile):
             averaging over the sub-spaxels.
         """
         if self._diff_D == None:
-            self._diff_D \
-                = self.get_f(integrate=False)\
-                *-2.*self.beta*self.r/(self.r_d**2*(1.+(self.r/self.r_d)**2))\
-                *super(Moffat, self).get_diff_D(integrate=False)
+            self._diff_D = self.get_f(integrate=False)*-2.*self.beta*self.r/(self.r_d**2*(1.+(self.r/self.r_d)**2))*super(Moffat, self).get_diff_D(integrate=False)
         if integrate:
             return self.sum_os(self._diff_D)
         else:
             return self._diff_D
 
-    diff_D = property(get_diff_D, None, None,
-                      "The partial derivative of the PSF wrt. 'D'.")
+    diff_D = property(get_diff_D, None, None, "The partial derivative of the PSF wrt. 'D'.")
 
 

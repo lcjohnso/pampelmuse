@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.1415926-2.4-1.40.13 (TeX Live 2012) (format=pdflatex 2012.10.19)  26 APR 2013 16:51
+This is pdfTeX, Version 3.1415926-2.4-1.40.13 (TeX Live 2012) (format=pdflatex 2012.10.19)  4 MAR 2014 10:02
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -419,7 +419,7 @@ e
 )) [1
 
 {/home/kamann/Tools/texlive/texmf-var/fonts/map/pdftex/updmap/pdftex.map}]
-[2] [3] <./../images/fwhm_ratio_gauss_moffat.png, id=26, 578.16pt x 433.62pt>
+[2] [3] <./../images/fwhm_ratio_gauss_moffat.png, id=27, 578.16pt x 433.62pt>
 File: ./../images/fwhm_ratio_gauss_moffat.png Graphic file (type png)
 
 <use ./../images/fwhm_ratio_gauss_moffat.png>
@@ -433,34 +433,35 @@ Overfull \hbox (47.64954pt too wide) in paragraph at lines 184--184
 
 [4 <./../images/fwhm_ratio_gauss_moffat.png>] [5] [6] (./profiles.aux) ) 
 Here is how much of TeX's memory you used:
- 2314 strings out of 493488
- 30705 string characters out of 3140068
+ 2316 strings out of 493488
+ 30726 string characters out of 3140068
  100619 words of memory out of 3000000
- 5594 multiletter control sequences out of 15000+200000
- 9316 words of font info for 34 fonts, out of 3000000 for 9000
+ 5595 multiletter control sequences out of 15000+200000
+ 9624 words of font info for 35 fonts, out of 3000000 for 9000
  957 hyphenation exceptions out of 8191
  38i,15n,23p,972b,230s stack positions out of 5000i,500n,10000p,200000b,50000s
 </home/
-kamann/Tools/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb></hom
-e/kamann/Tools/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx9.pfb></ho
-me/kamann/Tools/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmcsc10.pfb><
-/home/kamann/Tools/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb
-></home/kamann/Tools/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.p
-fb></home/kamann/Tools/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi5.
-pfb></home/kamann/Tools/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi7
-.pfb></home/kamann/Tools/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr1
-0.pfb></home/kamann/Tools/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr
-12.pfb></home/kamann/Tools/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cm
-r17.pfb></home/kamann/Tools/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/c
-mr5.pfb></home/kamann/Tools/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/c
-mr7.pfb></home/kamann/Tools/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/c
-mr9.pfb></home/kamann/Tools/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/c
-msy10.pfb></home/kamann/Tools/texlive/texmf-dist/fonts/type1/public/amsfonts/cm
-/cmsy7.pfb>
-Output written on profiles.pdf (6 pages, 250768 bytes).
+kamann/Tools/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx10.pfb></hom
+e/kamann/Tools/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx12.pfb></h
+ome/kamann/Tools/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx9.pfb></
+home/kamann/Tools/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmcsc10.pfb
+></home/kamann/Tools/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.p
+fb></home/kamann/Tools/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10
+.pfb></home/kamann/Tools/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi
+5.pfb></home/kamann/Tools/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmm
+i7.pfb></home/kamann/Tools/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cm
+r10.pfb></home/kamann/Tools/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/c
+mr12.pfb></home/kamann/Tools/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/
+cmr17.pfb></home/kamann/Tools/texlive/texmf-dist/fonts/type1/public/amsfonts/cm
+/cmr5.pfb></home/kamann/Tools/texlive/texmf-dist/fonts/type1/public/amsfonts/cm
+/cmr7.pfb></home/kamann/Tools/texlive/texmf-dist/fonts/type1/public/amsfonts/cm
+/cmr9.pfb></home/kamann/Tools/texlive/texmf-dist/fonts/type1/public/amsfonts/cm
+/cmsy10.pfb></home/kamann/Tools/texlive/texmf-dist/fonts/type1/public/amsfonts/
+cm/cmsy7.pfb>
+Output written on profiles.pdf (6 pages, 261869 bytes).
 PDF statistics:
- 86 PDF objects out of 1000 (max. 8388607)
- 60 compressed objects within 1 object stream
+ 90 PDF objects out of 1000 (max. 8388607)
+ 63 compressed objects within 1 object stream
  0 named destinations out of 1000 (max. 500000)
  6 words of extra memory for PDF output out of 10000 (max. 10000000)
 
