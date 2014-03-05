@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-150, 2014/03/04
+152, 2014/03/05
 """ 
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 150
+__revision__ = 152
 
 import contextlib, itertools, logging, os, sys, time
 import numpy as np, pyfits, scipy
@@ -1010,7 +1010,8 @@ class StarFit(object):
 
         ## calculate new model
         self.build_matrix(update_unresolved=False, log=False)
-        model =  self.Apsf*sparse.dia_matrix((self.sources.data[self.jj,:,0],[0]), shape=(self.sources.ncmp, self.sources.ncmp))
+        model =  self.Apsf*sparse.dia_matrix((self.sources.data[self.jj,self.valid_components,0]*self.fluxfactors[self.valid_components],[0]),
+                                             shape=(self.valid_components.sum(), self.valid_components.sum()))
 
         ## return residuals
         return (self.data/self.sigma) - model.sum(axis=1).getA1()
