@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.1415926-2.4-1.40.13 (TeX Live 2012) (format=pdflatex 2012.10.19)  4 MAR 2014 10:02
+This is pdfTeX, Version 3.1415926-2.4-1.40.13 (TeX Live 2012) (format=pdflatex 2012.10.19)  11 MAR 2014 22:10
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -458,7 +458,7 @@ cmr17.pfb></home/kamann/Tools/texlive/texmf-dist/fonts/type1/public/amsfonts/cm
 /cmr9.pfb></home/kamann/Tools/texlive/texmf-dist/fonts/type1/public/amsfonts/cm
 /cmsy10.pfb></home/kamann/Tools/texlive/texmf-dist/fonts/type1/public/amsfonts/
 cm/cmsy7.pfb>
-Output written on profiles.pdf (6 pages, 261869 bytes).
+Output written on profiles.pdf (6 pages, 261958 bytes).
 PDF statistics:
  90 PDF objects out of 1000 (max. 8388607)
  63 compressed objects within 1 object stream

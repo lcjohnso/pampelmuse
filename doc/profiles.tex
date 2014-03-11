@@ -110,9 +110,9 @@ Furthermore, we control the integrated intensity $I$ of the Gaussian (and any ot
 The partial derivatives with respect to the individual parameters that define the shape of the profile ($\fwhm$, $\sigma$, and $\theta$) are calculated using the following formulae:
 %
 \begin{align}
- \partial_\fwhm G &= \sqrt{8\cdot \ln 2}\cdot\partial_\sigma G \nonumber\\
- &= \sqrt{8\cdot \ln 2}\cdot\exp\left\{\frac{-r^2}{2\sigma^2}\right\} \left(\frac{-I}{\pi\sigma^3(1-e)} + \frac{I\cdot r^2}{2\pi\sigma^5(1-e)}\right) \nonumber \\
- &= \sqrt{8\cdot \ln 2}\cdot G \left(\frac{r^2}{\sigma^3} - \frac{2}{\sigma}\right)\,,\\
+ \partial_\fwhm G &= \partial_\sigma G/\sqrt{8\cdot \ln 2} \nonumber\\
+ &= \exp\left\{\frac{-r^2}{2\sigma^2}\right\} \left(\frac{-I}{\pi\sigma^3(1-e)} + \frac{I\cdot r^2}{2\pi\sigma^5(1-e)}\right)/\sqrt{8\cdot \ln 2} \nonumber \\
+ &= G \left(\frac{r^2}{\sigma^3} - \frac{2}{\sigma}\right)/\sqrt{8\cdot \ln 2}\,,\\
  %
  \partial_e G &= \exp\left\{\frac{-r^2}{2\sigma^2}\right\}\left(\frac{I}{2\pi\sigma^2(1-e)^2} - \frac{I\cdot r\cdot\partial_e r}{2\pi\sigma^4(1-e)}\right) \nonumber\\
  &= G \left( \frac{1}{1-e} - \frac{r\cdot\partial_e r}{\sigma^2} \right)\,,\\

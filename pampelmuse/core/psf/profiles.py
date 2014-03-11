@@ -38,10 +38,10 @@ ces simultaneously without having to loop over them.
 
 Latest SVN revision
 -------------------
-150, 2014/03/04
+153, 2014/03/11
 """
 __author__   = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 150
+__revision__ = 153
 
 import logging
 import numpy as np
@@ -1163,8 +1163,8 @@ class Profile(object):
             The partial derivative, either for all (sub-)spaxels or after
             averaging over the sub-spaxels.
         """
-        if self._diff_yc != None: ## only re-calculate if necessary
-            self._diff_yc = (self.u*np.cos(self.theta) + (self.v/(1-self.e)**2)*np.sin(self.theta))/self.r
+        if self._diff_yc == None: ## only re-calculate if necessary
+            self._diff_yc = (self.u*np.cos(self.theta) - (self.v/(1-self.e)**2)*np.sin(self.theta))/self.r
         if integrate:
             return self.sum_os(self._diff_yc)
         else:
@@ -1521,7 +1521,7 @@ class Gaussian(Profile):
             averaging over the sub-spaxels.
         """
         if self._diff_fwhm == None:
-            self._diff_fwhm = self.get_f(integrate=False)*(self.r**2/self.std**3 - 2./self.std)
+            self._diff_fwhm = self.get_f(integrate=False)*(self.r**2/self.std**3 - 2./self.std)/np.sqrt(8.*np.log(2.))
         if integrate:
             return self.sum_os(self._diff_fwhm)
         else:
@@ -1549,9 +1549,9 @@ class Gaussian(Profile):
             averaging over the sub-spaxels.
         """
         if self._diff_e == None:
-            self._diff_e = self.get_f(integrate=False)*(1./(1.-self.e) - self.r/(self.std**2)*super(Gaussian, self).get_diff_e(integrate=False))
+            self._diff_e = self.get_f(integrate=False)*(1./(1.-self.e) - (self.r/(self.std**2))*super(Gaussian, self).get_diff_e(integrate=False))
         if integrate:
-            return self.sum_os(self._diff_fwhm)
+            return self.sum_os(self._diff_e)
         else:
             return self._diff_e
     
@@ -1637,7 +1637,7 @@ class Gaussian(Profile):
         else:
             return self._diff_yc
 
-        diff_yc = property(get_diff_yc, None, None, "The partial derivative of the Gaussian  PSF wrt. yc, the y-centroid of the profile.")
+    diff_yc = property(get_diff_yc, None, None, "The partial derivative of the Gaussian  PSF wrt. yc, the y-centroid of the profile.")
         
 
 ## The parameter 'A' of the coordinate transformation
@@ -2181,7 +2181,7 @@ class Moffat(Profile):
         else:
             return self._diff_xc
 
-        diff_xc = property(get_diff_xc, None, None, "The partial derivative of the Moffat PSF wrt. xc, the x-centroid.")
+    diff_xc = property(get_diff_xc, None, None, "The partial derivative of the Moffat PSF wrt. xc, the x-centroid.")
 
 
     def get_diff_yc(self, integrate=True):
@@ -2208,8 +2208,7 @@ class Moffat(Profile):
         else:
             return self._diff_yc
 
-        diff_yc = property(get_diff_yc, None, None, "The partial derivative of the Moffat PSF wrt. yc, the y-centroid.")
-
+    diff_yc = property(get_diff_yc, None, None, "The partial derivative of the Moffat PSF wrt. yc, the y-centroid.")
 
 
 ## The parameter 'A' of the coordinate transformation
