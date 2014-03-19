@@ -21,10 +21,10 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-154, 2014/03/19
+155, 2014/03/19
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 154
+__revision__ = 155
 
 import logging, os, re
 import numpy as np, pyfits
@@ -1222,7 +1222,7 @@ class Sources(object):
         """
         posSel = np.in1d(self.status, np.arange(minStatus,4))
 
-        return QtCore.QStringList(self.ID[posSel].astype("|S6"))
+        return QtCore.QStringList(self.ID[posSel].astype("|S10"))
 
     
 
