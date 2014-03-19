@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file '/home/kamann/prog/DISTRIBUTE/kamann-code.2/trunk/pampelmuse/graphics/pampelmuse_gui.ui'
 #
-# Created: Fri Feb 28 12:27:29 2014
+# Created: Wed Mar 19 15:36:24 2014
 #      by: PyQt4 UI code generator 4.9.1
 #
 # WARNING! All changes made in this file will be lost!

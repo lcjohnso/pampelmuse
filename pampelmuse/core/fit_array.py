@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-152, 2014/03/05
+154, 2014/03/19
 """ 
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 152
+__revision__ = 154
 
 import contextlib, itertools, logging, os, sys, time
 import numpy as np, pyfits, scipy
@@ -380,6 +380,7 @@ class StarFit(object):
             self.iter_fit_layer()
 
             self.i += 1
+            if self.i==1500: break
 
 
     def iter_fit_layer(self):
@@ -706,7 +707,7 @@ class StarFit(object):
                 assert self.sources.ifs_coordinates_loaded[i], "PSF source has no IFU coordinates available."
                 posindex = self.sources.ifs_coordinates_loaded[:i].sum()
 
-                names.extend(["x_c", "y_c"])
+                names.extend(["xc", "yc"])
                 x0.extend([self.sources.ifs_coordinates[self.jj*self.full_coordinates_fit, posindex, 0, 0],
                            self.sources.ifs_coordinates[self.jj*self.full_coordinates_fit, posindex, 1, 0]])
                 posfitted.append(True)
@@ -753,7 +754,7 @@ class StarFit(object):
                 else: ## save the coordinates to fit the transformation afterwards
                     ifs_coords.append(result[0][:2])
                     ref_coords.append([self.sources.x[i], self.sources.y[i]])
-                logstring += " x_c={0:.2f} y_c={1:.2f}".format(float(result[0][0]), float(result[0][1]))
+                logstring += " xc={0:.2f} yc={1:.2f}".format(float(result[0][0]), float(result[0][1]))
             if psffitted[n]:
                 psf_pars.append(result[0][-len(psf_names):])
                 for j in xrange(len(psf_names)): logstring += " {0}={1:.2f}".format(psf_names[j], float(psf_pars[-1][j]))
@@ -831,7 +832,7 @@ class StarFit(object):
 
         ## call non-linear least squares fit
         try:
-            return optimize.leastsq(self.optimize_single_psf, x0=x0, Dfun=self.jacobi_single_psf, args=(names, psf, flux, _data), full_output=1, epsfcn=0.0)
+            return optimize.leastsq(self.optimize_single_psf, x0=x0, Dfun=self.jacobi_single_psf, col_deriv=1, args=(names, psf, flux, _data), full_output=1, epsfcn=0.0)
         except optimize.minpack.error as error: ## error handler to avoid code that code crashes completely
             return (x0, {}, "Exception of type optimize.minpack.error encountered while executing fit.", 99)
 
@@ -1044,7 +1045,7 @@ class StarFit(object):
         jacob = np.zeros((len(x0), self.PSF.transform.shape[0]), dtype=np.float64)
 
         i=-1
-        for psf in self.PSF:
+        for psf in self.psf_instances:
             i += 1
             ii = self.sources.specrow[i]
             if ii==self.sources.specrow_sky: continue

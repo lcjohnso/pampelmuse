@@ -21,10 +21,10 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-144, 2014/02/27
+154, 2014/03/19
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 144
+__revision__ = 154
 
 import logging, os, re
 import numpy as np, pyfits
@@ -868,8 +868,8 @@ class Sources(object):
         """
         ownSpec = np.in1d(self.status, np.arange(2,4))
 
-        self.names   = QtCore.QStringList(self.ID[ownSpec].astype("|S6"))
-        self.nameMap = dict((zip(self.ID[ownSpec].astype("|S6"), self.specrow[ownSpec])))
+        self.names   = QtCore.QStringList(self.ID[ownSpec].astype("|S10"))
+        self.nameMap = dict((zip(self.ID[ownSpec].astype("|S10"), self.specrow[ownSpec])))
         if self.includes_sky:
             self.names.append("Sky")
             self.nameMap["Sky"] = self.specrow_sky
