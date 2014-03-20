@@ -20,10 +20,10 @@ fit' if the configuration parameter USEQT of PampelMuse is enabled.
 
 Latest SVN revision
 -------------------
-156, 2014/03/20
+157, 2014/03/20
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 156
+__revision__ = 157
 
 import datetime, logging, os, sys
 import numpy as np, pyfits

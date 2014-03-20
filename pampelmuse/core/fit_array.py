@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-156, 2014/03/20
+157, 2014/03/20
 """ 
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 156
+__revision__ = 157
 
 import contextlib, itertools, logging, os, sys, time
 import numpy as np, pyfits, scipy
@@ -210,6 +210,8 @@ class StarFit(object):
 
         self.sources = sources
         self.psf_attributes = psf_attributes
+        
+        self.maxrad = maxrad
         
         ## Supersampling of central pixels
         self.osfactor = osfactor
@@ -723,16 +725,19 @@ class StarFit(object):
                 
             psf   = self.psf_instances[i]
             sigma = self.sigma[psf.used]
-            data  = self.current[psf.used] + psf.f/sigma
+            data  = self.current[psf.used] + flux*psf.f/sigma
             psf.transform = self.transform[psf.used]
             psf.maxrad = np.inf
+
             try:
                 result = optimize.leastsq(self.optimize_single_psf, x0=x0, Dfun=self.jacobi_single_psf, col_deriv=1, args=(names, psf, flux, data, sigma), full_output=1,
                                           epsfcn=0.0)
             except optimize.minpack.error as error: ## error handler to avoid code that code crashes completely
                 result = (x0, {}, "Exception of type optimize.minpack.error encountered while executing fit.", 99)
             results.append(result)
-
+        
+            psf.transform = self.transform
+            psf.maxrad = self.maxrad
             # if self.ncpu > 1:
             #     threads.append(pool.apply_async(self.wrapper_optimize_single_psf, args=(x0, names, self.psf_instances[i], flux)))
             # else:
@@ -810,7 +815,7 @@ class StarFit(object):
                     
                 logging.info(logstring)
 
-
+# NOT USED ANYMORE SINCE REV. 156
 #    def wrapper_optimize_single_psf(self, x0, names, psf, flux):
 #        """
 #        This wrapper around the actual fitting routine 'optimize_single_psf' is
@@ -871,6 +876,8 @@ class StarFit(object):
         data : nd_array
             The data array used to fit the parameters. Note that the pixel
             values should be normalized by their respective uncertainties.
+        sigma : nd_array
+            The uncertainties for the 'data' array.
 
         Returns
         -------
