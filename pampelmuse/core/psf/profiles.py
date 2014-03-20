@@ -38,10 +38,10 @@ ces simultaneously without having to loop over them.
 
 Latest SVN revision
 -------------------
-153, 2014/03/11
+156, 2014/03/20
 """
 __author__   = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 153
+__revision__ = 156
 
 import logging
 import numpy as np
@@ -102,8 +102,6 @@ class Profile(object):
     _B = 0  ## transformation; Note that 'Profile' supports two ways of
     _C = 0  ## defining the source coordinates: either directly or via
     _D = 0  ## a transformation from reference coordinates (see below).
-
-##     BADPRM = False
  
 
     @classmethod
@@ -139,18 +137,9 @@ class Profile(object):
             ## Delete all properties in all instances that were previously
             ## calculated.
             for inst in cls._registry:
+                inst._own_size = None  ## reset specific size set for the instance (if any)
                 for prop in inst.profile_properties:
                     inst.__dict__[prop] = None
-
-
-    @classproperty
-    def size(cls):
-        """
-        Returns the spatial dimensions of the array on which the profiles
-        are calculated.
-        """
-        return cls._size
-
 
 
     @classmethod
@@ -182,41 +171,9 @@ class Profile(object):
 
         ## reset all properties calculates so far in any instance
         for inst in cls._registry:
+            inst._own_transform = None ## reset specific transformation set for the instance (if any)
             for prop in inst.profile_properties:
                 inst.__dict__[prop] = None
-
-
-    @classproperty
-    def transform(cls):
-        """
-        Returns the transformation from spaxels to x- and y-coordinates. Note
-        that following the numpy counting, the first axis is the y-direction.
-        """
-        return cls._transform
-
-
-    @classproperty
-    def spaxel(cls):
-        """
-        Return the indices of the individual spaxels.
-        """
-        return cls._spaxel
-
-
-    @classproperty
-    def x(cls):
-        """
-        Returns the x-coordinate of each spaxel.
-        """
-        return cls._transform[:,1]
-        
-
-    @classproperty
-    def y(cls):
-        """
-        Returns the y-coordinate of each spaxel.
-        """
-        return cls._transform[:,0]
         
 
     @classmethod
@@ -237,12 +194,9 @@ class Profile(object):
         if value != cls._theta:
             cls._theta = value
         
-            ## all properties building up on the u- & v-coordinates must be
-            ## recalculated.
-            for inst in cls._registry:
-                ## remove possible position angle value of the specific
-                ## instance
-                inst._own_theta = None  
+            ## all properties building up on the u- & v-coordinates must be recalculated.
+            for inst in cls._registry: 
+                inst._own_theta = None ## remove possible position angle value of the specific instance
                 for prop in inst.profile_properties:
                     if not prop in ["_used", "_oversampled", "_osmap", "_ossummer", "_xos", "_yos"]:
                         inst.__dict__[prop] = None
@@ -265,16 +219,13 @@ class Profile(object):
 
         if not value >= 0 and value < 1:
             logging.error("'e' must be in interval [0,1) but is {0:.1f}".format(float(value)))
-##             cls.BADPRM = True
-##             return ## no update
-##         cls.BADPRM = False
+
         assert value>=-1e-3 and value<1, "'e' must be in interval [0,1) but is {0:.1f}".format(float(value))
 
         if value != cls._e:
             cls._e = value
 
-            ## all properties buildin in the radius values of the individual
-            ## spaxels must be recalculated.
+            ## all properties buildin in the radius values of the individual spaxels must be recalculated.
             for inst in cls._registry:
                 ## remove possible ellipticity of the specific instance.
                 inst._own_e = None
@@ -436,8 +387,7 @@ class Profile(object):
 
 
 
-    def __init__(self, Xc, Yc, mag, src_id=0, maxrad=np.inf, osradius=0,
-                 osfactor=1, **kwargs):
+    def __init__(self, Xc, Yc, mag, src_id=0, maxrad=np.inf, osradius=0, osfactor=1, **kwargs):
         """
         Initialize an instance of the Profiles-class.
 
@@ -464,6 +414,9 @@ class Profile(object):
            The supersampling factor. Each spaxel within 'osradius' will be
            supersampled into 'osfactor' times 'osfactor' sub-spaxels.
         """
+        self._own_transform = None
+        self._own_size = None
+        
         ## Field of view must be specified beforehand
         if self.transform == None:
             logging.error("No (x,y)-coordinate system for spaxels defined.")
@@ -479,7 +432,7 @@ class Profile(object):
         
         self.src_id = src_id
 
-        self.maxrad = maxrad
+        self._maxrad = maxrad
         self._used  = None ## will be a boolean array with all spaxels within 'maxrad' set to True.
         self._oversampled = None ## will be a boolean array with all supersampled spaxels set to True.
 
@@ -532,6 +485,168 @@ class Profile(object):
             self.osygrid = np.sort(self.osxgrid)
 
 
+    def set_own_size(self, value):
+        """
+        Specify the size of the array on which to compute the profiles for this
+        instance only.
+
+        Parameters
+        ----------
+        value : len=2 tuple
+           The size must be provided as a tuple of length 2, providing the
+           number of spaxels in x- & y-direction, respectively. Note that
+           following the numpy counting, the first number gives the size in
+           y-direction.
+        """
+        assert isinstance(value, (tuple, list)), "'size' should be a tuple, not {0}".format(type(value).__name__)
+        assert len(value) == 2, "Array must be 2D, not {0:d}D".format(len(value))
+        
+        if value != self._own_size:
+
+            ## Assumption is that spaxels cover a rectangular area with filling factor 1. Calculate x- & y-coordinates of each spaxel:
+            _x = np.resize(np.arange(value[1], dtype=np.float64), (value[0]*value[1],))
+            _y = np.arange(value[0]*value[1], dtype=np.float64)//value[1]
+            
+            self._own_transform = np.vstack((_y, _x)).T
+            self._own_size = value
+
+            ## Reset all properties in this instance that were previously calculated.
+            for prop in self.profile_properties: self.__dict__[prop] = None
+
+    def get_size(self):
+        """
+        The size of the spatial array on which the profile is calculated. 
+        
+        Returns
+        -------
+        size : tuple
+            The size of the spatial array. Note that a size=2 tuple that can be
+            related  to the y- & x-size of the array is only provided if the size
+            has been explicitely defined. Otherwise, a size=1 tuple with the
+            number of spaxels is returned.
+        """
+        if self._own_size == None: return self._size
+        else: return self._own_size
+        
+    def del_own_size(self):
+        """
+        Delete a specific size set for this instance.
+        """
+        if self._own_size == None: return
+        self._own_size = None
+        
+        ## all properties for this instance must be recalculated.
+        for prop in self.profile_properties: self.__dict__[prop] = None
+
+    size = property(get_size, set_own_size, del_own_size, "The size of the spatial array.")
+        
+
+    def set_own_transform(self, value):
+        """
+        Set an instance-specific transformation from spaxels to x-& y-coordinates.
+
+        Parameters
+        ----------
+        value : nd_array
+            An array specifying the x- and y-coordinate of each spaxel, having
+            size (<N_spaxels>, 2). Note that following the numpy counting, the
+            first number gives the size in y-direction.
+        """
+        if value.ndim != 2: logging.critical("'transform' must be 2dim., is {0}dim.".format(value.ndim))
+        assert value.ndim == 2, "'transform' must be 2dim."
+
+        if value.shape[1] != 2: logging.critical("'transform' must contain 2 spatial coordinates, is {0}.".format(value.shape[1]))
+        assert value.shape[1]==2, "'transform' must contain 2 spatial coordinates."
+        
+        ## set basic class properties
+        self._own_transform = np.asarray(value, dtype=np.float64)
+        self._own_size = (value.shape[0],)
+
+        ## reset all properties calculates so far in this instance
+        for prop in self.profile_properties: self.__dict__[prop] = None
+
+    def get_transform(self):
+        """
+        The transformation from spaxels to x- and y-coordinates. The
+        routine will use the specific transformation for this instance if it
+        has been defined, otherwise it will use the global one defined for th
+        class. Note that following the numpy counting, the first axis is the
+        y-direction.
+        
+        Returns
+        -------
+        transform : nd_array
+            The transformation from spaxels to x- and y-coordinates, provided as
+            an array of shape (2, <number of spaxels>)
+        """
+        if self._own_transform == None: return self._transform
+        else: return self._own_transform
+        
+    def del_own_transform(self):
+        """
+        Delete a specific transformation for this instance.
+        """
+        if self._own_transform == None: return
+        self._own_transform = None
+        
+        ## all properties for this instance must be recalculated.
+        for prop in self.profile_properties: self.__dict__[prop] = None
+
+    transform = property(get_transform, set_own_transform, del_own_transform, "The transformation from spaxels to x- & y-coordinates.")
+        
+
+    @property
+    def spaxel(self):
+        """
+        Return the indices of the individual spaxels
+        """
+        return np.arange(self.transform.shape[0], dtype=np.int32)
+
+
+    @property
+    def x(self):
+        """
+        Returns the x-coordinate of each spaxel.
+        """
+        return self.transform[:,1]
+        
+
+    @property
+    def y(self):
+        """
+        Returns the y-coordinate of each spaxel.
+        """
+        return self.transform[:,0]
+
+
+## Define 'maxrad' property ####################################################
+    def set_maxrad(self, value):
+        """
+        Set the calculation radius of the profile.
+        
+        Parameters
+        ----------
+        value : float
+            The radius (in pixels) out to which the profile will be
+            calculated.
+        """
+        assert isinstance(value, (float, int)), "'maxrad' must be a float, not {0:s}".format(type(value).__name__)
+        
+        if value != self._maxrad:
+            self._maxrad = value
+
+            ## Reset all properties calculated for this instance
+            for prop in self.profile_properties: self.__dict__[prop] = None
+
+    def get_maxrad(self):
+        """
+        Return the calculation radius for this instance.
+        """
+        return self._maxrad
+        
+    maxrad = property(get_maxrad, set_maxrad, None, "The radius out to which the profile is calculated.")
+
+
 ## Define 'mag' property #######################################################
     def set_mag(self, value):
         """
@@ -543,7 +658,7 @@ class Profile(object):
             The integrated magnitude. A magnitude of zero yields a flux of
             one, i.e. f=10^(-0.4*m).
         """
-        assert isinstance(value, (float, np.float32,  np.float64)), "'mag' must be a float, not {0:s}".format(type(value).__name__)
+        assert isinstance(value, (float, int)), "'mag' must be a float, not {0:s}".format(type(value).__name__)
 
         if value != self._mag:
             self._mag = value
@@ -553,16 +668,13 @@ class Profile(object):
                     if not prop in ["_used", "_oversampled", "_osmap", "_ossummer", "_xos", "yos", "_u", "_v", "_r"]:
                         self.__dict__[prop] = None
 
-
     def get_mag(self):
         """
         Return the current integrated magnitude of the profile.
         """
         return self._mag
 
-
-    mag = property(get_mag, set_mag, None,
-                   "The broadband magnitude of the profile star.")
+    mag = property(get_mag, set_mag, None, "The broadband magnitude of the profile star.")
 
 
 ## Define the 'xc' property to set and return the x-centroid of the profile ####
@@ -683,7 +795,6 @@ class Profile(object):
     yc = property(get_yc, set_yc, del_yc, "The centroid of the profile along the y-axis.")
 
 
-
 ## Define the 'theta' property to set and return the pos. angle of the profile #
     def get_theta(self):
         """
@@ -716,8 +827,7 @@ class Profile(object):
         if value != self._own_theta:
             self._own_theta = value
             
-            ## all properties that build up on u- & v-coordinates must be
-            ## recalculated.
+            ## all properties that build up on u- & v-coordinates must be recalculated.
             for prop in self.profile_properties:
                 if not prop in ["_used", "_oversampled", "_osmap", "_ossummer", "_xos", "_yos"]:
                     self.__dict__[prop] = None
@@ -731,8 +841,7 @@ class Profile(object):
 
         self._own_theta = None
 
-        ## all properties that build up on u- & v-coordinates must be
-        ## recalculated.
+        ## all properties that build up on u- & v-coordinates must be recalculated.
         for prop in self.profile_properties:
             if not prop in ["_used", "_oversampled", "_osmap", "_ossummer", "_xos", "_yos"]:
                 self.__dict__[prop] = None

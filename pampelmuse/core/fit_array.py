@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-154, 2014/03/19
+156, 2014/03/20
 """ 
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 154
+__revision__ = 156
 
 import contextlib, itertools, logging, os, sys, time
 import numpy as np, pyfits, scipy
@@ -380,7 +380,6 @@ class StarFit(object):
             self.iter_fit_layer()
 
             self.i += 1
-            if self.i==1500: break
 
 
     def iter_fit_layer(self):
@@ -450,7 +449,8 @@ class StarFit(object):
 
         ## Set spaxel to (x,y) transformation of the PSF-instances, using the transformation
         ## of the Instrument instance and the mask
-        self.PSF.set_transform(self.ifs_data.instrument.transform[mask==0])
+        self.transform = self.ifs_data.instrument.transform[mask==0]
+        self.PSF.set_transform(self.transform)
 
         ## Reset possibly excisting unresolved component from last layer
         self.unresolved_psf = None
@@ -720,11 +720,23 @@ class StarFit(object):
                 psffitted.append(True)
             else:
                 psffitted.append(False)
+                
+            psf   = self.psf_instances[i]
+            sigma = self.sigma[psf.used]
+            data  = self.current[psf.used] + psf.f/sigma
+            psf.transform = self.transform[psf.used]
+            psf.maxrad = np.inf
+            try:
+                result = optimize.leastsq(self.optimize_single_psf, x0=x0, Dfun=self.jacobi_single_psf, col_deriv=1, args=(names, psf, flux, data, sigma), full_output=1,
+                                          epsfcn=0.0)
+            except optimize.minpack.error as error: ## error handler to avoid code that code crashes completely
+                result = (x0, {}, "Exception of type optimize.minpack.error encountered while executing fit.", 99)
+            results.append(result)
 
             # if self.ncpu > 1:
             #     threads.append(pool.apply_async(self.wrapper_optimize_single_psf, args=(x0, names, self.psf_instances[i], flux)))
             # else:
-            results.append(self.wrapper_optimize_single_psf(x0=x0, names=names, psf=self.psf_instances[i], flux=flux))
+##             results.append(self.wrapper_optimize_single_psf(x0=x0, names=names, psf=self.psf_instances[i], flux=flux))
 
         # if self.ncpu>1:
         #     pool.join()
@@ -799,45 +811,45 @@ class StarFit(object):
                 logging.info(logstring)
 
 
-    def wrapper_optimize_single_psf(self, x0, names, psf, flux):
-        """
-        This wrapper around the actual fitting routine 'optimize_single_psf' is
-        included to facilitate the parallelizaion of the code and a simple checking
-        for the usefulness of the fitted parameters. It works by adding the current
-        estimate of the PSF and the flux of the source to the data, calling the fit
-        routine 'optimize_single_psf' and providing the results of the fit (after a
-        sanity check).
+#    def wrapper_optimize_single_psf(self, x0, names, psf, flux):
+#        """
+#        This wrapper around the actual fitting routine 'optimize_single_psf' is
+#        included to facilitate the parallelizaion of the code and a simple checking
+#        for the usefulness of the fitted parameters. It works by adding the current
+#        estimate of the PSF and the flux of the source to the data, calling the fit
+#        routine 'optimize_single_psf' and providing the results of the fit (after a
+#        sanity check).
+#
+#        Parameters
+#        ----------
+#        x0 : array_like
+#            The initial guesses of the parameters that are fitted.
+#        names :  array_like
+#            The names of the parameters that are fitted. Must have same length
+#            as 'x0' of course.
+#        psf : an instance of class pampelmuse.core.psf.profiles.Profile or
+#              one of its subclasses
+#            The PSF model for the source.
+#        flux : float
+#            The flux of the source.
+#
+#        Returns
+#        -------
+#        bestfit : nd_array
+#            The values of the free parameters obtained in the fit.
+#        """
+#        ## add current PSF estimate of source to residuals
+#        _data  = np.copy(self.current)
+#        _data[psf.used] += flux*psf.f/self.sigma[psf.used]
+#
+#        ## call non-linear least squares fit
+#        try:
+#            return optimize.leastsq(self.optimize_single_psf, x0=x0, Dfun=self.jacobi_single_psf, col_deriv=1, args=(names, psf, flux, _data), full_output=1, epsfcn=0.0)
+#        except optimize.minpack.error as error: ## error handler to avoid code that code crashes completely
+#            return (x0, {}, "Exception of type optimize.minpack.error encountered while executing fit.", 99)
 
-        Parameters
-        ----------
-        x0 : array_like
-            The initial guesses of the parameters that are fitted.
-        names :  array_like
-            The names of the parameters that are fitted. Must have same length
-            as 'x0' of course.
-        psf : an instance of class pampelmuse.core.psf.profiles.Profile or
-              one of its subclasses
-            The PSF model for the source.
-        flux : float
-            The flux of the source.
 
-        Returns
-        -------
-        bestfit : nd_array
-            The values of the free parameters obtained in the fit.
-        """
-        ## add current PSF estimate of source to residuals
-        _data  = np.copy(self.current)
-        _data[psf.used] += flux*psf.f/self.sigma[psf.used]
-
-        ## call non-linear least squares fit
-        try:
-            return optimize.leastsq(self.optimize_single_psf, x0=x0, Dfun=self.jacobi_single_psf, col_deriv=1, args=(names, psf, flux, _data), full_output=1, epsfcn=0.0)
-        except optimize.minpack.error as error: ## error handler to avoid code that code crashes completely
-            return (x0, {}, "Exception of type optimize.minpack.error encountered while executing fit.", 99)
-
-
-    def optimize_single_psf(self, x0, names, psf, flux, data):
+    def optimize_single_psf(self, x0, names, psf, flux, data, sigma):
         """
         This is the optimization routine that is passed to the Levenberg-
         Marquard solver scipy.optimize.leastsq. During each iteration, a
@@ -879,10 +891,10 @@ class StarFit(object):
                 raise np.linalg.linalg.LinAlgError("Invalid value '{0}' for parameter '{1}'.".format(x0[i], names[i]))
 
         ## return residuals
-        return (data[psf.used] - flux*psf.f/self.sigma[psf.used])
+        return (data - flux*psf.f/sigma)
 
 
-    def jacobi_single_psf(self, x0, names, psf, flux, data):
+    def jacobi_single_psf(self, x0, names, psf, flux, data, sigma):
         """
         Calculate the Jacobi matrix for the optimization carried out in
         StarFit.optimize_single_psf. The method is passed to the Levenberg-
@@ -898,11 +910,9 @@ class StarFit(object):
             The Jacobi matrix with respect to the model parameters included
             in 'x0'.
         """
-
         jacob = np.zeros((len(x0), psf.used.sum()), dtype=np.float64)
         for i in xrange(len(x0)):
-            jacob[i] -= flux*getattr(psf, "diff_{0}".format(names[i]))/self.sigma[psf.used]
-
+            jacob[i] -= flux*getattr(psf, "diff_{0}".format(names[i]))/sigma
         return jacob
         
 
