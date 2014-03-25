@@ -45,12 +45,12 @@ the data into memory yet but just checks whether the file(s) are valid.
 
 Latest SVN revision
 -------------------
-159, 2014/03/25
+161, 2014/03/25
 """
 __author__     = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
 
-__version__    = "0.11.29.13"
-__revision__   = 159
+__version__    = "0.11.31.13"
+__revision__   = 161
 
 
 

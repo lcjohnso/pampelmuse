@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-159, 2014/03/25
+161, 2014/03/25
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 159
+__revision__ = 161
 
 import datetime, os, sys, logging
 import numpy as np, pyfits
@@ -244,8 +244,6 @@ def initfit(pampelmuse):
     ## have a flux of 1000 counts and a peak-S/N of roughly 10
     logging.info("Creating mock image from photometry sources...")
 
-    PSF.set_size((int(sources.y.max()+1), int(sources.x.max()+1)))
-
     if pampelmuse.zeromag > 99.:
         magZ = pampelmuse.reslim + 7.5
     else:
@@ -254,7 +252,11 @@ def initfit(pampelmuse):
     # TODO: check if RA and Dec coordinates for IFS pointing are available;
     # if so, print pixel coordinates of field center in mock image
 
-    _image  = np.zeros((PSF._transform.shape[0], ), dtype='float32')
+    ## prepare PSF for creation of mock image
+    size   = (int(sources.y.max()+1), int(sources.x.max()+1))
+    _image = np.zeros((size[0]*size[1], ), dtype='float32')
+
+    PSF.set_size(size)
     for i in xrange(sources.nsrc-pampelmuse.globsky):
         logging.debug("Adding source {0:0{1}d}/{2:0{1}d} to mock image.".format(i+1, len(str(sources.nsrc)), sources.nsrc-pampelmuse.globsky))
         
@@ -267,8 +269,8 @@ def initfit(pampelmuse):
     _image += np.random.normal(loc=0., scale=10, size=_image.shape)
 
     ## resample image on regular (x, y) grid
-    grid_y, grid_x = np.mgrid[0:PSF._size[0]-1:1j*PSF._size[0], 0:PSF._size[1]-1:1j*PSF._size[1]]
-    identification_image = interpolate.griddata((PSF._y, PSF._x), _image, (grid_y, grid_x), method="linear", fill_value=np.nan)
+    grid_y, grid_x = np.mgrid[0:size[0]-1:1j*size[0], 0:size[1]-1:1j*size[1]]
+    identification_image = interpolate.griddata((PSF._transform[:,0], PSF._transform[:,1]), _image, (grid_y, grid_x), method="linear", fill_value=np.nan)
 
     ## start source identification GUI to identify bright(est) stars
     logging.info("Preparing GUI for source identification...")
