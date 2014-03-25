@@ -267,8 +267,8 @@ def initfit(pampelmuse):
     _image += np.random.normal(loc=0., scale=10, size=_image.shape)
 
     ## resample image on regular (x, y) grid
-    grid_y, grid_x = np.mgrid[0:PSF.size[0]-1:1j*PSF.size[0], 0:PSF.size[1]-1:1j*PSF.size[1]]
-    identification_image = interpolate.griddata((PSF.y, PSF.x), _image, (grid_y, grid_x), method="linear", fill_value=np.nan)
+    grid_y, grid_x = np.mgrid[0:PSF._size[0]-1:1j*PSF._size[0], 0:PSF._size[1]-1:1j*PSF._size[1]]
+    identification_image = interpolate.griddata((PSF._y, PSF._x), _image, (grid_y, grid_x), method="linear", fill_value=np.nan)
 
     ## start source identification GUI to identify bright(est) stars
     logging.info("Preparing GUI for source identification...")
