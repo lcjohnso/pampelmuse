@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-148, 2014/02/28
+159, 2014/03/25
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 148
+__revision__ = 159
 
 import datetime, os, sys, logging
 import numpy as np, pyfits
@@ -254,7 +254,7 @@ def initfit(pampelmuse):
     # TODO: check if RA and Dec coordinates for IFS pointing are available;
     # if so, print pixel coordinates of field center in mock image
 
-    _image  = np.zeros((PSF.transform.shape[0], ), dtype='float32')
+    _image  = np.zeros((PSF._transform.shape[0], ), dtype='float32')
     for i in xrange(sources.nsrc-pampelmuse.globsky):
         logging.debug("Adding source {0:0{1}d}/{2:0{1}d} to mock image.".format(i+1, len(str(sources.nsrc)), sources.nsrc-pampelmuse.globsky))
         
