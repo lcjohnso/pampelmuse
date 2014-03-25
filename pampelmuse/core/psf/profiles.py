@@ -38,10 +38,10 @@ ces simultaneously without having to loop over them.
 
 Latest SVN revision
 -------------------
-156, 2014/03/20
+158, 2014/03/25
 """
 __author__   = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 156
+__revision__ = 158
 
 import logging
 import numpy as np
@@ -1900,13 +1900,12 @@ class Moffat(Profile):
         """
         assert isinstance(value, (float, np.float32, np.float64)), "'beta' must be a float, not {0:s}".format(type(value).__name__)
 
-        if not value > 1 and value < 20:
+        if not value > 1:
             logging.error("'beta' must be >=1 but is {0:.1f}.".format(float(value)))
-##             cls.BADPRM = True
-##             return
-##         cls.BADPRM = False
-        assert value>1, "'beta' must be >1 but is {0:.1f}".format(float(value))
-        assert value<20, "'beta' must be <20 but is {0:.1f}".format(float(value))
+            value = 1.01
+
+#        assert value>1, "'beta' must be >1 but is {0:.1f}".format(float(value))
+#        assert value<20, "'beta' must be <20 but is {0:.1f}".format(float(value))
 
         if value != cls._beta:
             cls._beta = value
@@ -2019,8 +2018,10 @@ class Moffat(Profile):
             The 'beta' parameter of the profile.
         """
         assert isinstance(value, (float, np.float32, np.float64)), "'beta' must be a float, not {0:s}".format(type(value).__name__)
-        assert value>1, "'beta' must be >1 but is {0:.1f}".format(float(value))
-        assert value<20, "'beta' must be <20 but is {0:.1f}".format(float(value))
+
+        if not value > 1:
+            logging.error("'beta' must be >=1 but is {0:.1f}.".format(float(value)))
+            value = 1.01
 
         if value != self._own_beta:
 

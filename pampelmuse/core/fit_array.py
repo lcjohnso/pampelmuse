@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-157, 2014/03/20
+158, 2014/03/25
 """ 
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 157
+__revision__ = 158
 
 import contextlib, itertools, logging, os, sys, time
 import numpy as np, pyfits, scipy
@@ -471,12 +471,6 @@ class StarFit(object):
             ## initial fit of fluxes
             bestFit = lsmr(self.Apsf, self.current)
             self.sources.data[self.jj,self.valid_components,0] += bestFit[0]/self.fluxfactors[self.valid_components]
-
-#            indata = np.zeros((self.ifs_data.instrument.transform.shape[0],), dtype=np.float32)
-#            indata[mask==False] = np.asarray(self.current, dtype=np.float32)
-#            outdata = self.ifs_data.instrument.make_grid(indata)
-#            outHDU = pyfits.PrimaryHDU(outdata)
-#            outHDU.writeto("{0}_{1}.fits".format(self.jj, n_iter), clobber=True)
             
             ## determine relative change in fluxes
             delta_flux = (bestFit[0]/self.fluxfactors[self.valid_components])/self.sources.data[self.jj,self.valid_components,0]
@@ -734,6 +728,15 @@ class StarFit(object):
                                           epsfcn=0.0)
             except optimize.minpack.error as error: ## error handler to avoid code that code crashes completely
                 result = (x0, {}, "Exception of type optimize.minpack.error encountered while executing fit.", 99)
+                
+                ## If uncommented, the following lines save a FITS image of the source for which the fit failed.
+                # used = self.ifs_data.instrument.dist2spax(psf.x, psf.y).argmin(axis=0)
+                # calcdata = np.zeros(self.ifs_data.instrument.nspaxel, dtype=np.float32)
+                # calcdata[used] += data
+                # outdata  = self.ifs_data.instrument.make_grid(calcdata)[int(psf.y.min()):int(psf.y.max()), int(psf.x.min()):int(psf.x.max())]
+                # outhdu   = pyfits.PrimaryHDU(outdata)
+                # outhdu.writeto("{0}_{1}.fits".format(self.jj, psf.src_id), clobber=True)
+                
             results.append(result)
         
             psf.transform = self.transform
