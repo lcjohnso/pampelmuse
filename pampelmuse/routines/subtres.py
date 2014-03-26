@@ -15,10 +15,10 @@ if PampelMuse is started with the 'SUBTRES' option.
 
 Latest SVN revision
 -------------------
-151, 2014/03/04
+162, 2014/03/26
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 151
+__revision__ = 162
 import datetime, itertools, logging, os, sys
 from multiprocessing import cpu_count, Pool
 import numpy as np, pyfits
@@ -178,7 +178,7 @@ def subtres(pampelmuse):
             
             for n in xrange(pampelmuse.cpucount):
                 imin = n*m
-                imax = min((n+1)*m, len(psf_instaces))
+                imax = min((n+1)*m, len(psf_instances))
                 
                 threads.append(pool.apply_async(get_psf_data, args=(psf_instances[imin:imax], sigma)))
         

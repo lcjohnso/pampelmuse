@@ -38,10 +38,10 @@ ces simultaneously without having to loop over them.
 
 Latest SVN revision
 -------------------
-158, 2014/03/25
+162, 2014/03/26
 """
 __author__   = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 158
+__revision__ = 162
 
 import logging
 import numpy as np
@@ -1139,7 +1139,9 @@ class Profile(object):
         return self._r
 
 
-## The property 'f' that returns the actual spatial intensity profile ##########
+## The property 'f' returns the actual spatial intensity profile. In this class,
+## it is basically only defined to handle super() calls from instances of classes
+## that inherite from Profile
     def get_f(self, **kwargs):
         """
         Method that calculates the actual intensity profile. Note that because
@@ -1157,19 +1159,17 @@ class Profile(object):
             compatible with the `make_array`-methods of the individual
             sub-classes.
         """
-        assert not hasattr(super(Profile, self), 'make_array')
-        ## make sure no `make_array`-method is "hidden" behind this one.
-        ## (following recommondation from:
+        assert not hasattr(super(Profile, self), 'get_f')
+        ## make sure no `get_f`-method is "hidden" behind this one (following recommondation from:
         ## http://rhettinger.wordpress.com/2011/05/26/super-considered-super/)
 
         return 0
 
     f = property(get_f, None, None, "A place-holder for the intensity distribution of the PSF.")
 
-    
 
-## The property 'diff_e' that returns the partial derivative of the intensity
-## profile wrt. the ellipticity 'e'.
+## The property 'diff_e' returns the partial derivative of the intensity profile
+## wrt. the ellipticity 'e'.
     def get_diff_e(self, integrate=True):
         """
         Calculate the partial derivative of the profile wrt. the ellipticity
@@ -1611,6 +1611,7 @@ class Gaussian(Profile):
 ## derivatives of the intensity distribution provided by the Gaussian profile
 ## wrt. the individual parameters.
 
+
 ## The FWHM
     def get_diff_fwhm(self, integrate=True):
         """
@@ -1902,10 +1903,8 @@ class Moffat(Profile):
 
         if not value > 1:
             logging.error("'beta' must be >=1 but is {0:.1f}.".format(float(value)))
-            value = 1.01
 
-#        assert value>1, "'beta' must be >1 but is {0:.1f}".format(float(value))
-#        assert value<20, "'beta' must be <20 but is {0:.1f}".format(float(value))
+        assert value>1, "'beta' must be >1 but is {0:.1f}".format(float(value))
 
         if value != cls._beta:
             cls._beta = value
@@ -2021,7 +2020,7 @@ class Moffat(Profile):
 
         if not value > 1:
             logging.error("'beta' must be >=1 but is {0:.1f}.".format(float(value)))
-            value = 1.01
+        assert value>1, "'beta' must be >=1 but is {0:.1f}."
 
         if value != self._own_beta:
 

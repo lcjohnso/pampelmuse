@@ -27,15 +27,15 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-158, 2014/03/25
+162, 2014/03/26
 """ 
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 158
+__revision__ = 162
 
 import contextlib, itertools, logging, os, sys, time
 import numpy as np, pyfits, scipy
 from multiprocessing import cpu_count, Pool
-from scipy import sparse, optimize
+from scipy import optimize, sparse, stats
 if int(scipy.__version__.split(".")[1])<10:
     logging.warning("Version of SciPy is <0.10, using sparse.linalg.lsqr instead of faster scipy.linalg.lsmr")
     from scipy.sparse.linalg import lsqr as lsmr
@@ -126,14 +126,18 @@ def get_psf_data(psf_instances, sigma):
     for psf in psf_instances:
 
         if psf==None: ## sky component
-            results.append([np.arange(sigma.size, dtype=np.int32),1./sigma, 1.])
+            spaxels = np.arange(sigma.size, dtype=np.int32)
+            fluxes  = 1./sigma
 
         else: ## stellar component
             spaxels, fluxes = psf.get_flux()
             n = spaxels.size
             if n==0: logging.warning("Source #{0} entirely outside FoV.".format(psf.src_id))
-            intflux = fluxes.sum()
-            results.append([spaxels, fluxes/sigma[psf.used], intflux])
+
+            fluxes /= sigma[psf.used]
+            
+        intflux = fluxes.sum()
+        results.append([spaxels, fluxes, intflux])
 
     return results
 
@@ -693,9 +697,8 @@ class StarFit(object):
         ## Loop over all PSF sources; add source to residuals, fit resulting array and subtract source again.
         for i in self.psf_indices: 
 
-            flux  = self.sources.data[self.jj,self.sources.specrow[i],0]
-            names = [] ## the names of the free parameters for this PSF
-            x0    = [] ## the initial guesses for the parameter fit for this PSF
+            names = ["flux"] ## the names of the free parameters for this PSF
+            x0    = [self.sources.data[self.jj,self.sources.specrow[i],0]] ## the initial guesses for the parameter fit for this PSF
 
             if self.update_coordinates[i]:
                         
@@ -719,12 +722,12 @@ class StarFit(object):
                 
             psf   = self.psf_instances[i]
             sigma = self.sigma[psf.used]
-            data  = self.current[psf.used] + flux*psf.f/sigma
+            data  = self.current[psf.used] + x0[0]*psf.f/sigma
             psf.transform = self.transform[psf.used]
             psf.maxrad = np.inf
 
             try:
-                result = optimize.leastsq(self.optimize_single_psf, x0=x0, Dfun=self.jacobi_single_psf, col_deriv=1, args=(names, psf, flux, data, sigma), full_output=1,
+                result = optimize.leastsq(self.optimize_single_psf, x0=x0, Dfun=self.jacobi_single_psf, col_deriv=1, args=(names, psf, data, sigma), full_output=1,
                                           epsfcn=0.0)
             except optimize.minpack.error as error: ## error handler to avoid code that code crashes completely
                 result = (x0, {}, "Exception of type optimize.minpack.error encountered while executing fit.", 99)
@@ -765,16 +768,16 @@ class StarFit(object):
                 logging.error("[@{0}] PSF fit failed for source #{1}: {2}".format(self.kk, self.sources.ID[i], result[-2]))
                 continue
             
-            logstring = "[@{0}] Successfully fitted PSF of source #{1}:".format(self.kk, self.sources.ID[i])
+            logstring = "[@{0}] Successfully fitted PSF of source #{1}: f={2:.1f}".format(self.kk, self.sources.ID[i], result[0][0])
 
             if posfitted[n]:
                 if self.full_coordinates_fit: ## if IFS coordinates should be fitted, update them directly
                     j = self.sources.ifs_coordinates_loaded[:i].sum() ## get index of source in IFS coordinates array
-                    self.sources.ifs_coordinates[self.jj,j,:,0] = result[0][:2]
+                    self.sources.ifs_coordinates[self.jj,j,:,0] = result[0][1:3]
                 else: ## save the coordinates to fit the transformation afterwards
-                    ifs_coords.append(result[0][:2])
+                    ifs_coords.append(result[0][1:3])
                     ref_coords.append([self.sources.x[i], self.sources.y[i]])
-                logstring += " xc={0:.2f} yc={1:.2f}".format(float(result[0][0]), float(result[0][1]))
+                logstring += " xc={0:.2f} yc={1:.2f}".format(float(result[0][1]), float(result[0][2]))
             if psffitted[n]:
                 psf_pars.append(result[0][-len(psf_names):])
                 for j in xrange(len(psf_names)): logstring += " {0}={1:.2f}".format(psf_names[j], float(psf_pars[-1][j]))
@@ -810,7 +813,13 @@ class StarFit(object):
 
                     ii = self.psf_attributes.names.index(par)
                 
-                    self.psf_attributes.data[self.jj,ii,0] = np.mean([v[i] for v in psf_pars])
+                    if len(psf_pars)>2: ## perfom  sigma-clipping if more than two successful fits are available
+                        values = stats.sigmaclip([v[i] for v in psf_pars], low=2.5, high=2.5)[0]
+                        logging.info("[@[{0}] Clipped {1} measurement(s) of {2}.".format(self.kk, len(values)-len(psf_pars), par))
+                    else:
+                        values = [v[i] for v in psf_pars]
+               
+                    self.psf_attributes.data[self.jj,ii,0] = np.mean(values)
                     getattr(self.PSF, "set_{0}".format(par))(self.psf_attributes.data[self.jj,ii,0])
                 
                     logstring += "{0}={1:.2f} ".format(par, float(self.psf_attributes.data[self.jj,ii,0]))
@@ -857,7 +866,7 @@ class StarFit(object):
 #            return (x0, {}, "Exception of type optimize.minpack.error encountered while executing fit.", 99)
 
 
-    def optimize_single_psf(self, x0, names, psf, flux, data, sigma):
+    def optimize_single_psf(self, x0, names, psf, data, sigma):
         """
         This is the optimization routine that is passed to the Levenberg-
         Marquard solver scipy.optimize.leastsq. During each iteration, a
@@ -867,15 +876,14 @@ class StarFit(object):
         Parameters
         ----------
         x0 : array_like
-            The initial guesses of the parameters that are fitted.
+            The initial guesses of the parameters that are fitted. The first
+            parameter must be the flux of the source.
         names :  array_like
             The names of the parameters that are fitted. Must have same length
             as 'x0' of course.
         psf : an instance of class pampelmuse.core.psf.profiles.Profile or
               one of its subclasses
             The PSF model for the source.
-        flux : float
-            The flux of the source.
         data : nd_array
             The data array used to fit the parameters. Note that the pixel
             values should be normalized by their respective uncertainties.
@@ -889,7 +897,7 @@ class StarFit(object):
         """
 
         ## update PSF using current parameter estimates
-        for i in xrange(len(x0)):
+        for i in xrange(1, len(x0)):
             try:
                 ## the attribute is only set in the 'psf'-instance of the class,
                 ## not in all instances! This is different from the behaviour of
@@ -901,10 +909,10 @@ class StarFit(object):
                 raise np.linalg.linalg.LinAlgError("Invalid value '{0}' for parameter '{1}'.".format(x0[i], names[i]))
 
         ## return residuals
-        return (data - flux*psf.f/sigma)
+        return (data - x0[0]*psf.f/sigma)
 
 
-    def jacobi_single_psf(self, x0, names, psf, flux, data, sigma):
+    def jacobi_single_psf(self, x0, names, psf, data, sigma):
         """
         Calculate the Jacobi matrix for the optimization carried out in
         StarFit.optimize_single_psf. The method is passed to the Levenberg-
@@ -921,8 +929,9 @@ class StarFit(object):
             in 'x0'.
         """
         jacob = np.zeros((len(x0), psf.used.sum()), dtype=np.float64)
-        for i in xrange(len(x0)):
-            jacob[i] -= flux*getattr(psf, "diff_{0}".format(names[i]))/sigma
+        jacob[0] -= psf.f
+        for i in xrange(1, len(x0)):
+            jacob[i] -= x0[0]*getattr(psf, "diff_{0}".format(names[i]))/sigma
         return jacob
         
 

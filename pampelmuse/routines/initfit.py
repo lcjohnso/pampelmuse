@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-161, 2014/03/25
+162, 2014/03/26
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 161
+__revision__ = 162
 
 import datetime, os, sys, logging
 import numpy as np, pyfits
@@ -53,6 +53,7 @@ from pampelmuse.core.psf import *
 from pampelmuse.graphics import PampelMuseGui
 from pampelmuse.functions.io import read_asciifile
 from pampelmuse.functions.wcs import calc_offset
+from pampelmuse.functions.statistics import DER_SNR
 
 ## class defines the exception that is raised when the parameters
 ## in the Pampel Muse-configuration are such that they do not allow
@@ -470,7 +471,7 @@ def initfit(pampelmuse):
 
     if not pampelmuse.smallifu:
 
-        logging.info("Searching for useful PSF stars...")
+        logging.info("Searching for possible PSF stars...")
         ## searching photometry results for usefuls PSF stars must fulfil following criteria:
         ## (1) at least 3 magnitudes brighter than provided resolution limit (parameter `RESLIM')
         ## (2) must have been identified as resolved (i.e. status==2) in the source selection 
@@ -489,7 +490,7 @@ def initfit(pampelmuse):
             
             if sources.mag[i] > (reslim-3): break
             if sources.status[i] != 2: continue
-            if signal_to_noise[i] < 20: continue
+#             if signal_to_noise[i] < 20: continue
             if pampelmuse.ifs_data.instrument.distance_to_edge(ifs_coordinates[[i]])[0] < fwhm[i]: continue
 
             ## calculate shoulder drop
@@ -502,13 +503,11 @@ def initfit(pampelmuse):
             logging.info("   {0:6d}  {1:5.2f}  {2:14.2f}".format(int(sources.ID[i]), float(sources.mag[i]), float(sd)))
 
         if len(sources.psf_indices) == 0:
-            logging.error("No useful PSF sources found!")
-            raise ConfigurationError, "No useful PSF sources found!"
-        elif len(sources.psf_indices) < 4:
-            logging.warning("Found only {0} useful PSF source(s)".format(len(sources.psf_indices)))
+            logging.critical("No possible PSF sources found!")
+            raise ConfigurationError, "No possible PSF sources found!"
 
         ## carry out aperture spectrophotometry for PSF sources
-        logging.info("Performing aperture spectrophotometry on PSF stars...")
+        logging.info("Performing aperture spectrophotometry on possible PSF stars...")
  
         ## initialize aperture routine
         make_aper = AperPhoto(pampelmuse.ifs_data, sources)
@@ -516,19 +515,33 @@ def initfit(pampelmuse):
         ## run it
         results = make_aper.aper_photo(r_aper=pampelmuse.aperrad, layer_range=(pampelmuse.start, pampelmuse.stop), PSF=PSF, background="local")
         
-        ## write IFS coordinates into instance of Sources
+        ## write spectra and IFS coordinates into instance of Sources, estimate S/N and exclude sources with S/N<20
         sources.load_ifs_coordinates(ids=results["ID"][results["ID"]>=0])
 
         for i in xrange(len(results)):
+            k = sources.specrow[np.where(sources.ID==results["ID"][i])[0][0]]
+            sources.data[:, k, 0] = results["flux"][i]
+
             if results["ID"][i]>=0:
+                snr = DER_SNR(results["flux"][i])
+                
+                if snr<20:
+                    sources.status[np.flatnonzero(sources.ID==results["ID"][i])[0]]=2
+                    logging.info("S/N of source #{0} is only {1:.1f} - not used as PSF source.".format(results["ID"][i], snr))
+                else:
+                    logging.info("S/N of source #{0} is {1:.1f} - used as PSF source.".format(results["ID"][i], snr))
+                
                 j = np.flatnonzero(sources.ID[sources.ifs_coordinates_loaded]==results["ID"][i])[0]
                 sources.ifs_coordinates[:, j, 0, 0] = results["x"][i]
                 sources.ifs_coordinates[:, j, 1, 0] = results["y"][i]
         
-            k = sources.specrow[np.where(sources.ID==results["ID"][i])[0][0]]
-            sources.data[:, k, 0] = results["flux"][i]
+        if len(sources.psf_indices) == 0:
+            logging.critical("No PSF sources found!")
+            raise ConfigurationError, "No PSF sources found!"
+        elif len(sources.psf_indices) < 4:
+            logging.warning("Found only {0} possible PSF source(s)".format(len(sources.psf_indices)))
         
-        # TODO: check if following if clause works
+        
         if results.size > 3:
             ## determine wavelength-dependent coordinate transformation
             logging.info("Determining wavelength-dependent coordinate transformation...")
