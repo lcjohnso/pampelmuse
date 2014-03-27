@@ -38,10 +38,10 @@ ces simultaneously without having to loop over them.
 
 Latest SVN revision
 -------------------
-162, 2014/03/26
+163, 2014/03/27
 """
 __author__   = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 162
+__revision__ = 163
 
 import logging
 import numpy as np
@@ -1901,10 +1901,8 @@ class Moffat(Profile):
         """
         assert isinstance(value, (float, np.float32, np.float64)), "'beta' must be a float, not {0:s}".format(type(value).__name__)
 
-        if not value > 1:
-            logging.error("'beta' must be >=1 but is {0:.1f}.".format(float(value)))
-
-        assert value>1, "'beta' must be >1 but is {0:.1f}".format(float(value))
+        if value <= 1 or value > 100: logging.error("'beta' must be >1 and <=100 but is {0:.1f}.".format(float(value)))
+        assert value>1 and value <= 100, "'beta' must be >1 and <=100 but is {0:.1f}".format(float(value))
 
         if value != cls._beta:
             cls._beta = value
@@ -2018,9 +2016,8 @@ class Moffat(Profile):
         """
         assert isinstance(value, (float, np.float32, np.float64)), "'beta' must be a float, not {0:s}".format(type(value).__name__)
 
-        if not value > 1:
-            logging.error("'beta' must be >=1 but is {0:.1f}.".format(float(value)))
-        assert value>1, "'beta' must be >=1 but is {0:.1f}."
+        if value <= 1 or value > 100: logging.error("'beta' must be >1 and <=100 but is {0:.1f}.".format(float(value)))
+        assert value > 1 and value <= 100, "'beta' must be >1 and <=100 but is {0:.1f}.".format(float(value))
 
         if value != self._own_beta:
 

@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-162, 2014/03/26
+163, 2014/03/27
 """ 
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 162
+__revision__ = 163
 
 import contextlib, itertools, logging, os, sys, time
 import numpy as np, pyfits, scipy
@@ -690,15 +690,17 @@ class StarFit(object):
                 psf_values.append(self.psf_attributes.data[self.jj,i,0])
 
         ## Initialize arrays that will hold results
-        results    = []
-        posfitted  = [] ## for each source, a boolean flag indicating if the source coordinates are fitted
-        psffitted  = [] ## for each source, a boolean flag indicating if the PSF parameters are fitted
+        results   = []
+        snratios  = []
+        posfitted = [] ## for each source, a boolean flag indicating if the source coordinates are fitted
+        psffitted = [] ## for each source, a boolean flag indicating if the PSF parameters are fitted
 
         ## Loop over all PSF sources; add source to residuals, fit resulting array and subtract source again.
         for i in self.psf_indices: 
 
             names = ["flux"] ## the names of the free parameters for this PSF
             x0    = [self.sources.data[self.jj,self.sources.specrow[i],0]] ## the initial guesses for the parameter fit for this PSF
+            snratios.append(x0[0]/self.sources.data[self.jj,self.sources.specrow[i],1])
 
             if self.update_coordinates[i]:
                         
@@ -730,7 +732,7 @@ class StarFit(object):
                 result = optimize.leastsq(self.optimize_single_psf, x0=x0, Dfun=self.jacobi_single_psf, col_deriv=1, args=(names, psf, data, sigma), full_output=1,
                                           epsfcn=0.0)
             except optimize.minpack.error as error: ## error handler to avoid code that code crashes completely
-                result = (x0, {}, "Exception of type optimize.minpack.error encountered while executing fit.", 99)
+                result = (x0, None, {}, "Exception of type optimize.minpack.error encountered while executing fit.", 99)
                 
                 ## If uncommented, the following lines save a FITS image of the source for which the fit failed.
                 # used = self.ifs_data.instrument.dist2spax(psf.x, psf.y).argmin(axis=0)
@@ -758,6 +760,7 @@ class StarFit(object):
         ifs_coords  = []
         ref_coords  = []
         psf_pars    = []
+        psf_snrs    = []
 
         for n in xrange(len(results)):
             result = results[n]
@@ -765,10 +768,10 @@ class StarFit(object):
 
             success = (result[-1]>0)&(result[-1]<=4)
             if not success:
-                logging.error("[@{0}] PSF fit failed for source #{1}: {2}".format(self.kk, self.sources.ID[i], result[-2]))
+                logging.error("[@{0}] PSF fit failed for source #{1} (S/N={2:.1f}): {3}".format(self.kk, self.sources.ID[i], snratios[n], result[-2]))
                 continue
             
-            logstring = "[@{0}] Successfully fitted PSF of source #{1}: f={2:.1f}".format(self.kk, self.sources.ID[i], result[0][0])
+            logstring = "[@{0}] Successfully fitted PSF of source #{1} (S/N={2:.1f}): f={3:.1f}".format(self.kk, self.sources.ID[i], snratios[n], result[0][0])
 
             if posfitted[n]:
                 if self.full_coordinates_fit: ## if IFS coordinates should be fitted, update them directly
@@ -780,6 +783,7 @@ class StarFit(object):
                 logstring += " xc={0:.2f} yc={1:.2f}".format(float(result[0][1]), float(result[0][2]))
             if psffitted[n]:
                 psf_pars.append(result[0][-len(psf_names):])
+                psf_snrs.append(snratios[n])
                 for j in xrange(len(psf_names)): logstring += " {0}={1:.2f}".format(psf_names[j], float(psf_pars[-1][j]))
             logging.info(logstring)
 
@@ -812,14 +816,9 @@ class StarFit(object):
                 for par in psf_names:
 
                     ii = self.psf_attributes.names.index(par)
-                
-                    if len(psf_pars)>2: ## perfom  sigma-clipping if more than two successful fits are available
-                        values = stats.sigmaclip([v[i] for v in psf_pars], low=2.5, high=2.5)[0]
-                        logging.info("[@[{0}] Clipped {1} measurement(s) of {2}.".format(self.kk, len(values)-len(psf_pars), par))
-                    else:
-                        values = [v[i] for v in psf_pars]
                
-                    self.psf_attributes.data[self.jj,ii,0] = np.mean(values)
+                    ## weight individual parameter fits using S/N of sources
+                    self.psf_attributes.data[self.jj,ii,0] = np.average([v[i] for v in psf_pars], weights=psf_snrs)
                     getattr(self.PSF, "set_{0}".format(par))(self.psf_attributes.data[self.jj,ii,0])
                 
                     logstring += "{0}={1:.2f} ".format(par, float(self.psf_attributes.data[self.jj,ii,0]))
@@ -929,7 +928,7 @@ class StarFit(object):
             in 'x0'.
         """
         jacob = np.zeros((len(x0), psf.used.sum()), dtype=np.float64)
-        jacob[0] -= psf.f
+        jacob[0] -= psf.f/sigma
         for i in xrange(1, len(x0)):
             jacob[i] -= x0[0]*getattr(psf, "diff_{0}".format(names[i]))/sigma
         return jacob
@@ -1091,7 +1090,9 @@ class StarFit(object):
         the PSF and the coordiate transformation prior to a PSF fit.
         The new initial guesses are determined by calculating the mean
         of the results of the `Ntrack'/2 nearest images that have been
-        fitted so far.
+        fitted so far. For the parameters of the PSF and the coordinate
+        transformation, a kappa-sigma clipping (kappa=2.5) is performed 
+        on the previous results to exclude potential outliers.
         """
         if self.Ntrack == 0:
             ##  no updating requested
@@ -1112,10 +1113,10 @@ class StarFit(object):
         if self.sources.contains_free_coordinates:
             if not self.full_coordinates_fit:  ## update coordinate transformation
                 for i in np.flatnonzero(self.sources.transformation.free&(self.sources.transformation.fitted==False)):
-                    self.sources.transformation.data[self.jj,i,0] = self.sources.transformation.data[LASTFITS,i,0].mean(axis=0)
+                    self.sources.transformation.data[self.jj,i,0] = np.mean(stats.sigmaclip(self.sources.transformation.data[LASTFITS,i,0], low=2.5, high=2.5)[0])
             else: ## update coordinates
                 self.sources.ifs_coordinates[self.jj,self.update_coordinates,:,0] = self.sources.ifs_coordinates[LASTFITS].mean(axis=0)[self.update_coordinates,:,0]
 
         if self.psf_attributes.contains_free_parameters: ## update PSF
             for i in np.flatnonzero(self.psf_attributes.free&(self.psf_attributes.fitted==False)):
-                self.psf_attributes.data[self.jj,i,0] = self.psf_attributes.data[LASTFITS,i,0].mean(axis=0)
+                self.psf_attributes.data[self.jj,i,0] = np.mean(stats.sigmaclip(self.psf_attributes.data[LASTFITS,i,0], low=2.5, high=2.5)[0])

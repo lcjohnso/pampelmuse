@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-162, 2014/03/26
+163, 2014/03/27
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 162
+__revision__ = 163
 
 import datetime, os, sys, logging
 import numpy as np, pyfits
@@ -525,7 +525,7 @@ def initfit(pampelmuse):
             if results["ID"][i]>=0:
                 snr = DER_SNR(results["flux"][i])
                 
-                if snr<20:
+                if snr<30:
                     sources.status[np.flatnonzero(sources.ID==results["ID"][i])[0]]=2
                     logging.info("S/N of source #{0} is only {1:.1f} - not used as PSF source.".format(results["ID"][i], snr))
                 else:
