@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-163, 2014/03/27
+164, 2014/03/27
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 163
+__revision__ = 164
 
 import datetime, os, sys, logging
 import numpy as np, pyfits
@@ -475,11 +475,13 @@ def initfit(pampelmuse):
         ## searching photometry results for usefuls PSF stars must fulfil following criteria:
         ## (1) at least 3 magnitudes brighter than provided resolution limit (parameter `RESLIM')
         ## (2) must have been identified as resolved (i.e. status==2) in the source selection 
-        ## (3) must have an estimated S/N>20
+        ## (3) must have an estimated S/N>20 (this is checked after aperture photometry)
         ## (4) at a distance of at least the PSF FWHM from the edge of the FoV 
-        ## (5) isolation criterium (relative contribution from neighboring sources smaller than value of `APERNOIS'-parameter)
+        ## (5) isolation criterium:
+        ##      - a) relative contribution from neighboring sources inside PSFRAD smaller than value of parameter APERNOIS)
+        ##      - b) no brighter source inside 1.5 x PSFRAD distance
 
-        ## The isolation of a star is measured using a slightly modified version of the shoulder drop or topographic prominence
+        ## The first isolation of a star is measured using a slightly modified version of the shoulder drop or topographic prominence
         ## (for the exact definition of the topographic prominence, see http://en.wikipedia.org/wiki/Topographic_prominence).
         ## It is a measure for how strongly a source dominates its surroundings. The measure used here is the flux ratio of the
         ## source itself and the brightest source within a distance r that we set to the value of the PSFRAD parameter.
@@ -490,15 +492,21 @@ def initfit(pampelmuse):
             
             if sources.mag[i] > (reslim-3): break
             if sources.status[i] != 2: continue
-#             if signal_to_noise[i] < 20: continue
             if pampelmuse.ifs_data.instrument.distance_to_edge(ifs_coordinates[[i]])[0] < fwhm[i]: continue
 
             ## calculate shoulder drop
-            dr   = spatial.distance.cdist(ifs_coordinates[[i]], ifs_coordinates[idx_magsorted!=i])[0]
-            dmag = (sources.mag[dr<pampelmuse.psfrad]-sources.mag[i]).min()
-            sd   = 10**(-0.4*dmag)
-            if sd>pampelmuse.apernois: continue
-            
+            dr   = spatial.distance.cdist(ifs_coordinates[[i]], ifs_coordinates[idx_magsorted[idx_magsorted!=i]])[0]
+            if (dr<pampelmuse.psfrad).any():
+                dmag = (sources.mag[dr<pampelmuse.psfrad]-sources.mag[i]).min()
+                sd   = 10**(-0.4*dmag)
+                if sd>pampelmuse.apernois: continue
+            else:
+                sd   = 0
+
+            ## check if brighter star inside 1.5xPSFRAD:
+            if (dr<1.5*pampelmuse.psfrad).any() and (sources.mag[dr<1.5*pampelmuse.psfrad]<sources.mag[i]).any():
+                continue
+
             sources.status[i] = 3
             logging.info("   {0:6d}  {1:5.2f}  {2:14.2f}".format(int(sources.ID[i]), float(sources.mag[i]), float(sd)))
 

@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-163, 2014/03/27
+164, 2014/03/27
 """ 
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 163
+__revision__ = 164
 
 import contextlib, itertools, logging, os, sys, time
 import numpy as np, pyfits, scipy
@@ -609,6 +609,9 @@ class StarFit(object):
 
         i1 = np.hstack((len(results[i][0])*[self.sources.specrow[i]] for i in xrange(self.sources.nsrc))) ## the column indices
         for bad_index in specrows[self.component_mask][::-1]: i1[i1>bad_index] -= 1 ## correct for components that do not contribute
+
+        # TODO: check why array i1 is transformed to float if components outside FoV exist
+        if not issubclass(i1.dtype.type, np.integer): i1 = np.asarray(i1, dtype=np.int32)
 
         f  = np.hstack((r[1] for r in results)) ## the fluxes
         f /= self.fluxfactors[self.valid_components][i1] ## bring all components to an integrated flux of 1
