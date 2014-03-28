@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-164, 2014/03/27
+165, 2014/03/28
 """ 
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 164
+__revision__ = 165
 
 import contextlib, itertools, logging, os, sys, time
 import numpy as np, pyfits, scipy
@@ -410,17 +410,25 @@ class StarFit(object):
 
         ## update PSF instances
         ## -with PSF parameters
+        logstring = "[@{0}] Initial PSF model:".format(self.kk)
         i = 0 
         for prm in self.psf_attributes.names:
-            getattr(self.PSF, "set_{0}".format(prm))(self.psf_attributes.data[self.jj, i, int(self.psf_attributes.fitted[i])])
+            value = self.psf_attributes.data[self.jj, i, int(self.psf_attributes.fitted[i])]
+            getattr(self.PSF, "set_{0}".format(prm))(value)
+            logstring += " {0}={1:.2f}".format(prm, float(value))
             i += 1
+        logging.info(logstring)
         
         ## -with parameters of coordinate transformation (if available)
         if self.sources.transformation.valid:
+            logstring = "[@{0}] Initial coord. transformation:".format(self.kk)
             i = 0
             for prm in self.sources.transformation.names:
-                getattr(self.PSF, "set_{0}".format(prm))(self.sources.transformation.data[self.jj, i, int(self.sources.transformation.fitted[i])])
+                value = self.sources.transformation.data[self.jj, i, int(self.sources.transformation.fitted[i])]
+                getattr(self.PSF, "set_{0}".format(prm))(value)
+                logstring += " {0}={1:.2f}".format(prm, float(value))
                 i += 1
+            logging.info(logstring)
 
         ## -with direct positions if required
         i  = 0
@@ -731,11 +739,14 @@ class StarFit(object):
             psf.transform = self.transform[psf.used]
             psf.maxrad = np.inf
 
-            try:
-                result = optimize.leastsq(self.optimize_single_psf, x0=x0, Dfun=self.jacobi_single_psf, col_deriv=1, args=(names, psf, data, sigma), full_output=1,
-                                          epsfcn=0.0)
-            except optimize.minpack.error as error: ## error handler to avoid code that code crashes completely
-                result = (x0, None, {}, "Exception of type optimize.minpack.error encountered while executing fit.", 99)
+            if data.size <= len(x0):
+                result = (x0, None, {}, "Number of free parameters exceeds number of datapoints.")
+            else:
+                try:
+                    result = optimize.leastsq(self.optimize_single_psf, x0=x0, Dfun=self.jacobi_single_psf, col_deriv=1, args=(names, psf, data, sigma), full_output=1,
+                                            epsfcn=0.0)
+                except optimize.minpack.error as error: ## error handler to avoid code that code crashes completely
+                    result = (x0, None, {}, "Exception of type optimize.minpack.error encountered while executing fit.", 99)
                 
                 ## If uncommented, the following lines save a FITS image of the source for which the fit failed.
                 # used = self.ifs_data.instrument.dist2spax(psf.x, psf.y).argmin(axis=0)
@@ -744,6 +755,9 @@ class StarFit(object):
                 # outdata  = self.ifs_data.instrument.make_grid(calcdata)[int(psf.y.min()):int(psf.y.max()), int(psf.x.min()):int(psf.x.max())]
                 # outhdu   = pyfits.PrimaryHDU(outdata)
                 # outhdu.writeto("{0}_{1}.fits".format(self.jj, psf.src_id), clobber=True)
+                
+            ## remove individual positions and/or PSF parameters for this profile
+            for name in names[1:]: delattr(psf, name)
                 
             results.append(result)
         
@@ -1116,10 +1130,10 @@ class StarFit(object):
         if self.sources.contains_free_coordinates:
             if not self.full_coordinates_fit:  ## update coordinate transformation
                 for i in np.flatnonzero(self.sources.transformation.free&(self.sources.transformation.fitted==False)):
-                    self.sources.transformation.data[self.jj,i,0] = np.mean(stats.sigmaclip(self.sources.transformation.data[LASTFITS,i,0], low=2.5, high=2.5)[0])
+                    self.sources.transformation.data[self.jj,i,0] = np.median(self.sources.transformation.data[LASTFITS,i,0])
             else: ## update coordinates
-                self.sources.ifs_coordinates[self.jj,self.update_coordinates,:,0] = self.sources.ifs_coordinates[LASTFITS].mean(axis=0)[self.update_coordinates,:,0]
+                self.sources.ifs_coordinates[self.jj,self.update_coordinates,:,0] = np.median(self.sources.ifs_coordinates[LASTFITS], axis=0)[self.update_coordinates,:,0]
 
         if self.psf_attributes.contains_free_parameters: ## update PSF
             for i in np.flatnonzero(self.psf_attributes.free&(self.psf_attributes.fitted==False)):
-                self.psf_attributes.data[self.jj,i,0] = np.mean(stats.sigmaclip(self.psf_attributes.data[LASTFITS,i,0], low=2.5, high=2.5)[0])
+                self.psf_attributes.data[self.jj,i,0] = np.median(self.psf_attributes.data[LASTFITS,i,0])
