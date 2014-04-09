@@ -748,13 +748,13 @@ class StarFit(object):
                 except optimize.minpack.error as error: ## error handler to avoid code that code crashes completely
                     result = (x0, None, {}, "Exception of type optimize.minpack.error encountered while executing fit.", 99)
                 
-                ## If uncommented, the following lines save a FITS image of the source for which the fit failed.
-                # used = self.ifs_data.instrument.dist2spax(psf.x, psf.y).argmin(axis=0)
-                # calcdata = np.zeros(self.ifs_data.instrument.nspaxel, dtype=np.float32)
-                # calcdata[used] += data
-                # outdata  = self.ifs_data.instrument.make_grid(calcdata)[int(psf.y.min()):int(psf.y.max()), int(psf.x.min()):int(psf.x.max())]
-                # outhdu   = pyfits.PrimaryHDU(outdata)
-                # outhdu.writeto("{0}_{1}.fits".format(self.jj, psf.src_id), clobber=True)
+                    ## If uncommented, the following lines save a FITS image of the source for which the fit failed.
+                    # used = self.ifs_data.instrument.dist2spax(psf.x, psf.y).argmin(axis=0)
+                    # calcdata = np.zeros(self.ifs_data.instrument.nspaxel, dtype=np.float32)
+                    # calcdata[used] += data
+                    # outdata  = self.ifs_data.instrument.make_grid(calcdata)[int(psf.y.min()):int(psf.y.max()), int(psf.x.min()):int(psf.x.max())]
+                    # outhdu   = pyfits.PrimaryHDU(outdata)
+                    # outhdu.writeto("{0}_{1}.fits".format(self.jj, psf.src_id), clobber=True)
                 
             ## remove individual positions and/or PSF parameters for this profile
             for name in names[1:]: delattr(psf, name)
@@ -785,10 +785,10 @@ class StarFit(object):
 
             success = (result[-1]>0)&(result[-1]<=4)
             if not success:
-                logging.error("[@{0}] PSF fit failed for source #{1} (S/N={2:.1f}): {3}".format(self.kk, self.sources.ID[i], snratios[n], result[-2]))
+                logging.error("[@{0}] PSF fit failed for source #{1} (S/N={2:.1f}): {3}".format(self.kk, self.sources.ID[i], float(snratios[n]), result[-2]))
                 continue
             
-            logstring = "[@{0}] Successfully fitted PSF of source #{1} (S/N={2:.1f}): f={3:.1f}".format(self.kk, self.sources.ID[i], snratios[n], result[0][0])
+            logstring = "[@{0}] Successfully fitted PSF of source #{1} (S/N={2:.1f}): f={3:.1f}".format(self.kk, self.sources.ID[i], float(snratios[n]), result[0][0])
 
             if posfitted[n]:
                 if self.full_coordinates_fit: ## if IFS coordinates should be fitted, update them directly

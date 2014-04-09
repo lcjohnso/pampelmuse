@@ -18,10 +18,10 @@ loaded from pampelmuse.core.cube
 
 Latest SVN revision
 -------------------
-146, 2014/02/28
+166, 2014/04/09
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 146
+__revision__ = 166
 
 import logging
 import matplotlib.transforms, matplotlib.artist, matplotlib.pyplot, numpy as np

@@ -2017,7 +2017,7 @@ class Moffat(Profile):
         assert isinstance(value, (float, np.float32, np.float64)), "'beta' must be a float, not {0:s}".format(type(value).__name__)
 
         if value <= 1 or value > 10: logging.error("'beta' must be >1 and <=10 but is {0:.1f}.".format(float(value)))
-        assert value > 1 and value <= 10, "'beta' must be >1 and <=10 but is {0:.1f}.".format(float(value))
+        assert value > 1 and value <= 3, "'beta' must be >1 and <=10 but is {0:.1f}.".format(float(value))
 
         if value != self._own_beta:
 

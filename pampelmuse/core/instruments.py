@@ -26,10 +26,10 @@ like dead fibers or holes in the FoV are not handled.
 
 Latest SVN revision
 -------------------
-146, 2014/02/28
+166, 2014/04/09
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 146
+__revision__ = 166
 import logging, re
 import numpy as np
 from matplotlib import path
@@ -138,16 +138,19 @@ class Instrument(object):
     def set_edgepix(self, value):
         """
         Set the spaxels that define the edge of the field of view. Serves as
-        the setter-method for the 'edgepix'-proeprty.
+        the setter-method for the 'edgepix'-property.
 
         Parameters
         ----------
         value : nd_array or None
-            If 'value' is not None, a 1dim. boolean array of the same length
-            as the current
+            If 'value' is not None, a 1dim. array of integers containing the
+            inidces of the spaxels along the edge of the field of view.
+            IMPORTANT: The order of the indices matters, it should be such
+            that the indices follow a continuous path along the edge of the
+            field of view.
         """
         if value == None:
-            return None  ## edgepix not define.
+            return None  ## edgepix not defined.
 
         ## Perform sanity checks on provided data
         if self.transform == None:
@@ -807,3 +810,85 @@ class Argus(Instrument):
 
 
 
+class Muse(Instrument):
+    """
+    Class to handle data observed with the MUSE instrument
+    (Bacon et al. 2010, SPIE, 7735, 7), mounted at UT4 of the
+    Very Large Telescope.
+    """
+    
+    name = "muse"
+    
+    def __init__(self, pixtable=False, shape=None, **kwargs):
+        """
+        Initialize an instance of the Muse class.
+        
+        Parameters
+        ----------
+        pixtable : boolean, optional
+            A boolean flag indicating whether the data is available
+            in form of a pixtable. THIS IS NOT SUPPORTED YET.
+        shape : tuple, optional
+            The spatial shape of the data. Note that for MUSE this is
+            not a fixed property of the instrument but varies from one
+            exposure to the next.
+        kwargs
+            All other parameters are passed on to the call of the
+            super-class.
+        """
+        logging.info("Instrument in use in MUSE.")
+
+        if pixtable:
+            logging.error("The usage of MUSE pixtables is not yet supported.")
+
+        self.shape = shape
+
+        super(Muse, self).__init__(**kwargs)
+
+    
+    
+    def determine_edge(self, valid):
+        """
+        The data structure of MUSE is such that the field of view is
+        not a fixed property of the instrument, but that each pointing
+        comes with a distinct number and arrangement of spaxels. Even
+        for a single exposure, the field of view will usually vary
+        from one layer to the next. For this reason, the egde of the
+        field of view is determined by providing a boolean array that
+        contains a flag for each spaxel that indicates whether it con-
+        tains valid data or NaN. The routine uses this information to
+        determine which spaxels define the edge of the field of view.
+
+        Parameters
+        ----------
+        valid : nd_array, boolean
+            A 1dim. array containing a flag for each spaxel that indi-
+            cates whether the spaxel contains valid data.
+        """
+        if self.transform==None:
+            logging.warning("No transf. from spaxels to x & y available.")
+            return
+        
+        if valid.size != self.nspaxel:
+            logging.error("Size of boolean array [{0}] must match number of spaxels [{1}].".format(valid.size, self.nspaxel))
+            return
+
+        ind1 = []
+        ind2 = []
+        for yi in xrange(int(self.y.min()), int(self.y.max()), 1):
+            
+            select = np.flatnonzero(valid&(self.y>=yi)&(self.y<(yi+1)))
+            
+            if not select.any(): continue
+            
+            j1 = self.x[select].argmin()
+            j2 = self.x[select].argmax()
+
+            ind1.append(select[j1])
+            ind2.append(select[j2])
+
+        ind2.reverse()
+
+        self._edgepix = np.asarray(ind1 + ind2, dtype=np.int32)
+
+        

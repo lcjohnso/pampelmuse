@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-164, 2014/03/27
+166, 2014/04/09
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 164
+__revision__ = 166
 
 import datetime, os, sys, logging
 import numpy as np, pyfits
@@ -230,8 +230,10 @@ def initfit(pampelmuse):
             weight_image[mask_i==0] += wht_i
 
     if (weight_image==0).any():
-        data_image[weight_image==0] = 0
-        sigma_image[weight_image==0] = 1
+        if pampelmuse.ifs_data.instrument.name == "muse":
+            pampelmuse.ifs_data.instrument.determine_edge((weight_image>0).flatten())
+        
+        sigma_image[weight_image==0] = np.inf
         weight_image[weight_image==0] = 1
 
     data_image  /= weight_image
@@ -249,9 +251,6 @@ def initfit(pampelmuse):
         magZ = pampelmuse.reslim + 7.5
     else:
         magZ = pampelmuse.zeromag
-
-    # TODO: check if RA and Dec coordinates for IFS pointing are available;
-    # if so, print pixel coordinates of field center in mock image
 
     ## prepare PSF for creation of mock image
     size   = (int(sources.y.max()+1), int(sources.x.max()+1))
@@ -280,8 +279,8 @@ def initfit(pampelmuse):
     identifier = PampelMuseGui(sources=sources, ifsData=pampelmuse.ifs_data, refImage=identification_image, magCut=pampelmuse.reslim-1.)
 
     ## try to include approximate position of IFS on reference image (at least RA and Dec of IFS data must be available)
-    ra = pampelmuse.ifs_data.get_key("RA")
-    dec = pampelmuse.ifs_data.get_key("Dec")
+    ra = pampelmuse.ifs_data.get_key(["RA", "CRVAL1"])
+    dec = pampelmuse.ifs_data.get_key(["Dec", "CRVAL2"])
     
     if ra != None and dec != None:
         logging.info("Found central coordinates of {0}-field:".format(pampelmuse.ifs_data.instrument.name.upper()))

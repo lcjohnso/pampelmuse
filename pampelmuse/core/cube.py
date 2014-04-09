@@ -21,11 +21,11 @@ check whether the IFS data contains HDUs providing either uncertainties
 
 Latest SVN revision
 -------------------
-146, 2014/02/28
+166, 2014/04/09
 
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 146
+__revision__ = 166
 
 import logging, types
 import numpy as np, pyfits
@@ -112,8 +112,7 @@ class Cube:
             if instrume != None:
                 if instrume.upper() in ["GIRAFFE", "ARGUS"]: self.instrument = Argus()
                 elif instrume.upper() == "PMAS": self.instrument = Pmas()
-#            elif instrume.upper() == "MUSE":
-#                self.instrument = Muse()
+                elif instrume.upper() == "MUSE": self.instrument = Muse(pixtable=False)
                 else:
                     logging.warning("Unknown instrument specifier: '{0}'".format(instrume))
                     self.instrument = Instrument()
@@ -508,12 +507,14 @@ class Cube:
         
     def get_key(self, name):
         """
-        Read a keyword from the header of the data HDU.
+        Read a keyword from the header of the data HDU. It is possible
+        to provide more than one name under whiich the keyword may be
+        referenced.
         
         Parameters
         ----------
-        name : string
-            The name of the keyword. Note that HIERARCH-keys should be
+        name : string or iterable
+            The name(s) of the keyword. Note that HIERARCH-keys should be
             referenced without the HIERARCH-prefix.
             
         Returns
@@ -522,12 +523,15 @@ class Cube:
             The value of the requested keyword if it exists, otherwise
             None is returned.
         """
+        if not hasattr(name, "__iter__"): name = [name]
         
-        if name in self.data.header:
-            return self.data.header[name]
-        else:
-            logging.error("Keyword '{0}' missing in FITS header.".format(name))
-            return None
+        for n in name:
+            if n in self.data.header:
+                return self.data.header[n]
+                
+        if len(name)==1: logging.error("Key '{0}' missing in FITS header.".format(name[0]))
+        else: logging.error("None of keys '{0}' present in FITS header.".format("','".join(name)))
+        return None
         
         
     def make_cube(self, asPrimary=False, returnSigma=False, returnMask=False, **kwargs):
