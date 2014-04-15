@@ -22,10 +22,10 @@ the header of a pyfits HDU.
 
 Latest SVN revision
 -------------------
-104, 2013/07/25
+167, 2014/04/14
 """
 __author__   = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 104
+__revision__ = 167
 
 
 import datetime, re
@@ -61,7 +61,7 @@ class PampelMuseConfig(Namespace):
         """
         self.configFinder = re.compile(r"PAMPELMUSE\s([A-Z]+)\s?([A-Z]\w+)?$")
         
-        for entry in hdu.header.ascardlist():   
+        for entry in hdu.header.cards:   
             match = self.configFinder.match(entry.key)
             if match != None:
                 if match.group(2) == None: setattr(self, match.group(1).lower(), entry.value)

@@ -21,10 +21,10 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-155, 2014/03/19
+155, 2014/04/14
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 155
+__revision__ = 167
 
 import logging, os, re
 import numpy as np, pyfits
@@ -1338,10 +1338,6 @@ class Sources(object):
             yfit = Fitfunction.fit(self.wave[mask], meanCoord[mask,1,0], order)
             
             order = 0 ## all individual coordinates are now "fitted" with zeroth order polynomials
-        else: ## create dummy polynomials that have value zero everywhere
-            xfit = Fitfunction(0)
-            yfit = Fitfunction(0)
-            
 
         ## loop over selected sources and get their polynomial coordinate fits
         k = 1
@@ -1350,8 +1346,12 @@ class Sources(object):
             ## get index of source in array of IFS coordinates
             i = self.ifs_coordinates_loaded.cumsum()[j]-1
 
-            xfit_i = xfit + Fitfunction.fit(self.wave[mask], self.ifs_coordinates[mask, i, 0, 0]-xfit(self.wave[mask]), order)
-            yfit_i = yfit + Fitfunction.fit(self.wave[mask], self.ifs_coordinates[mask, i, 1, 0]-yfit(self.wave[mask]), order)
+            if commonSlope:
+                xfit_i = xfit + Fitfunction.fit(self.wave[mask], self.ifs_coordinates[mask, i, 0, 0]-xfit(self.wave[mask]), order)
+                yfit_i = yfit + Fitfunction.fit(self.wave[mask], self.ifs_coordinates[mask, i, 1, 0]-yfit(self.wave[mask]), order)
+            else:
+                xfit_i = Fitfunction.fit(self.wave[mask], self.ifs_coordinates[mask, i, 0, 0], order)
+                yfit_i = Fitfunction.fit(self.wave[mask], self.ifs_coordinates[mask, i, 1, 0], order)
     
             self.ifs_coordinates_fit_functions[self.ID[j]] = [xfit_i, yfit_i]
             
