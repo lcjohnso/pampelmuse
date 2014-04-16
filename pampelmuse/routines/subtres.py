@@ -15,10 +15,10 @@ if PampelMuse is started with the 'SUBTRES' option.
 
 Latest SVN revision
 -------------------
-162, 2014/03/26
+168, 2014/04/16
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 162
+__revision__ = 168
 import datetime, itertools, logging, os, sys
 from multiprocessing import cpu_count, Pool
 import numpy as np, pyfits
@@ -131,10 +131,10 @@ def subtres(pampelmuse):
     logging.info("Creating an array to hold the results...")
     data = np.copy(pampelmuse.ifs_data.data.data)
     sigma = np.ones((pampelmuse.ifs_data.instrument.nfiber, ), dtype=np.int32)
-#    if pampelmuse.ifs_data.instrument.spectral_axis == 0:
-#        data = np.zeros((sources.ndisp, pampelmuse.ifs_data.instrument.nspaxel), dtype=np.float32)
-#    else:
-#        data = np.zeros((pampelmuse.ifs_data.instrument.nspaxel, sources.ndisp), dtype=np.float32)
+
+    if pampelmuse.ifs_data.ndim==3:
+        xindex = np.asarray(pampelmuse.ifs_data.instrument.x, dtype=np.int32)
+        yindex = np.asarray(pampelmuse.ifs_data.instrument.y, dtype=np.int32)
 
     for kk in xrange(pampelmuse.ifs_data.nlayer):
         
@@ -200,55 +200,12 @@ def subtres(pampelmuse):
         model = model_matrix.sum(axis=1).getA1()
 
         if pampelmuse.ifs_data.ndim==3:
-            data[kk] -= pampelmuse.ifs_data.instrument.make_grid(model)
+#             data[kk] -= pampelmuse.ifs_data.instrument.make_grid(model) ## there seems to be a memory leak in underlying scipy.interpolate.griddata routine
+            data[kk, yindex, xindex] -= model
         elif pampelmuse.ifs_data.instrument.spectral_axis==0:
             data[kk, pampelmuse.ifs_data.instrument.isscience] -= model
         else:
             data[pampelmuse.ifs_data.instrument.isiscience, kk] -= model
-        
-        
-#    for kk in xrange(pampelmuse.start, pampelmuse.stop):
-#        logging.info("Handling layer #{0} [{1:.1f}%].".format(kk, (100.*(kk-pampelmuse.start))/(pampelmuse.stop-pampelmuse.start+1)))
-#        
-#        ## account for offset between layers of datacube and PRM file if not the whole cube is analyzed 
-#        jj = kk - pampelmuse.start
-#
-#        ## get current layer 
-#        layer_kk = pampelmuse.ifs_data.data.layer(kk)
-#
-#        ## update PSF instances of the sources with the variables fitted for current layer
-#        i = 0 
-#        for prm in psf_attributes.names:
-#            getattr(PSF, "set_{0}".format(prm))(psf_attributes.data[jj,i,int(psf_attributes.fitted[i])])
-#            i += 1
-#
-#        ## load fluxes and IFS coordinates for current layer 
-#        sources.load_spectra(layers=jj)
-#        sources.load_ifs_coordinates(layers=jj)
-#
-#        i  = -1
-#        ii =  0
-#        for psf in PSF:
-#            i += 1
-#            j  = sources.specrow[i]
-#            if sources.ifs_coordinates_loaded[i]:
-#                psf.set_xc(sources.ifs_coordinates[0,ii,0,int(sources.ifs_coordinates_fitted[i])])
-#                psf.set_yc(sources.ifs_coordinates[0,ii,1,int(sources.ifs_coordinates_fitted[i])])
-#                ii += 1
-#
-#            ## subtract contribution of the source
-#            if j != sources.specrow_sky:
-#                if j != sources.specrow_unresolved or pampelmuse.subunres:
-#
-#                    layer_kk[psf.used] -= sources.data[0,j,0]*psf.f
-#
-#            elif pampelmuse.subsky:
-#                layer_kk -= sources.data[0,j,0]
-#
-#        if pampelmuse.ifs_data.instrument.spectral_axis == 0:
-#            data[jj] = layer_kk
-#        else:
-#            data[:,jj] = layer_kk
 
     pampelmuse.hdulist.close() ## finished reading source catalog.
 
