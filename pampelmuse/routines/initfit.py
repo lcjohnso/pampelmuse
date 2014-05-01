@@ -37,14 +37,15 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-166, 2014/04/09
+169, 2014/05/01
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 166
+__revision__ = 169
 
 import datetime, os, sys, logging
-import numpy as np, pyfits
-from scipy import spatial, interpolate, ndimage
+import numpy as np 
+from astropy.io import fits
+from scipy import interpolate, ndimage, signal, spatial
 from PyQt4 import QtGui
 
 ## required PampelMuse routines
@@ -52,7 +53,7 @@ from pampelmuse.core import AperPhoto, Sources
 from pampelmuse.core.psf import *
 from pampelmuse.graphics import PampelMuseGui
 from pampelmuse.functions.io import read_asciifile
-from pampelmuse.functions.wcs import calc_offset
+# from pampelmuse.functions.wcs import calc_offset
 from pampelmuse.functions.statistics import DER_SNR
 
 ## class defines the exception that is raised when the parameters
@@ -111,27 +112,40 @@ def initfit(pampelmuse):
 
     logging.info("Executing requested routine INITFIT [Revision {0:d}].".format(__revision__))
 
-
     ## get results from crowded-field photometry, initialize sources
-    logging.info("Reading photometry results from file '{0}'...".format(pampelmuse.initfit.sourcelist))
+    logging.info("Reading photometry results from file '{0}'.".format(pampelmuse.initfit.sourcelist))
 
     cfp_results = read_asciifile(pampelmuse.initfit.sourcelist, usecols=(0,1,2,3,4,5), usenames="id,x,y,{0},ra,dec".format(pampelmuse.passband),
                                  aliases={"F606W":["Vvega", "V"], "F814W":["Ivega", "I"]})
 
-    ## make sure either RA & Dec or x & y are available
-    ## if both are available, RA & Dec are preferred over x & y. Pixel coordinates are obtained by calculating the offsets to the sources 
-    ## with the lowest RA and Dec, respectively in units of arcseconds.
+    ## make sure either RA & Dec or x & y are available; if both are available, RA & Dec are preferred over x & y
+    usewcs=False ## set to True if WCS coordinates are available
+
     if "ra" not in cfp_results.keys() or "dec" not in cfp_results.keys():
         if "x" not in cfp_results.keys() or "y" not in cfp_results.keys():
             logging.critical("Cannot find input source coordinates.")
             raise IOError, "Either x & y or RA & Dec must be provided with photometry."
     else:
+        ## if RA & Dec coordinates are available, pixel coordinates are obtained by initialising a
+        ## WCS instance for the IFS data and using it to convert world to pixel coordinates
+        
+        logging.info("Using RA & DEC coordinates as input.")
+        usewcs=True
+        
+        if pampelmuse.ifs_data.instrument.spaxel_scale==None: ## if no spaxel scale is available for the IFS in use, use the one from the configuration file.
+            pampelmuse.ifs_data.instrument.spaxel_scale = pampelmuse.pixscale
+        
+        pampelmuse.ifs_data.make_wcs()
+
         ra = np.asarray(cfp_results["ra"], dtype=np.float64)
         dec = np.asarray(cfp_results["dec"], dtype=np.float64)
     
-        x, y = calc_offset(ra.max(), dec.min(), ra, dec)
-        
-        cfp_results["x"] = (-x).tolist()
+        if (pampelmuse.ifs_data.wcs.wcs.crval==0.).all():
+            logging.warning("Using median RA and DEC values of source catalogue to complete WCS for IFS.")
+            pampelmuse.ifs_data.wcs.wcs.crval = [np.median(cfp_results["ra"]), np.median(cfp_results["dec"])]
+
+        x, y = pampelmuse.ifs_data.wcs.wcs_world2pix(ra, dec, 1)
+        cfp_results["x"] = x.tolist()
         cfp_results["y"] = y.tolist()
 
     if pampelmuse.globsky: ## add sky component if requested
@@ -160,9 +174,10 @@ def initfit(pampelmuse):
     dy = sources.y[sources.ID>=0].min()
 
     sources.x -= dx
-    sources.x /= pampelmuse.pixscale
     sources.y -= dy
-    sources.y /= pampelmuse.pixscale
+    if not usewcs:
+        sources.x /= pampelmuse.pixscale
+        sources.y /= pampelmuse.pixscale
 
     ## initialize the PSF (attributes and profiles)
     logging.info("Initializing the PSF...")
@@ -221,30 +236,36 @@ def initfit(pampelmuse):
                 sigma_i = pampelmuse.ifs_data.sigma.layer(i)
 
             if pampelmuse.ifs_data.mask is not None:
-                mask_i = (data_i!=data_i)&pampelmuse.ifs_data.mask.layer(i)
+                mask_i = ((data_i!=data_i)&(sigma_i!=sigma_i))&np.asarray(pampelmuse.ifs_data.mask.layer(i), dtype=np.bool)
             else:
-                mask_i = (data_i!=data_i)
+                mask_i = (data_i!=data_i)&(sigma_i!=sigma_i)
 
             data_image[mask_i==0] += data_i[mask_i==0]*wht_i
             sigma_image[mask_i==0] += sigma_i[mask_i==0]*wht_i
             weight_image[mask_i==0] += wht_i
 
-    if (weight_image==0).any():
+    mask = (weight_image<=0)
+
+    ## if a MUSE cube has been provided as IFS data, try to determine edge of field of view as smallest polygon to includes all
+    ## valid spaxels.
+    if mask.any():
         if pampelmuse.ifs_data.instrument.name == "muse":
-            pampelmuse.ifs_data.instrument.determine_edge((weight_image>0).flatten())
+            pampelmuse.ifs_data.instrument.determine_edge((mask==0).flatten())
         
-        sigma_image[weight_image==0] = np.inf
-        weight_image[weight_image==0] = 1
+        sigma_image[mask] = np.inf
+        weight_image[mask] = 1
 
     data_image  /= weight_image
     sigma_image /= weight_image
     sigma_image[sigma_image<1e-6] = 1e6 
 
-    ## create pseudo observation from photometry results
-    ## PSF is same as in IFU, with FWHM scaled by `pixScale'-Parameter
-    ## Unless a zeropoint is provided (configuration parameter ZEROMAG),
-    ## the zeropoint is such that a source with magnitude `reslim' will
-    ## have a flux of 1000 counts and a peak-S/N of roughly 10
+    if usewcs:
+        ## define kernel for later cross-correlation with mock image. Kernel is normalized to get approx. normalized cross-corr. signal
+        cckernel = pampelmuse.ifs_data.instrument.make_grid((data_image - np.min(data_image[mask==0]))/np.std(data_image[mask==0]), fill_value=0)
+        
+    ## create pseudo observation from photometry results: PSF is same as in IFU, with FWHM scaled by `pixScale'-Parameter;
+    ## unless a zeropoint is provided (configuration parameter ZEROMAG), the zeropoint is such that a source with magnitude
+    ## `reslim' will have a flux of 1000 counts and a peak-S/N of roughly 10
     logging.info("Creating mock image from photometry sources...")
 
     if pampelmuse.zeromag > 99.:
@@ -265,46 +286,88 @@ def initfit(pampelmuse):
         if (psf.mag+magZ) <= pampelmuse.reslim: ## only add sources that are likely resolved
             _image[psf.used] += psf.f
 
-    logging.debug("Adding noise to mock image.")
-    _image += np.random.normal(loc=0., scale=10, size=_image.shape)
-
     ## resample image on regular (x, y) grid
     grid_y, grid_x = np.mgrid[0:size[0]-1:1j*size[0], 0:size[1]-1:1j*size[1]]
     identification_image = interpolate.griddata((PSF._transform[:,0], PSF._transform[:,1]), _image, (grid_y, grid_x), method="linear", fill_value=np.nan)
 
-    ## start source identification GUI to identify bright(est) stars
-    logging.info("Preparing GUI for source identification...")
-
-    app  = QtGui.QApplication(sys.argv)
-    identifier = PampelMuseGui(sources=sources, ifsData=pampelmuse.ifs_data, refImage=identification_image, magCut=pampelmuse.reslim-1.)
-
-    ## try to include approximate position of IFS on reference image (at least RA and Dec of IFS data must be available)
-    ra = pampelmuse.ifs_data.get_key(["RA", "CRVAL1"])
-    dec = pampelmuse.ifs_data.get_key(["Dec", "CRVAL2"])
-    
-    if ra != None and dec != None:
-        logging.info("Found central coordinates of {0}-field:".format(pampelmuse.ifs_data.instrument.name.upper()))
-        logging.info("   RA={0}, DEC={1}".format(ra, dec))
+    if usewcs:
+        ## To automatically obtain an initial guess for the coordinate transformation, the mock image is cross-correlated with
+        ## the whitelight image of the IFS data. The peak of the cross-correlation signal is located and translated into an
+        ## offset between mock and IFS image.
+        logging.info("Cross-correlating mock image with IFS data to find likely location of IFS.")
         
-        ## find source closest to this position, and use its x & y coordinates as central pixel coordinates
-        ic = np.argmin((ra-sources.ra)**2+(dec-sources.dec)**2)
-        xc = sources.x[ic]
-        yc = sources.y[ic]
+        ccsignal = signal.fftconvolve(identification_image, cckernel[::-1,::-1], mode="full")
+        
+        ## To avoid that the cc signal is dominated by individual bright stars, the signal is normalized using the flux in the mock image
+        norm     = signal.fftconvolve(identification_image, np.ones(cckernel.shape, dtype=np.float32), mode="full")
+        norm[norm<=0]=np.inf
+        ccsignal /= norm
 
-        ## for ARGUS, also look for rotation angle:
-        if pampelmuse.ifs_data.instrument.name == "argus": angle = pampelmuse.ifs_data.get_key("ESO ADA POSANG")
-        else: angle=0
-        identifier.addFovToReference(xc, yc, angle=np.radians(angle))
+        ## The maximum is searched in an area approx. as large as the field of view around the position suggested by the WCS information.
+        ## This restriction is necessary because for a small IFS field of view, the cc signal is often dominated by an individual bright star.
+        xsearchcenter = int(cckernel.shape[1]-1-dx)
+        ysearchcenter = int(cckernel.shape[0]-1-dy)
+        
+        xsearchradius = pampelmuse.ifs_data.instrument.shape[1]>>1
+        ysearchradius = pampelmuse.ifs_data.instrument.shape[0]>>1
 
-    identifier.show()
-    app.exec_()
+        xslice = slice(max(xsearchcenter-xsearchradius, 3), min(xsearchcenter+xsearchradius, ccsignal.shape[1]-3))
+        yslice = slice(max(ysearchcenter-ysearchradius, 3), min(ysearchcenter+ysearchradius, ccsignal.shape[0]-3))
+        ymax, xmax = np.nonzero(ccsignal[yslice, xslice]==ccsignal[yslice, xslice].max())
 
-    identified = identifier.identifiedSources
+#        import pylab
+#        fig = pylab.figure(figsize=(7, 7))
+#        ax  = fig.add_axes([0.05, 0.05, 0.9, 0.9])
+#        ax.imshow(ccsignal, interpolation="nearest")
+#        ax.plot(xsearchcenter, ysearchcenter, ls="None",  marker="x",  mew=2.5, c="g",  ms=15)
+#        outhdu = fits.HDUList([fits.PrimaryHDU(ccsignal), fits.ImageHDU(cckernel), fits.ImageHDU(identification_image), fits.ImageHDU(ndimage.maximum_filter(identification_image, size=cckernel.shape))])
+#        outhdu.writeto("ccsignal.fits", clobber=True)
+#        pylab.show()
+
+        peakdata = ccsignal[yslice.start+ymax[0]-3:yslice.start+ymax[0]+4,xslice.start+xmax[0]-3:xslice.start+xmax[0]+4]
+        Y, X = np.indices(peakdata.shape)
+        X += (xslice.start + xmax[0] - 3) - cckernel.shape[1] + 1 ## The term in brackets gives the start coordinate of 'peakdata' on the cc signal array
+        Y += (yslice.start + ymax[0] - 3) - cckernel.shape[0] + 1 ## The remaining terms correct for the offset of the cc singal array  wrt. the reference image
+
+        ## get location of maximum by calculating first order moments in both spatial directions
+        total = peakdata.sum()
+        xc  = (X*peakdata).sum()/total
+        yc  = (Y*peakdata).sum()/total
+        logging.info("Maximum of cross-correlation signal at x={0:.1f}, y={1:.1f}".format(xc, yc))
+
+        ## initialize coordinate transformation
+        sources.transformation.data = np.array([1., 0., -xc-dx, -yc-dy], dtype=np.float32)
+
+    if not pampelmuse.interact:
+        if not sources.transformation.valid:
+            logging.critical("Non-interactive modus only supported if sources have RA and DEC available.")
+        identified = {}
+
+    ## start source identification GUI to identify bright(est) stars
+    else:
+        logging.info("Preparing GUI for source identification...")
+
+        app  = QtGui.QApplication(sys.argv)
+    
+        identifier = PampelMuseGui(sources=sources, ifsData=pampelmuse.ifs_data, refImage=identification_image, magCut=pampelmuse.reslim-1.)  
+        identifier.addFovToReference(xc+(cckernel.shape[0]-1)/2., yc+(cckernel.shape[1]-1)/2.)
+
+        if usewcs: ## overplot positions of sources on IFS as determined via cross-correlation
+            sizes = 10.*(10**(-0.2*(sources.mag-pampelmuse.reslim-1.)))
+            sizes[sizes<=1] = 0
+            select = (sources.status<4)&(sources.mag<=pampelmuse.reslim)&(pampelmuse.ifs_data.instrument.infov(np.vstack((sources.x-xc, sources.y-yc)).T))
+            identifier.ifsPlot.addData(sources.x[select]-xc, sources.y[select]-yc, s=sizes[select], marker="o", edgecolor="g", facecolor="None")
+
+        identifier.show()
+        app.exec_()
+
+        identified = identifier.identifiedSources
 
     ## recover original coordinates in Sources instance and for PSF instances
-    sources.x *= pampelmuse.pixscale
+    if not usewcs:
+        sources.x *= pampelmuse.pixscale
+        sources.y *= pampelmuse.pixscale
     sources.x += dx
-    sources.y *= pampelmuse.pixscale
     sources.y += dy
 
     PSF.set_transform(pampelmuse.ifs_data.instrument.transform)
@@ -314,16 +377,19 @@ def initfit(pampelmuse):
         psf.Yc = sources.y[i]
         i += 1
 
-    if len(identified)<2:
-        logging.critical("At least 2 sources must be identified.")
+    if len(identified)>=2:
 
-    ## determine coordinate transformation using identified sources, when providing the IFS coordinates for the sources that were identified,
-    ## they need to be provided in the right order (the sources were not necessarily idenitified in the same order they appear in the catalogue)
-    sorted_indices = np.argsort([list(sources.ID).index(entry) for entry in identified.keys()])
+        ## determine coordinate transformation using identified sources, when providing the IFS coordinates for the sources that were identified,
+        ## they need to be provided in the right order (the sources were not necessarily idenitified in the same order they appear in the catalogue)
+        sorted_indices = np.argsort([list(sources.ID).index(entry) for entry in identified.keys()])
     
-    sources.load_ifs_coordinates(ids=identified.keys())
-    sources.ifs_coordinates[..., 0] = np.asarray(identified.values())[sorted_indices,:2]
-    sources.fit_coordinate_transformation()
+        sources.load_ifs_coordinates(ids=identified.keys())
+        sources.ifs_coordinates[..., 0] = np.asarray(identified.values())[sorted_indices,:2]
+        sources.fit_coordinate_transformation()
+        
+    elif not sources.transformation.valid:
+        logging.critical("At least 2 sources must be identified.")
+        
     if pampelmuse.posfit == 1: sources.transformation.free[2:] = True
     elif pampelmuse.posfit == 2: sources.transformation.free[:] = True
 
@@ -599,12 +665,16 @@ def initfit(pampelmuse):
     pampelmuse.initfit.revision = __revision__
 
     primary_hdu = pampelmuse.makeHeader() ## create header from namespace
+    if usewcs:
+        wcsheader = pampelmuse.ifs_data.wcs.to_header()
+        for key in wcsheader:
+            primary_hdu.header.update("hierarch PAMPELMUSE WCS {0}".format(key), wcsheader[key])##, wcsheader.comments[key]) # cards too long if comment is included
     source_hdu  = sources.make_catalogue_hdu()
     spectra_hdu = sources.make_spectra_hdu()
     pospars_hdu = sources.transformation.make_hdu(include_fit=False)
     psfpars_hdu = psf_variables.make_hdu(include_fit=False)
 
-    hdu_list = pyfits.HDUList([primary_hdu, source_hdu, spectra_hdu, pospars_hdu, psfpars_hdu])
+    hdu_list = fits.HDUList([primary_hdu, source_hdu, spectra_hdu, pospars_hdu, psfpars_hdu])
 
     if os.path.exists(pampelmuse.filename):
         logging.warning("Overwriting existing PRM-file.")

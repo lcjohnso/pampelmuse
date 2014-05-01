@@ -14,15 +14,15 @@ parameters.
 
 Latest SVN revision
 -------------------
-104, 2013/07/25
+169, 2014/04/29
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 104
+__revision__ = 169
 
-import argparse, os, shutil
+import argparse, os, shutil, string
 
 ## required PampelMuse modules
-from pampelmuse.config import ModifyConfig
+from pampelmuse.config import ModifyConfig, transform_string
 
 
 ## get path to XML data containing configuration

@@ -1,4 +1,4 @@
-<?xml version="1.0" ?><?xml-stylesheet type="text/xsl" href="PMstyle.xsl"?><ns0:configuration timestamp="2013-07-25T10:02:18Z" xmlns:ns0="http://www.tobedefined.com/pampelmuse" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.tobedefined.com/pampelmuse PMschema.xsd">
+<?xml version="1.0" ?><?xml-stylesheet type="text/xsl" href="PMstyle.xsl"?><ns0:configuration timestamp="2014-04-28T14:21:04Z" xmlns:ns0="http://www.tobedefined.com/pampelmuse" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.tobedefined.com/pampelmuse PMschema.xsd">
  
  <ns0:parameter category="1pho" inuse="0">
   <ns0:name>CFPCOLS</ns0:name>
@@ -114,7 +114,14 @@
   <ns0:comment>Flag indicates whether the fit starts directly or after presseing the START-button</ns0:comment>
   <ns0:updated timestamp="2012-02-13T21:21:21Z">Appended parameter JUMPSTART to configuration file.</ns0:updated>
  </ns0:parameter>
- <ns0:parameter category="3fit" inuse="1"><ns0:name>MAXITER</ns0:name><ns0:value dtype="int">1</ns0:value><ns0:comment>The maximum nuber of iterations performed for a single layer. Set to 1 to skip the iteration on individual layers.</ns0:comment><ns0:updated timestamp="2012-07-24T07:38:46Z">Appended parameter MAXITER to configuration file.</ns0:updated></ns0:parameter><ns0:parameter category="0gen" inuse="1">
+ <ns0:parameter category="3fit" inuse="1"><ns0:name>MAXITER</ns0:name><ns0:value dtype="int">1</ns0:value><ns0:comment>The maximum nuber of iterations performed for a single layer. Set to 1 to skip the iteration on individual layers.</ns0:comment><ns0:updated timestamp="2012-07-24T07:38:46Z">Appended parameter MAXITER to configuration file.</ns0:updated></ns0:parameter>
+ <ns0:parameter category="0gen" inuse="1">
+  <ns0:name>INTERACT</ns0:name>
+  <ns0:value dtype="bool">True</ns0:value>
+  <ns0:comment>The flag specifies whether the source selection and the polynomial fitting of the PSF parameters and source positions are performed interactively using the PampelMuse GUI or automatically.</ns0:comment>
+  <ns0:updated timestamp="2014-04-28T14:13:17Z">Appended parameter INTERACT to configuration file.</ns0:updated>
+ <ns0:updated timestamp="2014-04-28T14:21:04Z">Changed default value of parameter INTERACT to True (was True)</ns0:updated></ns0:parameter>
+ <ns0:parameter category="0gen" inuse="1">
   <ns0:name>USEQT</ns0:name>
   <ns0:value dtype="bool">True</ns0:value>
   <ns0:comment>Flag indicating whether Qt loaded to provide a graphical  interface for the analysis. Requires a system with PyQt4. Note that currently parallelization does not work with Qt.</ns0:comment>

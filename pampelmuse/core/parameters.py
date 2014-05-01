@@ -24,15 +24,16 @@ currently not possible to add parameters afterwards.
 
 Latest SVN revision
 -------------------
-118, 2014/02/20
+169, 2014/04/29
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 118
+__revision__ = 169
 
 ## import required python modules
 import logging, re
-import numpy as np, pyfits
+import numpy as np
 from numpy.polynomial import Chebyshev, Legendre
+from astropy.io import fits
 
 ## required PampelMuse modules
 from pampelmuse.functions.fitting import StepPolynomial
@@ -50,7 +51,7 @@ class Parameters(object):
         """
         Initialize a new instance of the Parameters class.
         
-        hdu : a pyfits.BinTableHDU instance, optional
+        hdu : an astropy.io.fits.BinTableHDU instance, optional
             The FITS-Table HDU that contains the Parameters. The table must contain
             fields named 'name' and 'value', providing the names and values, resp.,
             of the individual parameters that define the profile. Additional fields
@@ -80,10 +81,10 @@ class Parameters(object):
         else:
             self.names = kwargs.keys()
         
-        ## make sure 'hdu' is a pyfits.BinTableHDU if provided
-        if hdu != None and not isinstance(hdu, pyfits.BinTableHDU):
+        ## make sure 'hdu' is a fits.BinTableHDU if provided
+        if hdu != None and not isinstance(hdu, fits.BinTableHDU):
             logging.critical("If provided, 'hdu' must be a FITS Table-HDU.")
-            assert isinstance(hdu, pyfits.BinTableHDU), "Invalid type for argument 'hdu': {0}".format(re.findall(r"'(.*)'", str(type(hdu)))[0])
+            assert isinstance(hdu, fits.BinTableHDU), "Invalid type for argument 'hdu': {0}".format(re.findall(r"'(.*)'", str(type(hdu)))[0])
           
         ## read FITS Table if it has been provided:
         if hdu != None:
@@ -447,7 +448,7 @@ class Parameters(object):
     def make_hdu(self, include_fit=True, **kwargs):
         """
         Write the current definition of the parameters (names, values, status, ...) to
-        a pyfits BinTableHDU. The HDU that will be created contains a binary table with
+        a fits.BinTableHDU. The HDU that will be created contains a binary table with
         at least 3 columns, 'name', 'value', and 'freepar'. The parameter names are written
         as plain strings to 'name', their values are written as either floats or arrays of
         floats (depending on whether dispersion information is available) to 'values', and
@@ -467,7 +468,7 @@ class Parameters(object):
             
         Returns
         -------
-        out_hdu : a pyfits.BinTableHDU instance
+        out_hdu : an  astropy.io.fits.BinTableHDU instance
             The HDU containing the parameters.
         """
         
@@ -481,23 +482,23 @@ class Parameters(object):
         ## the HDU
 
         out_columns = [
-            pyfits.Column(name="name", format="10A", array=self.names),
-            pyfits.Column(name="value", format=dataFmt, array=np.squeeze(self._data[...,0].swapaxes(0, 1))),
-            pyfits.Column(name="freepar", format="L", array=self.free)
+            fits.Column(name="name", format="10A", array=self.names),
+            fits.Column(name="value", format=dataFmt, array=np.squeeze(self._data[...,0].swapaxes(0, 1))),
+            fits.Column(name="freepar", format="L", array=self.free)
             ]
 
         ## The columns 'isfitted' and 'polyfit' are only included upon request
         if include_fit:
-            out_columns.extend([pyfits.Column(name="isfitted", format="L", array=self.fitted),
-                                pyfits.Column(name="polyfit", format=dataFmt, array=np.squeeze(self._data[...,1].swapaxes(0, 1)))])
+            out_columns.extend([fits.Column(name="isfitted", format="L", array=self.fitted),
+                                fits.Column(name="polyfit", format=dataFmt, array=np.squeeze(self._data[...,1].swapaxes(0, 1)))])
 
         ## Store additional keyword arguments (if any) in the FITS header
         cards = []
         for key, value in kwargs.iteritems():
-            cards.append(pyfits.Card(key=key.upper(), value=value))
+            cards.append(fits.Card(key=key.upper(), value=value))
         
         ## return HDU
-        out_hdu = pyfits.new_table(out_columns, header=pyfits.Header(cards=cards))
+        out_hdu = fits.new_table(out_columns, header=fits.Header(cards=cards))
         out_hdu.add_checksum()
 
         return out_hdu            

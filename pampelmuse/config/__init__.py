@@ -17,22 +17,22 @@ individual instance of Namespace will be created.
 The class 'PampelMuseConfig' is also designed as a pure namspace. However,
 it defines two additional methods PampelMuseConfig.readHeader() and
 PampelMuseConfig.makeHeade() that can be used to read a configuration from
-a pyfits HDU and to store the current configuration of PampelMuse again in
-the header of a pyfits HDU.
+a FITS HDU and to store the current configuration of PampelMuse again in
+the header of a FITS HDU.
 
 Latest SVN revision
 -------------------
-167, 2014/04/14
+169, 2014/04/29
 """
 __author__   = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 167
+__revision__ = 169
 
 
 import datetime, re
-import pyfits
+from astropy.io import fits
 
-
-from xml_interact import ModifyConfig
+## required PampelMuse routines
+from xml_interact import ModifyConfig, transform_string
 
 
 class Namespace(): pass
@@ -50,11 +50,11 @@ class PampelMuseConfig(Namespace):
         
     def readHeader(self, hdu):
         """
-        Read a configuration from the header of a pyfits HDU.
+        Read a configuration from the header of a FITS HDU.
         
         Parameters
         ----------
-        hdu : a pyfits HDU instance
+        hdu : an astropy.io.fits HDU instance
             The HDU from which the configuration should be read. The routine
             will scan the header of the HDU for hierarch keywords starting
             with PAMPELMUSE.
@@ -71,19 +71,20 @@ class PampelMuseConfig(Namespace):
                     setattr(self.__dict__[match.group(1).lower()],  match.group(2).lower(), entry.value) ## add parameter to sub-namespace
         
         
-    def makeHeader(self, hdu=pyfits.PrimaryHDU()):
+    def makeHeader(self, hdu=fits.PrimaryHDU()):
         """
-        Save the current configuration in a pyfits.Header instance.
+        Save the current configuration in a astropy.io.fits.Header instance.
         
         Parameters
         ----------
-        hdu : a pyfits HDU instance, optional
+        hdu : an astropy.io.fits HDU instance, optional
             The HDU used to store the configuration, if none is provided,
             an empty HDU will be created.
         """
-        for entry in ["revision", "utc", "ifu", "start", "stop", "smallifu", "globsky", "passband", "reslim", "updaterl", "confdens",
-                      "snrcut", "binrad", "useunres", "unresbin", "psfrad", "maxiter", "cpucount", "jumpstart",  "subunres", "subsky",
-                      "verbose", "useqt", "aperrad", "apernois"]:
+        for entry in ["revision", "utc", "verbose", "ifu", "interact", "useqt", "cpucount", "smallifu", "passband", "aperrad", "apernois",
+                      "reslim", "updaterl", "confdens", "snrcut", "binrad", "useunres", "unresbin", "globsky", "start", "stop", "psfrad",
+                      "jumpstart", "maxiter", "subunres", "subsky",
+                      ]:
            
             if hasattr(self, entry):
                 hdu.header.update("hierarch PAMPELMUSE {0}".format(entry.upper()), getattr(self, entry))

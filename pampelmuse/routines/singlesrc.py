@@ -17,13 +17,14 @@ proved using the first order momentsm determined in the calclulation.
  
 Latest SVN revision
 -------------------
-118, 2014/02/20
+169, 2014/04/29
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-gooettingen.de)"
-__revision__ = 118
+__revision__ = 169
 
 import datetime, logging, os, re, sys
-import numpy as np, pyfits
+import numpy as np
+from astropy.io import fits
 
 ## required PampelMuse routines
 from pampelmuse.core import AperPhoto, Sources
@@ -175,7 +176,7 @@ def singlesrc(pampelmuse):
     positions_hdu = sources.make_ifs_coordinates_hdu()
     psfpars_hdu   = psf_variables.make_hdu(include_fit=False)
 
-    hdu_list = pyfits.HDUList([primary_hdu, source_hdu, spectra_hdu, positions_hdu, psfpars_hdu])
+    hdu_list = fits.HDUList([primary_hdu, source_hdu, spectra_hdu, positions_hdu, psfpars_hdu])
 
     if os.path.exists(pampelmuse.filename):
         logging.warning("Overwriting existing PRM-file.")

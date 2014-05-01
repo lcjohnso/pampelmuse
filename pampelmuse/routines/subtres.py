@@ -15,13 +15,14 @@ if PampelMuse is started with the 'SUBTRES' option.
 
 Latest SVN revision
 -------------------
-168, 2014/04/16
+169, 2014/04/29
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 168
+__revision__ = 169
 import datetime, itertools, logging, os, sys
 from multiprocessing import cpu_count, Pool
-import numpy as np, pyfits
+import numpy as np
+from astropy.io import fits
 from scipy import sparse
 
 ## required PampelMuse-packages
@@ -216,7 +217,7 @@ def subtres(pampelmuse):
     logging.info("Creating HDU from processed data...")
 #    if pampelmuse.ifs_data.ndim==3: ## make output data 3D if input was 3D
 #        data = pampelmuse.ifs_data.instrument.make_grid(data)
-    outHDU = pyfits.PrimaryHDU(data, header=pampelmuse.ifs_data.data.header)
+    outHDU = fits.PrimaryHDU(data, header=pampelmuse.ifs_data.data.header)
     
     ## add PampelMuse configuration to HDU just created:
     outHDU = pampelmuse.makeHeader(hdu=outHDU)
@@ -229,7 +230,7 @@ def subtres(pampelmuse):
 
     ## save output (including HDU with fiber setup if available)
     if pampelmuse.ifs_data.setup != None:
-        HDUList = pyfits.HDUList([outHDU, pampelmuse.ifs_data.setup])
+        HDUList = fits.HDUList([outHDU, pampelmuse.ifs_data.setup])
         HDUList.writeto("{0}.res.fits".format(pampelmuse.prefix))
     else:
         outHDU.writeto("{0}.res.fits".format(pampelmuse.prefix))

@@ -27,13 +27,13 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-165, 2014/03/28
+169, 2014/04/29
 """ 
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 165
+__revision__ = 169
 
 import contextlib, itertools, logging, os, sys, time
-import numpy as np, pyfits, scipy
+import numpy as np, scipy
 from multiprocessing import cpu_count, Pool
 from scipy import optimize, sparse, stats
 if int(scipy.__version__.split(".")[1])<10:
@@ -42,6 +42,8 @@ if int(scipy.__version__.split(".")[1])<10:
 else:
     from scipy.sparse.linalg import lsmr
 ## lsmr does the same as lsqr but faster (i.e. the Max Power way), it will only work for scipy versions >=0.10
+
+# from astropy.io import fits
 
 ## required PampelMuse-packages
 from pampelmuse.core.psf import Gaussian, Moffat
@@ -753,7 +755,7 @@ class StarFit(object):
                     # calcdata = np.zeros(self.ifs_data.instrument.nspaxel, dtype=np.float32)
                     # calcdata[used] += data
                     # outdata  = self.ifs_data.instrument.make_grid(calcdata)[int(psf.y.min()):int(psf.y.max()), int(psf.x.min()):int(psf.x.max())]
-                    # outhdu   = pyfits.PrimaryHDU(outdata)
+                    # outhdu   = fits.PrimaryHDU(outdata)
                     # outhdu.writeto("{0}_{1}.fits".format(self.jj, psf.src_id), clobber=True)
                 
             ## remove individual positions and/or PSF parameters for this profile
@@ -1087,7 +1089,7 @@ class StarFit(object):
             The Jacobi matrix with respect to the model parameters included
             in 'x0'.
         """
-        jacob = np.zeros((len(x0), self.PSF.transform.shape[0]), dtype=np.float64)
+        jacob = np.zeros((len(x0), self.data.size), dtype=np.float64)
 
         i=-1
         for psf in self.psf_instances:

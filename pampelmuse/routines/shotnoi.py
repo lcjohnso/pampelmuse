@@ -21,12 +21,13 @@ former option is useful if only the brghter stars are included in the PRM-file.
 
 Latest SVN revision
 -------------------
-103, 2013/07/23
+169, 2014/04/29
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 103
+__revision__ = 169
 import datetime, logging, os, sys
-import numpy as np, pyfits
+import numpy as np
+from astropy.io import fits
 
 ## required PampelMuse-packages
 from pampelmuse.core import Sources
@@ -88,7 +89,7 @@ def shotnoi(pampelmuse):
         ## create combined table
         logging.info("Creating combined source catalogue...")
         _nrows = pampelmuse.hdulist["SOURCES"].data.shape[0]
-        hdu = pyfits.new_table(pampelmuse.hdulist["SOURCES"].columns, nrows=_nrows+select.sum())
+        hdu = fits.new_table(pampelmuse.hdulist["SOURCES"].columns, nrows=_nrows+select.sum())
         hdu.data.field("id")[_nrows:]  = add_id[select]
         hdu.data.field("x")[_nrows:]   = add_x[select]
         hdu.data.field("y")[_nrows:]   = add_y[select]
@@ -248,7 +249,7 @@ def shotnoi(pampelmuse):
     shotnoise = data_flux_summed[:,-1]-data_flux_summed[:,-2]
 
     ## save results in a FITS file
-    outHDU = pyfits.PrimaryHDU(pampelmuse.ifs_data.instrument.make_grid(shotnoise))
+    outHDU = fits.PrimaryHDU(pampelmuse.ifs_data.instrument.make_grid(shotnoise))
 
     pampelmuse.shotnoi.revision = __revision__
     pampelmuse.shotnoi.utc = datetime.datetime.utcnow().strftime("%y-%m-%d %H:%M:%S")

@@ -9,14 +9,15 @@ The routine currently requires `pyraf` and `astLib` to work.
 
 Latest SVN revision
 -------------------
-104, 2013/07/25 
+169, 2014/04/29
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 104
+__revision__ = 169
 
 import datetime, logging, os, sys, tempfile
-import numpy as np, pyfits
-from astLib import astCoords
+import numpy as np
+from astropy.coordinates import Angle
+from astropy.io import fits
 from pyraf.iraf import images
 
 ## required PampelMuse-routines
@@ -104,8 +105,8 @@ def addwcs(pampelmuse):
         else:
             x, y = sources.ifs_coordinates[0,j,:,0]
     
-        ra = astCoords.decimal2hms(sources.ra[i], delimiter=":")
-        dec = astCoords.decimal2dms(sources.dec[i], delimiter=":")
+        ra = Angle(sources.ra[i], unit="hour").degrees
+        dec = Angle(sources.dec[i], unit="degree").degrees
     
         tmp_coord_file.write("{0}  {1}  {2:7.3f}  {3:7.3f}\n".format(ra, dec, float(x), float(y)))
 
@@ -115,10 +116,10 @@ def addwcs(pampelmuse):
     
     ## a temporary FITS image needs to be created because the only possibility to turn the results from ccmap into useful
     ## header keywords (except for doing the calculations manually) is to update the header of an existing (2dim.!) FITS file
-    tmp_fits_root = pyfits.util._tmp_name("./")
+    tmp_fits_root = fits.util._tmp_name("./")
     os.remove(tmp_fits_root)
     tmp_fits_name = "{0}.fits".format(tmp_fits_root)
-    tmpHDU = pyfits.PrimaryHDU(np.zeros(pampelmuse.ifs_data.instrument.shape, dtype=np.int16))
+    tmpHDU = fits.PrimaryHDU(np.zeros(pampelmuse.ifs_data.instrument.shape, dtype=np.int16))
     tmpHDU.writeto(tmp_fits_name)
     
 ##    tmp_database = tempfile.NamedTemporaryFile() ## open temporary file to hold results
@@ -143,7 +144,7 @@ def addwcs(pampelmuse):
     ## stored as hierarch keywords 'hierarch PAMPELMUSE ADDWCS <KEY>' in the PampelMuse PRM-file. Only for 3dim. data, the WCS information
     ## is also directly used to update the data header. The PampelMuse routine MAKECUBE will handle the hierarch keywords correctly.
 
-    tmp_fits_file = pyfits.open(tmp_fits_name)
+    tmp_fits_file = fits.open(tmp_fits_name)
     tmp_fits_header = tmp_fits_file[0].header
 
     for key in ["RADECSYS", "EQUINOX", "WCSDIM", "CTYPE1", "CTYPE2", "CRVAL1", "CRVAL2", "CRPIX1", "CRPIX2", "CD1_1", "CD1_2", "CD2_1", "CD2_2"]:

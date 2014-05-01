@@ -18,24 +18,23 @@ loaded from pampelmuse.core.cube
 
 Latest SVN revision
 -------------------
-166, 2014/04/09
+169, 2014/04/28
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 166
+__revision__ = 169
 
 import logging
 import matplotlib.transforms, matplotlib.artist, matplotlib.pyplot, numpy as np
 from PyQt4 import QtCore
 from matplotlib import path, patches
 from matplotlib.figure import Figure
-from matplotlib.colors import ColorConverter
-from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg
 from matplotlib.patches import Rectangle
 
 ##  required PampelMuse routines
 from pampelmuse.core.cube import Cube
 
-class DynamicImaCanvas(FigureCanvas):
+class DynamicImaCanvas(FigureCanvasQTAgg):
     """
     Class that has the purpose of displaying FITS images or layers of IFU data.
     It also provides the basic options to modify the data view, such as changing
@@ -62,7 +61,9 @@ class DynamicImaCanvas(FigureCanvas):
         self.fig  = Figure(figsize=(width, height), dpi=dpi)
         self.axes = self.fig.add_axes((0.05,0.05,0.9,0.9))
 
-        FigureCanvas.__init__(self, self.fig)
+
+#         FigureCanvasQTAgg.__init__(self, self.fig)
+        super(DynamicImaCanvas, self).__init__(self.fig)
         self.setParent(parent)
         
         ## Default setup
@@ -124,7 +125,7 @@ class DynamicImaCanvas(FigureCanvas):
 #        self.figure.canvas.blit(self.axes.bbox)
 
 
-    def addImage(self, image, **kwargs):
+    def addImage(self, image, update_axlims=True, reset_history=True, **kwargs):
         """
         Add a new data to the figure. This method can only
         handle 2dim. data. To load IFU data, the method
@@ -134,10 +135,16 @@ class DynamicImaCanvas(FigureCanvas):
         ----------
         image : nd_array, 2-dimensional
             The image to be displayed.
+        update_axlim : boolean, optional
+            Flag indicating  whether or not the limits of the x- and y-
+            axis should be updated to display the whole image.
+        reset_history : boolean, optional
+            Flag indicating whether or not the history containing the
+            previously used axes limits should be reset.
         kwargs
-            Any keyword arguments that are provided are passed
-            on to the call of matplotlib.pyplot.imshow that is
-            used to display the data.
+            Any additional keyword arguments that are provided to this
+            method are passed on to the call of matplotlib.pyplot.imshow
+            that is used to display the data.
         """
 
         ## Check if an imshow instance does exist, if so, update its data
@@ -151,18 +158,19 @@ class DynamicImaCanvas(FigureCanvas):
         self.changeCuts() ## adapt cuts to the new data
 
         ## adjust axes limits
-        self.updateAxesLimits()
+        if update_axlims:
+            self.updateAxesLimits()
         
         ## reset history of views
-        self.curViewIndex = 0
-        self.viewHistory  = [(self.axes.get_xlim(), self.axes.get_ylim()), ]
+        if reset_history:
+            self.curViewIndex = 0
+            self.viewHistory  = [(self.axes.get_xlim(), self.axes.get_ylim()), ]
 
         ## do not display any ticks when plotting images
         self.axes.set_xticks([])
         self.axes.set_yticks([])
 
         self.draw() ## update canvas view
-
 
 
     def loadCube(self, input, instrument=None, checks={}, **kwargs):
@@ -296,6 +304,7 @@ class DynamicImaCanvas(FigureCanvas):
                 self.cuts = (values[cutpix/2], 0.5*(values[-cutpix/2-1]+values[-cutpix/2-2]))
 
         ## change cuts and update canvas
+        logging.debug("Updated display cuts are min={0:.3g}, max={1:.3g}".format(self.cuts[0], self.cuts[1]))
         self.imagePlot.set_clim(self.cuts[0], self.cuts[1])
         self.draw()
 
@@ -332,6 +341,7 @@ class DynamicImaCanvas(FigureCanvas):
             axesMin = np.min([axesMin, dataMinRound], axis=0)
             axesMax = np.max([axesMax, dataMaxRound], axis=0)
 
+        logging.debug("Updated axes limits are x=[{0:.1f},{1:.1f}], y=[{2:.1f},{3:.1f}]".format(axesMin[0], axesMax[0], axesMin[1], axesMax[1]))
         self.axes.set_xlim(axesMin[0], axesMax[0])
         self.axes.set_ylim(axesMin[1], axesMax[1])
 

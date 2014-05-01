@@ -16,15 +16,15 @@ general framework for dealing with parameters within PampelMuse.
 
 Latest SVN revision
 -------------------
-111, 2013/09/19
+169, 2014/04/29
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 109
+__revision__ = 169
 
 import logging, os, re
-import numpy as np, pyfits
+import numpy as np
 from numpy.polynomial import Chebyshev, Legendre
-
+from astropy.io import fits
 
 ## required PampelMuse-packages
 from pampelmuse.core.parameters import Parameters
@@ -65,7 +65,7 @@ class Variables(Parameters):
             and "gauss" are supported. Note that if 'profile' is None, the
             argument 'hdu' must not be None and provide the name of the 
             profile instead.
-        hdu : a pyfits.BinTableHDU instance
+        hdu : an astropy.io.fits.BinTableHDU instance
             The FITS-Table HDU that contains the PSF Parameters. Unless 'profile'
             is not None, a keyword 'PSFTYPE' must be available in the header and
             its value must be the name of a supported analytical PSF profile. The
@@ -141,10 +141,10 @@ class Variables(Parameters):
 
     def make_hdu(self, **kwargs):
         """
-        Write the current values of the PSF parameter to a pyfits
-        BinTableHDU instance. The method is basically a wrapper of the
-        'make_hdu' instance defined in the super-class and adds some
-        header keywords that provide information about the PSF in use.
+        Write the current values of the PSF parameter to an fits.BinTableHDU
+        instance. The method is basically a wrapper of the'make_hdu' instance
+        defined in the super-class and adds some header keywords that provide
+        information about the PSF in use.
         
         Parameters
         ----------

@@ -26,12 +26,13 @@ like dead fibers or holes in the FoV are not handled.
 
 Latest SVN revision
 -------------------
-166, 2014/04/09
+169, 2014/04/28
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 166
+__revision__ = 169
 import logging, re
-import numpy as np
+import numpy as np, pyfits
+from astropy.io import fits
 from matplotlib import path
 from scipy.spatial import distance
 from scipy.interpolate import griddata
@@ -46,21 +47,22 @@ class Instrument(object):
     """
     name = "Generic IFU"
 
+    _rotation_angle = None ## The rotation angle of the IFS on the sky,  given in degrees(!)
+    _spaxel_scale   = None ## The spaxel scaleof the IFS on the sky, given in arcseconds^-1
+
     _transform = None ## will contain the transformation from spaxels to x&y
-    _edgepix = None ## will contain the indices of the spaxels that define
-                    ## the edge of the field of view.
+    _edgepix = None ## will contain the indices of the spaxels that define the edge of the field of view.
     _edgepath = None ## will be a matplotlib.path around the edge of the FoV
 
     _sky_fibers = []  ## The indices of the sky fibers
     _cal_fibers = []  ## The indices of the calibration fibers
 
     spectral_axis = 1 ## The index of the spectral axis in numpy notation;
-                      ## NOTE that numpy swaps the axes, so spectral_axis=1
-                      ## corresponds to the first axis when opening the data
+                      ## NOTE that numpy swaps the axes, so spectral_axis=1 corresponds to the first axis when opening the data
                       ## with fv, ds9 or similar programs.
     shape = None ## will contain the spatial shape of the field of view
     
-    def __init__(self, transform=None, edgepix=None, badspax=[], **kwargs):
+    def __init__(self, transform=None, edgepix=None, badspax=[], rotation_angle=None, spaxel_scale=None, **kwargs):
         """
         Initialize an instance of the Instrument-class
         
@@ -79,6 +81,10 @@ class Instrument(object):
             If edgepix=None, it can be specified after initialization.
         badspax : array_like, optional
             A list containing the indices of dead spaxels.
+        rotation_angle : float, optional
+            The rotation angle of the IFS on the sky, given in degrees.
+        spaxel_scale : float, optional
+            The spaxel scale of the IFS on the sky, given per arcsecond.
         """
 
         self.set_transform(transform)
@@ -89,6 +95,12 @@ class Instrument(object):
         self.badspax = badspax
         for spax in badspax:
             logging.info("Excluding spaxel #{0}.".format(spax))
+
+        if rotation_angle != None:
+            self.set_rotation_angle(rotation_angle)
+
+        if spaxel_scale != None:
+            self.set_spaxel_scale(spaxel_scale)
 
 
 
@@ -224,6 +236,57 @@ class Instrument(object):
     
     
     edgepath = property(get_edgepath, None, None, "A path along the edge of the field of view.")
+
+
+    def set_rotation_angle(self, value):
+        """
+        The setter method of the Instrument.rotation_angle property. Sets the
+        rotation angle of the IFS on the sky. Note that the angle must be
+        provided in degrees.
+        
+        Parameters
+        ----------
+        value : float
+            The rotation angle in degrees.
+        """
+        try:
+            self._rotation_angle = float(value)
+            logging.info("Rotation angle of IFS on the sky set to {0:.1f} degrees.".format(self._rotation_angle))
+        except ValueError:
+            logging.error("Illegal value for rotation angle: {0}".format(value))
+
+    def get_rotation_angle(self):
+        """
+        The getter method of the Instrument.rotation_angle property.
+        """
+        return self._rotation_angle
+        
+    rotation_angle = property(get_rotation_angle, set_rotation_angle, None, "The rotation angle of the IFS on the sky in decimal degrees.")
+        
+
+    def set_spaxel_scale(self, value):
+        """
+        The setter method of the Instrument.spaxel_scale property. Sets the
+        spaxel_scale of the IFS on the sky.
+        
+        Parameters
+        ----------
+        value : float
+            The spaxel_scale, given per arcsecond.
+        """
+        try:
+            self._spaxel_scale = float(value)
+            logging.info("Sampling of IFS set to {0:.2f} spaxel/arcsec".format(self._spaxel_scale))
+        except ValueError:
+            logging.error("Illegal value for spaxel scale: {0}".format(value))
+
+    def get_spaxel_scale(self):
+        """
+        The getter method of the Instrument.spaxel_scale property.
+        """
+        return self._spaxel_scale
+        
+    spaxel_scale = property(get_spaxel_scale, set_spaxel_scale, None, "The spaxel scale of the IFS on the sky in arcseconds.")
 
 
     @property
@@ -677,6 +740,7 @@ class Pmas(Instrument):
     name = "pmas"
     shape = (16,16)
     
+    rotation_angle = 0 # PMAS cannot bbe rotated on the sky. The rotation angle is fixed to 0 degrees.
 
     def __init__(self, **kwargs):
         """
@@ -694,17 +758,11 @@ class Pmas(Instrument):
         ## all pixels at the edge of the fov 
         edgepix = np.asarray([0,16,32,48,64,80,96,112,128,144,160,176,192,208,224,240,241,242,243,244,245,246,247,248,249,250,251,252,253,254,255,239,223,207,191,175,159,143,127,111,95,79,63,47,31,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1], dtype=np.int16)
 
-## old usage, provide x- & y-coordinate of each spaxel at edge of FoV 
-##         edgepix = np.vstack((\
-##                 np.array([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,13,13,14,14,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15,15], dtype=np.int16),
-##                 np.array([0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,0,15,0,15,0,15,0,15,0,15,0,15,0,15,0,15,0,15,0,15,0,15,0,15,0,15,0,15,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15], dtype=np.int16))).T
-
         logging.info("Instrument in use in PMAS.")
 
         super(Pmas, self).__init__(transform, edgepix, **kwargs)
-        
 
-        
+
 
 class Argus(Instrument):
     """
@@ -723,7 +781,7 @@ class Argus(Instrument):
     _cal_fibers = np.array([42,106,170,234,298], dtype=np.int16)
 
 
-    def __init__(self, **kwargs):
+    def __init__(self, header=None, **kwargs):
         """
         Initialize an instance of the 'ARGUS' class. NOTE that by default, it
         is assumed that the traces of all fibres (including all 14 sky fibres
@@ -746,18 +804,15 @@ class Argus(Instrument):
             # TODO: check if transform is really okay: seems to be mirrored along one axis!
             kwargs["transform"] = np.vstack((np.array([5,4,3,2,1,1,2,3,4,5,6,7,8,9,10,11,12,12,12,13,1,0,0,1,2,3,4,5,6,7,8,9,10,11,11,10,9,8,7,6,6,7,8,9,10,11,12,13,13,12,11,10,9,8,7,6,5,4,3,2,13,12,11,10,9,8,7,6,5,4,3,2,1,0,0,1,2,3,4,5,5,4,3,2,1,0,0,1,2,3,4,5,6,7,8,9,10,11,12,13,2,3,4,5,6,7,8,9,10,11,12,13,13,12,11,10,9,8,7,6,10,11,12,13,13,12,11,10,9,8,7,6,5,4,3,2,1,0,0,1,9,8,7,6,5,4,3,2,1,0,0,1,2,3,4,5,6,7,8,9,1,0,0,1,2,3,4,5,6,7,8,9,10,11,12,13,13,12,11,10,6,7,8,9,10,11,12,13,13,12,11,10,9,8,7,6,5,4,3,2,13,12,11,10,9,8,7,6,5,4,3,2,1,0,0,1,2,3,4,5,5,4,3,2,1,0,0,1,2,3,4,5,6,7,8,9,10,11,12,13,2,3,4,5,6,7,8,9,10,11,12,13,13,12,11,10,9,8,7,6,6,7,8,9,10,11,11,10,9,8,7,6,5,4,3,2,1,0,0,1,13,12,12,12,11,10,9,8,7,6,5,4,3,2,1,1,2,3,4,5],dtype=np.int16),np.array([1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,2,2,3,3,2,2,2,2,2,2,2,2,2,2,2,2,1,1,1,1,1,1,4,4,4,4,4,4,4,4,3,3,3,3,3,3,3,3,3,3,3,3,5,5,5,5,5,5,5,5,5,5,5,5,5,5,4,4,4,4,4,4,7,7,7,7,7,7,6,6,6,6,6,6,6,6,6,6,6,6,6,6,8,8,8,8,8,8,8,8,8,8,8,8,7,7,7,7,7,7,7,7,10,10,10,10,9,9,9,9,9,9,9,9,9,9,9,9,9,9,8,8,11,11,11,11,11,11,11,11,11,11,10,10,10,10,10,10,10,10,10,10,13,13,12,12,12,12,12,12,12,12,12,12,12,12,12,12,11,11,11,11,14,14,14,14,14,14,14,14,13,13,13,13,13,13,13,13,13,13,13,13,15,15,15,15,15,15,15,15,15,15,15,15,15,15,14,14,14,14,14,14,17,17,17,17,17,17,16,16,16,16,16,16,16,16,16,16,16,16,16,16,18,18,18,18,18,18,18,18,18,18,18,18,17,17,17,17,17,17,17,17,20,20,20,20,20,20,19,19,19,19,19,19,19,19,19,19,19,19,18,18,19,19,20,21,21,21,21,21,21,21,21,21,21,21,21,20,20,20,20,20], dtype=np.int16))).T
 
-        
         ## all pixels at the edge of the fov
         if not "edgepix" in kwargs.keys():
             kwargs["edgepix"] = np.array([4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,48,47,60,99,112,111,124,123,176,175,188,187,200,239,252,251,280,281,282,283,284,285,286,287,288,289,290,291,292,293,294,295,276,277,278,225,226,213,214,161,162,149,150,137,138,85,86,73,74,21,22,23], dtype=np.int16)
-## 0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0], dtype=np.bool)
-
-## old usage,provide x- & y-coordinate of each spaxel at edge of FoV 
-##         edgepix = np.vstack((\
-##                 np.array([0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,12,12,12,12,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13,13], dtype=np.int16),
-##                 np.array([2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,0,1,2,19,20,21,0,21,0,21,0,21,0,21,0,21,0,21,0,21,0,21,0,21,0,21,0,1,2,19,20,21,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19], dtype=np.int16))).T
 
         logging.info("Instrument in use in FLAMES/Argus.")
+
+        if isinstance(header, (fits.header.Header, pyfits.Header)):
+            self.set_rotation_angle(header)
+            self.set_spaxel_scale(header)
 
         super(Argus, self).__init__(**kwargs)
 
@@ -807,6 +862,63 @@ class Argus(Instrument):
         logging.info("                            science: {0:3d}".format(self.nspaxel))
         logging.info("                                sky: {0:3d}".format(len(self.sky_fibers)))
         logging.info("                        calibration: {0:3d}".format(len(self.cal_fibers)))
+
+    
+    def set_rotation_angle(self, value):
+        """
+        The setter method of the Argus.rotation_angle property. Note that in
+        contrast to the method Instrument.set_rotation_angle, besides a float
+        an instance of a FITS header can also be provided, in which case the
+        routine will search for the HIERARCH-key 'ESO ADA POSANG'.
+        
+        Parameters
+        ----------
+        value : float or instance of astropy.io.fits.header.Header or 
+                pyfits.Header, optional
+            Either the rotation angle of ARGUS on the sky in degrees or
+            a header instance that is searched for information about the
+            rotation angle.
+        """
+        if isinstance(value, (fits.header.Header, pyfits.Header)):
+            try:
+                value = value["ESO ADA POSANG"]
+            except KeyError:
+                logging.error("Cannot determine rotation angle, HIERARCH-key 'ESO ADA POSANG' is missing.")
+                return
+        super(Argus, self).set_rotation_angle(value)
+
+    rotation_angle = property(Instrument.get_rotation_angle, set_rotation_angle, None, "The rotatotion angle of ARGUS on the sky in degrees.")
+
+
+    def set_spaxel_scale(self, value):
+        """
+        The setter method of the Argus.spaxel_scale property. Note that in
+        contrast to the method Instrument.set_spaxel_scale, besides a float
+        an instance of a FITS header can also be provided, in which case the
+        routine will search for the HIERARCH-key 'ESO INS1 OPTI1 POS'. The
+        value of this key is 'POS_1' for a spaxel scale of 0.52/arcsecond and
+        'POS_1_67' for a spaxel_scale of 0.3/arcsecond.
+        
+        Parameters
+        ----------
+        value : float or instance of astropy.io.fits.header.Header or 
+                pyfits.Header, optional
+            Either the spaxel scale of ARGUS on the sky in degrees or
+            a header instance that is searched for information about the
+            spaxel scale.
+        """
+        if isinstance(value, (fits.header.Header, pyfits.Header)):
+            try:
+                scalepos = value["ESO INS1 OPTI1 POS"]
+                if scalepos == "POS_1": value = 0.52
+                elif scalepos == "POS_1_67": value = 0.3
+                else: logging.error("Cannot determine spaxel scale: invalid value '{0}' for HIERARCH-key 'ESO INS1 OPTI1 POS'".format(scalepos))
+            except KeyError:
+                logging.error("Cannot determine spaxel scale: HIERARCH-key 'ESO INS1 OPTI1 POS' is missing.")
+                return
+        super(Argus, self).set_spaxel_scale(value)
+
+    spaxel_scale = property(Instrument.get_spaxel_scale, set_spaxel_scale, None, "The spaxel scale of ARGUS on the sky in arcseconds.")
 
 
 
@@ -892,3 +1004,53 @@ class Muse(Instrument):
         self._edgepix = np.asarray(ind1 + ind2, dtype=np.int32)
 
         
+    def set_rotation_angle(self, value):
+        """
+        The setter method of the Muse.rotation_angle property. Note that in
+        contrast to the method Instrument.set_rotation_angle, besides a float
+        an instance of a FITS header can also be provided, in which case the
+        routine will search for the HIERARCH-key 'ESO INS DROT POSANG'.
+        
+        Parameters
+        ----------
+        value : float or instance of astropy.io.fits.header.Header or 
+                pyfits.Header, optional
+            Either the rotation angle of MUSE on the sky in degrees or
+            a header instance that is searched for information about the
+            rotation angle.
+        """
+        if isinstance(value, (fits.header.Header, pyfits.Header)):
+            try:
+                value = value["ESO INS DROT POSANG"]
+            except KeyError:
+                logging.error("Cannot determine rotation angle, HIERARCH-key 'ESO INS DROT POSANG' is missing.")
+                return
+        super(Muse, self).set_rotation_angle(value)
+
+    rotation_angle = property(Instrument.get_rotation_angle, set_rotation_angle, None, "The rotation angle of MUSE on the sky in degrees.")
+
+
+    def set_spaxel_scale(self, value):
+        """
+        The setter method of the Muse.spaxel_scale property. Note that in
+        contrast to the method Instrument.set_spaxel_scale, besides a float
+        an instance of a FITS header can also be provided, in which case the
+        routine will search for the HIERARCH-key 'ESO OCS IPS PIXSCALE'.
+        
+        Parameters
+        ----------
+        value : float or instance of astropy.io.fits.header.Header or 
+                pyfits.Header, optional
+            Either the spaxel scale of MUSE on the sky in degrees or
+            a header instance that is searched for information about the
+            spaxel scale.
+        """
+        if isinstance(value, (fits.header.Header, pyfits.Header)):
+            try:
+                value = value["ESO OCS IPS PIXSCALE"]
+            except KeyError:
+                logging.error("Cannot determine spaxel scale: HIERARCH-key 'ESO OCS IPS PIXSCALE' is missing.")
+                return
+        super(Muse, self).set_spaxel_scale(value)
+
+    spaxel_scale = property(Instrument.get_spaxel_scale, set_spaxel_scale, None, "The spaxel scale of MUSE on the sky in arcseconds.")

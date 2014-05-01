@@ -21,10 +21,10 @@ top panel, named 'Spectrum Viewer'.
 
 Latest SVN revision
 -------------------
-103, 2013/07/17
+169, 2014/04/28
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 103
+__revision__ = 169
 
 import inspect, logging
 import matplotlib.pyplot

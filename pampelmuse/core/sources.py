@@ -21,14 +21,15 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-155, 2014/04/14
+169, 2014/04/29
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 167
+__revision__ = 169
 
 import logging, os, re
-import numpy as np, pyfits
+import numpy as np
 from numpy.polynomial import Chebyshev, Legendre, Hermite, Polynomial
+from astropy.io import fits
 
 ## check if PyQt is available 
 try: from PyQt4 import QtCore
@@ -93,7 +94,8 @@ class Sources(object):
 
         Parameters
         ----------
-        data : a pyfits BinTable-HDU instance or a structured array, optional
+        data : anastropy.io.fits BinTable-HDU instance or a structured array,
+               optional
             The source catalog that should be used to initialize the instance.
             It must contain at least a field named 'id', all other fields are
             optional and the corresponding properties might be defined later.
@@ -108,7 +110,7 @@ class Sources(object):
             these supersede the values in 'data'.
         """
         ## open the data
-        if isinstance(data, pyfits.BinTableHDU):
+        if isinstance(data, fits.BinTableHDU):
             if "EXTNAME" in data.header: logging.info("Initializing catalogue of sources via HDU '{0}'...".format(data.header["EXTNAME"]))
             else: logging.info("Initializing catalogue of sources via provided HDU...")
             data = np.array(data.data, dtype=data.data.dtype) ## if a FITS Table was provided, extract information and store as rec-array
@@ -146,7 +148,7 @@ class Sources(object):
         self._mag = np.zeros((self.nsrc, ), dtype=np.float32) ## broadband magnitudes
         self._mag[:] = np.nan
        
-        self._status = 2*np.ones((self.nsrc, ), dtype=np.int16) ## the status of each source in the analysis
+        self._status = np.zeros((self.nsrc, ), dtype=np.int16) ## the status of each source in the analysis
         self._status[self.ID<0] = 4 ## assume IDs<0 are used for background components
         
         self._primary = np.copy(self.ID) ## the primary source of each source
@@ -599,7 +601,7 @@ class Sources(object):
         resolved : ndarray
             A boolean array of len(self.nsrc) indicating whether a source is
             resolved. If self.status is undefined, all sources are considered
-            resolved.
+            unresolved.
         """
         return (self.status>0)&(self.status<4)
 
@@ -718,18 +720,18 @@ class Sources(object):
           
         Parameters
         ----------
-        hdu : pyfits.PrimaryHDU or pyfits.ImageHDU instance
+        hdu : astropy.io.fits.PrimaryHDU or astropy.io.fits.ImageHDU instance
             The HDU containing the data (and the uncertainties for 3dim. data).
             Note that only 2dim. or 3dim. data are supported (see description
             of method above).
-        sigma_hdu : pyfits.PrimaryHDU or pyfits.ImageHDU instance, optional
+        sigma_hdu : astropy.io.fits.PrimaryHDU or astropy.io.fits.ImageHDU instance, optional
             The HDU containing the uncertainties for 2dim. data. The array in
             the HDU must have the same shape as the data.
         """
         ## sanity checks on provided keywords, both must be HDUs that can carry images
-        assert isinstance(hdu, pyfits.hdu.image._ImageBaseHDU), "Invalid type '{0}' for argument 'hdu' in Sources.open_spectra_hdu().".format(re.findall(r"'(.*)'", str(type(hdu)))[0])
+        assert isinstance(hdu, fits.hdu.image._ImageBaseHDU), "Invalid type '{0}' for argument 'hdu' in Sources.open_spectra_hdu().".format(re.findall(r"'(.*)'", str(type(hdu)))[0])
         if sigma_hdu != None:
-            assert isinstance(sigma_hdu, pyfits.hdu.image._ImageBaseHDU), "Invalid type '{0}' for argument 'sigma_hdu' in Sources.open_spectra_hdu.".format(re.findall(r"'(.*)'", str(type(sigma_hdu)))[0])
+            assert isinstance(sigma_hdu, fits.hdu.image._ImageBaseHDU), "Invalid type '{0}' for argument 'sigma_hdu' in Sources.open_spectra_hdu.".format(re.findall(r"'(.*)'", str(type(sigma_hdu)))[0])
 
         if "EXTNAME" in hdu.header:
             logging.info("Reading spectra from HDU `{0}`.".format(hdu.header["EXTNAME"]))
@@ -753,7 +755,7 @@ class Sources(object):
                 assert sigma_hdu.data.shape == hdu.data.shape, "Array sizes of spectra and uncertainties differ."
                 tmp_data_array[..., 1] = sigma_hdu.data.swapaxes(0, 1)
             
-            tmp_spectra_hdu = pyfits.ImageHDU(tmp_data_array, header=hdu.header)
+            tmp_spectra_hdu = fits.ImageHDU(tmp_data_array, header=hdu.header)
             
             ## update dispersion information (if any)
             for key in ["CRVAL", "CDELT", "CRPIX", "CTYPE", "CUNIT"]:
@@ -761,13 +763,13 @@ class Sources(object):
                     tmp_spectra_hdu.header.update("{0}3".format(key), hdu.header["{0}1".format(key)])
                     del tmp_spectra_hdu.header["{0}1".format(key)]
 
-            ## write the HDU to a temporary FITS file (pyfits provides a function to create a tmp-name) and open it again
-            self._tmp_names.append(pyfits.util._tmp_name("./"))
+            ## write the HDU to a temporary FITS file (fits provides a function to create a tmp-name) and open it again
+            self._tmp_names.append(fits.util._tmp_name("./"))
             tmp_spectra_hdu.writeto(self._tmp_names[-1])
             
             ## remove temporary array and HDU (tmp-file will be deleted via __del__ method)
             del tmp_data_array, tmp_spectra_hdu, hdu
-            tmpfile = pyfits.open(self._tmp_names[-1])
+            tmpfile = fits.open(self._tmp_names[-1])
             hdu=tmpfile[1]
 
         ## check if dispersion information is valid
@@ -969,11 +971,11 @@ class Sources(object):
 
         Parameters
         ----------
-        hdu : a pyfits 'PrimaryHDU'- or 'ImageHDU'-instance
+        hdu : an astropy.io.fits 'PrimaryHDU'- or 'ImageHDU'-instance
             The HDU instance containing the coordinates.
         """
         ## sanity checks on provided data
-        assert isinstance(hdu, pyfits.hdu.image._ImageBaseHDU), "Invalid type '{0}' for argument 'hdu' in Sources.open_coordinates_hdu().".format(re.findall(r"'(.*)'", str(type(hdu)))[0])
+        assert isinstance(hdu, fits.hdu.image._ImageBaseHDU), "Invalid type '{0}' for argument 'hdu' in Sources.open_coordinates_hdu().".format(re.findall(r"'(.*)'", str(type(hdu)))[0])
         
         if "EXTNAME" in hdu.header:
             logging.info("Reading IFS coordinates from HDU `{0}`.".format(hdu.header["EXTNAME"]))
@@ -988,7 +990,7 @@ class Sources(object):
         ## HDU from this file.
         if hdu.header["NAXIS3"] == 2:
             tmp_data_array = hdu.data.swapaxes(0, 2)
-            tmp_coordinates_hdu = pyfits.ImageHDU(tmp_data_array, header=hdu.header)
+            tmp_coordinates_hdu = fits.ImageHDU(tmp_data_array, header=hdu.header)
             
             ## update dispersion information (if any)
             for key in ["CRVAL", "CDELT", "CRPIX", "CTYPE", "CUNIT"]:
@@ -996,10 +998,10 @@ class Sources(object):
                     tmp_coordinates_hdu.header.update("{0}3".format(key), hdu.header["{0}1".format(key)])
                     del tmp_coordinates_hdu.header["{0}1".format(key)]
 
-            ## write the HDU to a temporary FITS file (pyfits provides a function to create a tmp-name) and open it again
-            self._tmp_names.append(pyfits.util._tmp_name("./"))
+            ## write the HDU to a temporary FITS file (fits provides a function to create a tmp-name) and open it again
+            self._tmp_names.append(fits.util._tmp_name("./"))
             tmp_coordinates_hdu.writeto(self._tmp_names[-1])
-            hdu = pyfits.open(self._tmp_names[-1], memmap=True)[1]
+            hdu = fits.open(self._tmp_names[-1], memmap=True)[1]
 
             ## remove temporary array and HDU (tmp-file will be deleted via __del__ method)
             del tmp_data_array, tmp_coordinates_hdu
@@ -1454,13 +1456,13 @@ class Sources(object):
 ################################################################################
     def make_catalogue_hdu(self):
         """
-        Write the source catalogue to a pyfits.BinTableHDU. Note that only
-        sources that are used in a fit, i.e. have Sources.status>=0, are included
-        in the table. The returned table is named 'SOURCES'.
+        Write the source catalogue to an astropy.io.fits.BinTableHDU. Note that
+        only sources that are used in a fit, i.e. have Sources.status>=0, are
+        included in the table. The returned table is named 'SOURCES'.
         
         Returns
         -------
-        sources : pyfits.BinTableHDU
+        sources : astropy.io.fits.BinTableHDU
             The source catalogue as a FITS binary table extension.
         """
         logging.info("Saving catalogue in FITS BinTableHDU 'SOURCES'...")
@@ -1471,26 +1473,27 @@ class Sources(object):
         ## sort by increasing magnitudes (if possible)
         if self._mag != None: select = select[self._mag[select].argsort()]
 
-        outCols = [pyfits.Column(name="id", format="J", array=self.ID[select])]
+        outCols = [fits.Column(name="id", format="J", array=self.ID[select])]
 
         formats = {"x":"E", "y":"E", "mag":"E", "ra":"D", "dec":"D", "status":"I", "specrow":"I", "primary":"J"}
         for attribute in ["x", "y", "mag", "ra", "dec", "status", "primary", "specrow"]:
             if getattr(self, "_{0}".format(attribute)) != None:
                 logging.debug("Adding column '{0}' to table...".format(attribute))
-                outCols.append(pyfits.Column(name=attribute, format=formats[attribute], array=getattr(self, "_{0}".format(attribute))[select]))
+                outCols.append(fits.Column(name=attribute, format=formats[attribute], array=getattr(self, "_{0}".format(attribute))[select]))
 
-        return pyfits.new_table(outCols, header=pyfits.Header(cards=[pyfits.Card(key="EXTNAME", value="SOURCES")]))
+        return fits.new_table(outCols, header=fits.Header(cards=[fits.Card(key="EXTNAME", value="SOURCES")]))
 
 
 
     def make_spectra_hdu(self, components=None):
         """
-        Write the spectra to a pyfits.ImageHDU. There are different options
-        to specify which spectra are stored in the HDU that can be controlled
-        using the keyword 'components'. In any case, the data will be 3dim.,
-        with the first axis being the dispersion axis, the second referencing
-        the sources and the third containing either the spectrum or its uncer-
-        tainties. The HDU that is returned is named 'SPECTRA'.
+        Write the spectra to an astropy.io.fits.ImageHDU. There are different
+        options to specify which spectra are stored in the HDU that can
+        becontrolled using the keyword 'components'. In any case, the data
+        will be 3dim., with the first axis being the dispersion axis, the
+        second referencing the sources and the third containing either the
+        spectrum or its uncertainties. The HDU that is returned is named
+        'SPECTRA'.
         
         WARNING: If not all spectra that should be included in the HDU are
         available, i.e. have been loaded using Sources.load_spectra(), then
@@ -1508,7 +1511,7 @@ class Sources(object):
         
         Returns
         -------
-        spectra : pyfits.ImageHDU
+        spectra : astropy.io.fits.ImageHDU
             The HDU containing the spectra as a 3dim. array. The standard
             dispersion keywords (CRVAL3, CDELT3, ...) are included in the
             FITS header.
@@ -1537,7 +1540,7 @@ class Sources(object):
             ## contain the spectra for a subset of the components. So a warning is triggered if an HDU that does
             ## not include all spectra will be created.
 
-        outHDU = pyfits.ImageHDU(self.data, name="SPECTRA")
+        outHDU = fits.ImageHDU(self.data, name="SPECTRA")
         outHDU.header.update("CRPIX3", self.crpix)
         outHDU.header.update("CRVAL3", self.crval)
         outHDU.header.update("CDELT3", self.cdelt)
@@ -1549,12 +1552,12 @@ class Sources(object):
 
     def make_ifs_coordinates_hdu(self, ids=None, fit=False, name="POSITIONS", **kwargs):
         """
-        Create a pyfits.Image HDU containing the IFS coordinates of (a subset
-        of) the sources. Either the data itself or the fits to them will be
-        included in the HDU. The keyword 'ids' can be used to control which
-        sources enter the HDU. The array will always be 3dim., with the first
-        axis being the dispersion axis, the second axis distinguishing the
-        individual sources, and the third axis giving x or y coordinates.
+        Create an astropy.io.fits.ImageHDU containing the IFS coordinates of
+        (a subset of) the sources. Either the data itself or the fits to them
+        will be included in the HDU. The keyword 'ids' can be used to control
+        which sources enter the HDU. The array will always be 3dim., with the
+        first axis being the dispersion axis, the second axis distinguishing
+        the individual sources, and the third axis giving x or y coordinates.
 
         WARNING: If not all IFS coordinates that should be included in the HDU
         are available, i.e. have been loaded via Sources.load_ifs_coordinates(),
@@ -1580,7 +1583,7 @@ class Sources(object):
 
         Returns
         -------
-        ifs_coordinates_hdu : pyfits.ImageHDU
+        ifs_coordinates_hdu : astropy.io.fits.ImageHDU
             A 3dim. FITS array containing the data or the fits to them. Note that
             the routine will also add the hierarch keywords PAMPELMUSE POSITIONS ID?
             to the FITS header that give the ID of the sources included in each row
@@ -1613,7 +1616,7 @@ class Sources(object):
             logging.critical("Cannot write IFS coordinates to HDU. No data available.")
             return NotImplemented
 
-        outHDU = pyfits.ImageHDU(self.ifs_coordinates[:,to_store][...,int(fit)], name=name)
+        outHDU = afits.ImageHDU(self.ifs_coordinates[:,to_store][...,int(fit)], name=name)
         outHDU.header.update("hierarch PAMPELMUSE POSITIONS POLY", fit)
         outHDU.header.update("hierarch PAMPELMUSE POSITIONS FULLFIT", (fit==False))
             

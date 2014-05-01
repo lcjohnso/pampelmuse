@@ -39,13 +39,13 @@ D' = -(A*D+B*C)/(A*A+B*B)
 
 Latest SVN revision
 -------------------
-128, 2014/02/20
+169, 2014/04/29
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ =  128
+__revision__ =  169
 
 import logging, re
-import numpy as np, pyfits
+import numpy as np
 
 ## required PampelMuse modules
 from pampelmuse.core.parameters import Parameters
@@ -411,7 +411,7 @@ class Transformation(Parameters):
     def make_hdu(self, **kwargs):
         """
         Write the current values of the parameters of the coordinate
-        tranformation to a pyfits BinTableHDU instance. The method is
+        tranformation to a fits.BinTableHDU instance. The method is
         basically a wrapper of the 'make_hdu' instance defined in the
         super-class and adds some header keywords that provide further
         information about the coordinate transformation in use.
