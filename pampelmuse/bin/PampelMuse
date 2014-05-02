@@ -45,12 +45,12 @@ the data into memory yet but just checks whether the file(s) are valid.
 
 Latest SVN revision
 -------------------
-169, 2014/05/01
+170, 2014/05/02
 """
 __author__     = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
 
-__version__    = "0.13.0.0"
-__revision__   = 169
+__version__    = "0.13.1.0"
+__revision__   = 170
 
 
 
@@ -67,7 +67,8 @@ print """
 
 ## IMPORT REQUIRED PYTHON MODULES ##############################################
 import argparse, datetime, logging, os, re, sys
-import numpy as np, pyfits
+import numpy as np
+from astropy.io import fits
 
 ## initialize logging
 ## at this point it  is not known which logging level is requested in the PampelMuse configuration, however,
@@ -410,7 +411,7 @@ else: mode='readonly'
 if not graphics or args.func not in [initfit, singlesrc]:
     
     logging.info("Reading PampelMuse-file: {0}".format(pampelmuse.filename))
-    pampelmuse.hdulist  = pyfits.open(pampelmuse.filename, mode="update")
+    pampelmuse.hdulist  = fits.open(pampelmuse.filename, mode="update")
 
     ## Scan header of primary HDU for HIERARCH PAMPELMUSE keywords. Note that these keywords can be either directly connected to
     ## PampelMuse (e.g. HIERARCH PAMPELMUSE IFU) or to one of its subroutines (e.g. HIERARCH PAMPELMUSE INITFIT VERSION). In the

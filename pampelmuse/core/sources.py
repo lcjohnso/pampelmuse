@@ -21,10 +21,10 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-169, 2014/04/29
+170, 2014/05/02
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 169
+__revision__ = 170
 
 import logging, os, re
 import numpy as np
@@ -110,7 +110,7 @@ class Sources(object):
             these supersede the values in 'data'.
         """
         ## open the data
-        if isinstance(data, fits.BinTableHDU):
+        if isinstance(data, fits.hdu.table.BinTableHDU):
             if "EXTNAME" in data.header: logging.info("Initializing catalogue of sources via HDU '{0}'...".format(data.header["EXTNAME"]))
             else: logging.info("Initializing catalogue of sources via provided HDU...")
             data = np.array(data.data, dtype=data.data.dtype) ## if a FITS Table was provided, extract information and store as rec-array
@@ -1616,7 +1616,7 @@ class Sources(object):
             logging.critical("Cannot write IFS coordinates to HDU. No data available.")
             return NotImplemented
 
-        outHDU = afits.ImageHDU(self.ifs_coordinates[:,to_store][...,int(fit)], name=name)
+        outHDU = fits.ImageHDU(self.ifs_coordinates[:,to_store][...,int(fit)], name=name)
         outHDU.header.update("hierarch PAMPELMUSE POSITIONS POLY", fit)
         outHDU.header.update("hierarch PAMPELMUSE POSITIONS FULLFIT", (fit==False))
             

@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-169, 2014/05/01
+170, 2014/05/02
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 169
+__revision__ = 170
 
 import datetime, os, sys, logging
 import numpy as np 
@@ -236,9 +236,9 @@ def initfit(pampelmuse):
                 sigma_i = pampelmuse.ifs_data.sigma.layer(i)
 
             if pampelmuse.ifs_data.mask is not None:
-                mask_i = ((data_i!=data_i)&(sigma_i!=sigma_i))&np.asarray(pampelmuse.ifs_data.mask.layer(i), dtype=np.bool)
+                mask_i = ((data_i!=data_i)|(sigma_i!=sigma_i))&np.asarray(pampelmuse.ifs_data.mask.layer(i), dtype=np.bool)
             else:
-                mask_i = (data_i!=data_i)&(sigma_i!=sigma_i)
+                mask_i = (data_i!=data_i)|(sigma_i!=sigma_i)
 
             data_image[mask_i==0] += data_i[mask_i==0]*wht_i
             sigma_image[mask_i==0] += sigma_i[mask_i==0]*wht_i
@@ -320,7 +320,7 @@ def initfit(pampelmuse):
 #        ax  = fig.add_axes([0.05, 0.05, 0.9, 0.9])
 #        ax.imshow(ccsignal, interpolation="nearest")
 #        ax.plot(xsearchcenter, ysearchcenter, ls="None",  marker="x",  mew=2.5, c="g",  ms=15)
-#        outhdu = fits.HDUList([fits.PrimaryHDU(ccsignal), fits.ImageHDU(cckernel), fits.ImageHDU(identification_image), fits.ImageHDU(ndimage.maximum_filter(identification_image, size=cckernel.shape))])
+#        outhdu = fits.HDUList([fits.PrimaryHDU(ccsignal), fits.ImageHDU(cckernel), fits.ImageHDU(identification_image)])
 #        outhdu.writeto("ccsignal.fits", clobber=True)
 #        pylab.show()
 
@@ -448,13 +448,26 @@ def initfit(pampelmuse):
     ## If confusion limit should be refined, we initially set it to 99. and later set it to the
     ## magnitude of the faintest star that is included in the fit (as a resolved source)
     reslim = 99. if pampelmuse.updaterl else pampelmuse.reslim
+    
+    ## for larger fields of view, such as the MUSE WFM, the stellar density can be very different across its extent. To deal
+    ## with this, the confusion limit is estimated locally in an area of radius 10xFWHM around each star
+    density = np.zeros(pampelmuse.ifs_data.instrument.nspaxel, dtype=np.int16)
 
-    logging.info("       ID   mag   S/N  d_bright   d_edge   status")
-    logging.info("                       [spaxel]  [spaxel]        ")
+    logging.info("      ID   mag    S/N  d_bright  d_edge  status")
+    logging.info("                          [spx]   [spx]        ")
     for i in idx_magsorted:
+    
+        xi, yi = ifs_coordinates[i]
     
         ## stop loop if current source falls below (fixed) confusion limit
         if sources.mag[i]>reslim: break
+
+        ## check if local confusion limit is reached
+        jmin = pampelmuse.ifs_data.instrument.dist2spax(xi, yi).argmin()
+        slc  = np.sqrt((pampelmuse.ifs_data.instrument.x-xi)**2+(pampelmuse.ifs_data.instrument.y-yi)**2)<(10.*fwhm[i])
+        if slc.any():
+            if density[slc].sum()/(slc.sum()/(np.pi*(0.5*fwhm[i])**2))>pampelmuse.confdens: ## no. of resolution elements is [no. of spaxels]/[spaxels per resolution element]
+                continue
 
         ## get S/N estimate for the source
         snr = signal_to_noise[i]
@@ -465,6 +478,9 @@ def initfit(pampelmuse):
         if edgedist<0:
             snr *= np.exp(-(edgedist/fwhm[i])**2)
             if snr < pampelmuse.snrcut: continue
+        ## otherwise, add source to array for calculation of stellar density
+        else:
+            density[jmin] += 1
 
         ## calculate distance to next brighter source
         if (status==2).any():
@@ -481,13 +497,13 @@ def initfit(pampelmuse):
                 if dr[j_near]<(pampelmuse.binrad*fwhm[i]) or snr < pampelmuse.snrcut:
                     status[i] = 1
                     primary[i] = sources.ID[status==2][j_near]
-                    logging.info("   {0:6d}  {1:5.2f}  {2:5.1f}  {3:5.2f}  {4:5.2f}  1".format(\
+                    logging.info("{0:8d}  {1:4.1f}  {2:6.1f}  {3:8.2f}  {4:6.2f}       1".format(\
                         int(sources.ID[i]), float(sources.mag[i]), float(snr), float(dr[j_near]), float(edgedist)))
                     continue
                     
         status[i] = 2
         primary[i] = sources.ID[i]
-        logging.info("   {0:6d}  {1:5.2f}  {2:5.1f}         {3:5.2f}  2".format(int(sources.ID[i]), float(sources.mag[i]), float(snr), float(edgedist)))
+        logging.info("{0:8d}  {1:4.1f}  {2:6.1f}            {3:6.2f}       2".format(int(sources.ID[i]), float(sources.mag[i]), float(snr), float(edgedist)))
     
     logging.info("Results of source selection: {0} resolved, {1} nearby sources.".format(int((status==2).sum()), int((status==1).sum())))
     
