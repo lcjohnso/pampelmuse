@@ -22,10 +22,10 @@ the header of a FITS HDU.
 
 Latest SVN revision
 -------------------
-169, 2014/04/29
+171, 2014/05/07
 """
 __author__   = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 169
+__revision__ = 171
 
 
 import datetime, re
@@ -104,32 +104,32 @@ class PampelMuseConfig(Namespace):
         if hasattr(self, "initfit"):
             for entry in ["revision", "utc", "reslim", "photzero"]:
                 if hasattr(self.initfit, entry):
-                    hdu.header.update("hierarch PAMPELMUSE INITFIT {0}".format(entry.upper()), getattr(self.initfit, entry))
+                    hdu.header["hierarch PAMPELMUSE INITFIT {0}".format(entry.upper())] = getattr(self.initfit, entry)
 
         if hasattr(self, "cubefit"):
             for entry in ["revision", "utc", "status", "lastlayer"]:
                 if hasattr(self.cubefit, entry):
-                    hdu.header.update("hierarch PAMPELMUSE CUBEFIT {0}".format(entry.upper()), getattr(self.cubefit, entry))
+                    hdu.header["hierarch PAMPELMUSE CUBEFIT {0}".format(entry.upper())] = getattr(self.cubefit, entry)
                     
         if hasattr(self, "polyfit"):
             for entry in ["revision", "utc"]:
                 if hasattr(self.polyfit, entry):
-                    hdu.header.update("hierarch PAMPELMUSE POLYFIT {0}".format(entry.upper()), getattr(self.polyfit, entry))
+                    hdu.header["hierarch PAMPELMUSE POLYFIT {0}".format(entry.upper())] = getattr(self.polyfit, entry)
 
         if hasattr(self, "subtres"):
             for entry in ["revision", "utc"]:
                 if hasattr(self.subtres, entry):
-                    hdu.header.update("hierarch PAMPELMUSE SUBTRES {0}".format(entry.upper()), getattr(self.subtres, entry))
+                    hdu.header["hierarch PAMPELMUSE SUBTRES {0}".format(entry.upper())] = getattr(self.subtres, entry)
 
         if hasattr(self, "shotnoi"):
             for entry in ["revision", "utc"]:
                 if hasattr(self.shotnoi, entry):
-                    hdu.header.update("hierarch PAMPELMUSE SUBTRES {0}".format(entry.upper()), getattr(self.shotnoi, entry))
+                    hdu.header["hierarch PAMPELMUSE SUBTRES {0}".format(entry.upper())]  = getattr(self.shotnoi, entry)
 
         if hasattr(self, "addwcs"):
             for entry in ["revision", "utc", "RADECSYS", "EQUINOX", "WCSDIM", "CTYPE1", "CTYPE2", "CRVAL1", "CRVAL2", "CRPIX1", "CRPIX2", "CD1_1", "CD1_2",
                           "CD2_1", "CD2_2"]:
                 if hasattr(self.addwcs, entry.lower()):
-                    hdu.header.update("hierarch PAMPELMUSE ADDWCS {0}".format(entry.upper()), getattr(self.addwcs, entry.lower()))
+                    hdu.header["hierarch PAMPELMUSE ADDWCS {0}".format(entry.upper())] = getattr(self.addwcs, entry.lower())
                     
         return hdu

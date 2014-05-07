@@ -37,12 +37,13 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-170, 2014/05/02
+171, 2014/05/07
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 170
+__revision__ = 171
 
-import datetime, os, sys, logging
+import datetime, itertools, os, sys, logging
+from multiprocessing import cpu_count, Pool
 import numpy as np 
 from astropy.io import fits
 from scipy import interpolate, ndimage, signal, spatial
@@ -53,7 +54,6 @@ from pampelmuse.core import AperPhoto, Sources
 from pampelmuse.core.psf import *
 from pampelmuse.graphics import PampelMuseGui
 from pampelmuse.functions.io import read_asciifile
-# from pampelmuse.functions.wcs import calc_offset
 from pampelmuse.functions.statistics import DER_SNR
 
 ## class defines the exception that is raised when the parameters
@@ -67,16 +67,16 @@ class ConfigurationError(EnvironmentError):
 
 
 
-def estimate_snr(class_psf, sigma):
+def estimate_snr(psf_instances, sigma):
         """
         Calculate the S/N ratio of all stars in the scene.
 
         Parameters
         ----------
-        psf : A pampelmuse.core.psf.profiles-class
-            An instance of this a PSF-class should be present for every
-            source in the scene. This is required to determine the flux
-            distribution across the FoV
+        psf_instances : list
+            A list containing a PSF-instance for each every source in the
+            scene. This is required to determine the flux distribution
+            across the FoV
         sigma : nd_array
             The average uncertainties in the individual spaxels.
 
@@ -91,7 +91,7 @@ def estimate_snr(class_psf, sigma):
         snRatios = []
         totFlux  = 0.
 
-        for psf in class_psf:
+        for psf in psf_instances:
 
             logging.debug("Estimating S/N  for source #{0}.".format(psf.src_id))
 
@@ -105,6 +105,24 @@ def estimate_snr(class_psf, sigma):
             totFlux += psf.f.sum()
 
         return np.array(snRatios, dtype=np.float32), totFlux
+
+
+
+def image_from_psf(psf_instances):
+    nsrc = len(psf_instances)
+    
+    i=0
+    for psf in psf_instances:
+        logging.debug("Working on source #{0} [{1:0{2}d}/{3}]".format(psf.src_id, i+1, len(str(nsrc)), nsrc))
+        if i==0:
+            imsize = psf.size
+            image  = np.zeros((np.product(imsize), ), dtype='float32')
+        else:
+            assert psf.size == imsize, "PSF instances have different array shapes."
+        image[psf.used] += psf.f
+        i+=1
+    
+    return image
 
 
 
@@ -164,6 +182,12 @@ def initfit(pampelmuse):
     if "ra" in cfp_results.keys(): sources.ra = np.asarray(cfp_results["ra"], dtype=np.float64)
     if "dec" in cfp_results.keys(): sources.dec = np.asarray(cfp_results["dec"], dtype=np.float64)
 
+    ## check if at least some sources are resolved according to the RESLIM configuration
+    ## parameter. If not, raise a ConfigurationError
+    if not (sources.mag[sources.ID>=0]<pampelmuse.reslim).any():
+        logging.critical("All sources in input catalog are fainter than provided resolution limit (RESLIM={0}).".format(pampelmuse.reslim))
+        raise ConfigurationError, "Photometry does not contain resolved sources. Check RESLIM parameter."
+
     ## for the purpose of creating a mock image from the provided photometric catalogue,
     ## the sources are shifted in x and y so that the source with the lowest x (y) coordinate
     ## is located in the first column (row). Otherwise a large part of the mock image might be
@@ -220,10 +244,10 @@ def initfit(pampelmuse):
     data_image   = np.zeros(pampelmuse.ifs_data.instrument.transform.shape[0], dtype=np.float32)
     sigma_image  = np.zeros(data_image.shape, dtype=np.float32) ## old method to determine noise was from SIGMA cube via integration over passband
     weight_image = np.zeros(data_image.shape, dtype=np.float32)
-    logging.debug("Images contain {0} spaxels.".format(data_image.size))
+    logging.debug("...layers contain {0} spaxels.".format(data_image.size))
 
     for i in xrange(pampelmuse.start, pampelmuse.stop):
-        logging.debug("Working on layer {0:0{1}d}/{2:{1}d}".format(i-pampelmuse.start+1, len(str(pampelmuse.stop-pampelmuse.start)), pampelmuse.stop-pampelmuse.start))
+        logging.debug("...working on layer {0:0{1}d}/{2:{1}d}".format(i-pampelmuse.start+1, len(str(pampelmuse.stop-pampelmuse.start)), pampelmuse.stop-pampelmuse.start))
         wave_i = pampelmuse.ifs_data.crval+i*pampelmuse.ifs_data.cdelt
         if pampelmuse.ifs_data.ctype == "nm": wave_i *= 10
         if wave_i > fMin and wave_i < fMax:
@@ -259,42 +283,66 @@ def initfit(pampelmuse):
     sigma_image /= weight_image
     sigma_image[sigma_image<1e-6] = 1e6 
 
-    if usewcs:
-        ## define kernel for later cross-correlation with mock image. Kernel is normalized to get approx. normalized cross-corr. signal
-        cckernel = pampelmuse.ifs_data.instrument.make_grid((data_image - np.min(data_image[mask==0]))/np.std(data_image[mask==0]), fill_value=0)
-        
     ## create pseudo observation from photometry results: PSF is same as in IFU, with FWHM scaled by `pixScale'-Parameter;
     ## unless a zeropoint is provided (configuration parameter ZEROMAG), the zeropoint is such that a source with magnitude
     ## `reslim' will have a flux of 1000 counts and a peak-S/N of roughly 10
-    logging.info("Creating mock image from photometry sources...")
+    logging.info("Creating mock image from photometry catalogue...")
 
+    ## prepare PSF for creation of mock image: set size to size of mock image
+    size   = (int(sources.y.max()+1), int(sources.x.max()+1))
+    PSF.set_size(size)
+    
+    ## to get reasonable count rates in mock image, adjust zeropoint unless provided
     if pampelmuse.zeromag > 99.:
         magZ = pampelmuse.reslim + 7.5
     else:
         magZ = pampelmuse.zeromag
-
-    ## prepare PSF for creation of mock image
-    size   = (int(sources.y.max()+1), int(sources.x.max()+1))
-    _image = np.zeros((size[0]*size[1], ), dtype='float32')
-
-    PSF.set_size(size)
+    
+    ## for parallelization, initialize cycle over CPUs so that whenever a new source should be included in the mock image,
+    ## the next CPU is picked until one source has been assigned to all CPUs, then start again with first CPU and repeat.
+    cpu  = itertools.cycle(range(pampelmuse.cpucount))
+    tocpu = -1*np.ones((sources.nsrc-pampelmuse.globsky,), dtype=np.int16)
+    
+    ## 1. loop: initialization of PSF instances and assignment to CPUs
+    logging.info("...initializing PSF instances...")
+    psf_instances = []
     for i in xrange(sources.nsrc-pampelmuse.globsky):
-        logging.debug("Adding source {0:0{1}d}/{2:0{1}d} to mock image.".format(i+1, len(str(sources.nsrc)), sources.nsrc-pampelmuse.globsky))
         
         psf = PSF(Xc=sources.x[i], Yc=sources.y[i], mag=sources.mag[i]-magZ, src_id=sources.ID[i], maxrad=10.)
+        psf_instances.append(psf)
 
         if (psf.mag+magZ) <= pampelmuse.reslim: ## only add sources that are likely resolved
-            _image[psf.used] += psf.f
+            tocpu[i] = cpu.next()
+
+    ## 2. loop: calculation of PSf profiles and inclusion in mock image (parallelized)
+    logging.info("...adding sources, working on {0} CPUs...".format(pampelmuse.cpucount))
+    for n in xrange(pampelmuse.cpucount):
+        psf_instances_n = [psf_instances[i] for i in np.flatnonzero(tocpu==n)]
+        if pampelmuse.cpucount > 1:
+            if n==0:
+                pool    = Pool(pampelmuse.cpucount)
+                threads = []
+            threads.append(pool.apply_async(image_from_psf, args=(psf_instances_n,)))
+        else:
+            _image = image_from_psf(psf_instances_n)
+    if pampelmuse.cpucount > 1:        
+        pool.close()
+        pool.join()
+        _image = np.sum([threads[n].get() for n in xrange(pampelmuse.cpucount)], axis=0)
 
     ## resample image on regular (x, y) grid
-    grid_y, grid_x = np.mgrid[0:size[0]-1:1j*size[0], 0:size[1]-1:1j*size[1]]
-    identification_image = interpolate.griddata((PSF._transform[:,0], PSF._transform[:,1]), _image, (grid_y, grid_x), method="linear", fill_value=np.nan)
+    logging.info("...resampling image on regular 2D grid...")
+    identification_image = np.zeros(size, dtype=np.float32)
+    identification_image[np.asarray(PSF._transform[:,0], dtype=np.int32), np.asarray(PSF._transform[:,1], dtype=np.int32)] = _image
 
     if usewcs:
         ## To automatically obtain an initial guess for the coordinate transformation, the mock image is cross-correlated with
         ## the whitelight image of the IFS data. The peak of the cross-correlation signal is located and translated into an
         ## offset between mock and IFS image.
         logging.info("Cross-correlating mock image with IFS data to find likely location of IFS.")
+
+        ## Kernel is normalized to get approx. normalized cross-corr. signal
+        cckernel = pampelmuse.ifs_data.instrument.make_grid((data_image - np.min(data_image[mask==0]))/np.std(data_image[mask==0]), fill_value=0)
         
         ccsignal = signal.fftconvolve(identification_image, cckernel[::-1,::-1], mode="full")
         
@@ -372,7 +420,7 @@ def initfit(pampelmuse):
 
     PSF.set_transform(pampelmuse.ifs_data.instrument.transform)
     i=0
-    for psf in PSF:
+    for psf in psf_instances:
         psf.Xc = sources.x[i]
         psf.Yc = sources.y[i]
         i += 1
@@ -401,7 +449,27 @@ def initfit(pampelmuse):
 
     ## Perform photometric calibration (unless provided) and S/N estimation:
     logging.info("Estimating S/N for all sources...")
-    signal_to_noise, intFlux = estimate_snr(PSF, sigma_image)
+    if pampelmuse.cpucount > 1: ## Initialize parallelization (if requested)
+        logging.info("...working on {0} CPUs...".format(pampelmuse.cpucount))
+        pool    = Pool(pampelmuse.cpucount)
+        threads = []
+            
+        ## determine which sources should be calculated by which CPU
+        m = (len(psf_instances)//pampelmuse.cpucount) + 1
+            
+        for n in xrange(pampelmuse.cpucount):
+            imin = n*m
+            imax = min((n+1)*m, sources.nsrc-pampelmuse.globsky)
+            threads.append(pool.apply_async(estimate_snr, args=(psf_instances[imin:imax], sigma_image)))
+        
+        pool.close()
+        pool.join()
+
+        results = [threads[n].get() for n in xrange(pampelmuse.cpucount)]
+        signal_to_noise = np.hstack([r[0] for r in results])
+        intFlux = np.sum([r[1] for r in results])
+    else:
+        signal_to_noise, intFlux = estimate_snr(psf_instances, sigma_image)
 
     logging.info("Estimating the photometric zeropoint...")
     ## Calculate ratio between expected flux for current zeropoint and flux in image
@@ -568,7 +636,7 @@ def initfit(pampelmuse):
         ## source itself and the brightest source within a distance r that we set to the value of the PSFRAD parameter.
 
         logging.info("IDs of stars that fullfil search criteria:")
-        logging.info("       ID    mag  shoulder_drop")
+        logging.info("      ID    mag  shoulder_drop")
         for i in idx_magsorted:
             
             if sources.mag[i] > (reslim-3): break
@@ -589,7 +657,7 @@ def initfit(pampelmuse):
                 continue
 
             sources.status[i] = 3
-            logging.info("   {0:6d}  {1:5.2f}  {2:14.2f}".format(int(sources.ID[i]), float(sources.mag[i]), float(sd)))
+            logging.info("{0:8d}  {1:5.2f}  {2:13.2f}".format(int(sources.ID[i]), float(sources.mag[i]), float(sd)))
 
         if len(sources.psf_indices) == 0:
             logging.critical("No possible PSF sources found!")
@@ -599,31 +667,33 @@ def initfit(pampelmuse):
         logging.info("Performing aperture spectrophotometry on possible PSF stars...")
  
         ## initialize aperture routine
-        make_aper = AperPhoto(pampelmuse.ifs_data, sources)
+        make_aper = AperPhoto(pampelmuse.ifs_data, [psf_instances[i] for i in np.flatnonzero(sources.status==3)])
         
-        ## run it
-        results = make_aper.aper_photo(r_aper=pampelmuse.aperrad, layer_range=(pampelmuse.start, pampelmuse.stop), PSF=PSF, background="local")
+        ## run it - note that the array that is returned may contain NaN values (if the moment calculation failed or lead to unphysical values)
+        ## to account for this, masked arrays are used in the following calculations
+        results = make_aper(r_aper=pampelmuse.aperrad, layer_range=(pampelmuse.start, pampelmuse.stop), background="local", ncpu=pampelmuse.cpucount)
         
         ## write spectra and IFS coordinates into instance of Sources, estimate S/N and exclude sources with S/N<20
-        sources.load_ifs_coordinates(ids=results["ID"][results["ID"]>=0])
+        sources.load_ifs_coordinates(ids=results["id"][results["id"]>=0])
 
         for i in xrange(len(results)):
-            k = sources.specrow[np.where(sources.ID==results["ID"][i])[0][0]]
+            k = sources.specrow[np.where(sources.ID==results["id"][i])[0][0]]
             sources.data[:, k, 0] = results["flux"][i]
 
-            if results["ID"][i]>=0:
-                snr = DER_SNR(results["flux"][i])
+            if results["id"][i]>=0:
+                ## NaN pixels are set to zero since DER_SNR skips such pixels
+                snr = DER_SNR(np.ma.array(results["flux"][i], mask=np.isnan(results["flux"][i]), fill_value=0.).filled())
                 
-                if snr<30:
-                    sources.status[np.flatnonzero(sources.ID==results["ID"][i])[0]]=2
-                    logging.info("S/N of source #{0} is only {1:.1f} - not used as PSF source.".format(results["ID"][i], snr))
+                if snr<20:
+                    sources.status[np.flatnonzero(sources.ID==results["id"][i])[0]]=2
+                    logging.info("S/N of source #{0} is only {1:.1f} - not used as PSF source.".format(results["id"][i], snr))
                 else:
-                    logging.info("S/N of source #{0} is {1:.1f} - used as PSF source.".format(results["ID"][i], snr))
+                    logging.info("S/N of source #{0} is {1:.1f} - used as PSF source.".format(results["id"][i], snr))
                 
-                j = np.flatnonzero(sources.ID[sources.ifs_coordinates_loaded]==results["ID"][i])[0]
-                sources.ifs_coordinates[:, j, 0, 0] = results["x"][i]
-                sources.ifs_coordinates[:, j, 1, 0] = results["y"][i]
-        
+                j = np.flatnonzero(sources.ID[sources.ifs_coordinates_loaded]==results["id"][i])[0]
+                sources.ifs_coordinates[:, j, 0, 0] = np.ma.array(results["x"][i], mask=np.isnan(results["x"][i]), fill_value=psf_instances[k].xc).filled() 
+                sources.ifs_coordinates[:, j, 1, 0] = np.ma.array(results["y"][i], mask=np.isnan(results["y"][i]), fill_value=psf_instances[k].yc).filled()
+                
         if len(sources.psf_indices) == 0:
             logging.critical("No PSF sources found!")
             raise ConfigurationError, "No PSF sources found!"
@@ -637,16 +707,21 @@ def initfit(pampelmuse):
             sources.fit_coordinate_transformation()
 
             ##  determine FWHM, E and THETA
-            stars = (results["ID"]>=0)
+            stars = (results["id"]>=0)
             
             logging.info("Estimating PSF properties using measured moments...")
-            x2 = results[["x2"]][stars].view(np.float32).reshape(stars.sum(), -1)
-            y2 = results[["y2"]][stars].view(np.float32).reshape(stars.sum(), -1)
-            xy = results[["xy"]][stars].view(np.float32).reshape(stars.sum(), -1)
+            x2 = np.ma.array(results[["x2"]][stars].view(np.float32).reshape(stars.sum(), -1))
+            x2.mask = np.isnan(x2)
+            y2 = np.ma.array(results[["y2"]][stars].view(np.float32).reshape(stars.sum(), -1))
+            y2.mask = np.isnan(y2)
+            xy = np.ma.array(results[["xy"]][stars].view(np.float32).reshape(stars.sum(), -1))
+            xy.mask = np.isnan(xy)
 
             ## get A, B:
             A = np.sqrt((x2+y2)/2.+np.sqrt(((x2-y2)/2.)**2+xy**2))
+            A.mask[A<=0] = True
             B = np.sqrt((x2+y2)/2.-np.sqrt(((x2-y2)/2.)**2+xy**2))
+            B.mask[B<=0] = True
             
             ## FWHM
             fwhm = np.sqrt(8.*np.log(2))*np.mean(A, axis=0)
@@ -654,24 +729,25 @@ def initfit(pampelmuse):
             logging.info("Mean FWHM: {0:.2f}pix.".format(fwhm.mean()))
 
             ## Ellipticity
-            e = 1. - np.mean(np.where(A!=0, B/A, 1.), axis=0)
+            e = 1. - np.mean(B/A, axis=0)
             logging.info("Mean ellipticity: {0:.2f}".format(e.mean()))
             ii = psf_variables.names.index("e")
             if psf_variables.free[ii]:
                 ## need to check if dispersion information already included in PSF variables, otherwise, use numpy.resize that fills enlarged
                 ## array with repeated copies of available data
                 if psf_variables.data.shape[0] == 1: psf_variables.data =  np.resize(psf_variables.data, e.shape+psf_variables.data.shape[1:])
-                psf_variables.data[:, ii, 0] = e
+                psf_variables.data[:, ii, 0] = e.filled(e.mean())
 
             ## Position angle
-            theta  = np.where(x2!=y2, 0.5*np.arctan(2*xy/(x2-y2)), 0.)
-            theta -= (-1)**(theta<0)*np.pi/4.
-            theta += (-1)**(xy>0)*np.pi/4.
+            _theta  = 0.5*np.arctan(2*xy/(x2-y2))
+            _theta -= (-1)**(_theta<0)*np.pi/4.
+            _theta += (-1)**(xy>0)*np.pi/4.
+            theta = _theta.mean(axis=0)
             logging.info("Mean position angle: {0:.2f}rad.".format(theta.mean()))
             ii = psf_variables.names.index("theta")
             if psf_variables.free[ii]:
                 if psf_variables.data.shape[0] == 1: psf_variables.data =  np.resize(psf_variables.data, theta.shape+psf_variables.data.shape[1:])
-                psf_variables.data[:, ii, 0] = theta.mean(axis=0)
+                psf_variables.data[:, ii, 0] = theta.filled(theta.mean())
     
     ## write results to file
     logging.info("Saving source selection in file {0}.".format(pampelmuse.filename))
@@ -684,7 +760,7 @@ def initfit(pampelmuse):
     if usewcs:
         wcsheader = pampelmuse.ifs_data.wcs.to_header()
         for key in wcsheader:
-            primary_hdu.header.update("hierarch PAMPELMUSE WCS {0}".format(key), wcsheader[key])##, wcsheader.comments[key]) # cards too long if comment is included
+            primary_hdu.header["hierarch PAMPELMUSE WCS {0}".format(key)] = wcsheader[key] ## (wcsheader[key], wcsheader.comments[key]) # cards too long if comment is included
     source_hdu  = sources.make_catalogue_hdu()
     spectra_hdu = sources.make_spectra_hdu()
     pospars_hdu = sources.transformation.make_hdu(include_fit=False)
