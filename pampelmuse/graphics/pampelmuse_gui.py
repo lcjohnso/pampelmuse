@@ -609,10 +609,12 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         if not hasattr(self.ifsPlot, "dataPlot"):
             logging.debug("Overplotting sources on IFS data...")
 
-            ## data points will be overplotted as black empty circles
-            ## Note that only resolved sources (status in [2,3]) are displayed, source
-            ## close to a brighter source (status==1) are displayed as grey empty circles.
-            edgecolors = np.asarray(self.sources.is_resolved.sum()*["k"],  dtype="|S3")
+            ## The sources will be overlaid on the image with circles. The edge colours depend on the source statuses:
+            ## a) PSF sources (status==3, if any) data points will be overplotted as light green circles
+            ## b) Other resolved sources (status==2) will be displayed as black circles
+            ## c) sources close to a brighter source (status==1) will be displayed as grey circles.
+            edgecolors = np.asarray(self.sources.is_resolved.sum()*["k"],  dtype="|S7")
+            edgecolors[self.sources.status[self.sources.is_resolved]==3] = "#00FF00"
             edgecolors[self.sources.status[self.sources.is_resolved]==1] = "0.5"
         
             ## if magnitudes are available in the sources catalogue, we use them to scale the

@@ -22,10 +22,10 @@ the header of a FITS HDU.
 
 Latest SVN revision
 -------------------
-171, 2014/05/07
+172, 2014/05/08
 """
 __author__   = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 171
+__revision__ = 172
 
 
 import datetime, re
@@ -62,7 +62,7 @@ class PampelMuseConfig(Namespace):
         self.configFinder = re.compile(r"PAMPELMUSE\s([A-Z]+)\s?([A-Z]\w+)?$")
         
         for entry in hdu.header.cards:   
-            match = self.configFinder.match(entry.key)
+            match = self.configFinder.match(entry.keyword)
             if match != None:
                 if match.group(2) == None: setattr(self, match.group(1).lower(), entry.value)
                 else:
@@ -87,17 +87,17 @@ class PampelMuseConfig(Namespace):
                       ]:
            
             if hasattr(self, entry):
-                hdu.header.update("hierarch PAMPELMUSE {0}".format(entry.upper()), getattr(self, entry))
+                hdu.header["hierarch PAMPELMUSE {0}".format(entry.upper())] = getattr(self, entry)
          
         if hasattr(self, "psf"):
             if hasattr(self.psf, "profile"):
-                hdu.header.update("hierarch PAMPELMUSE PSF PROFILE",  getattr(self.psf, "profile"))
+                hdu.header["hierarch PAMPELMUSE PSF PROFILE"] = getattr(self.psf, "profile")
          
             i = 0
             while hasattr(self.psf, "parname{0}".format(i)):
-                hdu.header.update("hierarch PAMPELMUSE PSF PARNAME{0}".format(i), getattr(self.psf, "parname{0}".format(i)))
-                hdu.header.update("hierarch PAMPELMUSE PSF PARVALUE{0}".format(i), getattr(self.psf, "parvalue{0}".format(i)))
-                hdu.header.update("hierarch PAMPELMUSE PSF FREEPAR{0}".format(i), getattr(self.psf, "freepar{0}".format(i)))
+                hdu.header["hierarch PAMPELMUSE PSF PARNAME{0}".format(i)] = getattr(self.psf, "parname{0}".format(i))
+                hdu.header["hierarch PAMPELMUSE PSF PARVALUE{0}".format(i)] = getattr(self.psf, "parvalue{0}".format(i))
+                hdu.header["hierarch PAMPELMUSE PSF FREEPAR{0}".format(i)] = getattr(self.psf, "freepar{0}".format(i))
                 i += 1
 
 

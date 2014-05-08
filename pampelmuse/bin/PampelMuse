@@ -45,12 +45,12 @@ the data into memory yet but just checks whether the file(s) are valid.
 
 Latest SVN revision
 -------------------
-171, 2014/05/07
+172, 2014/05/08
 """
 __author__     = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
 
-__version__    = "0.13.1.1"
-__revision__   = 171
+__version__    = "0.13.1.2"
+__revision__   = 172
 
 
 
@@ -154,11 +154,11 @@ class GetValuesFromFile(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
         outdict = {}
         for _line in values:
-            if not len(_line)==0:
+            if not len(_line)==1: ## empty lines have len=1
                 if not _line[0] == "#":
-                    line = re.sub(r'\s', '', _line) ## remove whitespace chars.
+                    line = re.sub(r'\s', '', _line) ## remove whitespace characters
                     if not len(line.split("=")) == 2:
-                        raise IOError, "Bad parameter definition in file '{0}'".format(values.name)+": {0}".format(line)
+                        raise IOError, "Invalid line in file '{0}': '{1}'".format(values.name, line)
                     name, value = line.split("=")
                     outdict[name.upper()] = value
         setattr(namespace, self.dest, outdict)
