@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-171, 2014/05/07
+173, 2014/06/11
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 171
+__revision__ = 173
 
 import datetime, itertools, os, sys, logging
 from multiprocessing import cpu_count, Pool
@@ -281,7 +281,7 @@ def initfit(pampelmuse):
 
     data_image  /= weight_image
     sigma_image /= weight_image
-    sigma_image[sigma_image<1e-6] = 1e6 
+#     sigma_image[sigma_image<1e-6] = 1e6 ## leads to bad results if IFS data provided in small units, e.g. erg/s/cm2
 
     ## create pseudo observation from photometry results: PSF is same as in IFU, with FWHM scaled by `pixScale'-Parameter;
     ## unless a zeropoint is provided (configuration parameter ZEROMAG), the zeropoint is such that a source with magnitude
@@ -574,6 +574,11 @@ def initfit(pampelmuse):
         logging.info("{0:8d}  {1:4.1f}  {2:6.1f}            {3:6.2f}       2".format(int(sources.ID[i]), float(sources.mag[i]), float(snr), float(edgedist)))
     
     logging.info("Results of source selection: {0} resolved, {1} nearby sources.".format(int((status==2).sum()), int((status==1).sum())))
+    
+    if (status==2).sum()==0:
+        logging.critical("Did not find any resolved sources. Aborting...")
+        raise ConfigurationError, "No resolved sources found. Check parameter file."
+    
     
     ## set status of sky component if it is included
     if pampelmuse.globsky:

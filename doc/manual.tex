@@ -5,7 +5,7 @@
 
 \title{PampelMuse}
 \author{Sebastian Kamann}
-\date{02.07.2013}
+\date{\today}
 
 \newcommand{\shellcmd}[1]{\\\indent\indent\texttt{\footnotesize\# #1}}
 
@@ -24,8 +24,8 @@
 \textsc{PampelMuse} is written in \textit{python}. A recent version of \textit{python} should be available on the system, \textit{python v2.7} is recommended. In addition, several \textit{python} packages are required to run \textsc{Pampelmuse}:
 \begin{itemize}
  \item \textit{numpy}\footnote{\url{http://www.numpy.org/}}, tested for version 1.6.1
- \item \textit{scipy}\footnote{\url{http://scipy.org/}}, tested for version 0.9.0
- \item \textit{pyfits}\footnote{\url{http://www.stsci.edu/institute/software_hardware/pyfits/}}, tested for version 3.1.1
+ \item \textit{scipy}\footnote{\url{http://scipy.org/}}, tested for versions $\geq$0.9, a version $\geq$0.10 is recommended because a faster algorithm for sparse matrix inversion was introduced in v0.10
+ \item \textit{astropy}\footnote{\url{http://www.astropy.org/}}, tested for version 0.2.5
 \end{itemize}
 Note that the versions of the packages listed above are just a recommendation. The code may also run with earlier versions. In addition to these packages, it is highly recommended that the following packages are available on the system:
 \begin{itemize}
@@ -56,5 +56,10 @@ You probably want to store the modification of your \texttt{PYTHONPATH} variable
 Afterwards, you should be able to execute
 \shellcmd{PampelMuse --help} \\
 If no error message is returned, you have installed \texttt{PampelMuse} successfully!
+
+\subsection{Using the SVN repository}
+The maintenance of \texttt{PampelMuse} is handled via an SVN repository located at \url{https://subversion.assembla.com/svn/kamann-code.2}. The advantage of using the repository is that it allows you to always use the most recent version of the code. However, the disadvantage is that when updating the code I sometimes commit revisions that are not fully operational. So when updating to a new revision, be sure to check the most recent log entries.
+
+To install from the SVN repository, ... TBD!
 
 \end{document}

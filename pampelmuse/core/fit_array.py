@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-169, 2014/04/29
+173, 2014/06/11
 """ 
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 169
+__revision__ = 173
 
 import contextlib, itertools, logging, os, sys, time
 import numpy as np, scipy
@@ -86,7 +86,8 @@ def sum_by_group(values, groups):
     order = np.argsort(groups)
     groups = np.asarray(groups)[order]
     values = np.asarray(values)[order]
-    values.cumsum(out=values)
+    values.cumsum(out=values, dtype=np.float64)
+#    print "CUMSUM:", values
     index = np.ones(len(groups), 'bool')
     index[:-1] = groups[1:] != groups[:-1]
     values = values[index]
@@ -132,11 +133,11 @@ def get_psf_data(psf_instances, sigma):
             fluxes  = 1./sigma
 
         else: ## stellar component
-            spaxels, fluxes = psf.get_flux()
+            spaxels, _fluxes = psf.get_flux()
             n = spaxels.size
             if n==0: logging.warning("Source #{0} entirely outside FoV.".format(psf.src_id))
-
-            fluxes /= sigma[psf.used]
+            fluxes = _fluxes/sigma[psf.used]
+#             if psf.src_id==27566: print psf.mag, fluxes
             
         intflux = fluxes.sum()
         results.append([spaxels, fluxes, intflux])
@@ -469,7 +470,7 @@ class StarFit(object):
         self.PSF.set_transform(self.transform)
 
         ## Reset possibly excisting unresolved component from last layer
-        self.unresolved_psf = None
+        self.unresolved_matrix = None
 
         ## Start iteration
         n_iter = 1
@@ -569,11 +570,15 @@ class StarFit(object):
             This is the PSF coefficient matrix that is used in the linear
             least-squares fit to determine the source fluxes.
         """
+        t0 = time.time()
+        
         ##  if unresolved component exists and should not be updated, extract sublist of resolved sources
         if self.sources.includes_unresolved and not update_unresolved:
             psf_instances = [self.psf_instances[i] for i in np.flatnonzero(self.sources.status>0)]
+            specrow  = self.sources.specrow[self.sources.specrow!=self.sources.specrow_unresolved]
         else: ## otherwise hust use full ist
             psf_instances = self.psf_instances
+            specrow  = self.sources.specrow
 
         ## Initialize parallelization (if requested)
         if self.ncpu > 1:
@@ -586,7 +591,6 @@ class StarFit(object):
             for n in xrange(self.ncpu):
                 imin = n*m
                 imax = min((n+1)*m, self.sources.nsrc)
-                
                 threads.append(pool.apply_async(get_psf_data, args=(psf_instances[imin:imax], self.sigma)))
         
             pool.close()
@@ -597,39 +601,65 @@ class StarFit(object):
         else:
             results = get_psf_data(psf_instances, self.sigma)
 
-        if self.sources.includes_unresolved: ## handle the unresolved component
-            if update_unresolved  or self.unresolved_psf==None: ## just store the unresolved sources as a list for later re-use
-                self.unresolved_psf = [results[i] for i in np.flatnonzero(self.sources.status==0)]
-            else: ## add the existing unresolved PSFs at the right indices
-                indices = np.flatnonzero(self.sources.status==0)
-                for i in xrange(len(self.unresolved_psf)): results.insert(indices[i], self.unresolved_psf[i])
+        t1 = time.time()
+        logging.debug("Time required to calculate PSF profiles: {0:.3f}s".format(t1-t0))
+
+        ## Calculate combined integrated flux of each component
+        self.fluxfactors, unique_specrow = sum_by_group([r[-1] for r in results], specrow)
+        ## note that the fluxfactors are already in the correct order, i.e. sorted by self.sources.specrow, the unresolved
+        ## component is only included if update_unresolved was set to True
+
+        t2 = time.time()
+        logging.debug("Time required to combine components: {0:.3f}s".format(t2-t1))
 
         ## check if any row does not contribute at all
-        self.fluxfactors, specrows = sum_by_group([r[-1] for r in results], self.sources.specrow)
-        self.valid_components = (self.fluxfactors>0)
-        self.component_mask = (self.valid_components==False)
-    
-        if self.component_mask.any():
-            logging.error("Encountered component(s) that contribute zero flux: {0}".format(specrows[self.component_mask]))
+        empty_specrow = unique_specrow[self.fluxfactors<=0]
+        if len(empty_specrow)>0:
+            logging.error("Encountered component(s) that contribute zero flux: {0}".format(empty_specrow))
 
         ## fill the matrix: the indices and intensities of all PSF instances are combined and serve as row indices and values of
         ## the matrix. To obtain the column indices of the matrix, we use the property 'specrow' of the Sources class and correct
         ## for components with zero flux contribution (if they exist)
         i0 = np.hstack((r[0] for r in results)) ## the row indices
 
-        i1 = np.hstack((len(results[i][0])*[self.sources.specrow[i]] for i in xrange(self.sources.nsrc))) ## the column indices
-        for bad_index in specrows[self.component_mask][::-1]: i1[i1>bad_index] -= 1 ## correct for components that do not contribute
-
-        # TODO: check why array i1 is transformed to float if components outside FoV exist
-        if not issubclass(i1.dtype.type, np.integer): i1 = np.asarray(i1, dtype=np.int32)
+        i1 = np.zeros(i0.shape, dtype=np.int32)
+        jstart=0
+        for i in xrange(len(results)):
+            if specrow[i] in empty_specrow: continue
+            jend = jstart+len(results[i][0])
+            i1[jstart:jend] = specrow[i]
+            jstart = jend
 
         f  = np.hstack((r[1] for r in results)) ## the fluxes
-        f /= self.fluxfactors[self.valid_components][i1] ## bring all components to an integrated flux of 1
+        f /= self.fluxfactors[self.fluxfactors>0][i1] ## bring all components to an integrated flux of 1
 
-        ## first, a coo-matrix is constructed. Note that it handles the case when the input data contains multiple entries for the
-        ## some indices (row, column). After construction, the matrix is converted to a csc matrix to speed up future usage of it.
-        self.Apsf = sparse.coo_matrix((f, (i0, i1)), shape=(self.data.size, self.sources.ncmp-(self.component_mask).sum())).tocsc()
+        ## create matrix: first, a coo-matrix is constructed. Note that it handles the case when the input data contains multiple
+        ## entries for the some indices (row, column). After construction, the matrix is converted to a csc matrix to speed up
+        ## future usage of it.
+        nrows = self.data.size
+        ncols = self.sources.ncmp-len(empty_specrow)
         
+        if self.sources.includes_unresolved: ## handle the unresolved component
+            if update_unresolved or self.unresolved_matrix==None: ## just store the unresolved sources as a list for later re-use
+                r = (i1!=self.sources.specrow_unresolved)
+                self.unresolved_matrix = sparse.coo_matrix((f[r==False], (i0[r==False], i1[r==False])), shape=(nrows, ncols))
+                self.unresolved_fluxfactor = self.fluxfactors[self.sources.specrow_unresolved]
+                _Apsf = sparse.coo_matrix((f[r], (i0[r], i1[r])), shape=(nrows, ncols)) + self.unresolved_matrix
+
+            else:
+                _Apsf = sparse.coo_matrix((f, (i0, i1)), shape=(nrows, ncols)) + self.unresolved_matrix
+                self.fluxfactors = np.insert(self.fluxfactors, self.sources.specrow_unresolved, self.unresolved_fluxfactor)
+        else:
+            _Apsf = sparse.coo_matrix((f, (i0, i1)), shape=(nrows, ncols))
+
+        self.Apsf = _Apsf.tocsc()
+        
+        t3 = time.time()
+        logging.debug("Time required to create matrix: {0:.3f}s".format(t3-t2))
+
+        self.component_mask   = np.in1d(np.arange(self.sources.ncmp, dtype=np.int32), empty_specrow)
+        self.valid_components = (self.component_mask==False)
+
 
 #   TODO: Enable parallelization for this method
     def get_psf_data(self, imin, imax):
@@ -979,7 +1009,7 @@ class StarFit(object):
 
             ## call Levenberg-Marquard solver from scipy.optimize (& provide Jacobian)
             bestfit = optimize.leastsq(self.optimize_multi_psf, x0=fitPars, Dfun=self.jacobi_multi_psf, col_deriv=1, args=(parNames,), epsfcn=0.0)[0]
-            
+
             ## update parameters using fit results
             for i in xrange(len(parNames)):
                 ii = self.sources.transformation.names.index(parNames[i])
@@ -1058,8 +1088,9 @@ class StarFit(object):
 
         ## calculate new model
         self.build_matrix(update_unresolved=False, log=False)
-        model =  self.Apsf*sparse.dia_matrix((self.sources.data[self.jj,self.valid_components,0]*self.fluxfactors[self.valid_components],[0]),
-                                             shape=(self.valid_components.sum(), self.valid_components.sum()))
+
+        model = self.Apsf*sparse.dia_matrix((self.sources.data[self.jj,self.valid_components,0]*self.fluxfactors[self.valid_components],[0]),
+                                            shape=(self.valid_components.sum(), self.valid_components.sum()))
 
         ## return residuals
         return (self.data/self.sigma) - model.sum(axis=1).getA1()
@@ -1089,17 +1120,20 @@ class StarFit(object):
             The Jacobi matrix with respect to the model parameters included
             in 'x0'.
         """
+        t0 = time.time()
         jacob = np.zeros((len(x0), self.data.size), dtype=np.float64)
 
-        i=-1
-        for psf in self.psf_instances:
-            i += 1
-            ii = self.sources.specrow[i]
-            if ii==self.sources.specrow_sky: continue
-            if ii==self.sources.specrow_unresolved: continue
+        ## The influence of the unresolved sources (if any) is currently ignored when calculating the Jacobi matrix, any sky
+        ## component has no influence anyway.
+        for i in np.flatnonzero((self.sources.status>0)&(self.sources.status<4)):
+            psf = self.psf_instances[i]
+            ii  = self.sources.specrow[i]
             for j in xrange(len(x0)):
                 jacob[j, psf.used] -= self.sources.data[self.jj,ii,0]*getattr(psf, "diff_{0}".format(names[j]))/self.sigma[psf.used]
-            
+
+        t1 = time.time()
+        logging.debug("Time needed to create Jacobi matrix: {0:.3f}s".format(t1-t0))
+
         return jacob
 
 

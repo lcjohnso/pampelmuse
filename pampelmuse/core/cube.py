@@ -21,20 +21,20 @@ check whether the IFS data contains HDUs providing either uncertainties
 
 Latest SVN revision
 -------------------
-169, 2014/04/28
+173, 2014/06/11
 
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 169
+__revision__ = 173
 
 import logging, types
-import numpy as np #, pyfits
+import numpy as np
 from astropy import wcs
 from astropy.io import fits
 
 ## required PampelMuse routines
 from pampelmuse.core.instruments import *
-
+from pampelmuse.core.instruments import available_instruments
 
 class Cube:
     """
@@ -112,9 +112,8 @@ class Cube:
                 instrume = instrument
 
             if instrume != None:
-                if instrume.upper() in ["GIRAFFE", "ARGUS"]: self.instrument = Argus(header=hdu.header)
-                elif instrume.upper() == "PMAS": self.instrument = Pmas()
-                elif instrume.upper() == "MUSE": self.instrument = Muse(pixtable=False)
+                if instrume.lower() in available_instruments:
+                    self.instrument = available_instruments[instrume.lower()](header=hdu.header, pixtable=False)
                 else:
                     logging.warning("Unknown instrument specifier: '{0}'".format(instrume))
                     self.instrument = Instrument()

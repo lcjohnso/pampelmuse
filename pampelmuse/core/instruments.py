@@ -26,10 +26,10 @@ like dead fibers or holes in the FoV are not handled.
 
 Latest SVN revision
 -------------------
-169, 2014/04/28
+173, 2014/06/11
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 169
+__revision__ = 173
 import logging, re
 import numpy as np, pyfits
 from astropy.io import fits
@@ -1054,3 +1054,40 @@ class Muse(Instrument):
         super(Muse, self).set_spaxel_scale(value)
 
     spaxel_scale = property(Instrument.get_spaxel_scale, set_spaxel_scale, None, "The spaxel scale of MUSE on the sky in arcseconds.")
+
+
+
+class SimIfu(Instrument):
+
+    name = "simifu"
+    shape = (50,50)
+
+    spectral_axis = 0
+
+    rotation_angle = 0
+    spaxel_scale = 0.52
+
+    def __init__(self, **kwargs):
+        """
+        Initialize an instance of the 'SimIfu'-class.
+
+        Parameters
+        ----------
+        kwargs
+            Any arguments parsed to this method are passed on to the
+            parent-class 'Instrument' of 'SimIfu'.
+        """
+        ## initialize transformation from (x,y)-coords to spaxels
+        transform = np.vstack((np.arange(2500, dtype=np.int16)//50, np.mod(np.arange(2500, dtype=np.int16), 50))).T
+
+        logging.info("Instrument in use is SimIfu.")
+
+        super(SimIfu, self).__init__(transform, **kwargs)
+
+
+
+
+
+__all__ = ["Instrument", "Pmas", "Argus", "Muse", "SimIfu"]
+
+available_instruments = {"pmas":Pmas, "giraffe":Argus, "argus":Argus, "muse":Muse, "simifu":SimIfu}
