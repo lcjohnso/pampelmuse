@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-173, 2014/06/11
+174, 2014/06/12
 """ 
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 173
+__revision__ = 174
 
 import contextlib, itertools, logging, os, sys, time
 import numpy as np, scipy
@@ -495,8 +495,8 @@ class StarFit(object):
             with printoptions(precision=4, suppress=True):
                 logging.debug("[@{0}] Relative changes in fluxes: {1}".format(self.kk, delta_flux))
 
-            ## convergence criterion: median relative change in fluxes <1*10^-3
-            if np.median(abs(delta_flux)) < 1e-3:
+            ## convergence criterion: median relative change in fluxes <0.005
+            if np.median(abs(delta_flux)) < 5e-3:
                 break
 
             ## fit PSF/positions if requested            
