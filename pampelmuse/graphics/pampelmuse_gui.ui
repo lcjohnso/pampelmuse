@@ -195,6 +195,16 @@
              <string>Chebyshev</string>
             </property>
            </item>
+           <item>
+            <property name="text">
+             <string>Legendre</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Hermite</string>
+            </property>
+           </item>
           </widget>
          </item>
          <item>

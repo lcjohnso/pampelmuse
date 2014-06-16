@@ -21,11 +21,11 @@ defines the methods that are called by Ui_PampelMuseGui.
 
 Latest SVN revision
 -------------------
-169, 2014/04/29
+175, 2014/06/16
 
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 169
+__revision__ = 175
 
 import datetime, logging, re, os, sys
 import matplotlib, matplotlib.pyplot as plt, numpy as np
@@ -789,10 +789,6 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             logging.error("Cannot write current configuration to header of primary HDU of outfile.")
             
         else:
-#            if not hasattr(self.namespace, "polyfit"):
-#                self.namespace.polyfit = Namespace()
-#            self.namespace.polyfit.utc = datetime.datetime.utcnow().strftime("%y-%m-%d %H:%M:%S")
-#            self.namespace.polyfit.version = __version__
             self.namespace.makeHeader(hdu=HDUList[0])
 
         ## if an existing file is opened, exising HDUs will be eventually replaced
@@ -864,7 +860,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             HDUList.writeto(str(self.outfileName))
             
         ## update status of GUI.
-        logging.info("Wrote results to file {0}.prm.fits.".format(self.outfileName))
+        logging.info("Wrote results to file {0}.".format(self.outfileName))
         self.statusBar.showMessage("Saving OK!", 5000)
         self.unsavedChanges = False
         self.actionSave.setEnabled(False)
@@ -1077,9 +1073,6 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
 
             if self.fitAll: ids=None
             else: ids=int(self.curRowName)
-
-            if self.curProp == "x Positions": coord="x"
-            else: coord="y"
 
             self.sources.fitIfsCoordinates(ids=ids, order=order, bins=bins, mask=self.mask, function=function.lower(), commonSlope=self.commonSlope, 
                                            statusBar=self.statusBar, instrument=self.instrument)

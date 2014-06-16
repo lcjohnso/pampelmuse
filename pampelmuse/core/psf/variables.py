@@ -16,10 +16,10 @@ general framework for dealing with parameters within PampelMuse.
 
 Latest SVN revision
 -------------------
-169, 2014/04/29
+175, 2014/06/16
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 169
+__revision__ = 175
 
 import logging, os, re
 import numpy as np

@@ -21,10 +21,10 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-170, 2014/05/02
+175, 2014/06/16
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 170
+__revision__ = 175
 
 import logging, os, re
 import numpy as np
@@ -37,7 +37,6 @@ except ImportError: pass
 
 ## required PampelMuse-packages
 from pampelmuse.core.coordinates import Transformation
-# from pampelmuse.functions.fitting import StepPolynomial
 
 
 
@@ -1262,7 +1261,7 @@ class Sources(object):
 
 
 
-    def fitIfsCoordinates(self, ids, order, bins=1, mask=None, function="step", commonSlope=False, statusBar=None, instrument=None):
+    def fitIfsCoordinates(self, ids, order, bins=1, mask=None, function="plain", commonSlope=False, statusBar=None, instrument=None):
         """
         Method to fit the source positions as a function of wavelength. Two
         basic modes are supported currently:

@@ -24,19 +24,16 @@ currently not possible to add parameters afterwards.
 
 Latest SVN revision
 -------------------
-169, 2014/04/29
+175, 2014/06/16
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 169
+__revision__ = 175
 
 ## import required python modules
 import logging, re
 import numpy as np
-from numpy.polynomial import Chebyshev, Legendre
+from numpy.polynomial import Chebyshev, Legendre, Hermite, Polynomial
 from astropy.io import fits
-
-## required PampelMuse modules
-from pampelmuse.functions.fitting import StepPolynomial
 
 
 class Parameters(object):
@@ -423,24 +420,22 @@ class Parameters(object):
         i = self.names.index(name)
         
         ## The fitting function that are currently available:
-        available = ["step",  "plain",  "chebyshev"]
+        available = {"chebyshev": Chebyshev, "legendre":Legendre, "hermite":Hermite, "plain":Polynomial}
         
         ## check if fit function is valid:
-        if not function.lower() in available:
+        if not function.lower() in available.keys():
             logging.error("Unknown fitting function '{0}' provided., cannot fit data.".format(function))
             return None
         else:
-            function = function.lower()
+            Fitfunction = available[function.lower()]
 
-        wCoord = np.arange(self._data.shape[0], dtype=np.float32)
+        wCoord = np.arange(self.ndisp, dtype=np.float32)
 
-        ## fit plain or broken polynomial to data if requested 
-        if function in ["step", "plain"]:
-            fit = StepPolynomial.fit(wCoord[mask], self._data[:,i,0][mask], order=order, bins=bins)
-            
-        ## fit Chebyshev polynomial to data if requested
-        elif function == "chebyshev":
-            fit = Chebyshev.fit(wCoord[mask], self._data[:,i,0][mask], order)
+        ## create pseudo-mask if None provided
+        if mask == None:
+            mask = np.ones((self.ndisp,), dtype=np.bool)
+
+        fit = Fitfunction.fit(wCoord[mask], self._data[:,i,0][mask], order)
 
         self._data[:,i,1] = fit(wCoord)
 

@@ -1,4 +1,4 @@
-<?xml version="1.0" ?><?xml-stylesheet type="text/xsl" href="PMstyle.xsl"?><ns0:configuration timestamp="2014-04-28T14:21:04Z" xmlns:ns0="http://www.tobedefined.com/pampelmuse" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.tobedefined.com/pampelmuse PMschema.xsd">
+<?xml version="1.0" ?><?xml-stylesheet type="text/xsl" href="PMstyle.xsl"?><ns0:configuration timestamp="2014-06-15T15:07:49Z" xmlns:ns0="http://www.tobedefined.com/pampelmuse" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.tobedefined.com/pampelmuse PMschema.xsd">
  
  <ns0:parameter category="1pho" inuse="0">
   <ns0:name>CFPCOLS</ns0:name>
@@ -14,15 +14,14 @@
   </ns0:parameter>
   <ns0:parameter category="1pho" inuse="1"><ns0:name>ZEROMAG</ns0:name><ns0:value dtype="float">99.9</ns0:value><ns0:comment>The magnitude zeropoint of the IFS data in the provided passband, i.e. the magnitude of a source triggering 1 count/layer. Set this parameter to 99.9 to let the routine determine the zeropoint from the data.</ns0:comment><ns0:updated timestamp="2013-06-10T20:45:38Z">Appended parameter ZEROMAG to configuration file.</ns0:updated></ns0:parameter><ns0:parameter category="1pho" inuse="1">
   <ns0:name>PIXSCALE</ns0:name>
-  <ns0:value dtype="float">10.0</ns0:value>
-  <ns0:comment>The scaling of the IFU pixels with respect to the input coordinates. Same as the IFU pixelsize if the input coordinates are given in acrseconds. If the input coordinates are given in pixels, it is the ratio of IFU to input pixelsize.</ns0:comment>
-  <ns0:updated timestamp="2012-03-14T09:13:10Z">Appended parameter PIXSCALE to configuration file.</ns0:updated>
+  <ns0:value dtype="float">1.0</ns0:value>
+  <ns0:comment>The spaxel scale if the observation. Note that this parameter is used only if PampelMuse can not determine the spaxel scale from the FITS header of the data.</ns0:comment><ns0:updated timestamp="2012-03-14T09:13:10Z">Appended parameter PIXSCALE to configuration file.</ns0:updated>
  </ns0:parameter>
  <ns0:parameter category="2sel" inuse="1">
   <ns0:name>APERRAD</ns0:name>
   <ns0:value dtype="float">3.0</ns0:value>
   <ns0:comment>Radius (in spaxels) used for aperture spectrophotometry</ns0:comment>
-  <ns0:updated timestamp="2011-08-09T16:26:44Z">Appended parameter APERRAD to configuration file.</ns0:updated>
+  <ns0:comment>Note that this parameter only has an effect if the SMALLIFU flag is unset.</ns0:comment><ns0:updated timestamp="2011-08-09T16:26:44Z">Appended parameter APERRAD to configuration file.</ns0:updated>
  </ns0:parameter>
  <ns0:parameter category="2sel" inuse="1">
   <ns0:name>APERNOIS</ns0:name>
@@ -76,7 +75,7 @@
  </ns0:parameter>
  <ns0:parameter category="3fit" inuse="1">
   <ns0:name>POSFIT</ns0:name>
-  <ns0:value dtype="int">0</ns0:value>
+  <ns0:value dtype="int">2</ns0:value>
   <ns0:comment>Defines how source positions are handled in the fit:</ns0:comment>
   <ns0:comment>0 - Sources are fixed to their input positions.</ns0:comment>
   <ns0:comment>1 - Only a global offset is fitted.</ns0:comment>
@@ -111,8 +110,7 @@
 <ns0:parameter category="3fit" inuse="1">
   <ns0:name>JUMPSTART</ns0:name>
   <ns0:value dtype="bool">False</ns0:value>
-  <ns0:comment>Flag indicates whether the fit starts directly or after presseing the START-button</ns0:comment>
-  <ns0:updated timestamp="2012-02-13T21:21:21Z">Appended parameter JUMPSTART to configuration file.</ns0:updated>
+  <ns0:comment>Flag indicating whether the CUBEFIT routinestarts automatically after being called or after the START button has been pressed. Note that this parameter only has an effect if the USEQT flag is set.</ns0:comment><ns0:updated timestamp="2012-02-13T21:21:21Z">Appended parameter JUMPSTART to configuration file.</ns0:updated>
  </ns0:parameter>
  <ns0:parameter category="3fit" inuse="1"><ns0:name>MAXITER</ns0:name><ns0:value dtype="int">1</ns0:value><ns0:comment>The maximum nuber of iterations performed for a single layer. Set to 1 to skip the iteration on individual layers.</ns0:comment><ns0:updated timestamp="2012-07-24T07:38:46Z">Appended parameter MAXITER to configuration file.</ns0:updated></ns0:parameter>
  <ns0:parameter category="0gen" inuse="1">
@@ -123,9 +121,8 @@
  <ns0:updated timestamp="2014-04-28T14:21:04Z">Changed default value of parameter INTERACT to True (was True)</ns0:updated></ns0:parameter>
  <ns0:parameter category="0gen" inuse="1">
   <ns0:name>USEQT</ns0:name>
-  <ns0:value dtype="bool">True</ns0:value>
-  <ns0:comment>Flag indicating whether Qt loaded to provide a graphical  interface for the analysis. Requires a system with PyQt4. Note that currently parallelization does not work with Qt.</ns0:comment>
-  <ns0:updated timestamp="2012-03-23T16:23:10Z">Appended parameter USEQT to configuration file.</ns0:updated>
+  <ns0:value dtype="bool">False</ns0:value>
+  <ns0:comment>Earlier versions of PampelMuse used a Qt GUI to visualize the progress of the CUBEFIT analysis. This feature may still be enabled by setting the USEQT flag. However, it is deprecated because it slows down the analysis and has not been maintained in a while.</ns0:comment><ns0:updated timestamp="2012-03-23T16:23:10Z">Appended parameter USEQT to configuration file.</ns0:updated>
  </ns0:parameter>
  <ns0:parameter category="0gen" inuse="1">
   <ns0:name>CPUCOUNT</ns0:name>
@@ -133,4 +130,4 @@
   <ns0:comment>The number of CPUs PampelMuse should use in the parallelized parts of the analysis. Set CPUCOUNT to -1 to use all available CPUs.</ns0:comment>
   <ns0:updated timestamp="2012-03-23T16:26:22Z">Appended parameter CPUCOUNT to configuration file.</ns0:updated>
  </ns0:parameter>
-<ns0:parameter category="4sub" inuse="1"><ns0:name>SUBUNRES</ns0:name><ns0:value dtype="bool">False</ns0:value><ns0:comment>If this flag is set, the contribution of the unresolved component will be subtracted when running the SUBTRES-script of PampelMuse.</ns0:comment><ns0:updated timestamp="2012-04-17T09:41:14Z">Appended parameter SUBUNRES to configuration file.</ns0:updated></ns0:parameter><ns0:parameter category="4sub" inuse="1"><ns0:name>SUBSKY</ns0:name><ns0:value dtype="bool">False</ns0:value><ns0:comment>If this flag is set, the contribution of the sky will be subtracted when running the SUBTRES-script of PampelMuse.</ns0:comment><ns0:updated timestamp="2012-04-17T09:41:35Z">Appended parameter SUBSKY to configuration file.</ns0:updated></ns0:parameter><ns0:parameter inuse="1"><ns0:name>IFU</ns0:name><ns0:value dtype="str">pmas</ns0:value><ns0:comment>The IFU used in the observations. This parameter is not stringly needed to run the code but it is useful to account for some instrument-specific features like the missing edges of the ARGUS-IFU.--category 0gen</ns0:comment><ns0:updated timestamp="2012-11-09T21:44:59Z">Appended parameter IFU to configuration file.</ns0:updated></ns0:parameter></ns0:configuration>
+<ns0:parameter category="4sub" inuse="1"><ns0:name>SUBUNRES</ns0:name><ns0:value dtype="bool">False</ns0:value><ns0:comment>If this flag is set, the contribution of the unresolved component will be subtracted when running the SUBTRES-script of PampelMuse.</ns0:comment><ns0:updated timestamp="2012-04-17T09:41:14Z">Appended parameter SUBUNRES to configuration file.</ns0:updated></ns0:parameter><ns0:parameter category="4sub" inuse="1"><ns0:name>SUBSKY</ns0:name><ns0:value dtype="bool">False</ns0:value><ns0:comment>If this flag is set, the contribution of the sky will be subtracted when running the SUBTRES-script of PampelMuse.</ns0:comment><ns0:updated timestamp="2012-04-17T09:41:35Z">Appended parameter SUBSKY to configuration file.</ns0:updated></ns0:parameter><ns0:parameter inuse="1"><ns0:name>IFU</ns0:name><ns0:value dtype="str">pmas</ns0:value><ns0:comment>The integral field unit used to observe the current dataset. Note that this parameter is used only if PampelMuse can not determine which IFU has been used from the FITS header of the data.</ns0:comment><ns0:updated timestamp="2012-11-09T21:44:59Z">Appended parameter IFU to configuration file.</ns0:updated></ns0:parameter><ns0:parameter category="3fit" inuse="1"><ns0:name>POLYTYPE</ns0:name><ns0:value dtype="str">plain</ns0:value><ns0:comment>The type of polynomial used to fit the slopes of the source positions and PSF parameters with wavelength. Can be one of plain (normal polynomial), chebyshev, legendre, and hermit.</ns0:comment><ns0:updated timestamp="2014-06-15T15:00:51Z">Appended parameter POLYTYPE to configuration file.</ns0:updated><ns0:updated timestamp="2014-06-15T15:02:30Z">Changed default value of parameter POLYTYPE to plain (was plain)</ns0:updated><ns0:updated timestamp="2014-06-15T15:02:30Z">Changed category to 3fit (was 3fit)</ns0:updated></ns0:parameter><ns0:parameter category="3fit" inuse="1"><ns0:name>POLYDEG</ns0:name><ns0:value dtype="int">0</ns0:value><ns0:comment>The degree of the polynomials used to fit the slopes of the source positions and PSF parameters with wavelength.</ns0:comment><ns0:updated timestamp="2014-06-15T15:05:07Z">Appended parameter POLYDEG to configuration file.</ns0:updated></ns0:parameter></ns0:configuration>

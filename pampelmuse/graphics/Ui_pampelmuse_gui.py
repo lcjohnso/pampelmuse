@@ -2,7 +2,7 @@
 
 # Form implementation generated from reading ui file '/home/kamann/prog/DISTRIBUTE/kamann-code.2/trunk/pampelmuse/graphics/pampelmuse_gui.ui'
 #
-# Created: Wed Mar 19 15:36:24 2014
+# Created: Sun Jun 15 17:38:36 2014
 #      by: PyQt4 UI code generator 4.9.1
 #
 # WARNING! All changes made in this file will be lost!
@@ -113,6 +113,8 @@ class Ui_PampelMuseGui(object):
         self.spectrumEditHBox.addWidget(self.spectrumFitTypeLabel)
         self.spectrumFitTypeComboBox = QtGui.QComboBox(self.layoutWidget)
         self.spectrumFitTypeComboBox.setObjectName(_fromUtf8("spectrumFitTypeComboBox"))
+        self.spectrumFitTypeComboBox.addItem(_fromUtf8(""))
+        self.spectrumFitTypeComboBox.addItem(_fromUtf8(""))
         self.spectrumFitTypeComboBox.addItem(_fromUtf8(""))
         self.spectrumFitTypeComboBox.addItem(_fromUtf8(""))
         self.spectrumEditHBox.addWidget(self.spectrumFitTypeComboBox)
@@ -397,6 +399,8 @@ class Ui_PampelMuseGui(object):
         self.spectrumFitTypeLabel.setText(QtGui.QApplication.translate("PampelMuseGui", "Type -", None, QtGui.QApplication.UnicodeUTF8))
         self.spectrumFitTypeComboBox.setItemText(0, QtGui.QApplication.translate("PampelMuseGui", "Plain", None, QtGui.QApplication.UnicodeUTF8))
         self.spectrumFitTypeComboBox.setItemText(1, QtGui.QApplication.translate("PampelMuseGui", "Chebyshev", None, QtGui.QApplication.UnicodeUTF8))
+        self.spectrumFitTypeComboBox.setItemText(2, QtGui.QApplication.translate("PampelMuseGui", "Legendre", None, QtGui.QApplication.UnicodeUTF8))
+        self.spectrumFitTypeComboBox.setItemText(3, QtGui.QApplication.translate("PampelMuseGui", "Hermite", None, QtGui.QApplication.UnicodeUTF8))
         self.spectrumFitOrderLabel.setText(QtGui.QApplication.translate("PampelMuseGui", "Order -", None, QtGui.QApplication.UnicodeUTF8))
         self.spectrumFitGo.setText(QtGui.QApplication.translate("PampelMuseGui", "...", None, QtGui.QApplication.UnicodeUTF8))
         self.refHeaderLabel.setText(QtGui.QApplication.translate("PampelMuseGui", "Reference View", None, QtGui.QApplication.UnicodeUTF8))

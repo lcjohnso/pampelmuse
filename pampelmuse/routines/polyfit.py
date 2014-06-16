@@ -19,10 +19,10 @@ pampelmuse.graphics.pampelmuse_gui.
 
 Latest SVN revision
 -------------------
-155, 2014/03/19
+175, 2014/06/16
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 155
+__revision__ = 175
 
 
 import datetime, logging, sys
@@ -101,7 +101,34 @@ def polyfit(pampelmuse):
     pampelmuse.polyfit.utc = datetime.datetime.utcnow().strftime("%y-%m-%d %H:%M:%S")
     pampelmuse.polyfit.revision = __revision__
 
-    ui.show()
+    ## update type of polynomial and its degree
+    polytype = pampelmuse.polytype[0].upper()+pampelmuse.polytype[1:] ## need to make first letter uppercase
+    index = ui.spectrumFitTypeComboBox.findText(polytype) ## find index of requested polynomial if it exists
+    if index>-1:
+        logging.info("Using {0} polynomials to fit wavelength dependencies.".format(polytype))
+        ui.spectrumFitTypeComboBox.setCurrentIndex(index)
+    else:
+        logging.error("Unknown type of polynomial: {0}".format(polytype))
+
+    ui.spectrumFitOrderSpinBox.setValue(pampelmuse.polydeg)
+    logging.info("Order of fit polynomials set to {0}.".format(pampelmuse.polydeg))
+
+    if pampelmuse.interact:
+        ui.show()
     
-    sys.exit(app.exec_())
+        sys.exit(app.exec_())
+
+    else: ## automatically fit PSF paramaters and source positions using the predefined polynomial type and degree
+        
+        for i in xrange(ui.psf.npars):
+            if ui.psf.free[i]:
+                logging.info("Polynomial fit to PSF parameter '{0}'...".format(ui.psf.names[i]))
+                ui.psf.polynomial_fit(name=ui.psf.names[i], order=pampelmuse.polydeg, mask=None, function=pampelmuse.polytype)
+        
+        ## all sources are fitted simultaeously and with a common slope currently
+        logging.info("Polynomial fit to source coordinates...")
+        ui.sources.fitIfsCoordinates(ids=None, order=pampelmuse.polydeg, mask=None, function=pampelmuse.polytype, commonSlope=True, instrument=ui.instrument)
+        
+        ## save changes to the currently opened file
+        ui.on_actionSave_triggered()
 
