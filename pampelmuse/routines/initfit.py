@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-176, 2014/06/25
+178, 2014/06/26
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 176
+__revision__ = 178
 
 import datetime, itertools, os, sys, logging
 from multiprocessing import cpu_count, Pool
@@ -133,7 +133,7 @@ def initfit(pampelmuse):
     ## get results from crowded-field photometry, initialize sources
     logging.info("Reading photometry results from file '{0}'.".format(pampelmuse.initfit.sourcelist))
 
-    cfp_results = read_asciifile(pampelmuse.initfit.sourcelist, w.format(pampelmuse.passband),
+    cfp_results = read_asciifile(pampelmuse.initfit.sourcelist, usecols=(0,1,2,3,4,5), usenames="id,x,y,{0},ra,dec".format(pampelmuse.passband),
                                  aliases={"F606W":["Vvega", "V"], "F814W":["Ivega", "I"]})
 
     ## make sure either RA & Dec or x & y are available; if both are available, RA & Dec are preferred over x & y
