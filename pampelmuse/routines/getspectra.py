@@ -22,10 +22,10 @@ Added
 
 Latest SVN revision
 -------------------
-177 # 2014/06/26
+180 # 2014/06/26
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 177
+__revision__ = 180
 
 import datetime, logging, os
 import numpy as np
@@ -112,21 +112,19 @@ def getspectra(pampelmuse):
 #    header["DC-FLAG"] = 0
 
 
-    for key in ["OBJECT", "TELESCOP", "INSTRUME", "DATE-OBS", "MJD-OBS", "EXPTIME", "RA", "DEC", "UT", "UTC", "UTMIDDLE", "EPOCH"]:
+    header["OBJNAME"] = "NAME" ## place holder, will be adapted for each spectrum
+
+    for key in ["OBJECT", "TELESCOP", "INSTRUME", "DATE-OBS", "MJD-OBS", "JUL-DATE", "EXPTIME", "RA", "DEC", "EPOCH"]:
         value = pampelmuse.ifs_data.get_key(key)
         if value != None:
-            if key == "OBJECT":
-                ## The OBJECT keyword is renamed to OBSFIELD to avoid confusion because different fields inside one object may be observed
-                header["hierarch OBSERVATION OBSFIELD"] = (value, "The header OBJECT key")
-            else:
-                header["hierarch OBSERVATION {0}".format(key)] = value
+            header[key] = value
 
 
     ## add JUL-DATE keyword if only MJD-OBS is provided
-    if "OBSERVATION MJD-OBS" in header and "OBSERVATION JUL-DATE" not in header:
-        header["HIERARCH OBSERVATION JUL-DATE"] = header["HIERARCH OBSERVATION MJD-OBS"]+2400000.5  
+    if "MJD-OBS" in header and "JUL-DATE" not in header:
+        header["JUL-DATE"] = header["MJD-OBS"]+2400000.5  
     
-    if "OBSERVATION JUL-DATE" in header: juldate = header["HIERARCH OBSERVATION JUL-DATE"]
+    if "JUL-DATE" in header: juldate = header["JUL-DATE"]
     else: juldate = 0
     
     ## add keywords describing observing conditions
@@ -140,6 +138,8 @@ def getspectra(pampelmuse):
 #        ## if both start and end keywords exist, we add a keyword giving the mean of the two
 #        if "OBSERVATION {0} END".format(prop) in header and "OBSERVATION {0} START".format(prop) in header:
 #            header["HIERARCH OBSERVATION {0} MEAN".format(prop)] = (header["OBSERVATION {0} END".format(prop)] + header["OBSERVATION {0} START".format(prop)])/2.
+
+    
 
 
     ## add possibly relevant PampelMuse keywords to the FITS header
@@ -185,6 +185,8 @@ def getspectra(pampelmuse):
 
             ## update RA & Dec values if provided in source catalog
             if not np.isnan(sources.ra[j]) and not np.isnan(sources.dec[j]):
+                primary_hdu.header["RA"] = sources.ra[j]
+                primary_hdu.header["DEC"] = sources.dec[j]
                 primary_hdu.header["hierarch STAR RA"] = sources.ra[j]
                 primary_hdu.header["hierarch STAR DEC"] = sources.dec[j]
 
@@ -202,8 +204,10 @@ def getspectra(pampelmuse):
                         primary_hdu.header["hierarch STAR{0} DEC".format(l+1)] = sources.dec[m]
                     primary_hdu.header["hierarch STAR{0} MAG".format(l+1)] = sources.mag[m]
                 primary_hdu.header["HIERARCH SPECTRUM MULTISTAR"] = (True, cmt)
+                primary_hdu.header["OBJNAME"] = "{0} {1} {2}".format(pampelmuse.getspectra.prefix.upper(), pampelmuse.ifu.upper(), ID)
             else:
                 primary_hdu.header["HIERARCH SPECTRUM MULTISTAR"] = (False, cmt)
+                primary_hdu.header["OBJNAME"] = "{0} {1} {2}".format(pampelmuse.getspectra.prefix.upper(), pampelmuse.ifu.upper(), ID)
 
             ## load IFS coordinates for the star and check if it is inside the field of view
             sources.load_ifs_coordinates(ids=ID)
@@ -230,10 +234,11 @@ def getspectra(pampelmuse):
         if sources.status[j] == 0:
             name = "unresolved"
             primary_hdu.header["hierarch SPECTRUM TYPE"] = name
-
+            primary_hdu.header["OBJNAME"] = "{0} {1} UNRES".format(pampelmuse.getspectra.prefix.upper(), pampelmuse.ifu.upper())
         elif sources.status[j] == 4:
             name = "sky"
             primary_hdu.header["hierarch SPECTRUM TYPE"] = name
+            primary_hdu.header["OBJNAME"] = "{0} {1} SKY".format(pampelmuse.getspectra.prefix.upper(), pampelmuse.ifu.upper())
         else:
             name = "{0:09d}".format(ID)
             primary_hdu.header["hierarch SPECTRUM TYPE"] = "star"
