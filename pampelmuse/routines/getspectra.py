@@ -22,10 +22,10 @@ Added
 
 Latest SVN revision
 -------------------
-180 # 2014/06/26
+181 # 2014/06/26
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 180
+__revision__ = 181
 
 import datetime, logging, os
 import numpy as np
@@ -204,7 +204,7 @@ def getspectra(pampelmuse):
                         primary_hdu.header["hierarch STAR{0} DEC".format(l+1)] = sources.dec[m]
                     primary_hdu.header["hierarch STAR{0} MAG".format(l+1)] = sources.mag[m]
                 primary_hdu.header["HIERARCH SPECTRUM MULTISTAR"] = (True, cmt)
-                primary_hdu.header["OBJNAME"] = "{0} {1} {2}".format(pampelmuse.getspectra.prefix.upper(), pampelmuse.ifu.upper(), ID)
+                primary_hdu.header["OBJNAME"] = "{0} {1} {2}+".format(pampelmuse.getspectra.prefix.upper(), pampelmuse.ifu.upper(), ID)
             else:
                 primary_hdu.header["HIERARCH SPECTRUM MULTISTAR"] = (False, cmt)
                 primary_hdu.header["OBJNAME"] = "{0} {1} {2}".format(pampelmuse.getspectra.prefix.upper(), pampelmuse.ifu.upper(), ID)
@@ -240,11 +240,11 @@ def getspectra(pampelmuse):
             primary_hdu.header["hierarch SPECTRUM TYPE"] = name
             primary_hdu.header["OBJNAME"] = "{0} {1} SKY".format(pampelmuse.getspectra.prefix.upper(), pampelmuse.ifu.upper())
         else:
-            name = "{0:09d}".format(ID)
+            name = "id{0:09d}".format(ID)
             primary_hdu.header["hierarch SPECTRUM TYPE"] = "star"
 
 
-        outname = "{0}id{1}jd{2:07d}p{3:04d}f{4:03d}".format(pampelmuse.getspectra.prefix, name, int(juldate), int(10000*(juldate-int(juldate))), int(flag))
+        outname = "{0}{1}jd{2:07d}p{3:04d}f{4:03d}".format(pampelmuse.getspectra.prefix, name, int(juldate), int(10000*(juldate-int(juldate))), int(flag))
         
         utc = datetime.datetime.utcnow().strftime("%y-%m-%d %H:%M:%S")
         primary_hdu.header["DATE-GEN"] = (utc, "UTC this file was generated.")
