@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-178, 2014/06/26
+179, 2014/06/26
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 178
+__revision__ = 179
 
 import datetime, itertools, os, sys, logging
 from multiprocessing import cpu_count, Pool
@@ -177,7 +177,7 @@ def initfit(pampelmuse):
     ## Perform sanity checks on provided source list:
     magnitudes = np.asarray(cfp_results[pampelmuse.passband.lower()], dtype=np.float32)
     valid = (np.isnan(magnitudes)==False)
-    if (valid==False).any(): logging.warning("Ignoring {0} source(s) with undefinded magnitudes.")
+    if (valid==False).any(): logging.warning("Ignoring {0} source(s) with undefinded magnitudes.".format((valid==False).sum()))
 
     ids = np.asarray(cfp_results["id"], dtype=np.int32)
     if len(np.unique(ids))<len(ids): logging.error("Catalog contains duplicated IDs.")
