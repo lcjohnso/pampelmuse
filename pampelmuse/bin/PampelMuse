@@ -45,12 +45,12 @@ the data into memory yet but just checks whether the file(s) are valid.
 
 Latest SVN revision
 -------------------
-175, 2014/06/16
+176, 2014/06/26
 """
 __author__     = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
 
-__version__    = "0.14.0.0"
-__revision__   = 175
+__version__    = "0.15.0.0"
+__revision__   = 176
 
 
 
@@ -116,7 +116,7 @@ from pampelmuse.core import Cube
 from pampelmuse.core.psf import Variables
 
 ## the PampelMuse subroutines
-from pampelmuse.routines import cubefit, subtres, shotnoi, makecube, singlesrc
+from pampelmuse.routines import cubefit, subtres, shotnoi, makecube, singlesrc, getspectra
 if graphics: from pampelmuse.routines import initfit, polyfit
 if use_addwcs: from pampelmuse.routines import addwcs
 
@@ -334,6 +334,16 @@ mation in the header of the resulting cube right.
 """)    
 MCparser.set_defaults(func=makecube)
 
+GSparser = PMsubparsers.add_parser("GETSPECTRA", help="""
+Store all spectra extracted from a datacube as individual FITS files.""")
+GSparser.add_argument("specprefix", type=str, help="""
+The common prefix of all generated FITS filenames, typically the name of
+the target that has been observed.""")
+GSparser.add_argument("--folder", type=str, default="spectra",  help="""
+The folder in which the spectra will be stored. Note that the folder will
+be created if it does not exist.""")
+GSparser.set_defaults(func=getspectra)
+
 
 ## Collect configuration of PampelMuse
 __currentdir__ = os.path.dirname(__file__)
@@ -348,6 +358,7 @@ args = PMparser.parse_args()
 ## pampelmuse.initfit.version corresponds to HIERARCH PAMPELMUSE INITFIT VERSION
 pampelmuse = PampelMuseConfig()
 pampelmuse.version = __version__
+pampelmuse.revision = __revision__
 
 ## initialize empty (sub)namespace for subroutine that will be called.
 setattr(pampelmuse, args.func.__name__, Namespace())
@@ -436,6 +447,12 @@ elif args.func==singlesrc:
 if graphics and args.func==polyfit:
     if not hasattr(pampelmuse, "polyfit"): pampelmuse.polyfit = Namespace()
     pampelmuse.polyfit.reference = args.reference
+
+if args.func==getspectra:
+    if not hasattr(pampelmuse, "getspectra"): pampelmuse.getspectra = Namespace()
+    pampelmuse.getspectra.prefix = args.specprefix
+    pampelmuse.getspectra.folder = args.folder
+
 
 ## set up log level:
 LOGLEVELS = {0:logging.CRITICAL, 1:logging.ERROR, 2:logging.WARNING, 3:logging.INFO, 4:logging.DEBUG}

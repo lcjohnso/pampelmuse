@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-173, 2014/06/11
+176, 2014/06/25
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 173
+__revision__ = 176
 
 import datetime, itertools, os, sys, logging
 from multiprocessing import cpu_count, Pool
@@ -133,7 +133,7 @@ def initfit(pampelmuse):
     ## get results from crowded-field photometry, initialize sources
     logging.info("Reading photometry results from file '{0}'.".format(pampelmuse.initfit.sourcelist))
 
-    cfp_results = read_asciifile(pampelmuse.initfit.sourcelist, usecols=(0,1,2,3,4,5), usenames="id,x,y,{0},ra,dec".format(pampelmuse.passband),
+    cfp_results = read_asciifile(pampelmuse.initfit.sourcelist, w.format(pampelmuse.passband),
                                  aliases={"F606W":["Vvega", "V"], "F814W":["Ivega", "I"]})
 
     ## make sure either RA & Dec or x & y are available; if both are available, RA & Dec are preferred over x & y
@@ -174,13 +174,21 @@ def initfit(pampelmuse):
         if "ra" in cfp_results.keys(): cfp_results["ra"].append("0")
         if "dec" in cfp_results.keys():  cfp_results["dec"].append("0")
 
+    ## Perform sanity checks on provided source list:
+    magnitudes = np.asarray(cfp_results[pampelmuse.passband.lower()], dtype=np.float32)
+    valid = (np.isnan(magnitudes)==False)
+    if (valid==False).any(): logging.warning("Ignoring {0} source(s) with undefinded magnitudes.")
+
+    ids = np.asarray(cfp_results["id"], dtype=np.int32)
+    if len(np.unique(ids))<len(ids): logging.error("Catalog contains duplicated IDs.")
+
     ## Initialize sources-class
-    sources     = Sources(ids=np.asarray(cfp_results["id"], dtype=np.int32))
-    sources.x   = np.asarray(cfp_results["x"], dtype=np.float32)
-    sources.y   = np.asarray(cfp_results["y"], dtype=np.float32)
-    sources.mag = np.asarray(cfp_results[pampelmuse.passband.lower()], dtype=np.float32)
-    if "ra" in cfp_results.keys(): sources.ra = np.asarray(cfp_results["ra"], dtype=np.float64)
-    if "dec" in cfp_results.keys(): sources.dec = np.asarray(cfp_results["dec"], dtype=np.float64)
+    sources     = Sources(ids=ids[valid])
+    sources.x   = np.asarray(cfp_results["x"], dtype=np.float32)[valid]
+    sources.y   = np.asarray(cfp_results["y"], dtype=np.float32)[valid]
+    sources.mag = magnitudes[valid]
+    if "ra" in cfp_results.keys(): sources.ra = np.asarray(cfp_results["ra"], dtype=np.float64)[valid]
+    if "dec" in cfp_results.keys(): sources.dec = np.asarray(cfp_results["dec"], dtype=np.float64)[valid]
 
     ## check if at least some sources are resolved according to the RESLIM configuration
     ## parameter. If not, raise a ConfigurationError

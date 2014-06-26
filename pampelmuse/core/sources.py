@@ -21,10 +21,10 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-175, 2014/06/16
+176, 2014/06/25
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 175
+__revision__ = 176
 
 import logging, os, re
 import numpy as np
@@ -125,6 +125,8 @@ class Sources(object):
         if self.ID == None:
             logging.critical("Source IDs must be provided upon initialization.")
         logging.info("Catalogue contains {0} sources".format(self.nsrc))
+
+        assert len(np.unique(self.ID))==len(self.ID), "Source IDs must be unique."
 
         ## other properties are optional may be provided later. If they are not provided, arrays containing NaN entries are initialized
         ## Note that the properties below can be accessed in two ways:
@@ -759,7 +761,7 @@ class Sources(object):
             ## update dispersion information (if any)
             for key in ["CRVAL", "CDELT", "CRPIX", "CTYPE", "CUNIT"]:
                 if "{0}1".format(key) in tmp_spectra_hdu.header:
-                    tmp_spectra_hdu.header.update("{0}3".format(key), hdu.header["{0}1".format(key)])
+                    tmp_spectra_hdu.header["{0}3".format(key)] = hdu.header["{0}1".format(key)]
                     del tmp_spectra_hdu.header["{0}1".format(key)]
 
             ## write the HDU to a temporary FITS file (fits provides a function to create a tmp-name) and open it again
@@ -994,7 +996,7 @@ class Sources(object):
             ## update dispersion information (if any)
             for key in ["CRVAL", "CDELT", "CRPIX", "CTYPE", "CUNIT"]:
                 if "{0}1".format(key) in tmp_coordinates_hdu.header:
-                    tmp_coordinates_hdu.header.update("{0}3".format(key), hdu.header["{0}1".format(key)])
+                    tmp_coordinates_hdu.header["{0}3".format(key)] = hdu.header["{0}1".format(key)]
                     del tmp_coordinates_hdu.header["{0}1".format(key)]
 
             ## write the HDU to a temporary FITS file (fits provides a function to create a tmp-name) and open it again
@@ -1540,11 +1542,11 @@ class Sources(object):
             ## not include all spectra will be created.
 
         outHDU = fits.ImageHDU(self.data, name="SPECTRA")
-        outHDU.header.update("CRPIX3", self.crpix)
-        outHDU.header.update("CRVAL3", self.crval)
-        outHDU.header.update("CDELT3", self.cdelt)
-        if self.ctype != None: outHDU.header.update("CTYPE3", self.ctype)
-        if self.cunit != None: outHDU.header.update("CUNIT3", self.cunit)
+        outHDU.header["CRPIX3"] = self.crpix
+        outHDU.header["CRVAL3"] = self.crval
+        outHDU.header["CDELT3"] = self.cdelt
+        if self.ctype != None: outHDU.header["CTYPE3"] = self.ctype
+        if self.cunit != None: outHDU.header["CUNIT3"] = self.cunit
 
         return outHDU
 
@@ -1616,11 +1618,11 @@ class Sources(object):
             return NotImplemented
 
         outHDU = fits.ImageHDU(self.ifs_coordinates[:,to_store][...,int(fit)], name=name)
-        outHDU.header.update("hierarch PAMPELMUSE POSITIONS POLY", fit)
-        outHDU.header.update("hierarch PAMPELMUSE POSITIONS FULLFIT", (fit==False))
+        outHDU.header["hierarch PAMPELMUSE POSITIONS POLY"] = fit
+        outHDU.header["hierarch PAMPELMUSE POSITIONS FULLFIT"] = (fit==False)
             
         ## create entry in header about ID of each source and the row containing its position
         for i in xrange(len(to_store)):
-                outHDU.header.update("hierarch PAMPELMUSE POSITIONS ID{0}".format(i), self.ID[self.ifs_coordinates_loaded][to_store[i]])
+                outHDU.header["hierarch PAMPELMUSE POSITIONS ID{0}".format(i)] = self.ID[self.ifs_coordinates_loaded][to_store[i]]
 
         return outHDU

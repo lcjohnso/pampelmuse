@@ -21,11 +21,11 @@ check whether the IFS data contains HDUs providing either uncertainties
 
 Latest SVN revision
 -------------------
-173, 2014/06/11
+176, 2014/06/24
 
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 173
+__revision__ = 176
 
 import logging, types
 import numpy as np
@@ -336,6 +336,8 @@ class Cube:
         for n in name:
             if n in self.data.header:
                 return self.data.header[n]
+            elif not isinstance(self.data, fits.PrimaryHDU) and n in self.file[0].header:
+                return self.file[0].header[n]
                 
         if len(name)==1: logging.error("Key '{0}' missing in FITS header.".format(name[0]))
         else: logging.error("None of keys '{0}' present in FITS header.".format("','".join(name)))
