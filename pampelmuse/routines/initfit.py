@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-179, 2014/06/26
+182, 2014/06/30
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 179
+__revision__ = 182
 
 import datetime, itertools, os, sys, logging
 from multiprocessing import cpu_count, Pool
@@ -689,24 +689,28 @@ def initfit(pampelmuse):
         ## write spectra and IFS coordinates into instance of Sources, estimate S/N and exclude sources with S/N<20
         sources.load_ifs_coordinates(ids=results["id"][results["id"]>=0])
 
-        for i in xrange(len(results)):
-            k = sources.specrow[np.where(sources.ID==results["id"][i])[0][0]]
-            sources.data[:, k, 0] = results["flux"][i]
+        i=0 
+        for j in np.flatnonzero(sources.status==3):
 
-            if results["id"][i]>=0:
+            ## add flux of source to Sources instance
+            sources.data[:, sources.specrow[j], 0] = results["flux"][i]
+
+            if results["id"][i]>=0: ## skip background component
                 ## NaN pixels are set to zero since DER_SNR skips such pixels
                 snr = DER_SNR(np.ma.array(results["flux"][i], mask=np.isnan(results["flux"][i]), fill_value=0.).filled())
                 
+                ## check if source fulfils S/N criterium for PSF sources
                 if snr<20:
-                    sources.status[np.flatnonzero(sources.ID==results["id"][i])[0]]=2
+                    sources.status[j]=2
                     logging.info("S/N of source #{0} is only {1:.1f} - not used as PSF source.".format(results["id"][i], snr))
                 else:
                     logging.info("S/N of source #{0} is {1:.1f} - used as PSF source.".format(results["id"][i], snr))
                 
-                j = np.flatnonzero(sources.ID[sources.ifs_coordinates_loaded]==results["id"][i])[0]
-                sources.ifs_coordinates[:, j, 0, 0] = np.ma.array(results["x"][i], mask=np.isnan(results["x"][i]), fill_value=psf_instances[k].xc).filled() 
-                sources.ifs_coordinates[:, j, 1, 0] = np.ma.array(results["y"][i], mask=np.isnan(results["y"][i]), fill_value=psf_instances[k].yc).filled()
-                
+                ## add IFS coordinates to Sources instance
+                sources.ifs_coordinates[:, i, 0, 0] = np.ma.array(results["x"][i], mask=np.isnan(results["x"][i]), fill_value=psf_instances[j].xc).filled() 
+                sources.ifs_coordinates[:, i, 1, 0] = np.ma.array(results["y"][i], mask=np.isnan(results["y"][i]), fill_value=psf_instances[j].yc).filled()
+            i+=1
+        
         if len(sources.psf_indices) == 0:
             logging.critical("No PSF sources found!")
             raise ConfigurationError, "No PSF sources found!"

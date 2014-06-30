@@ -25,10 +25,10 @@ function pampelmuse.core.aperture.run_ap
 
 Latest SVN revision
 -------------------
-171, 2014/05/07
+182, 2014/06/30
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 171
+__revision__ = 182
 
 import itertools, logging, sys
 from multiprocessing import cpu_count, Pool
@@ -128,12 +128,12 @@ def run_ap(centroids, pixpos, data, background="global", r_aper=3., calc_moments
             logging.debug("Determining global background...")
         
             ## perform kappa-sigma clipping to determine background level and noise
-            backdata = clip_sigma(data[backpix&valid], axis=None)
+            backdata = clip_sigma(data[backpix.all(axis=1)&valid], axis=None)
             backval  = backdata.mean()
             backstd  = backdata.std()
 
             backvalues[i] =  backval
-            logging.debug("Global background is {0:.4g}/pixel".format(backval))
+            logging.debug("...global background is {0:.2g}/pixel".format(backval))
 
         ## loop over all centroids
         for j in xrange(centroids.shape[0]):
@@ -146,15 +146,18 @@ def run_ap(centroids, pixpos, data, background="global", r_aper=3., calc_moments
                 backdata = clip_sigma(data[i,backpix[:,j]&valid], axis=None)
                 backval = backdata.mean()
                 backstd = backdata.std()
+                logging.debug("...local background is {0:.2g}+/-{1:0.2g}".format(backval, backstd))
 
             ## Get array for calculations & subtract background estimate
             fluxdata = data[i,fluxpix[:,j]&valid] - backval
             results[i,j,0] = fluxdata.sum()
+            logging.debug("...flux inside aperture is {0:.3g}".format(results[i,j,0]))
 
             ## Moment calculation, only if requested:
             if calc_moments:
                 mompix  = fluxpix[:,j]&valid&(data[i]>(backval+thresh*backstd))
-                momdata = data[i,mompix]                                  
+                momdata = data[i,mompix]
+                logging.debug("...{0} pixel(s) available for moment calculation".format(mompix))
                 if mompix.sum() > 3:
                     X = pixpos[mompix, 1]
                     Y = pixpos[mompix, 0]
@@ -165,13 +168,17 @@ def run_ap(centroids, pixpos, data, background="global", r_aper=3., calc_moments
                     x2 = (X*X*momdata).sum()/total - x**2
                     y2 = (Y*Y*momdata).sum()/total - y**2        
                     xy = (X*Y*momdata).sum()/total - x*y
-                    if x2<=0 or y2<=0 or xy**2>=(x2*y2): ## if unphysical moments measured, mask out all results for this source
+                     
+                    ## if unphysical moments measured or centroid outside measurement area, mask out all results for this source
+                    if x2<=0 or y2<=0 or xy**2>=(x2*y2) or x<X.min() or x>X.max() or y<Y.min() or y>Y.max():
                         x = np.nan
                         y = np.nan
                         x2 = np.nan
                         y2 = np.nan
                         xy = np.nan
+                    logging.debug("...calculated moments: x={0:.1f}, y={1:.1f}, x2={2:.1f}, y2={3:.1f}, xy={4:.1f}".format(x, y, x2, y2, xy))
                 else:
+                    logging.debug("...too few pixels - skipping moment calculation.")
                     x = np.nan
                     y = np.nan
                     x2 = np.nan
