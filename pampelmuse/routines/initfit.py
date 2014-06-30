@@ -37,7 +37,7 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-182, 2014/06/30
+183, 2014/06/30
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
 __revision__ = 182
@@ -695,7 +695,7 @@ def initfit(pampelmuse):
             ## add flux of source to Sources instance
             sources.data[:, sources.specrow[j], 0] = results["flux"][i]
 
-            if results["id"][i]>=0: ## skip background component
+            if results["id"][i]>=0: ## skip background component - is not used anyway currently (background set to "local")
                 ## NaN pixels are set to zero since DER_SNR skips such pixels
                 snr = DER_SNR(np.ma.array(results["flux"][i], mask=np.isnan(results["flux"][i]), fill_value=0.).filled())
                 

@@ -25,10 +25,10 @@ function pampelmuse.core.aperture.run_ap
 
 Latest SVN revision
 -------------------
-182, 2014/06/30
+183, 2014/06/30
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 182
+__revision__ = 183
 
 import itertools, logging, sys
 from multiprocessing import cpu_count, Pool
@@ -128,7 +128,7 @@ def run_ap(centroids, pixpos, data, background="global", r_aper=3., calc_moments
             logging.debug("Determining global background...")
         
             ## perform kappa-sigma clipping to determine background level and noise
-            backdata = clip_sigma(data[backpix.all(axis=1)&valid], axis=None)
+            backdata = clip_sigma(data[i, backpix&valid], axis=None)
             backval  = backdata.mean()
             backstd  = backdata.std()
 
@@ -157,7 +157,7 @@ def run_ap(centroids, pixpos, data, background="global", r_aper=3., calc_moments
             if calc_moments:
                 mompix  = fluxpix[:,j]&valid&(data[i]>(backval+thresh*backstd))
                 momdata = data[i,mompix]
-                logging.debug("...{0} pixel(s) available for moment calculation".format(mompix))
+                logging.debug("...{0} pixel(s) available for moment calculation".format(mompix.sum()))
                 if mompix.sum() > 3:
                     X = pixpos[mompix, 1]
                     Y = pixpos[mompix, 0]
@@ -357,7 +357,7 @@ class AperPhoto:
             
         if background=="global":
             results = np.vstack([r[0] for r in _results])
-            self.results["flux"][-1] = np.asarray([r[1] for r in _results])
+            self.results["flux"][-1] = np.hstack((r[1] for r in _result))
         else:
             results = np.vstack(_results)
 
