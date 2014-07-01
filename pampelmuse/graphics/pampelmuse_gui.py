@@ -21,11 +21,11 @@ defines the methods that are called by Ui_PampelMuseGui.
 
 Latest SVN revision
 -------------------
-175, 2014/06/16
+184, 2014/07/01
 
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 175
+__revision__ = 184
 
 import datetime, logging, re, os, sys
 import matplotlib, matplotlib.pyplot as plt, numpy as np
@@ -821,17 +821,18 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             except KeyError:
                 HDUList.append(self.sources.transformation.make_hdu())
         
-        ## write "POSITIONS" HDU containing polynomial fits to source positions.
-        if self.sources.ifs_coordinates_fitted.any():
+        ## write "POSITIONS" HDU containing polynomial fits to source positions. This is only needed when polynomial fits exist for at
+        ## least one source
+        if len(self.sources.ifs_coordinates_fit_functions)>0:
             try:
                 i = HDUList.index_of("POSITIONS")
                 HDUList[i] = self.sources.make_ifs_coordinates_hdu(fit=True)
             except KeyError:
                 HDUList.append(self.sources.make_ifs_coordinates_hdu(fit=True))
         
-        ## write HDU containing directly fitted coordinates if they exist
+        ## write HDU containing directly fitted (i.e fitted using CUBEFIT) coordinates if they exist
         if self.sources.ifs_coordinates_free.any():
-            if self.sources.ifs_coordinates_fitted.any():
+            if self.sources.ifs_coordinates_fitted.any(): ## check if polynomial fits for at least one source exist. If so, use name INPOSITIONS here
                 try:
                     i = HDUList.index_of("INPOSITIONS")
                     HDUList[i] = self.sources.make_ifs_coordinates_hdu(fit=False, name="INPOSITIONS")

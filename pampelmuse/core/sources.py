@@ -21,12 +21,12 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-176, 2014/06/25
+184, 2014/07/01
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 176
+__revision__ = 184
 
-import logging, os, re
+import collections, logging, os, re, warnings
 import numpy as np
 from numpy.polynomial import Chebyshev, Legendre, Hermite, Polynomial
 from astropy.io import fits
@@ -86,6 +86,15 @@ class Sources(object):
       with the source catalog.
     """
 
+    ## available functions for polynomial fits:
+    available = collections.OrderedDict()
+    available["chebyshev"] = Chebyshev
+    available["legendre"]  = Legendre
+    available["hermite"]   = Hermite
+    available["plain"]     = Polynomial
+    
+    ## for writing to/reading from FITS files, each polynomial is assigned an index
+    polyident = collections.OrderedDict(zip(available.keys(), np.arange(len(available))))
 
     def __init__(self, data=None, **kwargs):
         """
@@ -108,6 +117,8 @@ class Sources(object):
             that are also available in 'data' are provided as keyword arguments,
             these supersede the values in 'data'.
         """
+        warnings.simplefilter("always", DeprecationWarning) ## By default this type of warning is ignored
+        
         ## open the data
         if isinstance(data, fits.hdu.table.BinTableHDU):
             if "EXTNAME" in data.header: logging.info("Initializing catalogue of sources via HDU '{0}'...".format(data.header["EXTNAME"]))
@@ -950,16 +961,16 @@ class Sources(object):
     def open_coordinates_hdu(self, hdu):
         """
         Prepare a FITS HDU containing IFS coordinates for the sources. Note 
-        that the data are not actually loaded into memory but that the method
-        only provided the necessary information to do so using the method
-        Sources.load_ifs_coordinates().
+        that if an Image HDU is provided, the data are not actually loaded
+        into memory but that the method only provided the necessary information
+        to do so using the method Sources.load_ifs_coordinates().
         
-        The FITS HDU should contain a 3dim. array. The dispersion axis must be
-        either the first or the last axis of the array. The second axis should
-        contain the individual sources. Finally, the remaining axis must be of
-        length 2 and contain x and y coordinates, respectively.
-        Note that it is possible to provide IFS coordinates either for all
-        sources or for a subset of them. In the latter case, however, the
+        In case an Image HDU is provided, it must contain a 3dim. array. The
+        dispersion axis must be either the first or the last axis of the array.
+        The second axis should contain the individual sources. Finally, the
+        remaining axis must be of length 2 and contain x and y coordinates,
+        respectively. Note that it is possible to provide IFS coordinates either
+        for all sources or for a subset of them. In the latter case, however, the
         hierarch keywords PAMPELMUSE POSITIONS ID<i> should be present, giving
         the ID of the source stored in row i.
 
@@ -970,63 +981,25 @@ class Sources(object):
         coordinates are free parameters in the fit using the hierarch-keyword
         'PAMPELMUSE POSITIONS FULLFIT'
 
+        The method also accepts a binary FITS table containing the parameters of
+        the polynomial fits to the individual sources. This way of storing the
+        fits is much less memory consuming for large source lists. The table must
+        contain five columns, named "id", "xfct", "xprm", "yfct", "yprm", provi-
+        ding ID, type of polynomial (fct) and fit coefficients (prm) along x and
+        y for each source.
+        
         Parameters
         ----------
-        hdu : an astropy.io.fits 'PrimaryHDU'- or 'ImageHDU'-instance
+        hdu : an astropy.io.fits.hdu instance
             The HDU instance containing the coordinates.
         """
         ## sanity checks on provided data
-        assert isinstance(hdu, fits.hdu.image._ImageBaseHDU), "Invalid type '{0}' for argument 'hdu' in Sources.open_coordinates_hdu().".format(re.findall(r"'(.*)'", str(type(hdu)))[0])
+        assert isinstance(hdu, (fits.hdu.image._ImageBaseHDU, fits.hdu.table.BinTableHDU)), \
+            "Invalid type '{0}' for argument 'hdu' in Sources.open_coordinates_hdu().".format(re.findall(r"'(.*)'", str(type(hdu)))[0])
         
-        if "EXTNAME" in hdu.header:
-            logging.info("Reading IFS coordinates from HDU `{0}`.".format(hdu.header["EXTNAME"]))
-        else:
-            logging.info("Reading IFS coordinates from unnamed HDU.")
+        if "EXTNAME" in hdu.header: extname = hdu.header["EXTNAME"]
+        else: extname = "UNNAMED"
 
-        if hdu.header["NAXIS"] != 3:
-            logging.error("IFS coordinates must be provided as 3dim. array.")
-        assert hdu.header["NAXIS"] == 3, "Expected 3dim. data but got {0}dim.".format(hdu.header["NAXIS"])
-
-        ## if the dispersion axis is the last one (python counting), then create a temporary FITS file with the first and last axis swapped and reload the
-        ## HDU from this file.
-        if hdu.header["NAXIS3"] == 2:
-            tmp_data_array = hdu.data.swapaxes(0, 2)
-            tmp_coordinates_hdu = fits.ImageHDU(tmp_data_array, header=hdu.header)
-            
-            ## update dispersion information (if any)
-            for key in ["CRVAL", "CDELT", "CRPIX", "CTYPE", "CUNIT"]:
-                if "{0}1".format(key) in tmp_coordinates_hdu.header:
-                    tmp_coordinates_hdu.header["{0}3".format(key)] = hdu.header["{0}1".format(key)]
-                    del tmp_coordinates_hdu.header["{0}1".format(key)]
-
-            ## write the HDU to a temporary FITS file (fits provides a function to create a tmp-name) and open it again
-            self._tmp_names.append(fits.util._tmp_name("./"))
-            tmp_coordinates_hdu.writeto(self._tmp_names[-1])
-            hdu = fits.open(self._tmp_names[-1], memmap=True)[1]
-
-            ## remove temporary array and HDU (tmp-file will be deleted via __del__ method)
-            del tmp_data_array, tmp_coordinates_hdu
-        
-        ## check if dispersion information is valid
-        if self.ndisp == 1: self.ndisp = hdu.header["NAXIS3"]
-        elif hdu.header["NAXIS3"]!=self.ndisp: logging.error("Invalid number of dispersion elements in provided IFS coordinates.")
-
-        ## check for which sources the HDU contains IFS coordinates, using header hierarch keywords 'PAMPELMUSE POSITIONS ID{i}'.
-        ## If the keywords do not exist, the routine expects that coords are provided for every resolved source in the catalogue.
-        ifs_coordinates_id = np.zeros((hdu.header["NAXIS2"],), dtype=np.int32)
-        for i in xrange(hdu.header["NAXIS2"]):
-            try:
-                ID = hdu.header["PAMPELMUSE POSITIONS ID{0}".format(i)]
-                if not ID in self.ID:
-                    logging.error("Received IFS coordinates for unknown source #{0}".format(ID))
-                assert ID in self.ID, "Source #{0} is not included in catalogue.".format(ID)
-                ifs_coordinates_id[i] = ID
-            except KeyError:
-                if hdu.header["NAXIS2"] != (self.nsrc-self.includes_sky):
-                    logging.error("Cannot infer IDs for provided coordinates.")
-                assert hdu.header["NAXIS2"] == (self.nsrc - self.includes_sky), "Shape of data in HDU not compatible with source catalogue."
-                ifs_coordinates_id = self.ID[self.status<4]
-                break
 
         ## check if HDU contains polynomial fits or measured IFU coordinates
         try: poly = hdu.header["PAMPELMUSE POSITIONS POLY"]
@@ -1034,9 +1007,97 @@ class Sources(object):
             try: poly = hdu.header["ISFITTED"]
             except: poly = False
 
-        ## check if measured IFU coordinates are free parameters in the fit
-        try: free = hdu.header["PAMPELMUSE POSITIONS FULLFIT"]
-        except: free = False
+        if isinstance(hdu, fits.hdu.table.BinTableHDU):
+            logging.info("Reading position fit coefficients from table HDU '{0}'.".format(extname))
+            
+            poly = True
+            free = False
+            
+            ## check if required columns are present in header
+            for colname in ["id", "xfct", "xprm", "yfct", "yprm"]:
+                assert colname in hdu.data.dtype.names, "Missing required column '{0}' in positions table HDU.".format(colname)
+
+            ## the fit via Sources.fitIfsCoordinates sets the domain of the polynomial to the min. and max. values of
+            ## the fitted data interval. These values must be stored in the FITS header and recovered because otherwise
+            ## the values returned by the polynomials are wrong (the default is domain=[-1,1])
+            assert "PAMPELMUSE POSITIONS DOMAIN START" in hdu.header and "PAMPELMUSE POSITIONS DOMAIN END" in hdu.header
+            domain = [hdu.header["PAMPELMUSE POSITIONS DOMAIN START"], hdu.header["PAMPELMUSE POSITIONS DOMAIN END"]]
+
+            ## check header for identifications of different polynomials. Note that in the table, the different types are referenced
+            ## using integers and the translation to the actual names is done via HIERARCH keywords.
+            ident = {}
+            i=0
+            while "PAMPELMUSE POSITIONS POLY{0}".format(i) in hdu.header:
+                ident[i] = hdu.header["PAMPELMUSE POSITIONS POLY{0}".format(i)]
+                i += 1
+
+            ## Set up the polynomials for all sources that have data available in the HDU
+            ifs_coordinates_id = np.zeros((hdu.data.size,), dtype=np.int32)
+            for i in xrange(hdu.data.size):
+                xfctname = ident[hdu.data["xfct"][i]] ## the name of the polynomial as a string
+                yfctname = ident[hdu.data["yfct"][i]]
+                
+                xfct = self.available[yfctname] ## the actual polynomial class
+                yfct = self.available[yfctname]
+                
+                ifs_coordinates_id[i] = hdu.data["id"][i]
+                self.ifs_coordinates_fit_functions[hdu.data["id"][i]] = [xfct(hdu.data["xprm"][i], domain=domain), yfct(hdu.data["yprm"][i], domain=domain)]
+        
+        else:
+            logging.info("Reading IFS positions from image HDU '{0}'".format(extname))
+
+            if poly==True:
+                warnings.warn("Saving full position fits is deprecated. The fits will be lost if sources are refitted and the results are written to the same file.", DeprecationWarning)
+
+            ## check if measured IFU coordinates are free parameters in the fit
+            try: free = hdu.header["PAMPELMUSE POSITIONS FULLFIT"]
+            except: free = False
+
+            if hdu.header["NAXIS"] != 3:
+                logging.error("IFS coordinates must be provided as 3dim. array.")
+            assert hdu.header["NAXIS"] == 3, "Expected 3dim. data but got {0}dim.".format(hdu.header["NAXIS"])
+    
+            ## if the dispersion axis is the last one (python counting), then create a temporary FITS file with the first and last axis swapped and reload the
+            ## HDU from this file.
+            if hdu.header["NAXIS3"] == 2:
+                tmp_data_array = hdu.data.swapaxes(0, 2)
+                tmp_coordinates_hdu = fits.ImageHDU(tmp_data_array, header=hdu.header)
+                
+                ## update dispersion information (if any)
+                for key in ["CRVAL", "CDELT", "CRPIX", "CTYPE", "CUNIT"]:
+                    if "{0}1".format(key) in tmp_coordinates_hdu.header:
+                        tmp_coordinates_hdu.header["{0}3".format(key)] = hdu.header["{0}1".format(key)]
+                        del tmp_coordinates_hdu.header["{0}1".format(key)]
+    
+                ## write the HDU to a temporary FITS file (fits provides a function to create a tmp-name) and open it again
+                self._tmp_names.append(fits.util._tmp_name("./"))
+                tmp_coordinates_hdu.writeto(self._tmp_names[-1])
+                hdu = fits.open(self._tmp_names[-1], memmap=True)[1]
+    
+                ## remove temporary array and HDU (tmp-file will be deleted via __del__ method)
+                del tmp_data_array, tmp_coordinates_hdu
+            
+            ## check if dispersion information is valid
+            if self.ndisp == 1: self.ndisp = hdu.header["NAXIS3"]
+            elif hdu.header["NAXIS3"]!=self.ndisp: logging.error("Invalid number of dispersion elements in provided IFS coordinates.")
+    
+            ## check for which sources the HDU contains IFS coordinates, using header hierarch keywords 'PAMPELMUSE POSITIONS ID{i}'.
+            ## If the keywords do not exist, the routine expects that coords are provided for every resolved source in the catalogue.
+            ifs_coordinates_id = np.zeros((hdu.header["NAXIS2"],), dtype=np.int32)
+            for i in xrange(hdu.header["NAXIS2"]):
+                try:
+                    ID = hdu.header["PAMPELMUSE POSITIONS ID{0}".format(i)]
+                    if not ID in self.ID:
+                        logging.error("Received IFS coordinates for unknown source #{0}".format(ID))
+                    assert ID in self.ID, "Source #{0} is not included in catalogue.".format(ID)
+                    ifs_coordinates_id[i] = ID
+                except KeyError:
+                    if hdu.header["NAXIS2"] != (self.nsrc-self.includes_sky):
+                        logging.error("Cannot infer IDs for provided coordinates.")
+                    assert hdu.header["NAXIS2"] == (self.nsrc - self.includes_sky), "Shape of data in HDU not compatible with source catalogue."
+                    ifs_coordinates_id = self.ID[self.status<4]
+                    break
+
 
         ## initialize properties used by the method Sources.load_ifs_coordinates()
         if not poly:
@@ -1150,8 +1211,8 @@ class Sources(object):
             else: ## third option: just use reference coordinates
                 self.ifs_coordinates[:,src_indices,:,0:1] = ref_coords[:,:,np.newaxis]
                 
-        if self.ifs_coordinates_fit_hdu != None: ## the fits to the IFS coordinates can either be loaded from an available HDU
-            
+         ## the fits to the IFS coordinates can either be loaded from an available image HDU (deprecated)
+        if self.ifs_coordinates_fit_hdu != None and isinstance(self.ifs_coordinates_fit_hdu, fits.hdu.image._ImageBaseHDU):
             in_fit_hdu = np.in1d(ids, self.ifs_coordinates_fit_id)
             hdu_indices = match_on_id(self.ifs_coordinates_fit_id, ids[in_fit_hdu])
             if nlayer == self.ndisp and in_fit_hdu.all():
@@ -1165,8 +1226,8 @@ class Sources(object):
         for ID in ids:
             if ID in self.ifs_coordinates_fit_functions.keys():
                 xfit, yfit = self.ifs_coordinates_fit_functions[ID]
-                self.ifs_coordinates[:,i,0,1] = xfit(self.wave)
-                self.ifs_coordinates[:,i,1,1] = yfit(self.wave)
+                self.ifs_coordinates[:,i,0,1] = xfit(self.wave[layers])
+                self.ifs_coordinates[:,i,1,1] = yfit(self.wave[layers])
             i+=1
 
 
@@ -1313,12 +1374,9 @@ class Sources(object):
         if not self.ifs_coordinates_loaded[indices2Fit].all() or self.ifs_coordinates.shape[0] < self.ndisp:
             self.load_ifs_coordinates(ids=self.ID[indices2Fit])
 
-        ## check if fit function is valid:
-        available = {"chebyshev": Chebyshev, "legendre":Legendre, "hermite":Hermite, "plain":Polynomial}
-
-        if not function.lower() in available.keys():
+        if not function.lower() in self.available.keys():
             logging.critical("Unknown fitting function provided: {0}".format(function))
-        Fitfunction = available[function.lower()]
+        Fitfunction = self.available[function.lower()]
 
         ## create pseudo-mask if None provided
         if mask == None:
@@ -1336,7 +1394,6 @@ class Sources(object):
                 used = used&instrument.infov(self.ifs_coordinates[...,0].mean(axis=0))
 
             meanCoord = np.mean(self.ifs_coordinates[:, used], axis=1)
-
             xfit = Fitfunction.fit(self.wave[mask], meanCoord[mask,0,0], order)
             yfit = Fitfunction.fit(self.wave[mask], meanCoord[mask,1,0], order)
             
@@ -1554,12 +1611,14 @@ class Sources(object):
     def make_ifs_coordinates_hdu(self, ids=None, fit=False, name="POSITIONS", **kwargs):
         """
         Create an astropy.io.fits.ImageHDU containing the IFS coordinates of
-        (a subset of) the sources. Either the data itself or the fits to them
-        will be included in the HDU. The keyword 'ids' can be used to control
-        which sources enter the HDU. The array will always be 3dim., with the
-        first axis being the dispersion axis, the second axis distinguishing
-        the individual sources, and the third axis giving x or y coordinates.
-
+        (a subset of) the sources or a astropy.io.fits.BinTableHDU containing
+        the parameters of the polynomial fits to them. The keyword 'ids' can
+        be used to control which sources enter the HDU.
+        
+        When the IFS coordinates are stored the array will always be 3dim.,
+        with the first axis being the dispersion axis, the second axis distin-
+        guishing the individual sources, and the third axis giving x or y coor-
+        dinates.
         WARNING: If not all IFS coordinates that should be included in the HDU
         are available, i.e. have been loaded via Sources.load_ifs_coordinates(),
         then all requested IFS coordinates are reloaded. This means that changes
@@ -1567,6 +1626,10 @@ class Sources(object):
         Sources.load_ifs_coordinates() will be lost. This does not concern the
         polynomial fits to the coordinates as the fit parameters are stored in a
         dictionary and will be used to recover the fits when reloading the data.
+        
+        When the polynomial fits are stored, the  table  will contain five columns,
+        providing the ID, the type of fit function along x and y, and the fit para-
+        meters along x- and y for every source.
         
         Parameters
         ----------
@@ -1593,7 +1656,6 @@ class Sources(object):
             fit.
         """
         if not fit: logging.info("Saving IFS coordinates to ImageHDU '{0}'...".format(name))
-        else: logging.info("Saving fits to IFS coordinates to ImageHDU '{0}'...".format(name))
         
         ## check which coordinates should be saved
         if ids==None:
@@ -1601,28 +1663,97 @@ class Sources(object):
         elif isinstance(ids, (int, np.integer, list, np.ndarray)):
             ids = np.atleast_1d(ids)
         elif ids=="current":
-            ids = self.ID[self.ifs_coordinates_loaded]
-    
-        ## make sure IFS coordinates are loaded for ll sources AND across the entire dispersion range
-        if not self.ifs_coordinates_loaded[match_on_id(self.ID, ids)].all() or self.ifs_coordinates.shape[0] != self.ndisp:
-            if not fit:
+            if not fit: ids = self.ID[self.ifs_coordinates_loaded]
+            else: ids = self.ID[self.ifs_coordinates_fitted]
+          
+        if fit:
+            logging.info("Saving fits to IFS coordinates to BinTableHDU '{0}'...".format(name))
+        
+            ## fits are saved for the requested sources that have polynomial fits available
+            ids_tosave = np.intersect1d(ids, self.ifs_coordinates_fit_functions)
+        
+            if ids_tosave.size==0:
+                logging.error("Position fits not available for any of the requested sources.")
+                logging.error("Cannot create BinTableHDU '{0}'.".format(name))
+        
+            ## get the number of sources for which fits should be stored
+            nfit = ids_tosave.size
+            
+            ## get the maximum polynomial degree used in the fits. Note that this would not be necessary one would use the feature that
+            ## FITS tables can store arrays of variable length (http://docs.astropy.org/en/tmp-v0.1-wcython/io/fits/usage/unfamiliar.html)
+            ## Unfortunately, the implementation in astropy seems buggy and I always get an array full of zeros when opening the file again.
+            ## Therefore, in case different degrees have been used in the fits, the higher orders of the low-order polynomials are padded
+            ## with zeros.
+            xmax = max(self.ifs_coordinates_fit_functions[i][0].degree() for i in ids_tosave)
+            ymax = max(self.ifs_coordinates_fit_functions[i][0].degree() for i in ids_tosave)
+            
+            ## prepare the arrays to hold the data
+            src  = np.zeros((nfit, ), dtype=np.int32)
+            xfct = np.zeros((nfit, ), dtype=np.int16)
+            xprm = np.zeros((nfit, xmax+1), dtype=np.float32)
+            yfct = np.zeros((nfit, ), dtype=np.int32)
+            yprm = np.zeros((nfit, ymax+1), dtype=np.float32)
+            
+            ## loop over all sources that have polynomial fits available
+            i=0
+            for ID, polyfits in self.ifs_coordinates_fit_functions.iteritems():
+                if not ID in ids: continue
+                src[i] = ID
+                for fct in self.available.keys(): ## get fit function: first check which class the instance originates from, then translate name to an integer
+                    if isinstance(polyfits[0], self.available[fct]):
+                        xfct[i] = self.polyident[fct]
+                xprm[i, :(polyfits[0].degree()+1)] = polyfits[0].coef
+                for fct in self.available.keys():
+                    if isinstance(polyfits[1], self.available[fct]):
+                        yfct[i] = self.polyident[fct]
+                yprm[i, :(polyfits[1].degree()+1)] = polyfits[1].coef
+                
+                ## store domain, this is needed because the domain set by the fit is the min and max of the fitted range and this if different from the
+                ## default one used by the __init__ methods. Since currently the start and end of the domain are stored as HIERARCH-keywords, the domain
+                ## must be the same for all fits.
+                if i==0: domain = polyfits[0].domain
+                else: assert abs(polyfits[0].domain-domain).max()<1e-3
+                assert abs(polyfits[1].domain-domain).max()<1e-3
+
+                i+=1
+
+            ## prepare the output table
+            outHDU = fits.new_table([fits.Column(name="id", format="J", array=src), 
+                                     fits.Column(name="xfct", format="I", array=xfct),
+                                     fits.Column(name="xprm", format="{0}E".format(xprm.shape[1]), array=xprm),
+                                     fits.Column(name="yfct", format="I", array=yfct),
+                                     fits.Column(name="yprm", format="{0}E".format(yprm.shape[1]), array=yprm)])
+
+            outHDU.header["EXTNAME"] = name
+            outHDU.header["hierarch PAMPELMUSE POSITIONS POLY"] = True
+            outHDU.header["hierarch PAMPELMUSE POSITIONS DOMAIN START"] = domain[0]
+            outHDU.header["hierarch PAMPELMUSE POSITIONS DOMAIN END"] = domain[1]
+            
+            ## write the polynomial identifications
+            for name, index in self.polyident.iteritems():
+                outHDU.header["hierarch PAMPELMUSE POSITIONS POLY{0}".format(index)] = name
+
+        else:
+            
+            ## make sure IFS coordinates are loaded for all sources AND across the entire dispersion range
+            if not self.ifs_coordinates_loaded[match_on_id(self.ID, ids)].all() or self.ifs_coordinates.shape[0] != self.ndisp:
                 logging.warning("Reloading IFS coordinates, modifications to Sources.ifs_coordinates will be lost.")
             self.load_ifs_coordinates(ids=ids, layers=None)
 
-        if not fit: to_store = np.flatnonzero(self.ifs_coordinates_free[self.ifs_coordinates_loaded])
-        else: to_store = np.flatnonzero(self.ifs_coordinates_fitted[self.ifs_coordinates_loaded])
+            to_store = np.flatnonzero(self.ifs_coordinates_free[self.ifs_coordinates_loaded])
 
-        ## make sure there is some data to be stored
-        if to_store.size==0:
-            logging.critical("Cannot write IFS coordinates to HDU. No data available.")
-            return NotImplemented
+            ## make sure there is some data to be stored
+            if to_store.size==0:
+                logging.critical("Cannot write IFS coordinates to HDU. No data available.")
+                return NotImplemented
 
-        outHDU = fits.ImageHDU(self.ifs_coordinates[:,to_store][...,int(fit)], name=name)
-        outHDU.header["hierarch PAMPELMUSE POSITIONS POLY"] = fit
-        outHDU.header["hierarch PAMPELMUSE POSITIONS FULLFIT"] = (fit==False)
+            outHDU = fits.ImageHDU(self.ifs_coordinates[:,to_store][...,int(fit)], name=name)
             
-        ## create entry in header about ID of each source and the row containing its position
-        for i in xrange(len(to_store)):
+            outHDU.header["hierarch PAMPELMUSE POSITIONS POLY"] = False
+            outHDU.header["hierarch PAMPELMUSE POSITIONS FULLFIT"] = True
+            
+            ## create entry in header about ID of each source and the row containing its position
+            for i in xrange(len(to_store)):
                 outHDU.header["hierarch PAMPELMUSE POSITIONS ID{0}".format(i)] = self.ID[self.ifs_coordinates_loaded][to_store[i]]
 
         return outHDU
