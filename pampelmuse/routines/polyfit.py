@@ -19,10 +19,10 @@ pampelmuse.graphics.pampelmuse_gui.
 
 Latest SVN revision
 -------------------
-175, 2014/06/16
+185, 2014/7/02
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 175
+__revision__ = 185
 
 
 import datetime, logging, sys

@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-184, 2014/07/01
+185, 2014/07/02
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 184
+__revision__ = 185
 
 import datetime, itertools, os, sys, logging
 from multiprocessing import cpu_count, Pool
@@ -474,7 +474,7 @@ def initfit(pampelmuse):
             
         for n in xrange(pampelmuse.cpucount):
             imin = n*m
-            imax = min((n+1)*m, sources.nsrc-pampelmuse.globsky)
+            imax = min((n+1)*m, sources.nsrc)
             threads.append(pool.apply_async(estimate_snr, args=(psf_instances[imin:imax], sigma_image)))
         
         pool.close()
@@ -516,8 +516,8 @@ def initfit(pampelmuse):
     fwhm = np.zeros((sources.nsrc,), dtype=np.float32)
     for i in xrange(len(psf_instances)): fwhm[i] = 0 if psf_instances[i]==None else psf.fwhm
 
-    ## get magnitude-sorted list of indices of the sources the instance of the Sources-class (brightest sources first, background sources excluded)
-    idx_magsorted = np.argsort(sources.mag)[sources.ID>=0]
+    ## get magnitude-sorted list of indices of the sources the instance of the Sources-class (brightest sources first)
+    idx_magsorted = np.argsort(sources.mag)
 
     ## load IFS coordinates for all stars and sort them by brightness
     sources.load_ifs_coordinates()
@@ -528,10 +528,6 @@ def initfit(pampelmuse):
     ## brighter source is so close that the two cannot be separated and are fitted as a single component)
     status  = -np.ones((sources.nsrc,), dtype=np.int16)
     primary = np.zeros((sources.nsrc,), dtype=np.int32)
-    
-    ## handle background components
-    status[sources.ID<0] = 4
-    primary[sources.ID<0] = sources.ID[sources.ID<0]
     
     ## If confusion limit should be refined, we initially set it to 99. and later set it to the magnitude of the faintest star that is included in the fit
     ## (as a resolved source)
@@ -544,6 +540,12 @@ def initfit(pampelmuse):
     logging.info("       ID   mag    S/N  d_bright  d_edge  status")
     logging.info("                           [spx]   [spx]        ")
     for i in idx_magsorted:
+    
+        ## handle background components
+        if sources.ID[i]<0:
+            status[i] = 4
+            primary[i] = sources.ID[i]
+            continue
     
         xi, yi = ifs_coordinates[i]
     

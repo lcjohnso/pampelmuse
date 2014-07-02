@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-174, 2014/06/12
+185, 2014/07/02
 """ 
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 174
+__revision__ = 185
 
 import contextlib, itertools, logging, os, sys, time
 import numpy as np, scipy
@@ -601,6 +601,9 @@ class StarFit(object):
         else:
             results = get_psf_data(psf_instances, self.sigma)
 
+        ## result is a list with length equal to the number of sources, each entry is again a list containing three entries:
+        ## the spaxels on which the PSF is defined, the corresponding fluxes, and the integrated flux
+
         t1 = time.time()
         logging.debug("Time required to calculate PSF profiles: {0:.3f}s".format(t1-t0))
 
@@ -617,8 +620,8 @@ class StarFit(object):
         if len(empty_specrow)>0:
             logging.error("Encountered component(s) that contribute zero flux: {0}".format(empty_specrow))
 
-        ## fill the matrix: the indices and intensities of all PSF instances are combined and serve as row indices and values of
-        ## the matrix. To obtain the column indices of the matrix, we use the property 'specrow' of the Sources class and correct
+        ## fill the matrix: the indices and intensities of all PSF instances are combined and serve as row indices (i0) and values of
+        ## the matrix. To obtain the column indices of the matrix (i1), we use the property 'specrow' of the Sources class and correct
         ## for components with zero flux contribution (if they exist)
         i0 = np.hstack((r[0] for r in results)) ## the row indices
 
@@ -631,7 +634,8 @@ class StarFit(object):
             jstart = jend
 
         f  = np.hstack((r[1] for r in results)) ## the fluxes
-        f /= self.fluxfactors[self.fluxfactors>0][i1] ## bring all components to an integrated flux of 1
+        f /= self.fluxfactors[i1] ## bring all components to an integrated flux of 1; it should not matter that entries in self.fluxfactors
+                                  ## can be zero because their indices are included in empty_specrow, hence the indices should not be in i1
 
         ## create matrix: first, a coo-matrix is constructed. Note that it handles the case when the input data contains multiple
         ## entries for the some indices (row, column). After construction, the matrix is converted to a csc matrix to speed up

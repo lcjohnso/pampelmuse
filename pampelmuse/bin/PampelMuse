@@ -45,26 +45,27 @@ the data into memory yet but just checks whether the file(s) are valid.
 
 Latest SVN revision
 -------------------
-184, 2014/07/01"""
+185, 2014/07/02"""
 __author__     = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__    = "0.16.0.0"
-__revision__   = 184
+__version__    = "0.16.1.0"
+__revision__   = 185
 
 
 
 
-
-print """
+import sys
+sys.stdout.write("""
             ,;:.    PampelMuse, version {0:17}    ,;:.    
            (::;;)   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   (::;;)
             `;:'                                             `;:'
 
         (c) {1}
-""".format(__version__, __author__)
+""".format(__version__, __author__))
+sys.stdout.flush()
 
 
 ## IMPORT REQUIRED PYTHON MODULES ##############################################
-import argparse, datetime, logging, os, re, sys
+import argparse, datetime, logging, os, re
 import numpy as np
 from astropy.io import fits
 
