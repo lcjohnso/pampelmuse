@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-187, 2014/07/02
+188, 2014/07/02
 """ 
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 187
+__revision__ = 188
 
 import contextlib, itertools, logging, os, sys, time
 import numpy as np, scipy

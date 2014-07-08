@@ -21,11 +21,11 @@ check whether the IFS data contains HDUs providing either uncertainties
 
 Latest SVN revision
 -------------------
-176, 2014/06/24
+187, 2014/07/08
 
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 176
+__revision__ = 187
 
 import logging, types
 import numpy as np
@@ -142,7 +142,9 @@ class Cube:
     
         ## open data HDU - check if HDU "DATA" exists, otherwise use first HDU
         try: self.data = self.file["DATA"]
-        except KeyError: self.data = self.file[0]
+        except KeyError:
+            try: self.data = self.file["mapping.DATA"]
+            except KeyError: self.data = self.file[0]
 
         ## check dimensionality of data: must be 3D if transformation from spaxels
         ## to x- & y-coords unknown, otherwise 2dim. data is accepted
@@ -208,7 +210,7 @@ class Cube:
         logging.info("Opening data HDU successful.")
     
         ## check if file with uncertainties is available, otherwise check data file:
-        i = self.load_auxiliary_hdu("sigma", filename=sigma, hduname=["SIGMA", "ERROR", "STAT"])
+        i = self.load_auxiliary_hdu("sigma", filename=sigma, hduname=["SIGMA", "ERROR", "STAT", "mapping.NOISE", "NOISE"])
         if self.sigma==None: logging.error("Unable to load uncertainties for IFS data.")
         else: logging.info("Loaded uncertainties from HDU {0} of file {1}.".format(self.sigma.name if self.sigma.name!='' else i, self.sigma._file.name))
 
