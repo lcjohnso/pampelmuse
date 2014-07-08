@@ -26,12 +26,12 @@ like dead fibers or holes in the FoV are not handled.
 
 Latest SVN revision
 -------------------
-173, 2014/06/11
+186, 2014/07/08
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 173
+__revision__ = 186
 import logging, re
-import numpy as np, pyfits
+import numpy as np
 from astropy.io import fits
 from matplotlib import path
 from scipy.spatial import distance
