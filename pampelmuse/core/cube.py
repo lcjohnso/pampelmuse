@@ -21,11 +21,11 @@ check whether the IFS data contains HDUs providing either uncertainties
 
 Latest SVN revision
 -------------------
-189, 2014/07/08
+190, 2014/07/09
 
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 189
+__revision__ = 190
 
 import logging, types
 import numpy as np
@@ -143,7 +143,7 @@ class Cube:
         ## open data HDU - check if HDU "DATA" exists, otherwise use first HDU
         hduname = 0
         for name in ["DATA", "mapping.DATA"]:
-            if name in [hdu for hdu in self.file]:
+            if name in [hdu.name for hdu in self.file]:
                 hduname = name
                 break
         self.data = self.file[hduname]
