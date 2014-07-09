@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-189, 2014/07/08
+191, 2014/07/09
 """ 
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 189
+__revision__ = 191
 
 import contextlib, itertools, logging, os, sys, time
 import numpy as np, scipy
@@ -452,9 +452,9 @@ class StarFit(object):
 
         ## check if mask is available, otherwise only NaN pixels will be masked
         if self.ifs_data.mask==None:
-            mask = (data!=data)
+            mask = np.isnan(data)|np.isnan(sigma)
         else:
-            mask = self.ifs_data.mask.layer(self.kk)&(data!=data)
+            mask = self.ifs_data.mask.layer(self.kk)|np.isnan(data)|np.isnan(sigma)
             
         self.data = data[mask==0]
         if self.ifs_data.is_var:
