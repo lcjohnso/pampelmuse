@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-192, 2014/07/09
+193, 2014/07/09
 """ 
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 192
+__revision__ = 193
 
 import contextlib, itertools, logging, os, sys, time
 import numpy as np, scipy
@@ -630,7 +630,7 @@ class StarFit(object):
         for i in xrange(len(results)):
             if specrow[i] in empty_specrow: continue
             jend = jstart+len(results[i][0])
-            i1[jstart:jend] = specrow[i]
+            i1[jstart:jend] = specrow[i] - (empty_specrow<specrow[i])
             jstart = jend
 
         f  = np.hstack((r[1] for r in results)) ## the fluxes
