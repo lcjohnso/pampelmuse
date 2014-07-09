@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-195, 2014/07/09
+196, 2014/07/10
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 195
+__revision__ = 196
 
 import datetime, itertools, os, sys, logging
 from multiprocessing import cpu_count, Pool
@@ -402,7 +402,10 @@ def initfit(pampelmuse):
         total = peakdata.sum()
         xc  = (X*peakdata).sum()/total
         yc  = (Y*peakdata).sum()/total
+        pampelmuse.initfit.ccxoff = xc + dx
+        pampelmuse.initfit.ccyoff = yc + dy
         logging.info("Maximum of cross-correlation signal at x={0:.1f}, y={1:.1f}".format(xc, yc))
+
 
         ## initialize coordinate transformation
         sources.transformation.data = np.array([1., 0., -xc-dx, -yc-dy], dtype=np.float32)

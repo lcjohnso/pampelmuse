@@ -22,10 +22,10 @@ the header of a FITS HDU.
 
 Latest SVN revision
 -------------------
-175, 2014/06/16
+196, 2014/07/10
 """
 __author__   = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 175
+__revision__ = 196
 
 
 import datetime, re
@@ -106,7 +106,7 @@ class PampelMuseConfig(Namespace):
 
 
         if hasattr(self, "initfit"):
-            for entry in ["revision", "utc", "reslim", "photzero"]:
+            for entry in ["revision", "utc", "ccxoff", "ccyoff", "reslim", "photzero"]:
                 if hasattr(self.initfit, entry):
                     hdu.header["hierarch PAMPELMUSE INITFIT {0}".format(entry.upper())] = getattr(self.initfit, entry)
 
