@@ -26,10 +26,10 @@ like dead fibers or holes in the FoV are not handled.
 
 Latest SVN revision
 -------------------
-186, 2014/07/08
+189, 2014/07/08
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 186
+__revision__ = 189
 import logging, re
 import numpy as np
 from astropy.io import fits
@@ -535,12 +535,11 @@ class Instrument(object):
     def get_spectrum(self, hdu, i):
         """
         Extract an individual spectrum from the provided HDU. To keep the memory
-        usage low, the spectrum is extracted using Section-class provided by
-        pyfits.
+        usage low, the spectrum is extracted using Section-class provided by fits.
         
         Parameters
         ----------
-        hdu : instance of pyfits.PrimaryHDU or pyfits.ImageHDU
+        hdu : instance of fits.PrimaryHDU or fits.ImageHDU
             The HDU from which the spectrum should be extracted
         i : int
             The index of the fiber/spaxel for which the spectrum should be
@@ -571,11 +570,11 @@ class Instrument(object):
         """
         Extract the monochromatic layer with index i from the provided HDU.
         To keep the memory usage low, the spectrum is extracted using Section
-        -class provided by pyfits.
+        -class provided by fits.
         
         Parameters
         ----------
-        hdu : instance of pyfits.PrimaryHDU or pyfits.ImageHDU
+        hdu : instance of fits.PrimaryHDU or fits.ImageHDU
             The HDU from which the monochromatic layer should be extracted
         i : int
             The index of the monochromatic layer that should be extracted.
@@ -810,7 +809,7 @@ class Argus(Instrument):
 
         logging.info("Instrument in use in FLAMES/Argus.")
 
-        if isinstance(header, (fits.header.Header, pyfits.Header)):
+        if isinstance(header, fits.header.Header):
             self.set_rotation_angle(header)
             self.set_spaxel_scale(header)
 
@@ -873,13 +872,12 @@ class Argus(Instrument):
         
         Parameters
         ----------
-        value : float or instance of astropy.io.fits.header.Header or 
-                pyfits.Header, optional
+        value : float or instance of astropy.io.fits.header.Header, optional
             Either the rotation angle of ARGUS on the sky in degrees or
             a header instance that is searched for information about the
             rotation angle.
         """
-        if isinstance(value, (fits.header.Header, pyfits.Header)):
+        if isinstance(value, fits.header.Header):
             try:
                 value = value["ESO ADA POSANG"]
             except KeyError:
@@ -901,13 +899,12 @@ class Argus(Instrument):
         
         Parameters
         ----------
-        value : float or instance of astropy.io.fits.header.Header or 
-                pyfits.Header, optional
+        value : float or instance of astropy.io.fits.header.Header, optional
             Either the spaxel scale of ARGUS on the sky in degrees or
             a header instance that is searched for information about the
             spaxel scale.
         """
-        if isinstance(value, (fits.header.Header, pyfits.Header)):
+        if isinstance(value, fits.header.Header):
             try:
                 scalepos = value["ESO INS1 OPTI1 POS"]
                 if scalepos == "POS_1": value = 0.52
@@ -1013,13 +1010,12 @@ class Muse(Instrument):
         
         Parameters
         ----------
-        value : float or instance of astropy.io.fits.header.Header or 
-                pyfits.Header, optional
+        value : float or instance of astropy.io.fits.header.Header, optional
             Either the rotation angle of MUSE on the sky in degrees or
             a header instance that is searched for information about the
             rotation angle.
         """
-        if isinstance(value, (fits.header.Header, pyfits.Header)):
+        if isinstance(value, fits.header.Header):
             try:
                 value = value["ESO INS DROT POSANG"]
             except KeyError:
@@ -1039,13 +1035,12 @@ class Muse(Instrument):
         
         Parameters
         ----------
-        value : float or instance of astropy.io.fits.header.Header or 
-                pyfits.Header, optional
+        value : float or instance of astropy.io.fits.header.Header, optional
             Either the spaxel scale of MUSE on the sky in degrees or
             a header instance that is searched for information about the
             spaxel scale.
         """
-        if isinstance(value, (fits.header.Header, pyfits.Header)):
+        if isinstance(value, fits.header.Header):
             try:
                 value = value["ESO OCS IPS PIXSCALE"]
             except KeyError:

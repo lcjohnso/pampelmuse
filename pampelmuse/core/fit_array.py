@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-188, 2014/07/02
+189, 2014/07/08
 """ 
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 188
+__revision__ = 189
 
 import contextlib, itertools, logging, os, sys, time
 import numpy as np, scipy
@@ -1041,7 +1041,7 @@ class StarFit(object):
             try:
                 bestfit = optimize.leastsq(self.optimize_multi_psf, x0=fitPars, Dfun=self.jacobi_multi_psf, col_deriv=1, args=(parNames,), epsfcn=0.0)[0]
                 success = True
-            except: # optimize.minpack.error: ## error handler to avoid code that code crashes completely
+            except: # optimize.minpack.error: ## error handler to avoid code that code crashes completely, seems to depend on numpy version which error is thrown
                 logging.error("[@{0}] PSF fit failed.".format(self.kk))
                 success = False
 

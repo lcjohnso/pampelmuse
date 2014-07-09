@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-185, 2014/07/02
+189, 2014/07/09
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 185
+__revision__ = 189
 
 import datetime, itertools, os, sys, logging
 from multiprocessing import cpu_count, Pool
@@ -138,7 +138,7 @@ def initfit(pampelmuse):
     logging.info("Reading photometry results from file '{0}'.".format(pampelmuse.initfit.sourcelist))
 
     cfp_results = read_asciifile(pampelmuse.initfit.sourcelist, usecols=(0,1,2,3,4,5), usenames="id,x,y,{0},ra,dec".format(pampelmuse.passband),
-                                 aliases={"F606W":["Vvega", "V"], "F814W":["Ivega", "I"]})
+                                 aliases={"F606W":["Vvega", "V"], "F814W":["Ivega", "I"], "K":["Kmag", ]})
 
     ## make sure either RA & Dec or x & y are available; if both are available, RA & Dec are preferred over x & y
     usewcs=False ## set to True if WCS coordinates are available
@@ -261,9 +261,12 @@ def initfit(pampelmuse):
     for i in xrange(pampelmuse.start, pampelmuse.stop):
         logging.debug("...working on layer {0:0{1}d}/{2:{1}d}".format(i-pampelmuse.start+1, len(str(pampelmuse.stop-pampelmuse.start)), pampelmuse.stop-pampelmuse.start))
         wave_i = pampelmuse.ifs_data.crval+i*pampelmuse.ifs_data.cdelt
-        if pampelmuse.ifs_data.ctype == "nm": wave_i *= 10
+        if pampelmuse.ifs_data.cunit == "nm" or pampelmuse.ifs_data.ctype == "nm": wave_i *= 10
+        elif pampelmuse.ifs_data.cunit == "um" or pampelmuse.ifs_data.ctype == "um": wave_i *= 1e4
+        
         if wave_i > fMin and wave_i < fMax:
             wht_i = f(wave_i)
+            assert not np.isnan(wht_i)
             
             data_i  = pampelmuse.ifs_data.data.layer(i)
             if pampelmuse.ifs_data.is_var:
@@ -271,10 +274,9 @@ def initfit(pampelmuse):
             else:
                 sigma_i = pampelmuse.ifs_data.sigma.layer(i)
 
+            mask_i = np.isnan(data_i)|np.isnan(sigma_i)|(sigma_i<=0)
             if pampelmuse.ifs_data.mask is not None:
-                mask_i = ((data_i!=data_i)|(sigma_i!=sigma_i))&np.asarray(pampelmuse.ifs_data.mask.layer(i), dtype=np.bool)
-            else:
-                mask_i = (data_i!=data_i)|(sigma_i!=sigma_i)
+                mask_i = mask_i|np.asarray(pampelmuse.ifs_data.mask.layer(i), dtype=np.bool)
 
             data_image[mask_i==0] += data_i[mask_i==0]*wht_i
             sigma_image[mask_i==0] += sigma_i[mask_i==0]*wht_i
@@ -414,9 +416,10 @@ def initfit(pampelmuse):
         app  = QtGui.QApplication(sys.argv)
     
         identifier = PampelMuseGui(sources=sources, ifsData=pampelmuse.ifs_data, refImage=identification_image, magCut=pampelmuse.reslim-1.)  
-        identifier.addFovToReference(xc+(cckernel.shape[0]-1)/2., yc+(cckernel.shape[1]-1)/2.)
 
         if usewcs: ## overplot positions of sources on IFS as determined via cross-correlation
+            identifier.addFovToReference(xc+(cckernel.shape[0]-1)/2., yc+(cckernel.shape[1]-1)/2.)
+        
             sizes = 10.*(10**(-0.2*(sources.mag-pampelmuse.reslim-1.)))
             sizes[sizes<=1] = 0
             select = (sources.status<4)&(sources.mag<=pampelmuse.reslim)&(pampelmuse.ifs_data.instrument.infov(np.vstack((sources.x-xc, sources.y-yc)).T))

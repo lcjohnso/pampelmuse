@@ -21,11 +21,11 @@ check whether the IFS data contains HDUs providing either uncertainties
 
 Latest SVN revision
 -------------------
-187, 2014/07/08
+189, 2014/07/08
 
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 187
+__revision__ = 189
 
 import logging, types
 import numpy as np
@@ -141,10 +141,12 @@ class Cube:
         fits.hdu.image._ImageBaseHDU.layer = types.MethodType(self.instrument.get_layer, None, fits.hdu.image._ImageBaseHDU)
     
         ## open data HDU - check if HDU "DATA" exists, otherwise use first HDU
-        try: self.data = self.file["DATA"]
-        except KeyError:
-            try: self.data = self.file["mapping.DATA"]
-            except KeyError: self.data = self.file[0]
+        hduname = 0
+        for name in ["DATA", "mapping.DATA"]:
+            if name in [hdu for hdu in self.file]:
+                hduname = name
+                break
+        self.data = self.file[hduname]
 
         ## check dimensionality of data: must be 3D if transformation from spaxels
         ## to x- & y-coords unknown, otherwise 2dim. data is accepted
