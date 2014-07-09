@@ -21,15 +21,15 @@ defines the methods that are called by Ui_PampelMuseGui.
 
 Latest SVN revision
 -------------------
-184, 2014/07/01
+195, 2014/07/09
 
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 184
+__revision__ = 195
 
 import datetime, logging, re, os, sys
 import matplotlib, matplotlib.pyplot as plt, numpy as np
-from matplotlib import patches
+from matplotlib import patches, colors
 from astropy.io import fits
 from PyQt4.QtGui import QMainWindow, QHBoxLayout, QDoubleValidator, QFileDialog
 from PyQt4.QtCore import pyqtSignature, Qt, SIGNAL
@@ -624,7 +624,9 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             else:
                 sizes = 20*np.ones(self.sources.is_resolved.sum(), dtype=np.float32)
 
-            self.ifsPlot.addData(offsets_x, offsets_y, s=sizes, ids=self.sources.ID[self.sources.is_resolved], edgecolors=edgecolors, picker=3, facecolors="None")
+            self.ifsPlot.addData(offsets_x, offsets_y, s=sizes, ids=self.sources.ID[self.sources.is_resolved], picker=3,
+                                 edgecolors=colors.ColorConverter().to_rgba_array(edgecolors),  
+                                 facecolors=np.zeros((self.sources.is_resolved.sum(), 4), dtype=np.float32))
         
             ##  disable source picking, enable spectrum selection
             self.ifsPlot.figure.canvas.mpl_disconnect(self.cid_ifuGrab_event)
@@ -1017,7 +1019,10 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             yLabel=None
 
         ## update plot
-        self.dataPlot.updateData(name='data',xData=self.sources.wave,yData=self.yData, xLabel=r"$\lambda\,[\mathrm{\AA}]$", yLabel=yLabel, updateYRange=updateYRange)
+        if self.sources.cunit == "um": xLabel=r"$\lambda\,[\mathrm{\mu m}]$"
+        elif self.sources.cunit == "nm": xLabel=r"$\lambda\,[\mathrm{nm}]$"
+        else: xLabel = r"$\lambda\,[\mathrm{\AA}]$"
+        self.dataPlot.updateData(name='data',xData=self.sources.wave,yData=self.yData, xLabel=xLabel, yLabel=yLabel, updateYRange=updateYRange)
 
         if self.yFit != None:
             self.dataPlot.updateData(name='fit', xData=self.sources.wave, yData=np.copy(self.yFit), updateYRange=updateYRange)

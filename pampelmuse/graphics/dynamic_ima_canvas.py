@@ -18,10 +18,10 @@ loaded from pampelmuse.core.cube
 
 Latest SVN revision
 -------------------
-169, 2014/04/28
+195, 2014/07/09
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 169
+__revision__ = 195
 
 import logging
 import matplotlib.transforms, matplotlib.artist, matplotlib.pyplot, numpy as np
@@ -304,7 +304,7 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
                 self.cuts = (values[cutpix/2], 0.5*(values[-cutpix/2-1]+values[-cutpix/2-2]))
 
         ## change cuts and update canvas
-        logging.debug("Updated display cuts are min={0:.3g}, max={1:.3g}".format(self.cuts[0], self.cuts[1]))
+        logging.debug("Updated display cuts are min={0:.3g}, max={1:.3g}".format(float(self.cuts[0]), float(self.cuts[1])))
         self.imagePlot.set_clim(self.cuts[0], self.cuts[1])
         self.draw()
 

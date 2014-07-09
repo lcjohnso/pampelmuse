@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-189, 2014/07/09
+195, 2014/07/09
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 189
+__revision__ = 195
 
 import datetime, itertools, os, sys, logging
 from multiprocessing import cpu_count, Pool
@@ -388,10 +388,13 @@ def initfit(pampelmuse):
 #        ax.plot(xsearchcenter, ysearchcenter, ls="None",  marker="x",  mew=2.5, c="g",  ms=15)
 #        outhdu = fits.HDUList([fits.PrimaryHDU(ccsignal), fits.ImageHDU(cckernel), fits.ImageHDU(identification_image)])
 #        outhdu.writeto("ccsignal.fits", clobber=True)
-#        pylab.show()
 
         peakdata = ccsignal[yslice.start+ymax[0]-3:yslice.start+ymax[0]+4,xslice.start+xmax[0]-3:xslice.start+xmax[0]+4]
         Y, X = np.indices(peakdata.shape)
+
+#        ax.plot((X*peakdata).sum()/peakdata.sum()+xslice.start+xmax[0]-3, (Y*peakdata).sum()/peakdata.sum()+yslice.start+ymax[0]-3, ls="None",  marker="x",  mew=2.5, c="r",  ms=15)
+#        pylab.show()
+
         X += (xslice.start + xmax[0] - 3) - cckernel.shape[1] + 1 ## The term in brackets gives the start coordinate of 'peakdata' on the cc signal array
         Y += (yslice.start + ymax[0] - 3) - cckernel.shape[0] + 1 ## The remaining terms correct for the offset of the cc singal array  wrt. the reference image
 
