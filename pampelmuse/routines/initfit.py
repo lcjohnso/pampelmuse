@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-196, 2014/07/10
+197, 2014/07/10
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 196
+__revision__ = 197
 
 import datetime, itertools, os, sys, logging
 from multiprocessing import cpu_count, Pool
@@ -374,8 +374,12 @@ def initfit(pampelmuse):
         xsearchcenter = int(cckernel.shape[1]-1-dx)
         ysearchcenter = int(cckernel.shape[0]-1-dy)
         
-        xsearchradius = pampelmuse.ifs_data.instrument.shape[1]>>1
-        ysearchradius = pampelmuse.ifs_data.instrument.shape[0]>>1
+        if pampelmuse.ccmaxoff<=0:
+            xsearchradius = pampelmuse.ifs_data.instrument.shape[1]>>1
+            ysearchradius = pampelmuse.ifs_data.instrument.shape[0]>>1
+        else:
+            xsearchradius = int(pampelmuse.ccmaxoff)
+            ysearchradius = int(pampelmuse.ccmaxoff)
 
         xslice = slice(max(xsearchcenter-xsearchradius, 3), min(xsearchcenter+xsearchradius, ccsignal.shape[1]-3))
         yslice = slice(max(ysearchcenter-ysearchradius, 3), min(ysearchcenter+ysearchradius, ccsignal.shape[0]-3))

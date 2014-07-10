@@ -22,10 +22,10 @@ the header of a FITS HDU.
 
 Latest SVN revision
 -------------------
-196, 2014/07/10
+197, 2014/07/10
 """
 __author__   = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 196
+__revision__ = 197
 
 
 import datetime, re
@@ -81,7 +81,7 @@ class PampelMuseConfig(Namespace):
             The HDU used to store the configuration, if none is provided,
             an empty HDU will be created.
         """
-        for entry in ["revision", "utc", "verbose", "ifu", "interact", "useqt", "cpucount", "smallifu", "passband", "aperrad", "apernois",
+        for entry in ["revision", "utc", "verbose", "ifu", "interact", "useqt", "cpucount", "smallifu", "passband", "ccmaxoff", "aperrad", "apernois",
                       "reslim", "updaterl", "confdens", "snrcut", "binrad", "useunres", "unresbin", "globsky", "start", "stop", "psfrad",
                       "jumpstart", "maxiter", "polytype", "polydeg", "subunres", "subsky",
                       ]:
