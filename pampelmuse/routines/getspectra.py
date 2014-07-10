@@ -22,10 +22,10 @@ Added
 
 Latest SVN revision
 -------------------
-181 # 2014/06/26
+198 # 2014/07/10
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 181
+__revision__ = 198
 
 import datetime, logging, os
 import numpy as np
@@ -144,7 +144,11 @@ def getspectra(pampelmuse):
 
     ## add possibly relevant PampelMuse keywords to the FITS header
     for key in ["version", "revision", "filename", "utc", "passband"]:
-        if hasattr(pampelmuse, key): header["hierarch PAMPELMUSE {0}".format(key.upper())] = getattr(pampelmuse, key)
+        if hasattr(pampelmuse, key):
+            if isinstance(getattr(pampelmuse, key), str) and len(getattr(pampelmuse, key))>(55-len(key)): ## check that entry not longer than 80 characters
+                header["hierarch PAMPELMUSE {0}".format(key.upper())] = getattr(pampelmuse, key)[:55-len(key)]
+            else:
+                header["hierarch PAMPELMUSE {0}".format(key.upper())] = getattr(pampelmuse, key)
 
     ## add estimate for seeing on detector using the fitted FWHM of the PSF profile
     if psf_attributes != None:
