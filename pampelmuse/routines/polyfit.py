@@ -113,6 +113,16 @@ def polyfit(pampelmuse):
     ui.spectrumFitOrderSpinBox.setValue(pampelmuse.polydeg)
     logging.info("Order of fit polynomials set to {0}.".format(pampelmuse.polydeg))
 
+    ## exclude requested wavelength ranges (if any)
+    if pampelmuse.polyfit.exclude != None:
+        for wmin, wmax in pampelmuse.polyfit.exclude:
+            ui.modifyMask((wmin, wmax), True)
+            logging.info("Added wavelength range to mask: {0}--{1}".format(wmin, wmax))
+
+    ## check if common slope should be used for the IFS coordinates
+    ui.actionForce_common_slope.setChecked(pampelmuse.polyfit.common)
+    logging.info("Using common slope in IFS coordinate fits? {0}".format(pampelmuse.polyfit.common))
+
     if pampelmuse.interact:
         ui.show()
     

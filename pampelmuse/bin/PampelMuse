@@ -45,10 +45,10 @@ the data into memory yet but just checks whether the file(s) are valid.
 
 Latest SVN revision
 -------------------
-198, 2014/07/10"""
+199, 2014/07/15"""
 __author__     = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__    = "0.16.9.0"
-__revision__   = 198
+__version__    = "0.16.9.1"
+__revision__   = 199
 
 
 
@@ -281,6 +281,14 @@ An optional FITS image to be displayed. The idea here is to load the data
 from which the reference coordinates were extracted. In that case, the image
 is displayed in the GUI and the locations of the extracted sources are
 overplotted.""")
+    PFparser.add_argument("-x", "--exclude", type=float, nargs=2, action="append", help="""
+To exclude a wavelength range from the polynomial fits, provide the min. and max.
+wavelength of it. The provided wavelengths must be given in the same units as the
+data. Note that this option can be used multiple times to exclude more than one
+range.""")
+    PFparser.add_argument("--common", action="store_true",  default=False, help="""
+If this flag is set, then the fits to the IFS coordinates of the sources are
+constrained such that all sources have the same slope with wavelength.""")
     PFparser.set_defaults(func=polyfit)
 
 
@@ -446,6 +454,8 @@ elif args.func==singlesrc:
 if graphics and args.func==polyfit:
     if not hasattr(pampelmuse, "polyfit"): pampelmuse.polyfit = Namespace()
     pampelmuse.polyfit.reference = args.reference
+    pampelmuse.polyfit.exclude = args.exclude
+    pampelmuse.polyfit.common = args.common
 
 if args.func==getspectra:
     if not hasattr(pampelmuse, "getspectra"): pampelmuse.getspectra = Namespace()
