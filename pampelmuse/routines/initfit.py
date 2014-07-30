@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-197, 2014/07/10
+200, 2014/07/29
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 197
+__revision__ = 200
 
 import datetime, itertools, os, sys, logging
 from multiprocessing import cpu_count, Pool
@@ -138,8 +138,8 @@ def initfit(pampelmuse):
     logging.info("Reading photometry results from file '{0}'.".format(pampelmuse.initfit.sourcelist))
 
     cfp_results = read_asciifile(pampelmuse.initfit.sourcelist, usecols=(0,1,2,3,4,5), usenames="id,x,y,{0},ra,dec".format(pampelmuse.passband),
-                                 aliases={"F606W":["Vvega", "V"], "F814W":["Ivega", "I"], "K":["Kmag", ]})
-
+                                 aliases={"f606w":["vvega", "v"], "f814w":["ivega", "i"], "k":["kmag", ]})
+    print cfp_results.keys()
     ## make sure either RA & Dec or x & y are available; if both are available, RA & Dec are preferred over x & y
     usewcs=False ## set to True if WCS coordinates are available
 

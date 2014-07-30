@@ -2,6 +2,7 @@
 \usepackage[utf8]{inputenc}
 \usepackage{graphicx}
 \usepackage{url}
+\usepackage{listings}
 
 \title{PampelMuse}
 \author{Sebastian Kamann}
@@ -67,5 +68,85 @@ This should download the most recent version of \texttt{PampelMuse}. To use the 
 \shellcmd{export pampelmuse\_path=<path to PampelMuse> \#\# folder were SVN checkout was performed}
 \shellcmd{export PYTHONPATH=\$PYTHONPATH:\$pampelmuse\_path}
 \shellcmd{export PATH=\$PATH:\$pampelmuse\_path/pampelmuse/bin}
+
+Again, calling
+\shellcmd{PampelMuse --help} \\
+should return no error message.
+
+
+\section{The input data}
+
+\subsection{Preparing the data}
+First note that \texttt{PampelMuse} is \emph{not} a data reduction pipeline. All analysis steps assume that the IFS data has been properly reduced and that all the instrumental artefacts have been removed.
+In general, the IFS data can come in two flavours:
+\begin{enumerate}
+ \item As a three-dimensional data cube with two spatial axes (\texttt{NAXIS1} and \texttt{NAXIS2}) and a spectral axis (\texttt{NAXIS3}). This format can always be used, even if the data were obtained with an instrument that is unknown to \texttt{PampelMuse}.
+ \item As a two-dimensional ``image'' with one spatial and one spectral axis. The advantage of this format is that it can also be used with instruments that have a ireegular (i.e. non-rectangular) spatial sampling. However, for this format to work \texttt{PampelMuse} must know how to arrange to different spaxels in the field of view. Currently this format is only supported for PMAS and ARGUS data.
+\end{enumerate}
+
+Besides the actual data, \texttt{PampelMuse} also requires an estimate of the uncertainties or the variances for the analysis. Optionally, a bad pixel mask can be used. Data, uncertainties, and mask can either be provided as different extensions of a single FITS file or as three individual FITS files. In the former case, the routine will use the extension names to identify what is stored in which extension, see Table~\ref{tab:extensions}. In the latter case, the individual filenames should have the same prefix and be suffixed \texttt{.dat.fits} (the data), \texttt{.err.fits} (the uncertainties), and \texttt{.msk.fits} (the bad pixel mask).
+
+\begin{table}
+ \begin{tabular}{l c l}
+  Type & required? & \texttt{EXTNAME} \\ \hline
+  Data & y         & \texttt{DATA} \\
+  Uncertainties & (y) & \texttt{ERROR}, \texttt{SIGMA} \\
+  Variances & (y) & \texttt{STAT} \\
+  Bad pixel mask & n & \texttt{MASK} \\
+ \end{tabular}
+ \caption{Extension names used to identify the input required for the analysis in a combined FITS file. Note that either uncertainties or variances must be provided.}
+ \label{tab:extensions}
+\end{table}
+
+If provided, the bad pixel mask should be zero for valid pixels and one for pixels that should be excluded. Instead of providing a dedicated mask, one can also set the invalid pixels to NaN and \texttt{PampelMuse} will ignore them in the analysis.
+
+\subsection{The reference catalogue}
+As \texttt{PampelMuse} does not currently include a dedicated source detection algorithm, the analysis relies on the presence of a reference catalogue, containing coordinates and magnitudes of the stars in and around the observed field. The best sources for such a catalogue are imaging data obtained with the \textit{Hubble} space telescope (HST) or ground based adaptive optics images. Note that the quality of the reference catalogue (especially its completeness and astrometric accuracy) will strongly influence the results of the analysis. For example, a common shortcoming of catalogues generated from HST data is that the brightest stars are often missing because they were saturated in the exposures. If this is the case, try to add them manually.
+
+The reference catalogue should be present as a plain ascii-file with the first (non-commented) line containing the column names. \texttt{PampelMuse} will recognize column names such as \texttt{ra}, \texttt{dec}, or \texttt{id} and process the column content accordingly. The reference catalogue must contain the following columns:
+\begin{enumerate}
+ \item A unique identifer for every source; must be a non-negative integer
+ \item Two columns containing the source coordinates in a reference system. Both pixel and world coordinates are accepted, and priority is given to the latter if both are present. If provided, the world coordinates should be in units of decimal degrees.
+ \item A magnitude for every source in a passbband that covers at least some part of the spectral range of the IFS data.
+\end{enumerate}
+
+Here is an example of howa valid reference catalogue file may look like:
+
+\begin{lstlisting}
+ ## Example reference catalogue
+ ## Random Cluster NGC9999, generated from HST/WFPC2 data
+ id   ra   dec  f606w
+  1  12.764311  -26.986152  13.29
+  2  12.751325  -26.986431  14.87
+  4  12.760123  -26.976514  12.25
+  ...
+\end{lstlisting}
+
+\textbf{TBD: Add possibility to include filtercurve if it is missing.}
+
+\section{The analysis with PampelMuse}
+
+\subsection{The PampelMuse Gui}
+Before describing the individual routines of \texttt{PampelMuse}, the graphical user iinterface (GUI) that is part of several routines is introduced. An example of how the GUI looks like is displayed in Fig.~\ref{fig:gui_introduction}. The GUI is loaded automatically 
+
+\subsection{INITFIT: Selecting the sources}
+The first step of the analysis is to identify those sources from the reference catalogue for which it is feasible to extract spectra from the IFS data. As the reference catalogue ideally was obtained from higher resolution data and typically covers a larger area on the sky, it would not make much sense to try and extract a spectrum for each star in the catalogue. Instead, we use INITFIT to make a selection. The syntax for calling this routine is
+\shellcmd{PampelMuse <config> <IFS data prefix> INITFIT <reference catalogue>}\ .
+
+Note that the IFS data should be provided without the \texttt{.fits} or \texttt{.dat.fits} suffix. \texttt{config} refers to the user setup. This is explained in detail in Sect.~\ref{sec:configuration}.
+
+INITFIT performs the following steps in order to select a useful subset of the available sources.
+\begin{enumerate}
+ \item Opening the IFS data, checking their validity.
+ \item Opening the reference catalogue file, checking its validity.
+ \item Creating an image from the IFS data in the passband in which the magnitudes in the reference catalogue were provided.
+ \item Creating a mock image from the sources in the reference catalogue, again in the passband in which the magnitudes were provided. The mock image is prepared using the same pixelsize as the IFS data and the initial guess of the PSF for the IFS data (see parameters \texttt{PSFTYPE} and \texttt{PSFPARS}, Sect.~\ref{sec:configuration}).
+ \item Cross-correlating the two images just created to find the most likely location of the IFS field of view with respect to the reference catalogue. Note that this step requires that both images indeed have the same pixel scale and orientation. To ensure this, RA and Dec coordinates of the sources must be provided with the reference catalogue and the header of the IFS data must include a minimum of WCS information: RA and Dec of the pointing, spatial sampling and rotation angle. Otherwise this step is skipped.
+ \item Loading the \texttt{PampelMuse} GUI with the content displayed in Fig.~\ref{fig:initfit_gui}. The purpose of this GUI is to allow the user to check the location of the IFS field of view with respect to the reference catalogue obtained via cross correlation. If the previous step has been skipped or the cross correlation returned a wrong location, the user can interactively define the 
+\end{enumerate}
+
+
+\section{The configuration parameters}
+\label{sec:configuration}
 
 \end{document}

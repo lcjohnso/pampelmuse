@@ -20,10 +20,10 @@ To import a function from this module (e.g. read_asciifile),
 
 Latest SVN revision
 -------------------
-118, 2014/02/18
+200, 2014/07/29
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 118
+__revision__ = 200
 
 
 import logging, re
@@ -110,7 +110,6 @@ def read_asciifile(filename, usenames=None, usecols=None, aliases={}):
 
                     assert hasattr(usenames, "__iter__"), "not iterable: {0}".format(usenames)
                     for name in usenames: ## loop over provided names and check whether they (or their aliases) are available.
-                        
                         if name in headerline:
                             indices[name] = headerline.index(name)
                             logging.info("Detected column named '{0}'.".format(name))
