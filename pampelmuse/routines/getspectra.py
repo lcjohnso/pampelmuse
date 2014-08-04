@@ -22,13 +22,13 @@ Added
 
 Latest SVN revision
 -------------------
-198 # 2014/07/10
+201 # 2014/08/03
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 198
+__revision__ = 201
 
 import datetime, logging, os
-import numpy as np
+import numpy as np, matplotlib
 from astropy.io import fits
 
 ## required PampelMuse-packages
@@ -139,8 +139,6 @@ def getspectra(pampelmuse):
 #        if "OBSERVATION {0} END".format(prop) in header and "OBSERVATION {0} START".format(prop) in header:
 #            header["HIERARCH OBSERVATION {0} MEAN".format(prop)] = (header["OBSERVATION {0} END".format(prop)] + header["OBSERVATION {0} START".format(prop)])/2.
 
-    
-
 
     ## add possibly relevant PampelMuse keywords to the FITS header
     for key in ["version", "revision", "filename", "utc", "passband"]:
@@ -155,6 +153,21 @@ def getspectra(pampelmuse):
         i = list(psf_attributes.names).index("fwhm")
         header["hierarch PAMPELMUSE SEEING"] = (psf_attributes.data[:,i,0].mean(), "Fitted PSF FWHM in spaxels")
 
+    ## for MUSE, the information which IFU dispersed the spectrum is added - hierarch key SPECTRUM IFUNO
+    ## In order for this to work, the rotation and extent of the MUSE FoV within the enclosing cube must be determined
+    if pampelmuse.ifs_data.instrument.name == "muse":
+        
+        logging.info("Determining edge of MUSE field of view...")
+        for i in xrange(pampelmuse.ifs_data.ndisp): ## get extent of MUSE FoV in cube
+            if i==0: mask=np.isnan(pampelmuse.ifs_data.data.layer(0))
+            else: mask=mask&np.isnan(pampelmuse.ifs_data.data.layer(i))
+        pampelmuse.ifs_data.instrument.determine_edge(mask.flatten()==False)
+    
+        alpha = np.radians(pampelmuse.ifs_data.get_key("ESO INS DROT POSANG")) ## get rotation angle
+        t = matplotlib.transforms.Affine2D(np.array([[0, 1, 0], [1, 0, 0], [0, 0, 1]])) ## rotate edge of MUSE field
+        t.rotate_around(0, 0, -alpha)
+        musepath = pampelmuse.ifs_data.instrument.edgepath.transformed(t)
+        museextents = musepath.get_extents()
 
     ## loop over all components, i.e. all spectra
     for i in xrange(sources.ncmp): ## collect spectrum and properties of every requested spectrum in observation
@@ -184,6 +197,7 @@ def getspectra(pampelmuse):
         if sources.status[j] in [2,3]:
             
             ID = sources.ID[j]
+            logging.info("Processing source #{0} [{1}/{2}]".format(ID, i+1, sources.ncmp))
             
             primary_hdu.header["hierarch STAR ID"] = ID
 
@@ -217,12 +231,29 @@ def getspectra(pampelmuse):
             sources.load_ifs_coordinates(ids=ID)
             xy_j = np.mean(sources.ifs_coordinates[:,0,:,0], axis=0)
             
+            ## add x- and y-position of PSF centroid in cube
+            primary_hdu.header["HIERARCH SPECTRUM XCUBE"] = (xy_j[0], "[spaxel] x-position in the cube")
+            primary_hdu.header["HIERARCH SPECTRUM YCUBE"] = (xy_j[1], "[spaxel] y-position in the cube")
+
+            ## if instrument is MUSE, find by which IFU the spectrum was dispersed
+            if pampelmuse.ifs_data.instrument.name == "muse":
+
+                ## translate to MUSE pixels by undoing derotator rotation, subtract minimum pixel of unrotated MUSE field (may not be zero)
+                xm = (np.cos(alpha)*xy_j[0] + np.sin(alpha)*xy_j[1])-museextents.xmin
+                ym = (-np.sin(alpha)*xy_j[0] + np.cos(alpha)*xy_j[1])-museextents.ymin
+                
+                ifuno = int(24.*ym/(museextents.ymax-museextents.ymin))+1
+                if ifuno>24: ifunu=24
+                if ifuno<1: ifuno=1
+                
+                primary_hdu.header["HIERARCH SPECTRUM IFUNO"] = (ifuno, "IFU of MUSE that dispersed spectrum")
+            
             infield = pampelmuse.ifs_data.instrument.infov(xy_j)
             if not infield: flag += 8
             primary_hdu.header["HIERARCH SPECTRUM INFIELD"] =  (infield, "Whether centroid inside FOV")
 
             edgedistance = pampelmuse.ifs_data.instrument.distance_to_edge([xy_j])
-            primary_hdu.header["HIERARCH SPECTRUM EDGEDIST"] = (edgedistance[0], "Distance to FOV edge")
+            primary_hdu.header["HIERARCH SPECTRUM EDGEDIST"] = (edgedistance[0], "[spaxel] Distance to FOV edge")
 
 
         ## calculate S/N of the spectrum

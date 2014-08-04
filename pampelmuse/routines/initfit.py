@@ -714,6 +714,10 @@ def initfit(pampelmuse):
         ## to account for this, masked arrays are used in the following calculations
         results = make_aper(r_aper=pampelmuse.aperrad, layer_range=(pampelmuse.start, pampelmuse.stop), background="local", ncpu=pampelmuse.cpucount)
         
+        # for testing purposes:
+#        tablehdu = fits.BinTableHDU(results)
+#        tablehdu.writeto("{0}.aperture.fits".format(pampelmuse.prefix), clobber=True)
+        
         ## write spectra and IFS coordinates into instance of Sources, estimate S/N and exclude sources with S/N<20
         sources.load_ifs_coordinates(ids=results["id"][results["id"]>=0])
 
