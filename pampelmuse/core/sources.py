@@ -21,12 +21,12 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-184, 2014/07/01
+202, 2014/08/10
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 184
+__revision__ = 202
 
-import collections, logging, os, re, warnings
+import collections, inspect, logging, os, re, warnings
 import numpy as np
 from numpy.polynomial import Chebyshev, Legendre, Hermite, Polynomial
 from astropy.io import fits
@@ -1098,7 +1098,6 @@ class Sources(object):
                     ifs_coordinates_id = self.ID[self.status<4]
                     break
 
-
         ## initialize properties used by the method Sources.load_ifs_coordinates()
         if not poly:
             self.ifs_coordinates_data_hdu = hdu
@@ -1145,6 +1144,11 @@ class Sources(object):
             range.
         """
 
+        ## for debugging: check where the call was triggered
+        curframe = inspect.currentframe()
+        calframe = inspect.getouterframes(curframe, 2)
+        logging.debug("call to Sources.load_ifs_coordinates() triggered by: {0} in {1}[@{2}]".format(calframe[1][3], calframe[1][1], calframe[1][2]))
+
         ## sanity checks on provided IDs and layers
         if ids != None:
             assert isinstance(ids, (int, np.integer, list, np.ndarray)), "If provided, parameter 'ids' must be single integer or array-like."
@@ -1187,7 +1191,7 @@ class Sources(object):
                 
             ## keep track of sources for which coords have been calculated
             processed = np.in1d(ids, self.ifs_coordinates_data_id) ## returns boolean array of length len(ids); processed[i]=True if ids[i] is in ifs_coordinates_data_id
-               
+            
             ## to fill in the IFS coordinates from an open HDU, a loop over the requested layers is performed unless the whole data are requested.
             ## While python loops are slow, this is the fastest way of getting the requested coordinates without loading the whole coordinates data
             ## into memory because a call like hdu.section[i] is much faster than a call like hdu.section[:,j,k]
@@ -1738,7 +1742,7 @@ class Sources(object):
             ## make sure IFS coordinates are loaded for all sources AND across the entire dispersion range
             if not self.ifs_coordinates_loaded[match_on_id(self.ID, ids)].all() or self.ifs_coordinates.shape[0] != self.ndisp:
                 logging.warning("Reloading IFS coordinates, modifications to Sources.ifs_coordinates will be lost.")
-            self.load_ifs_coordinates(ids=ids, layers=None)
+                self.load_ifs_coordinates(ids=ids, layers=None)
 
             to_store = np.flatnonzero(self.ifs_coordinates_free[self.ifs_coordinates_loaded])
 

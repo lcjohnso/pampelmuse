@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-195, 2014/07/09
+202, 2014/08/10
 """ 
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 195
+__revision__ = 202
 
 import contextlib, itertools, logging, os, sys, time
 import numpy as np, scipy
@@ -247,7 +247,7 @@ class StarFit(object):
         self.full_coordinates_fit = (self.sources.ifs_coordinates_free&(self.sources.ifs_coordinates_fitted==False)).any()
         if self.full_coordinates_fit:
             logging.warning("Fit of individual source positions requested.")
-            self.update_coordinates = (self.sources.ifs_coordinates_fitted==False)
+            self.update_coordinates = (self.sources.status<4)&(self.sources.ifs_coordinates_fitted==False)
         else:
             self.update_coordinates = (self.sources.status==3)&(self.sources.ifs_coordinates_fitted==False)
 
