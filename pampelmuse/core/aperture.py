@@ -109,7 +109,7 @@ def run_ap(centroids, pixpos, data, background="global", r_aper=3., calc_moments
     ## 2) local background pixels, defined as having distances >2*r_aper and <4*r_aper to one source
     else:
         backpix = (offsets>2*r_aper)&(offsets<=4*r_aper)
-    
+
     ## 3) flux pixels, defined a having distances <=r_aper to one source.
     fluxpix  = offsets<=r_aper
     
@@ -142,7 +142,7 @@ def run_ap(centroids, pixpos, data, background="global", r_aper=3., calc_moments
 
             ## estimate local background in annulus between 2*r_aper and 4*r_aper (if requested, otherwise global background is used)
             if background=="local":
-        
+
                 backdata = clip_sigma(data[i,backpix[:,j]&valid], axis=None)
                 backval = backdata.mean()
                 backstd = backdata.std()

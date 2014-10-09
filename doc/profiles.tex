@@ -1,29 +1,32 @@
-\documentclass[a4paper,10pt]{article}
-\usepackage[utf8]{inputenc}
-\usepackage{graphicx}
-\usepackage{amsmath}
-
-%opening
-\title{The PSF profiles used by PampelMuse}
-\author{Sebastian Kamann}
-% \allowdisplaybreaks
-
-%%%%%%%%%%%%%% Own definitions %%%%%%%%%%%%%%%%%%%%%
-\newcommand{\fwhm}{\text{FWHM}}
-\newcommand{\rd}{r_\text{d}}
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% \documentclass[a4paper,10pt]{article}
+% \usepackage[utf8]{inputenc}
+% \usepackage{graphicx}
+% \usepackage{amsmath}
+% 
+% %opening
+% \title{The PSF profiles used by PampelMuse}
+% \author{Sebastian Kamann}
+% % \allowdisplaybreaks
+% 
+% %%%%%%%%%%%%%% Own definitions %%%%%%%%%%%%%%%%%%%%%
+% \newcommand{\fwhm}{\text{FWHM}}
+% \newcommand{\rd}{r_\text{d}}
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% 
+% \begin{document}
+% 
+% \maketitle
 
 \graphicspath{{./../images/}}
 
-\begin{document}
+\section{The PSF profiles}
+\label{app:profiles}
 
-\maketitle
-
-\begin{abstract}
+% \begin{abstract}
 An overview of the functional forms of the analytical PSF profiles that PampelMuse uses. Besides the functional forms, we also provide the partial derivatives with respect to the individual profile parameters. They are used to determine the Jacobi matrix in the Levenberg-Marquard algorithm that performs the non-linear least squares fit.
-\end{abstract}
+%\end{abstract}
 
-\section{Handling of positions}
+\subsection{Handling of positions}
 \label{sec:positions}
 
 All profiles are defined as a function of $r$, with $r$ giving the distance of a pixel ($x_i$, $y_i$) to the centroid. In the most general case, the PSF will be of elliptical shape, with its semi-major rotated by an angle $\theta$ \textbf{with respect to the $y$-axis}. For this reason, we define a coordinate system (${\hat x}$, ${\hat y}$), that has the same origin as the PSF profile and has the ${\hat x}$-axis aligned with the semi-major axis. Assuming the central coordinates of profile $n$ ($n\in[0,N)$) in the original system are ($x^n$, $y^n$), the transformation is defined as
@@ -86,7 +89,7 @@ In this case, $r$ is a function of $6$ potentially free parameters: $A$, $B$, $C
 % =& \frac{1}{r}\left[ {\hat x}\cos\theta  - \frac{{\hat y}\sin\theta}{(1-e)^2}\right]\,.
 \end{align}
 
-\section{The Gaussian profile}
+\subsection{The Gaussian profile}
 \label{sec:gauss}
 
 The functional form of the Gaussian profile as it is used in \textsc{PampelMuse} is
@@ -132,7 +135,7 @@ Regarding the partial derivatives with respect to any parameter connected to the
 %
 with $\nu \in \{x^n, y^n, A, B, C, D\}$.
 
-\section{The Moffat profile}
+\subsection{The Moffat profile}
 \label{sec:moffat}
 
 The functional form of the Moffat profile that is included in \textsc{PampelMuse} is given as

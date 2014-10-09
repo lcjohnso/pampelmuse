@@ -31,10 +31,10 @@ another type, such as a float or a list.
 
 Latest SVN revision
 -------------------
-104, 2013/07/25
+203, 2014/10/09
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 104
+__revision__ = 203
 
 
 import datetime, logging, os, re, string, sys
@@ -475,9 +475,14 @@ class ModifyConfig:
 
             
 
-    def get_all(self):
+    def get_all(self, return_comment=False):
         """
         Read the current configuration and write it to a dictionary.
+
+        Parameters
+        ----------
+        return_comment : boolean
+            Flag indicating if the returned values include the comment.
 
         Returns
         -------
@@ -497,7 +502,14 @@ class ModifyConfig:
 
             thetype  = thevalue.attrib["dtype"]
 
-            config[thename.text] = transform_string(thevalue.text, thetype, abort_on_exception=self.AoE)
+            if return_comment:
+                thecomm  = parameter.findall("./{0}comment".format(self.ns))
+                comment  = ""
+                for comm in list(thecomm):
+                    comment += "-{0}".format(comm.text)
+                config[thename.text] = [transform_string(thevalue.text, thetype, abort_on_exception=self.AoE), comment]
+            else:
+                config[thename.text] = transform_string(thevalue.text, thetype, abort_on_exception=self.AoE)
 
         return config
 
