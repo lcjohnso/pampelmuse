@@ -78,16 +78,18 @@ Afterwards, you should be able to execute
 If no error message is returned, you have installed \pampelmuse successfully!
 
 \subsection{Using the SVN repository}
-The maintenance of \pampelmuse is handled via an SVN repository located at \url{https://subversion.assembla.com/svn/kamann-code.2}. The advantage of using the repository is that it allows you to always use the most recent version of the code. However, the disadvantage is that when updating the code I sometimes commit revisions that are not fully operational. So when updating to a new revision, be sure to check the most recent log entries.
+The maintenance of \pampelmuse is handled via an SVN repository located at \url{http://svn.astro.physik.uni-goettingen.de/pampelmuse}. The advantage of using the repository is that it allows you to always use the most recent version of the code. However, the disadvantage is that when updating the code I sometimes commit revisions that are not fully operational or have freshly introduced bugs. So when updating to a new revision, be sure to check the most recent log entries.
 
-To install from the SVN repository, first cd into the folder were you want to install the code and check out the repository:
-\shellcmd{svn checkout https://subversion.assembla.com/svn/kamann-code.2/trunk} \\
-This should download the most recent version of \pampelmuse. To use the code afterwards, the following modifications should be added to your shell configuration:
-\shellcmd{\#\# for a bash shell:}
-\shellcmd{export pampelmuse\_path=<path to PampelMuse> \#\# folder were SVN checkout was performed}
+To install from the SVN repository, first cd into the folder were you want to install the code (like \texttt{\~{}/tools/pampelmuse}) and check out the trunk of the repository:
+\shellcmd{svn co http://svn.astro.physik.uni-goettingen.de/pampelmuse/trunk} \\
+This should download the most recent version of \pampelmuse. In order to use the code afterwards, the following modifications should be added to your shell configuration. For a bash shell, use
+\shellcmd{export pampelmuse\_path=<path to PampelMuse>/trunk \#\# folder were SVN checkout was performed}
 \shellcmd{export PYTHONPATH=\$PYTHONPATH:\$pampelmuse\_path}
-\shellcmd{export PATH=\$PATH:\$pampelmuse\_path/pampelmuse/bin}
-
+\shellcmd{export PATH=\$PATH:\$pampelmuse\_path/pampelmuse/bin}\,,\\
+and for a c shell use
+\shellcmd{setenv pampelmuse\_path <path to PampelMuse>/trunk \#\# folder were SVN checkout was performed}
+\shellcmd{setenv PYTHONPATH \$PYTHONPATH:\$pampelmuse\_path}
+\shellcmd{setenv PATH \$PATH:\$pampelmuse\_path/pampelmuse/bin}\,.\\
 Again, calling
 \shellcmd{PampelMuse --help} \\
 should return no error message.
