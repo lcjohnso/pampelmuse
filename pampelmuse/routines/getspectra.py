@@ -22,16 +22,16 @@ Added
 
 Latest SVN revision
 -------------------
-201 # 2014/08/03
+204 # 2014/10/21
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 201
+__revision__ = 204
 
 import datetime, logging, os
 import numpy as np, matplotlib
 from astropy.io import fits
 
-## required PampelMuse-packages
+# required PampelMuse-packages
 from pampelmuse.core import Sources
 from pampelmuse.core.coordinates import Transformation
 from pampelmuse.core.psf import Variables
@@ -48,14 +48,14 @@ def getspectra(pampelmuse):
         logging.info("Creating folder '{0}' to store spectra...".format(pampelmuse.getspectra.folder))
         os.mkdir(pampelmuse.getspectra.folder)
 
-    ## Collect information about sources/create Sources-instance:
+    # Collect information about sources/create Sources-instance:
     logging.info("Obtaining information on sources in the field...")
     
-    ## - Source catalogue
+    # - Source catalogue
     sources = Sources(data=pampelmuse.hdulist["SOURCES"], instrument=pampelmuse.ifs_data.instrument)
 
     
-    ## - Spectra
+    # - Spectra
     logging.info("Obtaining source spectra...")
     try:
         i = pampelmuse.hdulist.index_of("SPECTRA")
@@ -68,7 +68,7 @@ def getspectra(pampelmuse):
         logging.critical("No spectra (HDU 'SPECTRA') have been provided.")
     
     
-    ## - Positions
+    # - Positions
     logging.info("Obtaining information about source coordinates...")
 
     try:
@@ -86,22 +86,22 @@ def getspectra(pampelmuse):
     sources.info()
 
     
-    ## Initializing PSF variables
+    # Initializing PSF variables
     logging.info("Obtaining PSF properties...")
     try:
         i = pampelmuse.hdulist.index_of("PSFPARS")
         psf_attributes = Variables(hdu=pampelmuse.hdulist[i])
-    except KeyError: ## otherwise, assume Gaussian, round with FWHM=3.0pixel
+    except KeyError: # otherwise, assume Gaussian, round with FWHM=3.0pixel
         logging.warning("No information about PSF profile (HDU 'PSFPARS') found.")
         psf_attributes = None
 
     
-    ## initialize an empty header that will contain the header cards that are the
-    ## same for all spectra collected from an observation
+    # initialize an empty header that will contain the header cards that are the
+    # same for all spectra collected from an observation
     header = fits.Header()
     
-
-    ## add dispersion information to header
+    
+    # add dispersion information to header
     header["CRPIX1"] = sources.crpix
     header["CRVAL1"] = sources.crval
     header["CDELT1"] = sources.cdelt
@@ -109,10 +109,10 @@ def getspectra(pampelmuse):
     header["CUNIT1"] = sources.cunit
     header["WSTART"] = (sources.crval-(sources.crpix-1)*sources.cdelt)
     header["WSTEP"] = sources.cdelt
-#    header["DC-FLAG"] = 0
+##    header["DC-FLAG"] = 0
 
 
-    header["OBJNAME"] = "NAME" ## place holder, will be adapted for each spectrum
+    header["OBJNAME"] = "NAME" # place holder, will be adapted for each spectrum
 
     for key in ["OBJECT", "TELESCOP", "INSTRUME", "DATE-OBS", "MJD-OBS", "JUL-DATE", "EXPTIME", "RA", "DEC", "EPOCH"]:
         value = pampelmuse.ifs_data.get_key(key)
@@ -120,14 +120,14 @@ def getspectra(pampelmuse):
             header[key] = value
 
 
-    ## add JUL-DATE keyword if only MJD-OBS is provided
+    # add JUL-DATE keyword if only MJD-OBS is provided
     if "MJD-OBS" in header and "JUL-DATE" not in header:
         header["JUL-DATE"] = header["MJD-OBS"]+2400000.5  
     
     if "JUL-DATE" in header: juldate = header["JUL-DATE"]
     else: juldate = 0
     
-    ## add keywords describing observing conditions
+    # add keywords describing observing conditions
     for ambikey in ["AIRM START", "AIRM END", "AMBI FWHM START", "AMBI FWHM END", "AMBI PRES START", "AMBI PRESS END", 
                     "AMBI RHUM", "AMBI TAU0", "AMBI TEMP", "AMBI WINDDIR", "AMBI WINDSP"]:
         inkey = "ESO TEL {0}".format(ambikey)
@@ -135,59 +135,59 @@ def getspectra(pampelmuse):
         if value != None:
             header["HIERARCH OBSERVATION {0}".format(ambikey)] = value
 
-#        ## if both start and end keywords exist, we add a keyword giving the mean of the two
-#        if "OBSERVATION {0} END".format(prop) in header and "OBSERVATION {0} START".format(prop) in header:
-#            header["HIERARCH OBSERVATION {0} MEAN".format(prop)] = (header["OBSERVATION {0} END".format(prop)] + header["OBSERVATION {0} START".format(prop)])/2.
+##        # if both start and end keywords exist, we add a keyword giving the mean of the two
+##        if "OBSERVATION {0} END".format(prop) in header and "OBSERVATION {0} START".format(prop) in header:
+##            header["HIERARCH OBSERVATION {0} MEAN".format(prop)] = (header["OBSERVATION {0} END".format(prop)] + header["OBSERVATION {0} START".format(prop)])/2.
 
 
-    ## add possibly relevant PampelMuse keywords to the FITS header
+    # add possibly relevant PampelMuse keywords to the FITS header
     for key in ["version", "revision", "filename", "utc", "passband"]:
         if hasattr(pampelmuse, key):
-            if isinstance(getattr(pampelmuse, key), str) and len(getattr(pampelmuse, key))>(55-len(key)): ## check that entry not longer than 80 characters
+            if isinstance(getattr(pampelmuse, key), str) and len(getattr(pampelmuse, key))>(55-len(key)): # check that entry not longer than 80 characters
                 header["hierarch PAMPELMUSE {0}".format(key.upper())] = getattr(pampelmuse, key)[:55-len(key)]
             else:
                 header["hierarch PAMPELMUSE {0}".format(key.upper())] = getattr(pampelmuse, key)
 
-    ## add estimate for seeing on detector using the fitted FWHM of the PSF profile
+    # add estimate for seeing on detector using the fitted FWHM of the PSF profile
     if psf_attributes != None:
         i = list(psf_attributes.names).index("fwhm")
         header["hierarch PAMPELMUSE SEEING"] = (psf_attributes.data[:,i,0].mean(), "Fitted PSF FWHM in spaxels")
 
-    ## for MUSE, the information which IFU dispersed the spectrum is added - hierarch key SPECTRUM IFUNO
-    ## In order for this to work, the rotation and extent of the MUSE FoV within the enclosing cube must be determined
+    # for MUSE, the information which IFU dispersed the spectrum is added - hierarch key SPECTRUM IFUNO
+    # In order for this to work, the rotation and extent of the MUSE FoV within the enclosing cube must be determined
     if pampelmuse.ifs_data.instrument.name == "muse":
         
         logging.info("Determining edge of MUSE field of view...")
-        for i in xrange(pampelmuse.ifs_data.ndisp): ## get extent of MUSE FoV in cube
+        for i in xrange(pampelmuse.ifs_data.ndisp): # get extent of MUSE FoV in cube
             if i==0: mask=np.isnan(pampelmuse.ifs_data.data.layer(0))
             else: mask=mask&np.isnan(pampelmuse.ifs_data.data.layer(i))
         pampelmuse.ifs_data.instrument.determine_edge(mask.flatten()==False)
     
-        alpha = np.radians(pampelmuse.ifs_data.get_key("ESO INS DROT POSANG")) ## get rotation angle
-        t = matplotlib.transforms.Affine2D(np.array([[0, 1, 0], [1, 0, 0], [0, 0, 1]])) ## rotate edge of MUSE field
+        alpha = np.radians(pampelmuse.ifs_data.get_key("ESO INS DROT POSANG")) # get rotation angle
+        t = matplotlib.transforms.Affine2D(np.array([[0, 1, 0], [1, 0, 0], [0, 0, 1]])) # rotate edge of MUSE field
         t.rotate_around(0, 0, -alpha)
         musepath = pampelmuse.ifs_data.instrument.edgepath.transformed(t)
         museextents = musepath.get_extents()
 
-    ## loop over all components, i.e. all spectra
-    for i in xrange(sources.ncmp): ## collect spectrum and properties of every requested spectrum in observation
+    # loop over all components, i.e. all spectra
+    for i in xrange(sources.ncmp): # collect spectrum and properties of every requested spectrum in observation
 
-        j  = sources.indexmap[i][0] ## The index of the primary (brightest) component contributing to the spectrum
-        k    = sources.specrow[j] ## The index of the spectrum in the data array
+        j  = sources.indexmap[i][0] # The index of the primary (brightest) component contributing to the spectrum
+        k    = sources.specrow[j] # The index of the spectrum in the data array
 
-        ## sanity check: sources with status 1 (=near brighter source) or -1 (=not used) should have no spectrum
+        # sanity check: sources with status 1 (=near brighter source) or -1 (=not used) should have no spectrum
         if sources.status[j] in [1,-1]:
             logging.error("Found spectrum for source #{0} with status {1}".format(sources.ID[j], sources.status[j]))
             continue
 
         flag = 0
-        ## each spectum is assigned a flag which is the sum of the following numbers:
-        ##  1 - More than one star contribute to the spectrum
-        ##  2 - The estimated S/N of the spectrum is <10
-        ##  4 - The mean flux of the spectrum is <0
-        ##  8 - The centroid of the star is outside the field of view
+        # each spectum is assigned a flag which is the sum of the following numbers:
+        #  1 - More than one star contribute to the spectrum
+        #  2 - The estimated S/N of the spectrum is <10
+        #  4 - The mean flux of the spectrum is <0
+        #  8 - The centroid of the star is outside the field of view
 
-        ## load spectrum for current component into memory
+        # load spectrum for current component into memory
         sources.load_spectra(components=[i,])
         primary_hdu = fits.PrimaryHDU(sources.data[:,0,0], header=header)
 
@@ -201,44 +201,44 @@ def getspectra(pampelmuse):
             
             primary_hdu.header["hierarch STAR ID"] = ID
 
-            ## update RA & Dec values if provided in source catalog
+            # update RA & Dec values if provided in source catalog
             if not np.isnan(sources.ra[j]) and not np.isnan(sources.dec[j]):
                 primary_hdu.header["RA"] = sources.ra[j]
                 primary_hdu.header["DEC"] = sources.dec[j]
                 primary_hdu.header["hierarch STAR RA"] = sources.ra[j]
                 primary_hdu.header["hierarch STAR DEC"] = sources.dec[j]
 
-            ## add magnitude to header
+            # add magnitude to header
             primary_hdu.header["hierarch STAR MAG"] = sources.mag[j]
 
-            ##  Check if more than one source contribute to the spectrum
+            #  Check if more than one source contribute to the spectrum
             cmt = "Whether multiple stars contribute"
             if len(sources.indexmap[i]) > 1:
                 flag += 1
-                for l in xrange(1, len(sources.indexmap[i])): ## if so, add RA, DEC, and magnitude information for all secondary stars
+                for l in xrange(1, len(sources.indexmap[i])): # if so, add RA, DEC, and magnitude information for all secondary stars
                     m = sources.indexmap[i][l]
                     if not np.isnan(sources.ra[m]) and not np.isnan(sources.dec[m]):
                         primary_hdu.header["hierarch STAR{0} RA".format(l+1)] = sources.ra[m]
                         primary_hdu.header["hierarch STAR{0} DEC".format(l+1)] = sources.dec[m]
                     primary_hdu.header["hierarch STAR{0} MAG".format(l+1)] = sources.mag[m]
                 primary_hdu.header["HIERARCH SPECTRUM MULTISTAR"] = (True, cmt)
-                primary_hdu.header["OBJNAME"] = "{0} {1} {2}+".format(pampelmuse.getspectra.prefix.upper(), pampelmuse.ifu.upper(), ID)
+                primary_hdu.header["OBJNAME"] = "{0} {1} {2}+".format(pampelmuse.getspectra.specprefix.upper(), pampelmuse.ifu.upper(), ID)
             else:
                 primary_hdu.header["HIERARCH SPECTRUM MULTISTAR"] = (False, cmt)
-                primary_hdu.header["OBJNAME"] = "{0} {1} {2}".format(pampelmuse.getspectra.prefix.upper(), pampelmuse.ifu.upper(), ID)
+                primary_hdu.header["OBJNAME"] = "{0} {1} {2}".format(pampelmuse.getspectra.specprefix.upper(), pampelmuse.ifu.upper(), ID)
 
-            ## load IFS coordinates for the star and check if it is inside the field of view
+            # load IFS coordinates for the star and check if it is inside the field of view
             sources.load_ifs_coordinates(ids=ID)
             xy_j = np.mean(sources.ifs_coordinates[:,0,:,0], axis=0)
             
-            ## add x- and y-position of PSF centroid in cube
+            # add x- and y-position of PSF centroid in cube
             primary_hdu.header["HIERARCH SPECTRUM XCUBE"] = (xy_j[0], "[spaxel] x-position in the cube")
             primary_hdu.header["HIERARCH SPECTRUM YCUBE"] = (xy_j[1], "[spaxel] y-position in the cube")
 
-            ## if instrument is MUSE, find by which IFU the spectrum was dispersed
+            # if instrument is MUSE, find by which IFU the spectrum was dispersed
             if pampelmuse.ifs_data.instrument.name == "muse":
 
-                ## translate to MUSE pixels by undoing derotator rotation, subtract minimum pixel of unrotated MUSE field (may not be zero)
+                # translate to MUSE pixels by undoing derotator rotation, subtract minimum pixel of unrotated MUSE field (may not be zero)
                 xm = (np.cos(alpha)*xy_j[0] + np.sin(alpha)*xy_j[1])-museextents.xmin
                 ym = (-np.sin(alpha)*xy_j[0] + np.cos(alpha)*xy_j[1])-museextents.ymin
                 
@@ -256,7 +256,7 @@ def getspectra(pampelmuse):
             primary_hdu.header["HIERARCH SPECTRUM EDGEDIST"] = (edgedistance[0], "[spaxel] Distance to FOV edge")
 
 
-        ## calculate S/N of the spectrum
+        # calculate S/N of the spectrum
         SNR = DER_SNR(sources.data[:,0,0])
         if SNR < 10: flag += 2
         primary_hdu.header["HIERARCH SPECTRUM SNRATIO"] = (SNR, "Estimated signal-to-noise")
@@ -269,17 +269,17 @@ def getspectra(pampelmuse):
         if sources.status[j] == 0:
             name = "unresolved"
             primary_hdu.header["hierarch SPECTRUM TYPE"] = name
-            primary_hdu.header["OBJNAME"] = "{0} {1} UNRES".format(pampelmuse.getspectra.prefix.upper(), pampelmuse.ifu.upper())
+            primary_hdu.header["OBJNAME"] = "{0} {1} UNRES".format(pampelmuse.getspectra.specprefix.upper(), pampelmuse.ifu.upper())
         elif sources.status[j] == 4:
             name = "sky"
             primary_hdu.header["hierarch SPECTRUM TYPE"] = name
-            primary_hdu.header["OBJNAME"] = "{0} {1} SKY".format(pampelmuse.getspectra.prefix.upper(), pampelmuse.ifu.upper())
+            primary_hdu.header["OBJNAME"] = "{0} {1} SKY".format(pampelmuse.getspectra.specprefix.upper(), pampelmuse.ifu.upper())
         else:
             name = "id{0:09d}".format(ID)
             primary_hdu.header["hierarch SPECTRUM TYPE"] = "star"
 
 
-        outname = "{0}{1}jd{2:07d}p{3:04d}f{4:03d}".format(pampelmuse.getspectra.prefix, name, int(juldate), int(10000*(juldate-int(juldate))), int(flag))
+        outname = "{0}{1}jd{2:07d}p{3:04d}f{4:03d}".format(pampelmuse.getspectra.specprefix, name, int(juldate), int(10000*(juldate-int(juldate))), int(flag))
         
         utc = datetime.datetime.utcnow().strftime("%y-%m-%d %H:%M:%S")
         primary_hdu.header["DATE-GEN"] = (utc, "UTC this file was generated.")

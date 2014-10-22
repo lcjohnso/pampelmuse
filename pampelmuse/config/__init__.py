@@ -31,7 +31,7 @@ __revision__ = 197
 import datetime, re
 from astropy.io import fits
 
-## required PampelMuse routines
+# required PampelMuse routines
 from xml_interact import ModifyConfig, transform_string
 
 
@@ -46,6 +46,10 @@ class PampelMuseConfig(Namespace):
         """
         
         self.utc = datetime.datetime.utcnow().strftime("%y-%m-%d %H:%M:%S")
+        
+        # the following list contains all the keywords that can currently be changed during the analysis, i.e. when
+        # calling a routine different from INITFIT or SINGLESRC:
+        self.changeable = ["verbose", "interact", "cpucount", "maxiter", "polytype", "polydeg", "subunres", "subsky"]
         
         
     def readHeader(self, hdu):
@@ -66,9 +70,9 @@ class PampelMuseConfig(Namespace):
             if match != None:
                 if match.group(2) == None: setattr(self, match.group(1).lower(), entry.value)
                 else:
-                    if not hasattr(self, match.group(1).lower()): ## create sub-namespace if it does not exist
+                    if not hasattr(self, match.group(1).lower()): # create sub-namespace if it does not exist
                         setattr(self, match.group(1).lower(), Namespace())
-                    setattr(self.__dict__[match.group(1).lower()],  match.group(2).lower(), entry.value) ## add parameter to sub-namespace
+                    setattr(self.__dict__[match.group(1).lower()],  match.group(2).lower(), entry.value) # add parameter to sub-namespace
         
         
     def makeHeader(self, hdu=fits.PrimaryHDU()):

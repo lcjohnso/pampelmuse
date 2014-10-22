@@ -1,4 +1,4 @@
-<?xml version="1.0" ?><?xml-stylesheet type="text/xsl" href="PMstyle.xsl"?><ns0:configuration timestamp="2014-07-10T08:59:24Z" xmlns:ns0="http://www.tobedefined.com/pampelmuse" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.tobedefined.com/pampelmuse PMschema.xsd">
+<?xml version="1.0" ?><?xml-stylesheet type="text/xsl" href="PMstyle.xsl"?><ns0:configuration timestamp="2014-10-21T19:59:54Z" xmlns:ns0="http://www.tobedefined.com/pampelmuse" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.tobedefined.com/pampelmuse PMschema.xsd">
  
  <ns0:parameter category="1pho" inuse="0">
   <ns0:name>CFPCOLS</ns0:name>
@@ -112,7 +112,7 @@
   <ns0:value dtype="bool">False</ns0:value>
   <ns0:comment>Flag indicating whether the CUBEFIT routinestarts automatically after being called or after the START button has been pressed. Note that this parameter only has an effect if the USEQT flag is set.</ns0:comment><ns0:updated timestamp="2012-02-13T21:21:21Z">Appended parameter JUMPSTART to configuration file.</ns0:updated>
  </ns0:parameter>
- <ns0:parameter category="3fit" inuse="1"><ns0:name>MAXITER</ns0:name><ns0:value dtype="int">1</ns0:value><ns0:comment>The maximum nuber of iterations performed for a single layer. Set to 1 to skip the iteration on individual layers.</ns0:comment><ns0:updated timestamp="2012-07-24T07:38:46Z">Appended parameter MAXITER to configuration file.</ns0:updated></ns0:parameter>
+ <ns0:parameter category="3fit" inuse="1"><ns0:name>MAXITER</ns0:name><ns0:value dtype="int">5</ns0:value><ns0:comment>The maximum nuber of iterations performed for a single layer. Set to 1 to skip the iteration on individual layers.</ns0:comment><ns0:updated timestamp="2012-07-24T07:38:46Z">Appended parameter MAXITER to configuration file.</ns0:updated></ns0:parameter>
  <ns0:parameter category="0gen" inuse="1">
   <ns0:name>INTERACT</ns0:name>
   <ns0:value dtype="bool">True</ns0:value>

@@ -19,39 +19,35 @@ pampelmuse.graphics.pampelmuse_gui.
 
 Latest SVN revision
 -------------------
-195, 2014/07/09
+204, 2014/10/21
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 195
+__revision__ = 204
 
 
 import datetime, logging, sys
-from PyQt4 import QtCore, QtGui
+import numpy as np
+# note: PyQt4 modules import below only if interaction enabled
 
-##  required PampelMuse-packages
+# required PampelMuse-packages
 from pampelmuse.core import Sources
 from pampelmuse.core.coordinates import Transformation
 from pampelmuse.core.psf import Variables
-from pampelmuse.graphics import PampelMuseGui
+# note: pampelmuse.graphics.PampelMuseGui imported below only if interaction enabled
+
 
 
 def polyfit(pampelmuse):
 
     logging.info("Executing requested routine POLYFIT [Revision {0:d}].".format(__revision__))
 
-    ## Collect information about sources/create Sources-instance
+    # Collect information about sources/create Sources-instance
     logging.info("Obtaining information on sources in the field...")
     
-    ## Source catalogue
+    # Get source catalogue from PRM-file
     sources = Sources(data=pampelmuse.hdulist["SOURCES"], instrument=pampelmuse.ifs_data.instrument)
 
-    ## Prepare GUI
-    app = QtGui.QApplication(sys.argv)
-    ui = PampelMuseGui(sources=sources, ifsData=pampelmuse.ifs_data, refImage=pampelmuse.polyfit.reference, 
-                       namespace=pampelmuse)
-    ui.outfileName = pampelmuse.filename
-
-    ## Spectra
+    # Open spectra HDU from PRM-file
     logging.info("Obtaining source spectra.")
     try:
         i = pampelmuse.hdulist.index_of("SPECTRA")
@@ -62,9 +58,8 @@ def polyfit(pampelmuse):
             sources.open_spectra_hdu(pampelmuse.hdulist[i])
     except KeyError:
         logging.critical("No spectra (HDU `SPECTRA') have been provided.")
-    ui.loadSpectra()
 
-    ## Positions
+    # get IFS coordinates from PRM-file
     logging.info("Obtaining information about source coordinates.")
 
     try:
@@ -75,70 +70,116 @@ def polyfit(pampelmuse):
             sources.open_coordinates_hdu(pampelmuse.hdulist[i])
         except KeyError:
             pass
-        ui.loadPositions()
     except KeyError:
         pass
 
+    # get coordinate transformation
     try:
         i = pampelmuse.hdulist.index_of("POSPARS")
         sources.transformation = Transformation(hdu=pampelmuse.hdulist[i])
-        ui.loadCoordTrans()
-        
+
     except KeyError:
         logging.warning("No coordinate transformation (HDU 'POSPARS') detected.")
 
     sources.info()
 
-    ## Initializing PSF properties
+    # Initialize PSF properties
     try:
         i = pampelmuse.hdulist.index_of("PSFPARS")
-        ui.loadPsfParameters(pampelmuse.hdulist[i])
-        ui.psf.info()
+        psf = Variables(hdu=pampelmuse.hdulist[i])
+        psf.info()
     except KeyError:
         logging.warning("No information available on PSF that was used (HDU 'PSFPARS').")
 
-    ## add information about caller routine to PampelMuse configuration
+    # add information about caller routine to PampelMuse configuration
     pampelmuse.polyfit.utc = datetime.datetime.utcnow().strftime("%y-%m-%d %H:%M:%S")
     pampelmuse.polyfit.revision = __revision__
+    
+    # Prepare GUI if interactive mode enabled
+    if pampelmuse.interact:
+        
+        from PyQt4 import QtCore, QtGui
+        from pampelmuse.graphics import PampelMuseGui
+        
+        app = QtGui.QApplication(sys.argv)
+        
+        ui = PampelMuseGui(sources=sources, ifsData=pampelmuse.ifs_data, refImage=pampelmuse.polyfit.reference, namespace=pampelmuse)
+        ui.outfileName = pampelmuse.filename
+        
+        ui.loadSpectra() # add information about spectra
+        ui.loadPositions() # add information about IFS coordinates
+        ui.loadCoordTrans() # add information about coordinate transformation
+        ui.loadPsfParameters(psf) # add information about PSF parameters
+    
+        # for type of polynomial, need to make first letter uppercase for identification in GUI
+        polytype = pampelmuse.polytype[0].upper()+pampelmuse.polytype[1:]
+        
+        # check if type of polynomial is valid
+        index = ui.spectrumFitTypeComboBox.findText(polytype) # find index of requested polynomial if it exists
+        if index>-1:
+            ui.spectrumFitTypeComboBox.setCurrentIndex(index)
+        else:
+            logging.error("Unknown type of polynomial: {0}".format(polytype))
 
-    ## update type of polynomial and its degree
-    polytype = pampelmuse.polytype[0].upper()+pampelmuse.polytype[1:] ## need to make first letter uppercase
-    index = ui.spectrumFitTypeComboBox.findText(polytype) ## find index of requested polynomial if it exists
-    if index>-1:
-        logging.info("Using {0} polynomials to fit wavelength dependencies.".format(polytype))
-        ui.spectrumFitTypeComboBox.setCurrentIndex(index)
-    else:
-        logging.error("Unknown type of polynomial: {0}".format(polytype))
+        # add degree of polynomial to GUI
+        if pampelmuse.interact: ui.spectrumFitOrderSpinBox.setValue(pampelmuse.polydeg)
 
-    ui.spectrumFitOrderSpinBox.setValue(pampelmuse.polydeg)
-    logging.info("Order of fit polynomials set to {0}.".format(pampelmuse.polydeg))
+        # check if common slope should be used for the IFS coordinates
+        if pampelmuse.interact: ui.actionForce_common_slope.setChecked(pampelmuse.polyfit.common)
 
-    ## exclude requested wavelength ranges (if any)
-    if pampelmuse.polyfit.exclude != None:
-        for wmin, wmax in pampelmuse.polyfit.exclude:
-            ui.modifyMask((wmin, wmax), True)
+        # exclude requested wavelength ranges (if any)
+        if pampelmuse.polyfit.exclude != None:
+            for wmin, wmax in pampelmuse.polyfit.exclude:
+                ui.modifyMask((wmin, wmax), True)
             logging.info("Added wavelength range to mask: {0}--{1}".format(wmin, wmax))
 
-    ## check if common slope should be used for the IFS coordinates
-    ui.actionForce_common_slope.setChecked(pampelmuse.polyfit.common)
-    logging.info("Using common slope in IFS coordinate fits? {0}".format(pampelmuse.polyfit.common))
-
-    if pampelmuse.interact:
         ui.show()
     
         sys.exit(app.exec_())
 
-    else: ## automatically fit PSF paramaters and source positions using the predefined polynomial type and degree
+    else: # automatically fit PSF paramaters and source positions using the predefined polynomial type and degree
         
-        for i in xrange(ui.psf.npars):
-            if ui.psf.free[i]:
-                logging.info("Polynomial fit to PSF parameter '{0}'...".format(ui.psf.names[i]))
-                ui.psf.polynomial_fit(name=ui.psf.names[i], order=pampelmuse.polydeg, mask=None, function=pampelmuse.polytype)
-        
-        ## all sources are fitted simultaeously and with a common slope currently
-        logging.info("Polynomial fit to source coordinates...")
-        ui.sources.fitIfsCoordinates(ids=None, order=pampelmuse.polydeg, mask=None, function=pampelmuse.polytype, commonSlope=True, instrument=ui.instrument)
-        
-        ## save changes to the currently opened file
-        ui.on_actionSave_triggered()
+        # prepare mask
+        if pampelmuse.polyfit.exclude != None:
+            logging.info("Masked wavelength ranges: {0}".format(pampelmuse.polyfit.exclude))
+            _mask = [(sources.wave>=wmin)&(sources.wave<=wmax) for wmin, wmax in pampelmuse.polyfit.exclude]
+            mask = np.any(_mask, axis=0)
 
+        # fit PSF parameters
+        for i in xrange(psf.npars):
+            if psf.free[i]:
+                logging.info("Polynomial fit (function={0}, order={1}) to PSF parameter {2}...".format(pampelmuse.polytype, pampelmuse.polydeg, psf.names[i]))
+                psf.polynomial_fit(name=psf.names[i], order=pampelmuse.polydeg, mask=None, function=pampelmuse.polytype)
+        
+        # fit IFS coordinates
+        logging.info("Polynomial fit (function={0}, order={1}) to source coordinates...".format(pampelmuse.polytype, pampelmuse.polydeg))
+        sources.fitIfsCoordinates(ids=None, order=pampelmuse.polydeg, mask=None, function=pampelmuse.polytype, commonSlope=pampelmuse.polyfit.common,
+                                  instrument=pampelmuse.ifs_data.instrument)
+        
+        # save changes to the currently opened file
+        # store PSF (only if it as been fitted)
+        if psf.free.any():
+            pampelmuse.hdulist["PSFPARS"] = psf.make_hdu() # extension should be there
+        
+        # store IFS coordinates: write "POSITIONS" HDU containing polynomial fits to source positions.
+        # This is only needed when polynomial fits exist for at least one source
+        if len(sources.ifs_coordinates_fit_functions)>0:
+            try:
+                i = pampelmuse.hdulist.index_of("POSITIONS")
+                pampelmuse.hdulist[i] = sources.make_ifs_coordinates_hdu(fit=True)
+            except KeyError:
+                pampelmuse.hdulist.append(sources.make_ifs_coordinates_hdu(fit=True))
+        
+            # write HDU containing directly fitted (i.e fitted using CUBEFIT) coordinates if they exist
+            if sources.ifs_coordinates_free.any():
+                try:
+                    i = pampelmuse.hdulist.index_of("INPOSITIONS")
+                    pampelmuse.hdulist[i] = sources.make_ifs_coordinates_hdu(fit=False, name="INPOSITIONS")
+                except KeyError:
+                    HDUList.append(sources.make_ifs_coordinates_hdu(fit=False, name="INPOSITIONS"))
+
+        # update the primary header information
+        pampelmuse.makeHeader(hdu=pampelmuse.hdulist[0])
+    
+        # save the file
+        pampelmuse.hdulist.flush()

@@ -20,38 +20,35 @@ fit' if the configuration parameter USEQT of PampelMuse is enabled.
 
 Latest SVN revision
 -------------------
-195, 2014/07/09
+204, 2014/10/21
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 195
+__revision__ = 204
 
 import datetime, logging, os, sys
 import numpy as np
+# note that PyQt4 is loaded later and only if requested
 
-## required PampelMuse-packages
+# required PampelMuse-packages
 from pampelmuse.core import Sources
 from pampelmuse.core.coordinates import Transformation
 from pampelmuse.core.psf import Variables
 from pampelmuse.core.fit_array import StarFit
+# note that QStarFit is loaded later and only if requested
 
-
-
-## IMPORTANT:
-## PyQt4 and QStarFit are loaded later and only if requested and dependencies
-## fulfilled
 
 
 def cubefit(pampelmuse):
 
     logging.info("Executing requested routine CUBEFIT [Revision {0:d}].".format(__revision__))
 
-    ## Collect information about sources/create Sources-instance
+    # Collect information about sources/create Sources-instance
     logging.info("Obtaining information on sources in the field...")
     
-    ## Source catalogue
+    # Source catalogue
     sources = Sources(data=pampelmuse.hdulist["SOURCES"])
 
-    ## Spectra
+    # Spectra
     try:
         i= pampelmuse.hdulist.index_of("SPECTRA")
         try:
@@ -63,7 +60,7 @@ def cubefit(pampelmuse):
         logging.critical("No spectra (HDU 'SPECTRA') have been provided.")
 
 
-    ## Positions
+    # Positions
     logging.info("Obtaining information about source coordinates...")
 
     try:
@@ -82,7 +79,7 @@ def cubefit(pampelmuse):
         sources.ifs_coordinates_free[sources.status<4] = True
 
 
-    ## Initializing PSF properties
+    # Initializing PSF properties
     logging.info("Obtaining PSF properties...")
     try:
         i = pampelmuse.hdulist.index_of("PSFPARS")
@@ -102,7 +99,7 @@ def cubefit(pampelmuse):
     psf_attributes.info()
 
 
-    ## Check for previous PampelMuse-results
+    # Check for previous PampelMuse-results
     try: fitStatus = pampelmuse.cubefit.status
     except AttributeError: fitStatus = "NOT STARTED"
     
@@ -114,7 +111,7 @@ def cubefit(pampelmuse):
     if lastFitIndex != None:
         logging.info("Continuing previously paused fit, current layer: {0}".format(lastFitIndex))
 
-    ## Check the range of layers to be fitted 
+    # Check the range of layers to be fitted 
     try: start = pampelmuse.start
     except AttributeError: start = 0
     try: stop = pampelmuse.stop
@@ -126,7 +123,7 @@ def cubefit(pampelmuse):
         sources.ndisp = (stop-start+1)
     
 
-    ## start fitting process:
+    # start fitting process:
     logging.info("Starting fit process...")
 
     if pampelmuse.useqt:
@@ -148,10 +145,10 @@ def cubefit(pampelmuse):
     logging.info("Saving results...")
 
 
-    ## storing spectra
+    # storing spectra
     pampelmuse.hdulist["SPECTRA"] = sources.make_spectra_hdu()
 
-    ## Store IFU coordinates (only if they have been fitted)
+    # Store IFU coordinates (only if they have been fitted)
     if (sources.ifs_coordinates_free&(sources.ifs_coordinates_fitted==False)).any():
         try:
             pampelmuse.hdulist["POSITIONS"] = sources.make_ifs_coordinates_hdu()
@@ -159,7 +156,7 @@ def cubefit(pampelmuse):
             pampelmuse.hdulist.append(sources.make_ifs_coordinates_hdu())
 
 
-    ## store coordinate transformation (only if it has been fitted)
+    # store coordinate transformation (only if it has been fitted)
     elif sources.transformation.contains_free_parameters:
         try:
             pampelmuse.hdulist["POSPARS"] = sources.transformation.make_hdu()
@@ -167,14 +164,14 @@ def cubefit(pampelmuse):
             pampelmuse.hdulist.append(5, sources.transformation.make_hdu())
 
 
-    ## store PSF (only if it as been fitted)
+    # store PSF (only if it as been fitted)
     if psf_attributes.contains_free_parameters:
         try:
             pampelmuse.hdulist["PSFPARS"] = psf_attributes.make_hdu()
         except KeyError:
             pampelmuse.hdulist.append(psf_attributes.make_hdu())
 
-    ## log status of analysis and create header of Primary HDU
+    # log status of analysis and create header of Primary HDU
     pampelmuse.cubefit.utc = datetime.datetime.utcnow().strftime("%y-%m-%d %H:%M:%S")
     pampelmuse.cubefit.revision = __revision__
     if fitter.i != sources.ndisp: pampelmuse.cubefit.status = "STOPPED"
@@ -182,5 +179,5 @@ def cubefit(pampelmuse):
     pampelmuse.cubefit.lastlayer = fitter.i
     pampelmuse.makeHeader(hdu=pampelmuse.hdulist[0])
     
-    ## Save the file
+    # Save the file
     pampelmuse.hdulist.flush()
