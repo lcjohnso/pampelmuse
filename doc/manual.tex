@@ -64,12 +64,14 @@ These packages are required in order to work with the graphical user interface (
 There are currently two possibilities to obtain \pampelmuse that will be described in the following.
 
 \subsubsection{Using the tarball -- TBD!}
+\label{sec:install:tarball}
+
 A zipped version of the code is available at \url{http://path.to/pampelmuse.tar.gz}. After the download is completed, change to the folder containing the tarball and execute the following commands
 \shellcmd{tar -xvzf pampelmuse.tar.gz}
 \shellcmd{cd pampelmuse/}
 \shellcmd{python setup.py install} \\
-This will install \pampelmuse to your default \textit{python} path. Note that the last step usually requires root privileges. If you do not have those privileges, you can define a custom path using the \texttt{--prefix} or \texttt{--home} arguments. You only have to make sure then that the path you are using to install \pampelmuse is included in your \texttt{PYTHONPATH}. For example, the following commands will install \pampelmuse to folders \texttt{\$HOME/lib} and \texttt{\$HOME/bin}.
-\shellcmd{python setup.py install --home=\~}
+This will install \pampelmuse to your default \textit{python} path. Note that the last step usually requires root privileges. If you do not have those privileges, you can define a custom path using the \texttt{-{}-prefix} or \texttt{-{}-home} arguments. You only have to make sure then that the path you are using to install \pampelmuse is included in your \texttt{PYTHONPATH}. For example, the following commands will install \pampelmuse to folders \texttt{\$HOME/lib} and \texttt{\$HOME/bin}.
+\shellcmd{python setup.py install -{}-home=\~{}}
 \shellcmd{export PYTHONPATH=\$PYTHONPATH:\$HOME/lib/python \#\# for a bash-shell or}
 \shellcmd{setenv PYTHONPATH \$PYTHONPATH:\$HOME/lib/python \#\# for a c-shell} \\
 You probably want to store the modification of your \texttt{PYTHONPATH} variable in your shell configuration file (\texttt{.bashrc} or \texttt{.cshrc}), otherwise you have to set the variable again every time you open a new shell. For further informations on custom installation paths, check the \textit{python} documentation.\footnote{\url{http://docs.python.org/2/install/#alternate-installation}}
@@ -78,7 +80,7 @@ Afterwards, you should be able to execute
 \shellcmd{PampelMuse --help} \\
 If no error message is returned, you have installed \pampelmuse successfully!
 
-\subsection{Using the SVN repository}
+\subsubsection{Using the SVN repository}
 The maintenance of \pampelmuse is handled via an SVN repository located at \url{http://svn.astro.physik.uni-goettingen.de/pampelmuse}. The advantage of using the repository is that it allows you to always use the most recent version of the code. However, the disadvantage is that when updating the code I sometimes commit revisions that are not fully operational or have freshly introduced bugs. So when updating to a new revision, be sure to check the most recent log entries.
 
 To install from the SVN repository, first cd into the folder were you want to install the code (like \texttt{\~{}/tools/pampelmuse}) and check out the trunk of the repository:
@@ -91,7 +93,11 @@ and for a c shell use
 \shellcmd{setenv pampelmuse\_path <path to PampelMuse>/trunk \#\# folder were SVN checkout was performed}
 \shellcmd{setenv PYTHONPATH \$PYTHONPATH:\$pampelmuse\_path}
 \shellcmd{setenv PATH \$PATH:\$pampelmuse\_path/pampelmuse/bin}\,.\\
-Again, calling
+Note that the SVN repository also contains the setup script. So you can also execute
+\shellcmd{python setup.py install} \\
+and proceed in analogy to Sect.~\ref{sec:install:tarball}. The downside of this approach is that you will have to reinstall \pampelmuse everytime you check out a new version from the repository.
+
+In either case, calling
 \shellcmd{PampelMuse --help} \\
 should return no error message.
 
