@@ -53,7 +53,7 @@ Note that the versions of the packages listed above are just a recommendation. T
  \item \textit{matplotlib}\footnote{\url{http://matplotlib.org/}}, tested for version 1.1.1
  \item \textit{PyQt4}\footnote{\url{http://www.riverbankcomputing.co.uk/software/pyqt/intro}}
 \end{itemize}
-These packages are required in order to work with the graphical user interface (GUI) that is provided with \pampelmuse. When starting \pampelmuse the availability of \textit{matplotlib} and \textit{PyQt4} is checked. If the packages are not available, the subroutines that implement the GUI will be disabled. Finally, the packages listed below are not required to run the core packages of \pampelmuse, but some auxiliary routines depend on them:
+These packages are required in order to work with the graphical user interface (GUI) that is provided with \pampelmuse. When starting \pampelmuse the availability of \textit{matplotlib} and \textit{PyQt4} is checked. If the packages are not available, the interactive mode of will be disabled. Finally, the packages listed below are not required to run the core packages of \pampelmuse, but some auxiliary routines depend on them:
 \begin{itemize}
  \item \textit{astLib}\footnote{\url{http://astlib.sourceforge.net/}}, tested for version 0.7.0
  \item \textit{pyraf}\footnote{\url{http://www.stsci.edu/institute/software_hardware/pyraf}}
@@ -67,14 +67,18 @@ There are currently two possibilities to obtain \pampelmuse that will be describ
 \label{sec:install:tarball}
 
 A zipped version of the code is available at \url{http://path.to/pampelmuse.tar.gz}. After the download is completed, change to the folder containing the tarball and execute the following commands
-\shellcmd{tar -xvzf pampelmuse.tar.gz}
-\shellcmd{cd pampelmuse/}
+\shellcmd{tar -xvzf PampelMuse-0.17.1.tar.gz}
+\shellcmd{cd PampelMuse-0.17.1/}
 \shellcmd{python setup.py install} \\
-This will install \pampelmuse to your default \textit{python} path. Note that the last step usually requires root privileges. If you do not have those privileges, you can define a custom path using the \texttt{-{}-prefix} or \texttt{-{}-home} arguments. You only have to make sure then that the path you are using to install \pampelmuse is included in your \texttt{PYTHONPATH}. For example, the following commands will install \pampelmuse to folders \texttt{\$HOME/lib} and \texttt{\$HOME/bin}.
-\shellcmd{python setup.py install -{}-home=\~{}}
-\shellcmd{export PYTHONPATH=\$PYTHONPATH:\$HOME/lib/python \#\# for a bash-shell or}
-\shellcmd{setenv PYTHONPATH \$PYTHONPATH:\$HOME/lib/python \#\# for a c-shell} \\
-You probably want to store the modification of your \texttt{PYTHONPATH} variable in your shell configuration file (\texttt{.bashrc} or \texttt{.cshrc}), otherwise you have to set the variable again every time you open a new shell. For further informations on custom installation paths, check the \textit{python} documentation.\footnote{\url{http://docs.python.org/2/install/#alternate-installation}}
+This will install \pampelmuse to your default \textit{python} path. Note that the last step usually requires root privileges. If you do not have them, you can define a custom path using the \texttt{-{}-prefix} or \texttt{-{}-home} arguments. For example, the following command will install \pampelmuse to folders \texttt{\$HOME/lib/python} and \texttt{\$HOME/bin}:
+\shellcmd{python setup.py install -{}-home=\~{}} \\
+Afterwards you have to make sure that the system finds the newly installed files by adding \texttt{\$HOME/bin} to your \texttt{PATH} and \texttt{\$HOME/lib/python} to your \texttt{PYTHONPATH}. For a bash shell, this is done by adding
+\shellcmd{export PYTHONPATH=\$PYTHONPATH:\$HOME/lib/python}
+\shellcmd{export PATH=\$PATH:\$HOME/bin}\\
+to your shell configuration file (\texttt{\$HOME/.bashrc}). For a c-shell, the following commands lines should be added to your configuration file (\texttt{\$HOME/.cshrc}):
+\shellcmd{setenv PYTHONPATH \$PYTHONPATH:\$HOME/lib/python}
+\shellcmd{setenv PATH \$PATH:\$HOME/bin}\\
+For further informations on custom installation paths, check the \textit{python} documentation.\footnote{\url{http://docs.python.org/2/install/#alternate-installation}}
 
 Afterwards, you should be able to execute
 \shellcmd{PampelMuse --help} \\
@@ -88,11 +92,11 @@ To install from the SVN repository, first cd into the folder were you want to in
 This should download the most recent version of \pampelmuse. In order to use the code afterwards, the following modifications should be added to your shell configuration. For a bash shell, use
 \shellcmd{export pampelmuse\_path=<path to PampelMuse>/trunk \#\# folder were SVN checkout was performed}
 \shellcmd{export PYTHONPATH=\$PYTHONPATH:\$pampelmuse\_path}
-\shellcmd{export PATH=\$PATH:\$pampelmuse\_path/pampelmuse/bin}\,,\\
+\shellcmd{export PATH=\$PATH:\$pampelmuse\_path/pampelmuse/bin}\\
 and for a c shell use
 \shellcmd{setenv pampelmuse\_path <path to PampelMuse>/trunk \#\# folder were SVN checkout was performed}
 \shellcmd{setenv PYTHONPATH \$PYTHONPATH:\$pampelmuse\_path}
-\shellcmd{setenv PATH \$PATH:\$pampelmuse\_path/pampelmuse/bin}\,.\\
+\shellcmd{setenv PATH \$PATH:\$pampelmuse\_path/pampelmuse/bin}\\
 Note that the SVN repository also contains the setup script. So you can also execute
 \shellcmd{python setup.py install} \\
 and proceed in analogy to Sect.~\ref{sec:install:tarball}. The downside of this approach is that you will have to reinstall \pampelmuse everytime you check out a new version from the repository.
@@ -125,15 +129,11 @@ I strongly recommend leaving the XML file untouched even if you want to change t
 
 \subsubsection{Using the command line}
 
-\pampelmuse can be started with the option \texttt{--fromline} which accepts a comma-separated list of \textbf{name}=\textit{value} pairs, where \texttt{value} is the new value of the parameter \textbf{name}. As an example, consider the following calling sequence:
-\shellcmd{PampelMuse --fromline verbose=3,ifu=muse,interact=True ...}
+\pampelmuse can be started with the option \texttt{--fromline} which accepts a comma-separated list of \textbf{name}=\textit{value} pairs, where \texttt{value} is the new value of the parameter \textbf{name}. As an example, \texttt{--fromline verbose=3,ifu=muse,interact=True} would be a valid expression for the \texttt{--fromfile} argument.
 
 \subsubsection{Using a plain text file}
 
-Alternatively, \pampelmuse may be called with the \texttt{--fromfile} option in which case the configuration is updated using a plain text file which contains the \textbf{name}=\textit{value} pairs, one per line. As an example, consider the following calling sequence:
-\shellcmd{PampelMuse --fromfile pampelmuse.user ...}\,,
-
-where the file \texttt{pampelmuse.user} may look like this:
+Alternatively, \pampelmuse may be called with the \texttt{--fromfile} option in which case the configuration is updated using a plain text file which contains the \textbf{name}=\textit{value} pairs, one per line. As an example, a valid argument would be \texttt{--fromfile pampelmuse.user}\, where the file \texttt{pampelmuse.user} may look like this:
 \begin{lstlisting}[frame=single]
  ## Example configuration file
  ifu=muse
@@ -401,12 +401,13 @@ CUBEFIT analyses the IFS data layer by layer, starting from the central layer an
  \item The third step, the optimization of the PSF parameters, uses the fluxes and the updated coordinate transformation. Again, the code makes use of the \texttt{leastsq} algorithm and incorporates the Jacobi matrix, this time containing the partial derivatives with respect to the PSF shape parameters.
  \item The updated PSF and coordinate transformation are used to refit the fluxes of the sources. Afterwards, it is checked whether the fluxes converged. The convergence criterion that is used by \pampelmuse is that the median change in flux compared to the last iteration is $<0.005$. If the convergence criterion is fulfilled or the maximum number of iterations has been reached, the analysis is continued with the next layer. Otherwise the iteration continues with fitting the coordinate transformation parameters (step 2). The maximum number of iterations can be set by the parameter \texttt{MAXITER}.
  \pmparameter{MAXITER}{integer}{$10$}{The maximum number of iterations that is performed by CUBEFIT on an individual layer of the IFS data.}
+ \item After all the requested layers have been analysed in this way, the results are written to the PRM-file.
 \end{enumerate}
 Note that the initial after the first two layers have been processed, the code will use the fit results for the PSF and the coordinate transformation as initial guesses for the analysis of the next layer. To avoid that a failed fit in one layer (e.g. because of a strong cosmic) influences the analysis of the following ones, the initial guesses are obtained by averaging over the results from the $10$ adjacent layers.
 
-After all the requested layers have been analysed in this way, the results are written to the PRM-file.
-
 It should be highlighted again that the way the fit of the coordinate transformation and PSF parameters is carried out depends on the value of the parameter \texttt{SMALLIFU}, cf. Sect.~\ref{sec:initfit}. If the value of \texttt{SMALLIFU} is True, the code optimizes for the parameters by fitting a PSF profile to all resolved sources simulateously. Otherwise, the code loops over all PSF sources found by INITFIT and fits a single PSF profile to them. Afterwards, the parameters of the coordinate transformation are obtained using the reference coordinates and the fitted centroids of all PSF sources. The PSF parameters are updated by averaging over the results from the individual PSF fits. To remove contamination from neighbouring sources as accurately as possible, those sources are subtracted from the IFS data before the fit using the current PSF estimate. 
+
+Note that this routine is computationally the most demanding part of \pampelmuse. The executions times can vary from a few minutes if only some sources are present to tens of hours for really crowded fields and huge datasets. My recommendation is to start CUBEFIT in a \texttt{screen} session, detach from it and have a good glass of wine.
 
 \begin{figure}[!t]
   \centering\includegraphics[width=10cm]{cubefit_scheme.png}

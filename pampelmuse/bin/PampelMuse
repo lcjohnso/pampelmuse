@@ -61,10 +61,10 @@ the data into memory yet but just checks whether the file(s) are valid.
 
 Latest SVN revision
 -------------------
-210, 2014/10/23"""
+211, 2014/10/23"""
 __author__     = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__    = "0.17.1.0"
-__revision__   = 204
+__version__    = "0.17.2.0"
+__revision__   = 211
 
 
 
@@ -147,7 +147,7 @@ class GetValuesFromLine(argparse.Action):
     """
     def __call__(self, parser, namespace, values, option_string=None):
         outdict = {}
-        for _val in values[0].split('-'):
+        for _val in values[0].split(','):
             val = re.sub(r'\s', '', _val) # remove whitespace characters
             if len(val.split("=")) != 2:
                 raise IOError, "Bad parameter definition in line: {0}".format(val)
