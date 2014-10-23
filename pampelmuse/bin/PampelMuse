@@ -61,9 +61,9 @@ the data into memory yet but just checks whether the file(s) are valid.
 
 Latest SVN revision
 -------------------
-204, 2014/10/21"""
+210, 2014/10/23"""
 __author__     = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__    = "0.17.0.0"
+__version__    = "0.17.1.0"
 __revision__   = 204
 
 
@@ -124,7 +124,7 @@ if not graphics:
     logging.error("Routines INITFIT and POLYFIT cannot be used.")
 
 # import required PampelMuse-packages
-from pampelmuse.config import ModifyConfig, Namespace, PampelMuseConfig
+from pampelmuse.config import Namespace, PampelMuseConfig
 from pampelmuse.core import Cube
 from pampelmuse.core.psf import Variables
 
@@ -393,14 +393,10 @@ if args.func not in [initfit, singlesrc]:
 # initialize the configuration of PampelMuse
 # i) the default configuration is saved in an XML-file that is shipped with PampelMuse
 # To check the default configuration, open the XML file using any web browser, e.g.
-# >>> firefox $pampelmuse_path/config/PMparams.xml
-__currentdir__ = os.path.dirname(__file__)
-__configpath__ = os.path.join(__currentdir__, os.pardir, os.pardir, "config") # the path to the XML file containing the default configuration
+# >>> firefox $pampelmuse_path/pampelmuse/config/data/PMparams.xml
 
-# ii) open configuration file, and read default configuration into namespace
-cfg_interface = ModifyConfig(os.path.join(__configpath__,"PMparams.xml"), os.path.join(__configpath__, "PMschema.xsd"))
-for key, value in cfg_interface.get_all().iteritems():
-    setattr(pampelmuse, key.lower(), value)
+# ii) read default configuration into namespace
+pampelmuse.read_defaults()
 
 # iii) if PRM-file was opened, update the configuration using the primary header hierarch keys. Note that these keywords can be
 # either directly connected to PampelMuse (e.g. HIERARCH PAMPELMUSE IFU) or to one of its subroutines (e.g. HIERARCH PAMPELMUSE

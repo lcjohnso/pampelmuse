@@ -22,13 +22,13 @@ the header of a FITS HDU.
 
 Latest SVN revision
 -------------------
-197, 2014/07/10
+210, 2014/10/23
 """
 __author__   = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 197
+__revision__ = 210
 
 
-import datetime, re
+import datetime, os, re
 from astropy.io import fits
 
 # required PampelMuse routines
@@ -50,6 +50,20 @@ class PampelMuseConfig(Namespace):
         # the following list contains all the keywords that can currently be changed during the analysis, i.e. when
         # calling a routine different from INITFIT or SINGLESRC:
         self.changeable = ["verbose", "interact", "cpucount", "maxiter", "polytype", "polydeg", "subunres", "subsky"]
+        
+        
+    def read_defaults(self):
+        """
+        This method reads the default configuration from the XML file that is
+        part of PampelMuse and stored in the data directory of this package.
+        """
+        
+        __currentdir__ = os.path.abspath(os.path.dirname(__file__))
+        
+        config_reader = ModifyConfig(os.path.join(__currentdir__, "data", "PMparams.xml"), os.path.join(__currentdir__, "data", "PMschema.xsd"))
+        
+        for key, value in config_reader.get_all().iteritems():
+            setattr(self, key.lower(), value)
         
         
     def readHeader(self, hdu):

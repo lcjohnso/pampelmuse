@@ -37,21 +37,22 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-204, 2014/10/21
+210, 2014/10/23
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 204
+__revision__ = 210
 
 import datetime, itertools, os, sys, logging
 from multiprocessing import cpu_count, Pool
 import numpy as np 
 from astropy.io import fits
-from scipy import interpolate, ndimage, signal, spatial
+from scipy import ndimage, signal, spatial
 # note: PyQt4 imported below only if interaction enabled
 
 # required PampelMuse routines
 from pampelmuse.core import AperPhoto, Sources
 from pampelmuse.core.psf import *
+from pampelmuse.filters import get_filter
 from pampelmuse.functions.io import read_asciifile
 from pampelmuse.functions.statistics import DER_SNR
 # note: pampelmuse.graphics.PampelMuseGui imported below only if interaction enabled
@@ -191,14 +192,10 @@ def initfit(pampelmuse):
     # magnitudes were provided.
     logging.info("Creating mock {0}-band image from IFS data...".format(pampelmuse.passband))
     
-    # get location of ascii-file with photometric filter & open it
-    this_dir = os.path.dirname(__file__)
-    filterfile  = os.path.join(this_dir, os.pardir, os.pardir, "data", pampelmuse.passband.upper())
-    filtercurve = np.genfromtxt(filterfile, usecols=(0,1), dtype=[("wl", np.float32), ("tp", np.float32)])
-
-    f = interpolate.UnivariateSpline(filtercurve["wl"], filtercurve["tp"], k=3, s=0)
-    fMin = filtercurve["wl"].min()
-    fMax = filtercurve["wl"].max()
+    # get photometric filter curve
+    f = get_filter(pampelmuse.passband)
+    fMin = f.get_knots().min() # min. of defined wavelength range
+    fMax = f.get_knots().max() # max. of defined wavelength range
 
     # make loop to avoid extensive use of memory for large data-cubes
     data_image   = np.zeros(pampelmuse.ifs_data.instrument.transform.shape[0], dtype=np.float32)
