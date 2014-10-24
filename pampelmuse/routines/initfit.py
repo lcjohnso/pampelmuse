@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-214, 2014/10/24
+216, 2014/10/24
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 214
+__revision__ = 216
 
 import datetime, itertools, os, sys, logging
 from multiprocessing import cpu_count, Pool
@@ -440,7 +440,7 @@ def initfit(pampelmuse):
             ccoffy=0
 
         # initialize coordinate transformation
-        sources.transformation.data = np.array([1., 0., ccoffx, ccoffy], dtype=np.float32)
+        sources.transformation.data = np.array([1., 0., -ccoffx, -ccoffy], dtype=np.float32)
 
     if not pampelmuse.interact:
         if not sources.transformation.valid:
