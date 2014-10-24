@@ -81,7 +81,7 @@ to your shell configuration file (\texttt{\$HOME/.bashrc}). For a c-shell, the f
 For further informations on custom installation paths, check the \textit{python} documentation.\footnote{\url{http://docs.python.org/2/install/#alternate-installation}}
 
 Afterwards, you should be able to execute
-\shellcmd{PampelMuse --help} \\
+\shellcmd{PampelMuse -{}-help} \\
 If no error message is returned, you have installed \pampelmuse successfully!
 
 \subsubsection{Using the SVN repository}
@@ -102,7 +102,7 @@ Note that the SVN repository also contains the setup script. So you can also exe
 and proceed in analogy to Sect.~\ref{sec:install:tarball}. The downside of this approach is that you will have to reinstall \pampelmuse everytime you check out a new version from the repository.
 
 In either case, calling
-\shellcmd{PampelMuse --help} \\
+\shellcmd{PampelMuse -{}-help} \\
 should return no error message.
 
 
@@ -129,11 +129,11 @@ I strongly recommend leaving the XML file untouched even if you want to change t
 
 \subsubsection{Using the command line}
 
-\pampelmuse can be started with the option \texttt{--fromline} which accepts a comma-separated list of \textbf{name}=\textit{value} pairs, where \texttt{value} is the new value of the parameter \textbf{name}. As an example, \texttt{--fromline verbose=3,ifu=muse,interact=True} would be a valid expression for the \texttt{--fromfile} argument.
+\pampelmuse can be started with the option \texttt{-{}-fromline} which accepts a comma-separated list of \textbf{name}=\textit{value} pairs, where \texttt{value} is the new value of the parameter \textbf{name}. As an example, \texttt{-{}-fromline verbose=3,ifu=muse,interact=True} would be a valid expression for the \texttt{-{}-fromline} argument.
 
 \subsubsection{Using a plain text file}
 
-Alternatively, \pampelmuse may be called with the \texttt{--fromfile} option in which case the configuration is updated using a plain text file which contains the \textbf{name}=\textit{value} pairs, one per line. As an example, a valid argument would be \texttt{--fromfile pampelmuse.user}\, where the file \texttt{pampelmuse.user} may look like this:
+Alternatively, \pampelmuse may be called with the \texttt{-{}-fromfile} option in which case the configuration is updated using a plain text file which contains the \textbf{name}=\textit{value} pairs, one per line. As an example, a valid argument would be \texttt{-{}-fromfile pampelmuse.user}\, where the file \texttt{pampelmuse.user} may look like this:
 \begin{lstlisting}[frame=single]
  ## Example configuration file
  ifu=muse
@@ -234,12 +234,12 @@ whereas the Moffat profile is described via
 The PSF profile that is used in the analysis can be changed using the parameter
 \pmparameter{PSFTYPE}{string}{moffat}{The name of analytical PSF profile to be used. Currently supported are 'moffat' and 'gaussian'.}
 
-For either profile, $\Sigma_\mathrm{0}$ is the central intensity. The width of the Gaussian is controlled by the standard deviation $\sigma$, while the effective radius $\rd$ defines the width of the Moffat. However, instead of $\sigma$ and $\beta$, \pampelmuse uses the FWHM as a measure for the profile width (see Appendix~\ref{app:profiles}).
+For either profile, $\Sigma_\mathrm{0}$ is the central intensity. The width of the Gaussian is controlled by the standard deviation $\sigma$, while the effective radius $\rd$ defines the width of the Moffat. However, instead of $\sigma$ and $\beta$, \pampelmuse uses the FWHM as a measure for the profile width (see Appendix~\ref{app:profiles}). Note that the FWHM is always measured in units of spaxels.
 
 The Moffat profile has a second shape parameter, $\beta$. It measures the kurtosis of the profile, i.e. the strength of the wings of the PSF. Note that higher values of $\beta$ correspond to less pronounced wings. From my experience, $\beta\sim2.5$ is a typical value for a seeing-limited PSF. For this value, a Moffat profile has much more pronounced wings than a Gaussian profile. Therefore I strongly recommend using the Moffat profile because the Gaussian profile will almost certainly underestimate the wings of the PSF.
 
 The radius $r$ incorporates the ellipticity $e$ and the position angle $\theta$ of each profile. Thus, besides the actual centroid coordinates, the Moffat profile has $4$ free parameters, the Gaussian profile has $3$. The initial PSF parameters and their behaviour during the analysis are specified using three configuration parameters, \texttt{PSFPARS}, \texttt{PSFFIT}, and \texttt{PSFRAD}.
-\pmparameter{PSFPARS}{tuple}{($2.5$,~$3.0$,~$0.0$,~$0.0$)}{The initial guesses for the PSF parameters. For a Moffat profile, the order is ($\beta$, $\text{FWHM}$, $e$, $\theta$). For a Gaussian profile, the order is ($\text{FWHM}$, $e$, $\theta$).}
+\pmparameter{PSFPARS}{tuple}{($2.5$,~$3.0$,~$0.0$,~$0.0$)}{The initial guesses for the PSF parameters. For a Moffat profile, the order is ($\beta$, $\text{FWHM}$, $e$, $\theta$). For a Gaussian profile, the order is ($\text{FWHM}$, $e$, $\theta$). In either case, the FWHM is measured in units of spaxels.}
 \pmparameter{PSFFIT}{integer}{$6$}{The PSF behaviour in the fit. $\text{PSFFIT}=\sum_n 2^n$, where $n\geq1$ runs over the indices of the free parameters; e.g. $\text{PSFFIT}=6$ for a Moffat means to fit $\beta$ and $\text{FWHM}$ at constant $e$ and $\theta$.}
 \pmparameter{PSFRAD}{float}{10}{The centroid distance out to which the profile will be calculated, given in spaxels. Must of course be $>0$.}
 
@@ -307,7 +307,7 @@ INITFIT performs the following steps in order to select a useful subset of the a
  \textbf{Note:} Depending on the coverage of the reference catalogue and on the number of sources in it, this step can take a lot of time and/or consume a lot of memory. If you encounter one of these problems, you can either manually reduce the footprint of the catalogue or set the \texttt{RESLIM} parameter (see below) to a smaller magnitude. The latter works because only sources brighter than the assumed confusion limit are used to create the mock image. If at the same time the parameter \texttt{UPDATERL} is true (recommended), then this will have no effect on the final source selection.
  \item Cross-correlating the two images just created to find the most likely location of the IFS field of view with respect to the reference catalogue. Note that this step requires that both images indeed have the same pixel scale and orientation. To ensure this, RA and Dec coordinates of the sources must be provided with the reference catalogue and the header of the IFS data must include the WCS information mentioned in Sect.~\ref{sec:data}. Otherwise this step is skipped. \newline
  One issue I encountered when doing the cross-correlation was that a wrong pointing solution was selected because the signal was dominated by the brightest stars in the reference catalogues. To suppress this behaviour, the parameter \texttt{CCMAXOFF} can be used.
- \pmparameter{CCMAXOFF}{float}{-1.0}{The maximum allowed offset with respect to the header WCS position when locating the IFS pointing via cross correlation with the photometric catalog, given in spaxels. The default, $-1.0$, sets the allowed offset to half the size of the field of view.}
+ \pmparameter{CCMAXOFF}{float}{-1.0}{The maximum allowed offset with respect to the header WCS position when locating the IFS pointing via cross correlation with the photometric catalog, given in spaxels. The default, $-1.0$, sets the allowed offset to half the size of the field of view. If set to $0$, the pointing suggested by the header WCS will be left unchanged.}
  
  \item Loading the \pampelmuse GUI with the content following content (also in Fig.~\ref{fig:gui_overview}):
   \begin{itemize}
