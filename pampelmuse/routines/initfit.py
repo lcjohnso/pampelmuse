@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-212, 2014/10/24
+214, 2014/10/24
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 212
+__revision__ = 214
 
 import datetime, itertools, os, sys, logging
 from multiprocessing import cpu_count, Pool
@@ -52,7 +52,7 @@ from scipy import ndimage, signal, spatial
 # required PampelMuse routines
 from pampelmuse.core import AperPhoto, Sources
 from pampelmuse.core.psf import *
-from pampelmuse.filters import get_filter
+from pampelmuse.filters import ALIASES, get_filter
 from pampelmuse.functions.io import read_asciifile
 from pampelmuse.functions.statistics import DER_SNR
 # note: pampelmuse.graphics.PampelMuseGui imported below only if interaction enabled
@@ -143,11 +143,20 @@ def initfit(pampelmuse):
     # can infer the column content. Only if that fails, it will use the association in 'usecols' and 'usenames'
     # the 'aliases' provide for each valid passband a list of other possible names the column may have
     cfp_results = read_asciifile(pampelmuse.initfit.sourcelist, usecols=(0,1,2,3,4,5), usenames="id,x,y,{0},ra,dec".format(pampelmuse.passband),
-                                 aliases={"f606w":["vvega", "v"], "f814w":["ivega", "i"], "k":["kmag", ]})
+                                 optional="x,y,ra,dec", aliases=ALIASES)
+
+    # make sure IDs are available
+    if not "id" in cfp_results.keys():
+        logging.critical("Did not find IDs in photometry file.")
+        raise IOError, "Source IDs must be provided with phtotmetry"
+
+    # make sure magnitudes are available
+    if not pampelmuse.passband.lower() in cfp_results.keys():
+        logging.critical("Did not find magnitudes in photometry file.")
+        raise IOError, "Source magnitudes must be provided with photomtery."
 
     # make sure either RA & Dec or x & y are available; if both are available, RA & Dec are preferred over x & y
     usewcs=False # set to True if WCS coordinates are available
-
     if "ra" not in cfp_results.keys() or "dec" not in cfp_results.keys():
         if "x" not in cfp_results.keys() or "y" not in cfp_results.keys():
             logging.critical("Cannot find input source coordinates.")

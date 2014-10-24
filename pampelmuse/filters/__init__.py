@@ -4,6 +4,7 @@ pampelmuse.filters
 
 Provides
 --------
+dictionary pampelmuse.filters.ALIASES
 function pampelmuse.filters.read_filter
 
 Purpose
@@ -17,14 +18,18 @@ Added
 
 Latest SVN Revision
 -------------------
-210, 2014/10/23
+214, 2014/10/24
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 210
+__revision__ = 214
 
 import logging, glob, os
 import numpy as np
 from scipy import interpolate
+
+
+# ALIASES is a dictionary containing for each available filter a list of alternative names
+ALIASES = {"f555w":["v", "vvega"], "f606w":["vvega", "v"], "f814w":["ivega", "i"], "k":["kmag", ]}
 
 
 def get_filter(name):
