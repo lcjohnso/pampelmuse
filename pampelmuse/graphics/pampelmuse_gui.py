@@ -21,11 +21,11 @@ defines the methods that are called by Ui_PampelMuseGui.
 
 Latest SVN revision
 -------------------
-204, 2014/10/21
+212, 2014/10/24
 
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 204
+__revision__ = 212
 
 import datetime, logging, re, os, sys
 import matplotlib, matplotlib.pyplot as plt, numpy as np
@@ -912,7 +912,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             return
         
         iMin = np.argmin(abs(self.sources.wave-limits[0]))
-        iMax = np.argmin(abs(self.sources.wave-limits[1]))+1
+        iMax = np.argmin(abs(self.sources.wave-limits[1]))
         
         self.mask[iMin:iMax] = (mask==False)
 

@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-210, 2014/10/23
+212, 2014/10/24
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 210
+__revision__ = 212
 
 import datetime, itertools, os, sys, logging
 from multiprocessing import cpu_count, Pool
@@ -187,6 +187,29 @@ def initfit(pampelmuse):
     if (valid==False).any(): logging.warning("Ignoring {0} source(s) with undefinded magnitudes.".format((valid==False).sum()))
     if len(np.unique(cfp_results["id"]))<len(cfp_results["id"]): logging.error("Catalog contains duplicated IDs.")
 
+    # initialize the PSF (attributes and profiles) - mock image will have same PSF as initial guess for IFS data
+    logging.info("Initializing the PSF...")
+    
+    psf_variables = Variables(profile=pampelmuse.psf.profile)
+
+    if pampelmuse.psf.profile == "moffat": PSF = Moffat
+    elif pampelmuse.psf.profile == "gauss": PSF = Gaussian
+
+    i=0
+    while hasattr(pampelmuse.psf, "parname{0}".format(i)):
+        parname_i = getattr(pampelmuse.psf, "parname{0}".format(i))
+        parvalue_i = getattr(pampelmuse.psf, "parvalue{0}".format(i))
+        
+        # include value and fit request in PSF variables
+        j = psf_variables.names.index(parname_i)
+        psf_variables.data[0, j, 0] = parvalue_i
+        psf_variables.free[j] = getattr(pampelmuse.psf, "freepar{0}".format(i))
+
+        # include value in PSF profiles
+        getattr(PSF, "set_{0}".format(parname_i))(parvalue_i)
+
+        i += 1
+    psf_variables.info()
 
     # In the next steps, the IFS data is convolved with a filter curve to create an image in the photometric filter in which the
     # magnitudes were provided.
@@ -247,11 +270,13 @@ def initfit(pampelmuse):
     # distance >CCMAXOFF to the edge of the IFS field of view.
     # Note: Only works when RA and DEC coordinates provided in reference catalogue
     if usewcs:
+        
+        # if CCMAXOFF<0, maxmimum offset is set to half size of IFS field of view
         if pampelmuse.ccmaxoff<0:
             pampelmuse.ccmaxoff = np.sum(pampelmuse.ifs_data.instrument.shape)>>2
 
         dist = pampelmuse.ifs_data.instrument.distance_to_edge(np.asarray([cfp_results["x"], cfp_results["y"]]).T)
-        valid = valid&(dist>-(pampelmuse.ccmaxoff+6)) # sources outside FoV have negative values, include some margin
+        valid = valid&(dist>-(pampelmuse.ccmaxoff+10)) # sources outside FoV have negative values, include some margin
 
     # Initialize sources-class
     if pampelmuse.globsky: # add sky component if requested
@@ -281,39 +306,14 @@ def initfit(pampelmuse):
     # Unless calculated from theRA and DEC coordinates, the pixel size of the photometric data is also changed to match the spaxelsize of
     # the IFS data.
     # These changes are undone after the source selection process is completed
-    dx = sources.x[sources.ID>=0].min()
-    dy = sources.y[sources.ID>=0].min()
+    dx = int(sources.x[sources.ID>=0].min())
+    dy = int(sources.y[sources.ID>=0].min())
 
     sources.x -= dx
     sources.y -= dy
     if not usewcs:
         sources.x /= pampelmuse.pixscale
         sources.y /= pampelmuse.pixscale
-
-    # initialize the PSF (attributes and profiles) - mock image will have same PSF as initial guess for IFS data
-    logging.info("Initializing the PSF...")
-    
-    psf_variables = Variables(profile=pampelmuse.psf.profile)
-
-    if pampelmuse.psf.profile == "moffat": PSF = Moffat
-    elif pampelmuse.psf.profile == "gauss": PSF = Gaussian
-
-    i=0
-    while hasattr(pampelmuse.psf, "parname{0}".format(i)):
-        parname_i = getattr(pampelmuse.psf, "parname{0}".format(i))
-        parvalue_i = getattr(pampelmuse.psf, "parvalue{0}".format(i))
-        
-        # include value and fit request in PSF variables
-        j = psf_variables.names.index(parname_i)
-        psf_variables.data[0, j, 0] = parvalue_i
-        psf_variables.free[j] = getattr(pampelmuse.psf, "freepar{0}".format(i))
-
-        # include value in PSF profiles
-        getattr(PSF, "set_{0}".format(parname_i))(parvalue_i)
-
-        i += 1
-    
-    psf_variables.info()
     
     logging.info("Creating mock image from photometry catalogue...")
 
@@ -341,7 +341,7 @@ def initfit(pampelmuse):
             psf_instances.append(None)
             continue
         
-        psf = PSF(Xc=sources.x[i], Yc=sources.y[i], mag=sources.mag[i]-magZ, src_id=sources.ID[i], maxrad=10.)
+        psf = PSF(Xc=sources.x[i], Yc=sources.y[i], mag=(sources.mag[i]-magZ), src_id=sources.ID[i], maxrad=10.)
         psf_instances.append(psf)
 
         if (psf.mag+magZ) <= pampelmuse.reslim: ## only add sources that are likely resolved
@@ -369,63 +369,69 @@ def initfit(pampelmuse):
     identification_image[np.asarray(PSF._transform[:,0], dtype=np.int32), np.asarray(PSF._transform[:,1], dtype=np.int32)] = _image
 
     if usewcs:
-        # To automatically obtain an initial guess for the coordinate transformation, the mock image is cross-correlated with
-        # the whitelight image of the IFS data. The peak of the cross-correlation signal is located and translated into an
-        # offset between mock and IFS image.
-        logging.info("Cross-correlating mock image with IFS data to find likely location of IFS.")
+        if pampelmuse.ccmaxoff!=0:
+            # To automatically obtain an initial guess for the coordinate transformation, the mock image is cross-correlated with
+            # the whitelight image of the IFS data. The peak of the cross-correlation signal is located and translated into an
+            # offset between mock and IFS image.
+            logging.info("Cross-correlating mock image with IFS data to find likely location of IFS.")
 
-        # Kernel is normalized to get approx. normalized cross-corr. signal
-        cckernel = pampelmuse.ifs_data.instrument.make_grid((data_image - np.min(data_image[mask==0]))/np.std(data_image[mask==0]), fill_value=0)
-        
-        ccsignal = signal.fftconvolve(identification_image, cckernel[::-1,::-1], mode="full")
-        
-        # To avoid that the cc signal is dominated by individual bright stars, the signal is normalized using the flux in the mock image
-        norm     = signal.fftconvolve(identification_image, np.ones(cckernel.shape, dtype=np.float32), mode="full")
-        norm[norm<=0]=np.inf
-        ccsignal /= norm
+            # Kernel is normalized to get approx. normalized cross-corr. signal
+            cckernel = pampelmuse.ifs_data.instrument.make_grid((data_image - np.min(data_image[mask==0]))/np.std(data_image[mask==0]), fill_value=0)
+            
+            ccsignal = signal.fftconvolve(identification_image, cckernel[::-1,::-1], mode="full")
+            
+            # To avoid that the cc signal is dominated by individual bright stars, the signal is normalized using the flux in the mock image
+            norm     = signal.fftconvolve(identification_image, np.ones(cckernel.shape, dtype=np.float32), mode="full")
+            norm[norm<=0]=np.inf
+            ccsignal /= norm
+    
+            # The maximum is searched in an area with radius CCMAXOFF with respect to the location suggested by the WCS information of the IFS data
+            xsearchcenter = cckernel.shape[1]-1-dx
+            ysearchcenter = cckernel.shape[0]-1-dy
+            
+            searchradius = int(pampelmuse.ccmaxoff)
+    
+            xslice = slice(max(xsearchcenter-searchradius, 3), min(xsearchcenter+searchradius, ccsignal.shape[1]-3))
+            yslice = slice(max(ysearchcenter-searchradius, 3), min(ysearchcenter+searchradius, ccsignal.shape[0]-3))
+            _ymax, _xmax = np.nonzero(ccsignal[yslice, xslice]==ccsignal[yslice, xslice].max())
+            ymax = _ymax[0] + yslice.start
+            xmax = _xmax[0] + xslice.start
+    
+            # Measure moments around peak pixel to get peak coordinates with subpixel accuracy
+            momentradius=3
+            peakdata = ccsignal[ymax-momentradius:ymax+momentradius+1,xmax-momentradius:xmax+momentradius+1]
+            peakdata -= peakdata.min()
+            Y, X = np.indices(peakdata.shape)
+            X += xmax-momentradius
+            Y += ymax-momentradius
+            total = peakdata.sum()
+            xc  = (X*peakdata).sum()/total
+            yc  = (Y*peakdata).sum()/total
+    
+            # Get offsets to position suggested by WCS information
+            ccoffx = xc - xsearchcenter
+            ccoffy = yc - ysearchcenter
+            logging.info("Pointing offset from cross-correlation dx={0:.1f}, dy={1:.1f}".format(ccoffx, ccoffy))
 
-        # The maximum is searched in an area with radius CCMAXOFF with respect to the location suggested by the WCS information of the IFS data
-        xsearchcenter = int(cckernel.shape[1]-1-dx)
-        ysearchcenter = int(cckernel.shape[0]-1-dy)
-        
-##         if pampelmuse.ccmaxoff<=0:
-##             xsearchradius = pampelmuse.ifs_data.instrument.shape[1]>>1
-##             ysearchradius = pampelmuse.ifs_data.instrument.shape[0]>>1
-##         else:
-        xsearchradius = int(pampelmuse.ccmaxoff)
-        ysearchradius = int(pampelmuse.ccmaxoff)
+            # for testing purposes: plot cross-correlation signal and save as FITS file
+##            import pylab, matplotlib
+##            fig = pylab.figure(figsize=(7, 7))
+##            ax  = fig.add_axes([0.05, 0.05, 0.9, 0.9])
+##            ax.imshow(ccsignal, interpolation="nearest")
+##            ax.plot(xsearchcenter, ysearchcenter, ls="None",  marker="x",  mew=2.5, c="g", ms=15)
+##            rect = matplotlib.patches.Rectangle((xsearchcenter-searchradius, ysearchcenter-searchradius), 2*searchradius, 2*searchradius, edgecolor="r", facecolor="none")
+##            ax.add_patch(rect)
+##            ax.plot(xc, yc, ls="None",  marker="x",  mew=2.5, c="r",  ms=15)
+##            pylab.show()
+##            outhdu = fits.HDUList([fits.PrimaryHDU(ccsignal), fits.ImageHDU(cckernel), fits.ImageHDU(identification_image)])
+##            outhdu.writeto("ccsignal.fits", clobber=True)
 
-        xslice = slice(max(xsearchcenter-xsearchradius, 3), min(xsearchcenter+xsearchradius, ccsignal.shape[1]-3))
-        yslice = slice(max(ysearchcenter-ysearchradius, 3), min(ysearchcenter+ysearchradius, ccsignal.shape[0]-3))
-        ymax, xmax = np.nonzero(ccsignal[yslice, xslice]==ccsignal[yslice, xslice].max())
-
-##        import pylab
-##        fig = pylab.figure(figsize=(7, 7))
-##        ax  = fig.add_axes([0.05, 0.05, 0.9, 0.9])
-##        ax.imshow(ccsignal, interpolation="nearest")
-##        ax.plot(xsearchcenter, ysearchcenter, ls="None",  marker="x",  mew=2.5, c="g",  ms=15)
-##        outhdu = fits.HDUList([fits.PrimaryHDU(ccsignal), fits.ImageHDU(cckernel), fits.ImageHDU(identification_image)])
-##        outhdu.writeto("ccsignal.fits", clobber=True)
-
-        peakdata = ccsignal[yslice.start+ymax[0]-3:yslice.start+ymax[0]+4,xslice.start+xmax[0]-3:xslice.start+xmax[0]+4]
-        Y, X = np.indices(peakdata.shape)
-
-##        ax.plot((X*peakdata).sum()/peakdata.sum()+xslice.start+xmax[0]-3, (Y*peakdata).sum()/peakdata.sum()+yslice.start+ymax[0]-3, ls="None",  marker="x",  mew=2.5, c="r",  ms=15)
-##        pylab.show()
-
-        X += (xslice.start + xmax[0] - 3) - cckernel.shape[1] + 1 ## The term in brackets gives the start coordinate of 'peakdata' on the cc signal array
-        Y += (yslice.start + ymax[0] - 3) - cckernel.shape[0] + 1 ## The remaining terms correct for the offset of the cc singal array  wrt. the reference image
-
-        ## get location of maximum by calculating first order moments in both spatial directions
-        total = peakdata.sum()
-        xc  = (X*peakdata).sum()/total
-        yc  = (Y*peakdata).sum()/total
-        pampelmuse.initfit.ccxoff = xc + dx
-        pampelmuse.initfit.ccyoff = yc + dy
-        logging.info("Maximum of cross-correlation signal at x={0:.1f}, y={1:.1f}".format(xc, yc))
+        else:
+            ccoffx=0
+            ccoffy=0
 
         # initialize coordinate transformation
-        sources.transformation.data = np.array([1., 0., -xc-dx, -yc-dy], dtype=np.float32)
+        sources.transformation.data = np.array([1., 0., ccoffx, ccoffy], dtype=np.float32)
 
     if not pampelmuse.interact:
         if not sources.transformation.valid:
@@ -443,13 +449,13 @@ def initfit(pampelmuse):
     
         identifier = PampelMuseGui(sources=sources, ifsData=pampelmuse.ifs_data, refImage=identification_image, magCut=pampelmuse.reslim-1.)  
 
-        if usewcs: ## overplot positions of sources on IFS as determined via cross-correlation
-            identifier.addFovToReference(xc+(cckernel.shape[0]-1)/2., yc+(cckernel.shape[1]-1)/2.)
+        if usewcs: # overplot positions of sources on IFS as determined via cross-correlation
+            identifier.addFovToReference(-dx+ccoffx+pampelmuse.ifs_data.instrument.shape[0]//2, -dy+ccoffy+pampelmuse.ifs_data.instrument.shape[1]//2)
         
             sizes = 10.*(10**(-0.2*(sources.mag-pampelmuse.reslim-1.)))
             sizes[sizes<=1] = 0
-            select = (sources.status<4)&(sources.mag<=pampelmuse.reslim)&(pampelmuse.ifs_data.instrument.infov(np.vstack((sources.x-xc, sources.y-yc)).T))
-            identifier.ifsPlot.addData(sources.x[select]-xc, sources.y[select]-yc, s=sizes[select], marker="o", edgecolor="g", facecolor="None")
+            select = (sources.status<4)&(sources.mag<=pampelmuse.reslim)&(pampelmuse.ifs_data.instrument.infov(np.vstack((sources.x+dx-ccoffx, sources.y+dy-ccoffy)).T))
+            identifier.ifsPlot.addData(sources.x[select]+dx-ccoffx, sources.y[select]+dy-ccoffy, s=sizes[select], marker="o", edgecolor="g", facecolor="None")
 
         identifier.show()
         app.exec_()
