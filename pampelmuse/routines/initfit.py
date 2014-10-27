@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-216, 2014/10/24
+217, 2014/10/27
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 216
+__revision__ = 217
 
 import datetime, itertools, os, sys, logging
 from multiprocessing import cpu_count, Pool
@@ -418,9 +418,9 @@ def initfit(pampelmuse):
             yc  = (Y*peakdata).sum()/total
     
             # Get offsets to position suggested by WCS information
-            ccoffx = xc - xsearchcenter
-            ccoffy = yc - ysearchcenter
-            logging.info("Pointing offset from cross-correlation dx={0:.1f}, dy={1:.1f}".format(ccoffx, ccoffy))
+            ccxoff = xc - xsearchcenter
+            ccyoff = yc - ysearchcenter
+            logging.info("Pointing offset from cross-correlation dx={0:.1f}, dy={1:.1f}".format(ccxoff, ccyoff))
 
             # for testing purposes: plot cross-correlation signal and save as FITS file
 ##            import pylab, matplotlib
@@ -436,11 +436,15 @@ def initfit(pampelmuse):
 ##            outhdu.writeto("ccsignal.fits", clobber=True)
 
         else:
-            ccoffx=0
-            ccoffy=0
+            ccxoff=0
+            ccyoff=0
 
         # initialize coordinate transformation
-        sources.transformation.data = np.array([1., 0., -ccoffx, -ccoffy], dtype=np.float32)
+        sources.transformation.data = np.array([1., 0., -ccxoff, -ccyoff], dtype=np.float32)
+
+        # add measured offsets to INITFIT namespace so that they are included in the header of the PRM-file
+        pampelmuse.initfit.ccxoff = ccxoff
+        pampelmuse.initfit.ccyoff = ccyoff
 
     if not pampelmuse.interact:
         if not sources.transformation.valid:
@@ -459,12 +463,12 @@ def initfit(pampelmuse):
         identifier = PampelMuseGui(sources=sources, ifsData=pampelmuse.ifs_data, refImage=identification_image, magCut=pampelmuse.reslim-1.)  
 
         if usewcs: # overplot positions of sources on IFS as determined via cross-correlation
-            identifier.addFovToReference(-dx+ccoffx+pampelmuse.ifs_data.instrument.shape[0]//2, -dy+ccoffy+pampelmuse.ifs_data.instrument.shape[1]//2)
+            identifier.addFovToReference(-dx+ccxoff+pampelmuse.ifs_data.instrument.shape[0]//2, -dy+ccyoff+pampelmuse.ifs_data.instrument.shape[1]//2)
         
             sizes = 10.*(10**(-0.2*(sources.mag-pampelmuse.reslim-1.)))
             sizes[sizes<=1] = 0
-            select = (sources.status<4)&(sources.mag<=pampelmuse.reslim)&(pampelmuse.ifs_data.instrument.infov(np.vstack((sources.x+dx-ccoffx, sources.y+dy-ccoffy)).T))
-            identifier.ifsPlot.addData(sources.x[select]+dx-ccoffx, sources.y[select]+dy-ccoffy, s=sizes[select], marker="o", edgecolor="g", facecolor="None")
+            select = (sources.status<4)&(sources.mag<=pampelmuse.reslim)&(pampelmuse.ifs_data.instrument.infov(np.vstack((sources.x+dx-ccxoff, sources.y+dy-ccyoff)).T))
+            identifier.ifsPlot.addData(sources.x[select]+dx-ccxoff, sources.y[select]+dy-ccyoff, s=sizes[select], marker="o", edgecolor="g", facecolor="None")
 
         identifier.show()
         app.exec_()
