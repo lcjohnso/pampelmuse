@@ -452,6 +452,15 @@ Note that this routine is called with the mandatory argument \texttt{<spectra pr
 \subsection{Recommended analysis strategy}
 The strategy I usually use when analysing IFS data is the following.  After selecting the sources for which spectra should be extracted via INITFIT, I perform a first extraction with CUBEFIT in which the PSF parameters and the coordinate transformation are optimized for each layer. Afterwards, I use POLYFIT to smooth the wavelength dependencies of those parameters via polynomial fits. Finally, I run CUBEFIT again. Since the PRM-file now contains the polynomial fits to the positions and PSF parameters, it will only fit the source fluxes without any iteration. Hence, the secoond run of CUBEFIT should be much faster than the first.
 
+\subsection{Auxiliary routines}
+\subsubsection{SINGLESRC}
+The routine SINGLESRC can act as a replacement for the INITFIT routine for fields where no reference catalogue is available. It should currently only be used for non-crowded fields with reasonably isolated sources. The calling sequence for this routine is
+\shellcmd{PampelMuse <config> <IFS data prefix> <$X_1$>,<$Y_1$>,<$\mathrm{status}_1$> ... <$X_N$>,<$Y_N$>,<$\mathrm{status}_N$>}\\
+assuming that spectra for $N$ sources should be extracted from the IFS data. For each source an initial guess for the IFS coordinates must be provided. Also the status of each source must be provided. It should be $2$ for sources for which the flux and coordinates are fitted and $3$ for sources that are additionally used to fit the PSF parameters.
+
+SINGLESRC will perform aperture photometry for every provided source on each layer of the IFS data to improve the initial guesses for the source coordinates. Afterwards, the routine will prepare a PRM-file that can be used to start the following routines, i.e. CUBEFIT and POLYFIT. In contrast to the procedure desribed earlier, CUBEFIT will not constrain a coordinate transformation but directly fit the IFS coordinates of each source.
+
+
 \newcommand*\aap{A\&A}
 \newcommand*\pasp{PASP}
 
