@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-202, 2014/08/10
+220, 2014/11/21
 """ 
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 202
+__revision__ = 220
 
 import contextlib, itertools, logging, os, sys, time
 import numpy as np, scipy
@@ -72,7 +72,7 @@ def sum_by_group(values, groups):
         The data that should be summed up.
     groups : array_like, 1dim.
         The groups according to which the data in 'values'
-        should be summed. It mustt have the same length as
+        should be summed. It must have the same length as
         'values'
     
     Returns
@@ -87,7 +87,7 @@ def sum_by_group(values, groups):
     groups = np.asarray(groups)[order]
     values = np.asarray(values)[order]
     values.cumsum(out=values, dtype=np.float64)
-#    print "CUMSUM:", values
+##    print "CUMSUM:", values
     index = np.ones(len(groups), 'bool')
     index[:-1] = groups[1:] != groups[:-1]
     values = values[index]
@@ -128,16 +128,16 @@ def get_psf_data(psf_instances, sigma):
     results = []
     for psf in psf_instances:
 
-        if psf==None: ## sky component
+        if psf==None: # sky component
             spaxels = np.arange(sigma.size, dtype=np.int32)
             fluxes  = 1./sigma
 
-        else: ## stellar component
+        else: # stellar component
             spaxels, _fluxes = psf.get_flux()
             n = spaxels.size
             if n==0: logging.warning("Source #{0} entirely outside FoV.".format(psf.src_id))
             fluxes = _fluxes/sigma[psf.used]
-#             if psf.src_id==27566: print psf.mag, fluxes
+##             if psf.src_id==27566: print psf.mag, fluxes
             
         intflux = fluxes.sum()
         results.append([spaxels, fluxes, intflux])
@@ -572,20 +572,20 @@ class StarFit(object):
         """
         t0 = time.time()
         
-        ##  if unresolved component exists and should not be updated, extract sublist of resolved sources
+        # if unresolved component exists and should not be updated, extract sublist of resolved sources
         if self.sources.includes_unresolved and not update_unresolved:
             psf_instances = [self.psf_instances[i] for i in np.flatnonzero(self.sources.status>0)]
             specrow  = self.sources.specrow[self.sources.specrow!=self.sources.specrow_unresolved]
-        else: ## otherwise hust use full ist
+        else: # otherwise just use full ist
             psf_instances = self.psf_instances
             specrow  = self.sources.specrow
 
-        ## Initialize parallelization (if requested)
+        # Initialize parallelization (if requested)
         if self.ncpu > 1:
             pool    = Pool(self.ncpu)
             threads = []
             
-            ## determine which sources should be calculated by which CPU
+            # determine which sources should be calculated by which CPU
             m = (len(psf_instances)//self.ncpu) + 1
             
             for n in xrange(self.ncpu):
@@ -601,50 +601,55 @@ class StarFit(object):
         else:
             results = get_psf_data(psf_instances, self.sigma)
 
-        ## result is a list with length equal to the number of sources, each entry is again a list containing three entries:
-        ## the spaxels on which the PSF is defined, the corresponding fluxes, and the integrated flux
+        # result is a list with length equal to the number of sources, each entry is again a list containing three entries:
+        #    the spaxels on which the PSF is defined, the corresponding fluxes, and the integrated flux
 
         t1 = time.time()
         logging.debug("Time required to calculate PSF profiles: {0:.3f}s".format(t1-t0))
 
-        ## Calculate combined integrated flux of each component
+        # Calculate combined integrated flux of each component
         self.fluxfactors, unique_specrow = sum_by_group([r[-1] for r in results], specrow)
-        ## note that the fluxfactors are already in the correct order, i.e. sorted by self.sources.specrow, the unresolved
-        ## component is only included if update_unresolved was set to True
+        # note that the fluxfactors are already in the correct order, i.e. sorted by self.sources.specrow, the unresolved
+        # component is only included if update_unresolved was set to True
 
         t2 = time.time()
         logging.debug("Time required to combine components: {0:.3f}s".format(t2-t1))
 
-        ## check if any row does not contribute at all
+        # check if any row does not contribute at all
         empty_specrow = unique_specrow[self.fluxfactors<=0]
         if len(empty_specrow)>0:
-            logging.error("Encountered component(s) that contribute zero flux: {0}".format(empty_specrow))
+            logging.warning("Encountered component(s) that contribute zero flux: {0}".format(empty_specrow))
 
-        ## fill the matrix: the indices and intensities of all PSF instances are combined and serve as row indices (i0) and values of
-        ## the matrix. To obtain the column indices of the matrix (i1), we use the property 'specrow' of the Sources class and correct
-        ## for components with zero flux contribution (if they exist)
-        i0 = np.hstack((r[0] for r in results)) ## the row indices
+        # Fill the matrix: the indices and intensities of all PSF instances are combined and serve as row indices (i0) and values of
+        # the matrix. To obtain the column indices of the matrix (i1), we use the property 'specrow' of the Sources class and correct
+        # for components with zero flux contribution (if they exist)
+        i0 = np.hstack((r[0] for r in results)) # the row indices
 
         i1 = np.zeros(i0.shape, dtype=np.int32)
         jstart=0
         for i in xrange(len(results)):
             if specrow[i] in empty_specrow: continue
             jend = jstart+len(results[i][0])
-            i1[jstart:jend] = specrow[i] - (empty_specrow<specrow[i]).sum()
+            i1[jstart:jend] = specrow[i]
             jstart = jend
 
-        f  = np.hstack((r[1] for r in results)) ## the fluxes
-        f /= self.fluxfactors[i1] ## bring all components to an integrated flux of 1; it should not matter that entries in self.fluxfactors
-                                  ## can be zero because their indices are included in empty_specrow, hence the indices should not be in i1
+        f  = np.hstack((r[1] for r in results)) # the fluxes
+        f /= self.fluxfactors[i1] # bring all components to an integrated flux of 1; it should not matter that entries in self.fluxfactors
+                                  # can be zero because their indices should not be in i1
 
-        ## create matrix: first, a coo-matrix is constructed. Note that it handles the case when the input data contains multiple
-        ## entries for the some indices (row, column). After construction, the matrix is converted to a csc matrix to speed up
-        ## future usage of it.
+        # If sources are outside the field of view, the indices in i1 will not be contiguous but there will be gaps that must be removed.
+        if len(empty_specrow)>0:
+            assert np.intersect1d(i1, empty_specrow).size==0, "i1 contains indices of sources qith zero flux contribution."
+            for esr in empty_specrow[::-1]: i1[i1>esr] -= 1
+
+        # create matrix: first, a coo-matrix is constructed. Note that it handles the case when the input data contains multiple
+        # entries for the some indices (row, column). After construction, the matrix is converted to a csc matrix to speed up
+        # future usage of it.
         nrows = self.data.size
         ncols = self.sources.ncmp-len(empty_specrow)
         
-        if self.sources.includes_unresolved: ## handle the unresolved component
-            if update_unresolved or self.unresolved_matrix==None: ## just store the unresolved sources as a list for later re-use
+        if self.sources.includes_unresolved: # handle the unresolved component
+            if update_unresolved or self.unresolved_matrix==None: # just store the unresolved sources as a list for later re-use
                 r = (i1!=self.sources.specrow_unresolved)
                 self.unresolved_matrix = sparse.coo_matrix((f[r==False], (i0[r==False], i1[r==False])), shape=(nrows, ncols))
                 self.unresolved_fluxfactor = self.fluxfactors[self.sources.specrow_unresolved]

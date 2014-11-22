@@ -17,17 +17,16 @@ class Background(object):
     In this way, a smooth but variable background is created across the field
     of view.
     """
-    def __init__(self, shape, rscale, n=2, rcut=None):
+    def __init__(self, centroids, n=2, rcut=None, **kwargs):
         """
         Initialize an instance of the Background class.
 
         Parameters
         ----------
-        shape : tuple
-            The spatial size of the array to work on, provided as (dy, dx)
-        rscale : float
-            The effective radius of a background patch in units of spaxels.
-            The distance between neighnoring patches will be 2 x rscale.
+        centroids : ndarray
+            The central coordinates of the individual background patches, as an
+            array of shape (<no. of patches>, 2).  Note that the centroids must
+            be on a homogeneous grid currently.
         n : int, optional
             The power law index that controls the weighting of the spaxels with
             distance. It should currently be set to 2 (the default).
@@ -36,6 +35,44 @@ class Background(object):
             larger radii are assigned zero weight. By default, it will be set
             to 3 x rscale.
         """
+        self.centroids = np.asarray(centroids)
+        assert self.centroids.ndim==2 and self.centroids.shape[-1]==2, "Centroids must be a 2dim. array of shape (N,2)."
+
+        # make sure centroids are on a homogeneous grid: calculate distance to nearest neighbour, must be the same for each gridpoint
+        if self.centroids.shape[0]>1:
+            distances = distance.cdist(self.centroids, self.centroids)
+            distances.sort(axis=0)
+            assert np.unique(distances[1]).size==1, "Centroids must form homogeneous grid."
+
+            self.rscale = distances[1][0]/2. # scale radius is set to half the distance between two adjacent centroids.
+        else:
+            self.rscale = np.inf
+
+        self.n = n # the power-law index used to assign weights
+
+        # To make the computation more efficient, each background patch is only calculated out to a given radius
+        if rcut==None: self.rcut = 3*self.rscale
+        else: self.rcut = rcut
+
+    @classmethod
+    def from_shape(cls, shape, rscale, **kwargs):
+        """
+        This method initializes an instance of the Background class using an
+        array shape and a scale radius. The centroids of the background
+        patches will be defined on a homogeneous grid with constant distance
+        2 x scale radius between adjacent centroids.
+
+        Parameters
+        ----------
+        shape : tuple
+            The spatial size of the array to work on, provided as (dy, dx)
+        rscale : float
+            The effective radius of a background patch in units of spaxels.
+            The distance between neighbouring patches will be 2 x rscale.
+        kwargs : optional
+            All remaining arguments are passed on to the call of the
+            Background.__init__ method.
+        """
         # create the grid with the centroids of the background patches
         # first get centroids along x and y
         _xcentroids = np.arange(0, shape[0], 2*rscale)
@@ -43,22 +80,24 @@ class Background(object):
         # then make sure that distances to edges of FoV are approximately the same
         _xcentroids += 0.5*(shape[0]-1-_xcentroids.max())
         _ycentroids += 0.5*(shape[1]-1-_ycentroids.max())
-        # get number of patches across field of view
-        self.gridsize = _xcentroids.size*_ycentroids.size
         # combine x and y centroids to array of shape (2, gridsize)
-        xcentroids = np.resize(_xcentroids, self.gridsize)
+        xcentroids = np.resize(_xcentroids, _xcentroids.size*_ycentroids.size)
         xcentroids.sort()
-        ycentroids = np.resize(_ycentroids, self.gridsize)
-        self.centroids = np.vstack((xcentroids, ycentroids))
+        ycentroids = np.resize(_ycentroids, _xcentroids.size*_ycentroids.size)        
+        return cls(np.vstack((xcentroids, ycentroids)).T, **kwargs)
 
-        self.rscale = rscale # the 'sigma' of each background patch
-        self.n = n # the power-law index used to assign weights
+    @classmethod
+    def constant(cls):
+        """
+        This method initializes a constant background across an arbitrary field
+        of view.
+        """
+        return cls(np.array([[0, 0], ], dtype=np.float32))
 
-        # To make the computation more efficient, each background patch is
-        # only calculated out to a given radius
-        if rcut==None: self.rcut = 3*self.rscale
-        else: self.rcut = rcut
-
+    @property
+    def gridsize(self):
+        # get number of patches across field of view
+        return self.centroids.shape[0]
 
     def __call__(self, u, v):
         """
@@ -80,7 +119,10 @@ class Background(object):
         weight : float
             The weight of point v with respect to point u.
         """
-        return np.exp(-0.5*((u-v)**self.n).sum()/self.rscale**self.n) if np.sqrt(((u-v)**2).sum())<3*self.rscale else 0
+        if self.rscale <= 0:
+            return 1
+        else:
+            return np.exp(-0.5*((u-v)**self.n).sum()/self.rscale**self.n) if np.sqrt(((u-v)**2).sum())<self.rcut else 0
 
 
     def get_weights(self, data):
@@ -99,7 +141,7 @@ class Background(object):
         weights : nd_array, shape (gridsize, m)
             The weight of each provided datapoint on each background patch.
         """
-        return distance.cdist(self.centroids.T, data, self)
+        return distance.cdist(self.centroids, data, self)
 
     def calculate_weights(self, data):
         """

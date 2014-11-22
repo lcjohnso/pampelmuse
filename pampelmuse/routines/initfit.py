@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-217, 2014/10/27
+220, 2014/11/21
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 217
+__revision__ = 220
 
 import datetime, itertools, os, sys, logging
 from multiprocessing import cpu_count, Pool
@@ -50,7 +50,7 @@ from scipy import ndimage, signal, spatial
 # note: PyQt4 imported below only if interaction enabled
 
 # required PampelMuse routines
-from pampelmuse.core import AperPhoto, Sources
+from pampelmuse.core import AperPhoto, Background, Sources
 from pampelmuse.core.psf import *
 from pampelmuse.filters import ALIASES, get_filter
 from pampelmuse.functions.io import read_asciifile
@@ -109,6 +109,10 @@ def estimate_snr(psf_instances, sigma):
 
             # add the flux contribution of this source in the FoV
             totFlux += psf.f.sum()
+            
+            # to avoid that for large source catalogs the whole memory is filled up with PSF profile arrays, each PSF is reset
+            # (i.e. the arrays with the PSF values are deleted)
+            psf.reset()
 
         return np.array(snRatios, dtype=np.float32), totFlux
 
@@ -126,8 +130,12 @@ def image_from_psf(psf_instances):
         else:
             assert psf.size == imsize, "PSF instances have different array shapes."
         image[psf.used] += psf.f
+
+        # to avoid that for large source catalogs the whole memory is filled up with PSF profile arrays, each PSF is reset
+        # (i.e. the arrays with the PSF values are deleted)
+        psf.reset()
         i+=1
-    
+
     return image
 
 
@@ -288,14 +296,19 @@ def initfit(pampelmuse):
         valid = valid&(dist>-(pampelmuse.ccmaxoff+10)) # sources outside FoV have negative values, include some margin
 
     # Initialize sources-class
-    if pampelmuse.globsky: # add sky component if requested
-        valid = np.r_[valid, True]
-        cfp_results["id"].append("-1")
-        cfp_results["x"].append("0")
-        cfp_results["y"].append("0")
-        cfp_results[pampelmuse.passband.lower()].append("0")
-        if "ra" in cfp_results.keys(): cfp_results["ra"].append("0")
-        if "dec" in cfp_results.keys():  cfp_results["dec"].append("0")
+    if pampelmuse.globsky: # add background component(s) if requested
+        if True: # pampelmuse.skysize<=0:
+            background = Background.constant()
+        else:
+            background = Background.from_shape(shape=pampelmuse.ifs_data.instrument.shape, rscale=pampelmuse.skysize/2.)
+        for i, [y, x] in enumerate(background.centroids):
+            valid = np.r_[valid, True]
+            cfp_results["id"].append(str(-i-1))
+            cfp_results["x"].append(str(x))
+            cfp_results["y"].append(str(y))
+            cfp_results[pampelmuse.passband.lower()].append("0")
+            if "ra" in cfp_results.keys(): cfp_results["ra"].append("0")
+            if "dec" in cfp_results.keys(): cfp_results["dec"].append("0")
 
     sources     = Sources(ids=np.asarray(cfp_results["id"], dtype=np.int32)[valid])
     sources.x   = np.asarray(cfp_results["x"], dtype=np.float32)[valid]
@@ -312,7 +325,7 @@ def initfit(pampelmuse):
     # In the next step, a mock image is created from the photometric catalogue. For this purpose the sources are shifted in x and y
     # so that the source with the lowest x (y) coordinate is located in the first column (row). Otherwise a large part of the mock image
     # might be completely empty or sources could be outside the FoV.
-    # Unless calculated from theRA and DEC coordinates, the pixel size of the photometric data is also changed to match the spaxelsize of
+    # Unless calculated from the RA and DEC coordinates, the pixel size of the photometric data is also changed to match the spaxelsize of
     # the IFS data.
     # These changes are undone after the source selection process is completed
     dx = int(sources.x[sources.ID>=0].min())
@@ -346,7 +359,7 @@ def initfit(pampelmuse):
     psf_instances = []
     for i in xrange(sources.nsrc):
         
-        if sources.ID[i]<0: ## handle background components
+        if sources.ID[i]<0: # handle background components
             psf_instances.append(None)
             continue
         
@@ -686,7 +699,7 @@ def initfit(pampelmuse):
     sources.cdelt = pampelmuse.ifs_data.cdelt
     sources.ctype = pampelmuse.ifs_data.ctype
     sources.cunit = pampelmuse.ifs_data.cunit
-    sources.load_spectra() ## create dummy data: every spectrum is empty
+    sources.load_spectra() # create dummy data: every spectrum is empty
     sources.transformation.resize(sources.ndisp)
 
     if not pampelmuse.smallifu:
@@ -716,8 +729,8 @@ def initfit(pampelmuse):
 
             # calculate shoulder drop
             dr = spatial.distance.cdist(ifs_coordinates[[i]], ifs_coordinates)[0]
-            dr[i] = np.inf ## handle the source itself
-            dr[sources.status==4] = np.inf ## handle background components
+            dr[i] = np.inf # handle the source itself
+            dr[sources.status==4] = np.inf # handle background components
             
             if (dr<pampelmuse.psfrad).any():
 
@@ -762,7 +775,7 @@ def initfit(pampelmuse):
             # add flux of source to Sources instance
             sources.data[:, sources.specrow[j], 0] = results["flux"][i]
 
-            if results["id"][i]>=0: ## skip background component - is not used anyway currently (background set to "local")
+            if results["id"][i]>=0: # skip background component - is not used anyway currently (background set to "local")
                 # NaN pixels are set to zero since DER_SNR skips such pixels
                 snr = DER_SNR(np.ma.array(results["flux"][i], mask=np.isnan(results["flux"][i]), fill_value=0.).filled())
                 
