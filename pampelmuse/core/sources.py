@@ -21,21 +21,21 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-202, 2014/08/10
+221, 2014/12/02
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 202
+__revision__ = 221
 
 import collections, inspect, logging, os, re, warnings
 import numpy as np
 from numpy.polynomial import Chebyshev, Legendre, Hermite, Polynomial
 from astropy.io import fits
 
-## check if PyQt is available 
+# check if PyQt is available 
 try: from PyQt4 import QtCore
 except ImportError: pass
 
-## required PampelMuse-packages
+# required PampelMuse-packages
 from pampelmuse.core.coordinates import Transformation
 
 
@@ -86,14 +86,14 @@ class Sources(object):
       with the source catalog.
     """
 
-    ## available functions for polynomial fits:
+    # available functions for polynomial fits:
     available = collections.OrderedDict()
     available["chebyshev"] = Chebyshev
     available["legendre"]  = Legendre
     available["hermite"]   = Hermite
     available["plain"]     = Polynomial
     
-    ## for writing to/reading from FITS files, each polynomial is assigned an index
+    # for writing to/reading from FITS files, each polynomial is assigned an index
     polyident = collections.OrderedDict(zip(available.keys(), np.arange(len(available))))
 
     def __init__(self, data=None, **kwargs):
@@ -117,9 +117,9 @@ class Sources(object):
             that are also available in 'data' are provided as keyword arguments,
             these supersede the values in 'data'.
         """
-        warnings.simplefilter("always", DeprecationWarning) ## By default this type of warning is ignored
+        warnings.simplefilter("always", DeprecationWarning) # By default this type of warning is ignored
         
-        ## open the data
+        # open the data
         if isinstance(data, fits.hdu.table.BinTableHDU):
             if "EXTNAME" in data.header: logging.info("Initializing catalogue of sources via HDU '{0}'...".format(data.header["EXTNAME"]))
             else: logging.info("Initializing catalogue of sources via provided HDU...")
@@ -127,7 +127,7 @@ class Sources(object):
         else:
             logging.info("Initializing catalogue of sources via provided data...")
 
-        ## check that Source IDs are provided and initialize property Sources.ID
+        # check that Source IDs are provided and initialize property Sources.ID
         if data != None:
             try: self.ID = data[["id"]].view(data["id"].dtype).reshape(-1,)
             except ValueError: logging.critical("No field 'id' found in provided data.")
@@ -139,80 +139,67 @@ class Sources(object):
 
         assert len(np.unique(self.ID))==len(self.ID), "Source IDs must be unique."
 
-        ## other properties are optional may be provided later. If they are not provided, arrays containing NaN entries are initialized
-        ## Note that the properties below can be accessed in two ways:
-        ## a) with an underscore: direct access, no sanity checks performed
-        ## b) without underscore: check whether data used to update property is valid.
+        # other properties are optional may be provided later. If they are not provided, arrays containing NaN entries are initialized
+        # Note that the properties below can be accessed in two ways:
+        # a) with an underscore: direct access, no sanity checks performed
+        # b) without underscore: check whether data used to update property is valid.
 
-        ## Properties that can be set by the user:
-        self._x = np.zeros((self.nsrc, ), dtype=np.float32) ## input (or reference) x coordinates
-        self._x[:] = np.nan
-        
-        self._y = np.zeros((self.nsrc, ), dtype=np.float32) ##  input (or reference) y coordinates
-        self._y[:] = np.nan
-        
-        self._ra = np.zeros((self.nsrc, ), dtype=np.float32) ## input (or reference) x coordinates
-        self._ra[:] = np.nan
-        
-        self._dec = np.zeros((self.nsrc, ), dtype=np.float32) ##  input (or reference) y coordinates
-        self._dec[:] = np.nan
-       
-        self._mag = np.zeros((self.nsrc, ), dtype=np.float32) ## broadband magnitudes
-        self._mag[:] = np.nan
-       
-        self._status = np.zeros((self.nsrc, ), dtype=np.int16) ## the status of each source in the analysis
-        self._status[self.ID<0] = 4 ## assume IDs<0 are used for background components
-        
-        self._primary = np.copy(self.ID) ## the primary source of each source
-       
-        self._specrow = None ## row in the array of spectra that contains the spectrum of a source
-                             ## NOTE that the array is calculated internally upon first request (i.e. call to its getter method)
-                             ##      unless it is provided upon initialization
-       
-        self._indexmap = None  ## a dictionary mapping each value in Sources.specrow to the indices of the source IDs that contribute to it
-                               ## This attribute is determined internally when the first call to its getter method is made.
-        self._weights  = None  ## a 1dim. array of length Sources.nsrc containing the relative contribution of each source to its component
-                               ## This attribute is determined internally when the first call to its getter method is made.
+        # Properties that can be set by the user:
+        self._x = np.array(self.nsrc*[np.nan], dtype=np.float32) # input (or reference) x coordinates
+        self._y = np.array(self.nsrc*[np.nan], dtype=np.float32) #  input (or reference) y coordinates
+        self._ra = np.array(self.nsrc*[np.nan], dtype=np.float64) # right ascencion
+        self._dec = np.array(self.nsrc*[np.nan], dtype=np.float64) #  declination
+        self._mag = np.array(self.nsrc*[np.nan], dtype=np.float32) # broadband magnitudes
 
-        ## check if some of the above properties are provided with the input (data or keyword arguments)
+        self._status = np.zeros((self.nsrc, ), dtype=np.int16) # the status of each source in the analysis
+        self._status[self.ID<0] = 4 # assume IDs<0 are used for background components
+    
+        self._primary = np.copy(self.ID) # the primary source of each source
+       
+        self._specrow = None # row in the array of spectra that contains the spectrum of a source
+                             # NOTE that the array is calculated internally upon first request (i.e. call to its getter method unless it is provided upon initialization
+        self._indexmap = None  # a dictionary mapping each value in Sources.specrow to the indices of the source IDs that contribute to it
+                               # This attribute is determined internally when the first call to its getter method is made.
+        self._weights  = None  # a 1dim. array of length Sources.nsrc containing the relative contribution of each source to its component
+                               # This attribute is determined internally when the first call to its getter method is made.
+
+        # check if some of the above properties are provided with the input (data or keyword arguments)
         for name in ["x", "y", "mag", "ra", "dec", "status", "primary", "specrow"]:
             if name in kwargs.keys(): getattr(self, "set_{0}".format(name))(kwargs[name])
             elif data!=None and name in data.dtype.names: getattr(self, "set_{0}".format(name))(data[[name]].view(data.dtype[name]).reshape(-1,))
 
-
-        ## initialize coordinate transformation
+        # initialize coordinate transformation
         self.transformation = Transformation()
 
-        ## initialize arrays that will contain important information about source spectra and coordinates:
-        ## (a) whether a spectrum has been loaded for a component; a boolean array will be created by Sources.load_spectra()
+        # initialize arrays that will contain important information about source spectra and coordinates:
+        # (a) whether a spectrum has been loaded for a component; a boolean array will be created by Sources.load_spectra()
         self.spectrum_loaded = None
 
-        ## (b) a boolean array indicating if IFU coords have been loaded for a source
+        # (b) a boolean array indicating if IFU coords have been loaded for a source
         self.ifs_coordinates_loaded = np.zeros((self.nsrc,), dtype=np.bool)
 
-        ## (c) a boolean array indicating if a polynomial fit has been performed to the IFU coords of a source
+        # (c) a boolean array indicating if a polynomial fit has been performed to the IFU coords of a source
         self.ifs_coordinates_fitted = np.zeros((self.nsrc,), dtype=np.bool)
-
-        ## (d) a boolean array indicating if the IFU coords of a source are a free fit parameter
+        
+        # (d) a boolean array indicating if the IFU coords of a source are a free fit parameter
         self.ifs_coordinates_free = np.zeros((self.nsrc,), dtype=np.bool)
 
-        ## (e) a dictionary of ID:<function> pairs that will contain callable functions that return the polynomial fits to the
-        ## positions of a source, obtained using Sources.fitIfsCoordinates()
+        # (e) a dictionary of ID:<function> pairs that will contain callable functions that return the polynomial fits to the
+        # positions of a source, obtained using Sources.fitIfsCoordinates()
         self.ifs_coordinates_fit_functions = {}
 
-
-        ## place-holders for data arrays
-        self.data  = None ## The source fluxes/spectra
-        self.sigma = None ## The uncertainties of the source fluxes/spectra
-        self.ifs_coordinates = None ## The x/y coordinates of the sources on the IFS spaxel array
+        # place-holders for data arrays
+        self.data  = None # The source fluxes/spectra
+        self.sigma = None # The uncertainties of the source fluxes/spectra
+        self.ifs_coordinates = None # The x/y coordinates of the sources on the IFS spaxel array
         
-        ## place-holders for HDUs containing fluxes or IFS coordinates
+        # place-holders for HDUs containing fluxes or IFS coordinates
         self.spectra_data_hdu = None
         self.ifs_coordinates_data_hdu = None
         self.ifs_coordinates_fit_hdu = None
-        self._tmp_names = [] ##  a list of temporrary FITS files created by an instance. The files will be deleted when the instance terminates
+        self._tmp_names = [] #  a list of temporrary FITS files created by an instance. The files will be deleted when the instance terminates
         
-        ## Initialize the dispersion information
+        # Initialize the dispersion information
         self.ndisp = 1
         self.crval = 1.
         self.crpix = 1
@@ -413,7 +400,7 @@ class Sources(object):
             [ 1] - source is fitted together with a brighter neighbor.
             [ 2] - source is fitted independently
             [ 3] - source is used as a PSF source.
-            [ 4] - source is abackground (e.g. sky) component
+            [ 4] - source is a background (e.g. sky) component
 
         Parameters
         ----------
@@ -604,7 +591,7 @@ class Sources(object):
         return self.specrow.max()+1
 
 
-## Return a boolean array of len(nsrc) that is true if the source is resolved. 
+# Return a boolean array of len(nsrc) that is true if the source is resolved. 
     @property
     def is_resolved(self):
         """
@@ -617,35 +604,66 @@ class Sources(object):
         """
         return (self.status>0)&(self.status<4)
 
-
-## A flag on whether a sky component is included in the catalogue. 
+#  A flag indicating for each source if it is part of the background
     @property
-    def includes_sky(self):
+    def is_background(self):
         """
         Returns
         -------
-        includes_sky : bool
-            A flag indicating whether a sky component is included in the
-            catalogue.
+        is_background : ndarray
+            A boolean array of len(self.nsrc) indicating whether a source is
+            part of the background.
+            """
+        return (self.status)==4
+
+# A flag on whether one or more background components are included in the catalogue. 
+    @property
+    def includes_background(self):
         """
-        return (self.status==4).any()
+        Returns
+        -------
+        includes_background : bool
+            A flag indicating whether one or more background components are in-
+            cluded in the catalogue.
+        """
+        return self.is_background.any()
+
+# The number of background components included in the catalogue
+    @property
+    def nbackground(self):
+        """
+        Returns
+        -------
+        nbackground : int
+            The number of background components that is included in the
+            catalogue."""
+        return self.is_background.sum()
     
-
-## The row of the sky component (if any)
+# The rows of the spectra of the background components (if any)
     @property
-    def specrow_sky(self):
+    def specrow_background(self):
         """
         Returns
         -------
-        specrow_sky : int or None
-            The row of the sky spectrum (if any, otherwise returns None)
+        specrow_background : int or None
+            The rows containing the background spectra (if any, otherwise
+            returns an empty array)
         """
-        try: return self.specrow[np.where(self.status==4)[0][0]]
-        except IndexError: return np.nan
+        return self.specrow[np.flatnonzero(self.is_background)]
 
-
-## A flag on whether a unresolved stellar component is included in the
-## catalogue.     
+#  A flag indicating for each source if it is part of the unresolved stellar component
+    @property
+    def is_unresolved(self):
+        """
+        Returns
+        -------
+        is_unresolved : ndarray
+            A boolean array of len(self.nsrc) indicating whether a source is
+            part of the unresolved stellar component.
+            """
+        return (self.status)==0
+        
+# A flag on whether a unresolved stellar component is included in the catalogue.     
     @property
     def includes_unresolved(self):
         """
@@ -655,10 +673,10 @@ class Sources(object):
             A flag indicating whether an unresolved stellar component is
             included in the catalogue.
         """
-        return (self.status==0).any()
+        return self.is_unresolved.any()
 
 
-## The row of the unresolved stellar component (if any)
+# The row of the unresolved stellar component (if any)
     @property
     def specrow_unresolved(self):
         """
@@ -666,13 +684,11 @@ class Sources(object):
         -------
         specrow_unresolved : int or None
             The row of the spectrum of the unresolved component (if any,
-            otherwise returns None)
+            otherwise returns an empty array)
         """
-        try: return self.specrow[np.where(self.status==0)[0][0]]
-        except IndexError: return np.nan
+        return self.specrow[np.flatnonzero(self.is_unresolved)]
 
-
-## The indices of the sources used to determine the PSF (if any)
+# The indices of the sources used to determine the PSF (if any)
     @property
     def psf_indices(self):
         """
@@ -884,9 +900,9 @@ class Sources(object):
 
         self.names   = QtCore.QStringList(self.ID[ownSpec].astype("|S10"))
         self.nameMap = dict((zip(self.ID[ownSpec].astype("|S10"), self.specrow[ownSpec])))
-        if self.includes_sky:
-            self.names.append("Sky")
-            self.nameMap["Sky"] = self.specrow_sky
+        for i in xrange(self.nbackground):
+            self.names.append("Back{0:04d}".format(i))
+            self.nameMap["Back{0:04d}".format(i)] = self.specrow_background[i]
         if self.includes_unresolved:
             self.names.append("Unresolved")
             self.nameMap["Unresolved"] = self.specrow_unresolved
@@ -1092,9 +1108,9 @@ class Sources(object):
                     assert ID in self.ID, "Source #{0} is not included in catalogue.".format(ID)
                     ifs_coordinates_id[i] = ID
                 except KeyError:
-                    if hdu.header["NAXIS2"] != (self.nsrc-self.includes_sky):
+                    if hdu.header["NAXIS2"] != (self.nsrc-self.nbackground):
                         logging.error("Cannot infer IDs for provided coordinates.")
-                    assert hdu.header["NAXIS2"] == (self.nsrc - self.includes_sky), "Shape of data in HDU not compatible with source catalogue."
+                    assert hdu.header["NAXIS2"] == (self.nsrc - self.nbackground), "Shape of data in HDU not compatible with source catalogue."
                     ifs_coordinates_id = self.ID[self.status<4]
                     break
 

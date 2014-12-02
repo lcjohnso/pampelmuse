@@ -5,7 +5,7 @@ from types import *
 from cube import Cube
 from sources import Sources
 from aperture import AperPhoto
-from background import Background
+from background import BackgroundGrid
 
 ## for multi-threading
 def _pickle_method(method):

@@ -1,4 +1,4 @@
-<?xml version="1.0" ?><?xml-stylesheet type="text/xsl" href="PMstyle.xsl"?><ns0:configuration timestamp="2014-10-21T19:59:54Z" xmlns:ns0="http://www.tobedefined.com/pampelmuse" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.tobedefined.com/pampelmuse PMschema.xsd">
+<?xml version="1.0" ?><?xml-stylesheet type="text/xsl" href="PMstyle.xsl"?><ns0:configuration timestamp="2014-12-01T13:43:23Z" xmlns:ns0="http://www.tobedefined.com/pampelmuse" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.tobedefined.com/pampelmuse PMschema.xsd">
  
  <ns0:parameter category="1pho" inuse="0">
   <ns0:name>CFPCOLS</ns0:name>
@@ -50,10 +50,9 @@
  <ns0:parameter category="3fit" inuse="1">
   <ns0:name>GLOBSKY</ns0:name>
   <ns0:value dtype="bool">True</ns0:value>
-  <ns0:comment>Flag determines whether a global sky background (i.e a component with constant surface brightness over the FoV) is included in the fit</ns0:comment>
-  <ns0:updated timestamp="2011-11-28T19:40:14Z">Appended parameter GLOBSKY to configuration file.</ns0:updated>
+  <ns0:comment>Flag indicating if additional components should be included to account for an unresollved background or the sky. The behaviour of these components can be controlled with the SKYSIZE parameter.</ns0:comment><ns0:updated timestamp="2011-11-28T19:40:14Z">Appended parameter GLOBSKY to configuration file.</ns0:updated>
  </ns0:parameter>
- <ns0:parameter category="2sel" inuse="1">
+ <ns0:parameter category="3fit" inuse="1"><ns0:name>SKYSIZE</ns0:name><ns0:value dtype="float">-1.0</ns0:value><ns0:comment>The distance between two adjacent points in the grid used to model an unresolved background or the night sky. If set to a negative value only a constant background/sky componnent is used. Only has an effect if GLOBSKY is True.</ns0:comment><ns0:updated timestamp="2014-12-01T13:36:29Z">Appended parameter SKYSIZE to configuration file.</ns0:updated></ns0:parameter><ns0:parameter category="2sel" inuse="1">
   <ns0:name>USEUNRES</ns0:name>
   <ns0:value dtype="bool">False</ns0:value>
   <ns0:comment>Flag indicates whether the contribution from the unresolved sources should be included as an additional component in the analysis.</ns0:comment>

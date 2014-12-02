@@ -14,10 +14,10 @@ parameters.
 
 Latest SVN revision
 -------------------
-169, 2014/04/29
+221, 2014/12/01
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 169
+__revision__ = 221
 
 import argparse, os, shutil, string
 
@@ -27,7 +27,7 @@ from pampelmuse.config import ModifyConfig, transform_string
 
 ## get path to XML data containing configuration
 __currentdir__ = os.path.dirname(__file__)
-__configpath__ = os.path.join(__currentdir__, os.pardir, os.pardir, "config")
+__configpath__ = os.path.join(__currentdir__, os.pardir, "config", "data")
 
 
 class MergeComment(argparse.Action):

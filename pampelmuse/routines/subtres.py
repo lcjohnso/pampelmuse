@@ -15,18 +15,18 @@ if PampelMuse is started with the 'SUBTRES' option.
 
 Latest SVN revision
 -------------------
-169, 2014/04/29
+221, 2014/12/02
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 169
+__revision__ = 221
 import datetime, itertools, logging, os, sys
 from multiprocessing import cpu_count, Pool
 import numpy as np
 from astropy.io import fits
 from scipy import sparse
 
-## required PampelMuse-packages
-from pampelmuse.core import Sources
+# required PampelMuse-packages
+from pampelmuse.core import BackgroundGrid, Sources
 from pampelmuse.core.coordinates import Transformation
 from pampelmuse.core.psf import *
 from pampelmuse.core.fit_array import get_psf_data
@@ -35,14 +35,13 @@ def subtres(pampelmuse):
 
     logging.info("Executing requested routine SUBTRES [Revision {0:d}].".format(__revision__))
 
-    ## Collect information about sources/create Sources-instance
+    # Collect information about sources/create Sources-instance
     logging.info("Obtaining information on sources in the field...")
     
-    ## Source catalogue
+    # Source catalogue
     sources = Sources(data=pampelmuse.hdulist["SOURCES"])
 
-
-    ## Check if PRM-file contains results of successful fit
+    # Check if PRM-file contains results of successful fit
     if hasattr(pampelmuse, "cubefit") and hasattr(pampelmuse.cubefit, "status"):
         fitStatus = pampelmuse.cubefit.status
     else:
@@ -51,8 +50,7 @@ def subtres(pampelmuse):
     if fitStatus != "SUCCESS":
         logging.error("PRM-file does not contain results of successful fit.")
 
-
-    ## Collect source spectra
+    # Collect source spectra
     logging.info("Obtaining source spectra...")
     try:
         i = pampelmuse.hdulist.index_of("SPECTRA")
@@ -60,8 +58,17 @@ def subtres(pampelmuse):
     except KeyError:
         logging.critical("Cannot find spectra (HDU `SPECTRA') in provided PRM-file.")
 
+    # Check which type of background is used
+    if pampelmuse.subsky:
+        if sources.is_background.sum() == 1:
+            background = BackgroundGrid.constant()
+        elif sources.is_background.sum() > 1:
+            background = BackgroundGrid(np.vstack((sources.y[sources.is_background], sources.x[sources.is_background])).T)
+        else:
+            background=None
+        if background != None: background.set_transform(pampelmuse.ifs_data.instrument.transform)
 
-    ## Collect source positions
+    # Collect source positions
     logging.info("Obtaining information about source coordinates...")
 
     try:
@@ -82,8 +89,7 @@ def subtres(pampelmuse):
     except KeyError:
         logging.warning("No coordinate transformation (HDU 'POSPARS') detected.")
 
-
-    ## Initializing PSF variables
+    # Initialize PSF variables
     logging.info("Obtaining PSF properties...")
     try:
         i = pampelmuse.hdulist.index_of("PSFPARS")
@@ -102,8 +108,7 @@ def subtres(pampelmuse):
 
     psf_attributes.info()
 
-
-    ## Initialize PSF profiles of the sources:
+    # Initialize PSF profiles of the sources:
     if psf_attributes.profile == "gauss":
         PSF = Gaussian
     elif psf_attributes.profile == "moffat":
@@ -116,19 +121,19 @@ def subtres(pampelmuse):
     psf_instances = []
     included = np.zeros((sources.nsrc, ), dtype=np.bool)
     for i in xrange(sources.nsrc):
-        if sources.status[i]==4:
+        if sources.status[i]==4: # handle background component, add index of background patch if background should be subtracted
             if pampelmuse.subsky:
-                psf_instances.append(None)
+                psf_instances.append(sources.is_background[:(i+1)].cumsum()[-1]-1)
                 included[i] = True
             continue
-        if sources.status[i]==0 and not pampelmuse.subunres:
+        if sources.status[i]==0 and not pampelmuse.subunres: # check if unresolved component should be subtracted
             continue
         psf_instances.append(PSF(Xc=sources.x[i], Yc=sources.y[i], mag=sources.weights[i], src_id=sources.ID[i], maxrad=pampelmuse.psfrad, osfactor=5, osradius=2))
         included[i] = True
     specrows = sources.specrow[included]
 
 
-    ## load full(!) cube into memory.
+    # load full(!) cube into memory.
     logging.info("Creating an array to hold the results...")
     data = np.copy(pampelmuse.ifs_data.data.data)
     sigma = np.ones((pampelmuse.ifs_data.instrument.nfiber, ), dtype=np.int32)
@@ -143,18 +148,18 @@ def subtres(pampelmuse):
         
         if kk<pampelmuse.start or kk>pampelmuse.stop: continue
         
-        ## account for offset between layers of datacube and PRM file if not the whole cube is analyzed 
+        # account for offset between layers of datacube and PRM file if not the whole cube is analyzed 
         jj = kk - pampelmuse.start
         
-        ## load fluxes for current layer
+        # load fluxes for current layer
         sources.load_spectra(layers=jj)
         
-        ## update source coordinates for current layer
+        # update source coordinates for current layer
         sources.load_ifs_coordinates(layers=jj, ids=sources.ID[included&(sources.status<4)])
 
         i = 0
         for psf in psf_instances:
-            if psf==None: continue
+            if not isinstance(psf,Profile): continue
             if sources.ifs_coordinates_fitted[i]:
                 psf.set_xc(sources.ifs_coordinates[0,i,0,1])
                 psf.set_yc(sources.ifs_coordinates[0,i,1,1])
@@ -163,72 +168,72 @@ def subtres(pampelmuse):
                 psf.set_yc(sources.ifs_coordinates[0,i,1,0])
             i += 1
         
-        ## update PSF instances of the sources with the variables fitted for current layer
+        # update PSF instances of the sources with the variables fitted for current layer
         i = 0 
         for prm in psf_attributes.names:
             getattr(PSF, "set_{0}".format(prm))(psf_attributes.data[jj,i,int(psf_attributes.fitted[i])])
             i += 1
         
-        ## Initialize parallelization (if requested)
+        # Initialize parallelization (if requested)
         if pampelmuse.cpucount > 1:
             pool    = Pool(pampelmuse.cpucount)
             threads = []
             
-            ## determine which sources should be calculated by which CPU
+            # determine which sources should be calculated by which CPU
             m = (len(psf_instances)//pampelmuse.cpucount) + 1
             
             for n in xrange(pampelmuse.cpucount):
                 imin = n*m
                 imax = min((n+1)*m, len(psf_instances))
                 
-                threads.append(pool.apply_async(get_psf_data, args=(psf_instances[imin:imax], sigma)))
+                threads.append(pool.apply_async(get_psf_data, args=(psf_instances[imin:imax], sigma, background if pampelmuse.subsky else None)))
         
             pool.close()
             pool.join()
         
             results = list(itertools.chain.from_iterable([threads[n].get() for n in xrange(pampelmuse.cpucount)]))
         else:
-            results = get_psf_data(psf_instances, sigma)
+            results = get_psf_data(psf_instances, sigma, background if pampelmuse.subsky else None)
 
-        i0 = np.hstack((r[0] for r in results)) ## the row indices
+        i0 = np.hstack((r[0] for r in results)) # the row indices
 
-        i1 = np.hstack((len(results[i][0])*[specrows[i]] for i in xrange(included.sum()))) ## the column indices
+        i1 = np.hstack((len(results[i][0])*[specrows[i]] for i in xrange(included.sum()))) # the column indices
 
-        f  = np.hstack((r[1] for r in results)) ## the fluxes
+        f  = np.hstack((r[1] for r in results)) # the fluxes
 
         Apsf  = sparse.coo_matrix((f, (i0, i1)), shape=(pampelmuse.ifs_data.instrument.nspaxel, sources.ncmp)).tocsc()
         model_matrix = Apsf*sparse.dia_matrix((sources.data[0,:,0],[0]), shape=(sources.ncmp, sources.ncmp))
         model = model_matrix.sum(axis=1).getA1()
 
         if pampelmuse.ifs_data.ndim==3:
-#             data[kk] -= pampelmuse.ifs_data.instrument.make_grid(model) ## there seems to be a memory leak in underlying scipy.interpolate.griddata routine
+##             data[kk] -= pampelmuse.ifs_data.instrument.make_grid(model) # there seems to be a memory leak in underlying scipy.interpolate.griddata routine
             data[kk, yindex, xindex] -= model
         elif pampelmuse.ifs_data.instrument.spectral_axis==0:
             data[kk, pampelmuse.ifs_data.instrument.isscience] -= model
         else:
             data[pampelmuse.ifs_data.instrument.isiscience, kk] -= model
 
-    pampelmuse.hdulist.close() ## finished reading source catalog.
+    pampelmuse.hdulist.close() # finished reading source catalog.
 
     pampelmuse.subtres.revision = __revision__
     pampelmuse.subtres.utc = datetime.datetime.utcnow().strftime("%y-%m-%d %H:%M:%S")
 
-    ## create HDU for output
+    # create HDU for output
     logging.info("Creating HDU from processed data...")
-#    if pampelmuse.ifs_data.ndim==3: ## make output data 3D if input was 3D
-#        data = pampelmuse.ifs_data.instrument.make_grid(data)
+##    if pampelmuse.ifs_data.ndim==3: ## make output data 3D if input was 3D
+##        data = pampelmuse.ifs_data.instrument.make_grid(data)
     outHDU = fits.PrimaryHDU(data, header=pampelmuse.ifs_data.data.header)
     
-    ## add PampelMuse configuration to HDU just created:
+    # add PampelMuse configuration to HDU just created:
     outHDU = pampelmuse.makeHeader(hdu=outHDU)
   
-    ## delete any existing residuals file
+    # delete any existing residuals file
     logging.info("Writing results to file {0}.res.fits...".format(pampelmuse.prefix))
     if os.path.exists("{0}.res.fits".format(pampelmuse.prefix)):
         os.remove("{0}.res.fits".format(pampelmuse.prefix))
         logging.warning("Existing residual cube has been overwritten.")
 
-    ## save output (including HDU with fiber setup if available)
+    # save output (including HDU with fiber setup if available)
     if pampelmuse.ifs_data.setup != None:
         HDUList = fits.HDUList([outHDU, pampelmuse.ifs_data.setup])
         HDUList.writeto("{0}.res.fits".format(pampelmuse.prefix))

@@ -4,16 +4,17 @@ profiles.py
 
 Provides
 --------
-class pampelmuse.core.psf.IterRegistry
-class pampelmuse.core.psf.classproperty
-class pampelmuse.core.psf.profile.Profile
-class pampelmuse.core.psf.profile.Gaussian
-class pampelmuse.core.psf.profile.Moffat
+class pampelmuse.core.psf.profiles.IterRegistry
+class pampelmuse.core.psf.profiles.classproperty
+class pampelmuse.core.psf.profiles.Canvas
+class pampelmuse.core.psf.profiles.Profile
+class pampelmuse.core.psf.profiles.Gaussian
+class pampelmuse.core.psf.profiles.Moffat
 
 Purpose
 -------
 This module implements the analytical PSF profiles that are used by Pampel-
-Muse. The main classes defined here (class 'Profile' and its subclasses)
+Muse. The main classes defined here (class 'Canvas' and its subclasses)
 serve the purpose of calculating the intensities of a given PSF for each
 data point. This is the most time-consuming step in the analysis and its
 duration basically defines how fast PampelMuse can analyse an IFS data set.
@@ -38,10 +39,10 @@ ces simultaneously without having to loop over them.
 
 Latest SVN revision
 -------------------
-220, 2014/11/21
+221, 2014/12/02
 """
 __author__   = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 220
+__revision__ = 221
 
 import logging
 import numpy as np
@@ -66,23 +67,18 @@ class classproperty(object):
 
 
 
-class Profile(object):
+class Canvas(object):
     """
-    This class does not describe an actual profile but serves as a parent
-    class for all following classes. It provides the basic properties that
-    calculate the centroid distance of each spaxel or its partial derivatives
-    with respect to the various parameters and that are inherited by the child
-    classes of 'Profile'.
+    This class does not define a profile, but only provides the frame for
+    working on pixel arrays. The arrays may be irregularly sampled and can
+    be initialized either via providing the (y,x)-size (in which case a
+    regular sampling is assumed) or via directly providing the y- and x-
+    positions of each pixel.
 
-    The transformation from spaxels (having coordinates x & y) to radii r
-    is as follows (assuming a profile with origin [xc, yc]):
-         (i)   u = (x-xc)*sin(theta) - (y-yc)*cos(theta)
-         (ii)  v = (y-yc)*sin(theta) + (x-xc)*cos(theta)
-         (iii) r = sqrt(u**2 +v**2/(1-e)**2)
-    Where 'e' is the ellipticity of the profile and 'theta' the position angle,
-    measured in radian and from the y-axis counter-clockwise. Note that 'u' is
-    the direction along the semi-major axis of the PSF, 'v' the one along the
-    semi-minor axis.
+    Note that before any instance is created, the array to work on should be
+    provided that is then inherited by all new instances. In addition, it is
+    also possible to assign own arrays to instances after they have been
+    created.
     """
     # allow for iteration over instances
     __metaclass__ = IterRegistry
@@ -92,13 +88,7 @@ class Profile(object):
     _size = None  # The spatial size of the array
     _spaxel = None  #The index of each spaxel
     _transform = None  # The transformation from spaxel to x/y-coordinates
-    _e     = 0  # The ellipticity of the profile
-    _theta = 0  # The position angle of the profile
-    _A = 1  # The various parameters that specify the coordinate 
-    _B = 0  # transformation; Note that 'Profile' supports two ways of
-    _C = 0  # defining the source coordinates: either directly or via
-    _D = 0  # a transformation from reference coordinates (see below).
- 
+
     @classmethod
     def set_size(cls, value):
         """
@@ -162,6 +152,193 @@ class Profile(object):
             inst._own_transform = None # reset specific transformation set for the instance (if any)
             inst.reset()
 
+    def __init__(self, need_spaxels=True, **kwargs):
+        """
+        Initialize a new instance of the 'Canvas'-class.
+        
+        Parameters
+        ----------
+        need_spaxels : boolean, optional
+            A flag indicating if the size or pixel positions of the array must
+            be known before creating a new instance.
+        """
+        # add instance to registry of class (needed to iterate over instances)
+        self._registry.append(self)
+
+        # initialize basic properties
+        self._own_transform = None
+        self._own_size = None
+        
+        # Field of view must be specified beforehand
+        if need_spaxels:
+            if self.transform == None:
+                logging.error("No (x,y)-coordinate system for spaxels defined.")
+            assert self.transform is not None, "Specify size first or provide x- & y-coordinates of each spaxel."
+        
+    def reset(self, **kwargs):
+        """
+        The is nothing to reset in this class. However, classes that inherit
+        from 'Canvas' calculate arrays that must be recalculated if the size
+        or the pixel positions of the array change.
+        """
+        return
+
+    def set_own_size(self, value):
+        """
+        Specify the size of the array on which to compute the profiles for this
+        instance only.
+
+        Parameters
+        ----------
+        value : len=2 tuple
+           The size must be provided as a tuple of length 2, providing the
+           number of spaxels in x- & y-direction, respectively. Note that
+           following the numpy counting, the first number gives the size in
+           y-direction.
+        """
+        assert isinstance(value, (tuple, list)), "'size' should be a tuple, not {0}".format(type(value).__name__)
+        assert len(value) == 2, "Array must be 2D, not {0:d}D".format(len(value))        
+        if value != self._own_size:
+
+            # Assumption is that spaxels cover a rectangular area with filling factor 1. Calculate x- & y-coordinates of each spaxel:
+            _x = np.resize(np.arange(value[1], dtype=np.float64), (value[0]*value[1],))
+            _y = np.arange(value[0]*value[1], dtype=np.float64)//value[1]
+            self._own_transform = np.vstack((_y, _x)).T
+            self._own_size = value
+
+            # Reset all arrays in this instance that were previously calculated.
+            self.reset()
+
+    def get_size(self):
+        """
+        The size of the spatial array on which the profile is calculated. 
+        
+        Returns
+        -------
+        size : tuple
+            The size of the spatial array. Note that a size=2 tuple that can be
+            related  to the y- & x-size of the array is only provided if the size
+            has been explicitely defined. Otherwise, a size=1 tuple with the
+            number of spaxels is returned.
+        """
+        if self._own_size == None: return self._size
+        else: return self._own_size
+        
+    def del_own_size(self):
+        """
+        Delete a specific size set for this instance.
+        """
+        if self._own_size == None: return
+        self._own_size = None
+        
+        # all properties for this instance must be recalculated.
+        self.reset()
+
+    size = property(get_size, set_own_size, del_own_size, "The size of the spatial array.")
+        
+    def set_own_transform(self, value):
+        """
+        Set an instance-specific transformation from spaxels to x-& y-coordinates.
+
+        Parameters
+        ----------
+        value : nd_array
+            An array specifying the x- and y-coordinate of each spaxel, having
+            size (<N_spaxels>, 2). Note that following the numpy counting, the
+            first number gives the size in y-direction.
+        """
+        if value.ndim != 2:
+            logging.critical("'transform' must be 2dim., is {0}dim.".format(value.ndim))
+        assert value.ndim == 2, "'transform' must be 2dim."
+        if value.shape[1] != 2:
+            logging.critical("'transform' must contain 2 spatial coordinates, is {0}.".format(value.shape[1]))
+        assert value.shape[1]==2, "'transform' must contain 2 spatial coordinates."
+        
+        # set basic class properties
+        self._own_transform = np.asarray(value, dtype=np.float64)
+        self._own_size = (value.shape[0],)
+
+        # reset all arrays calculated so far in this instance
+        self.reset()
+
+    def get_transform(self):
+        """
+        The transformation from spaxels to x- and y-coordinates. The
+        routine will use the specific transformation for this instance if it
+        has been defined, otherwise it will use the global one defined for th
+        class. Note that following the numpy counting, the first axis is the
+        y-direction.
+        
+        Returns
+        -------
+        transform : nd_array
+            The transformation from spaxels to x- and y-coordinates, provided as
+            an array of shape (2, <number of spaxels>)
+        """
+        if self._own_transform == None: return self._transform
+        else: return self._own_transform
+
+    def del_own_transform(self):
+        """
+        Delete a specific transformation for this instance.
+        """
+        if self._own_transform == None: return
+        self._own_transform = None
+        
+        # all properties for this instance must be recalculated.
+        self.reset()
+
+    transform = property(get_transform, set_own_transform, del_own_transform, "The transformation from spaxels to x- & y-coordinates.")
+
+    @property
+    def spaxel(self):
+        """
+        Return the indices of the individual spaxels
+        """
+        return np.arange(self.transform.shape[0], dtype=np.int32)
+
+    @property
+    def x(self):
+        """
+        Returns the x-coordinate of each spaxel.
+        """
+        return self.transform[:,1]
+
+    @property
+    def y(self):
+        """
+        Returns the y-coordinate of each spaxel.
+        """
+        return self.transform[:,0]
+
+    
+class Profile(Canvas):
+    """
+    This class does not describe an actual PSF profile but serves as a parent
+    class for all classes that define a PSF profile. It provides the basic
+    properties that calculate the centroid distance of each spaxel or its
+    partial derivatives with respect to the various parameters and that are
+    inherited by the child classes of 'Profile'.
+
+    The transformation from spaxels (having coordinates x & y) to radii r
+    is as follows (assuming a profile with origin [xc, yc]):
+         (i)   u = (x-xc)*sin(theta) - (y-yc)*cos(theta)
+         (ii)  v = (y-yc)*sin(theta) + (x-xc)*cos(theta)
+         (iii) r = sqrt(u**2 +v**2/(1-e)**2)
+    Where 'e' is the ellipticity of the profile and 'theta' the position angle,
+    measured in radian and from the y-axis counter-clockwise. Note that 'u' is
+    the direction along the semi-major axis of the PSF, 'v' the one along the
+    semi-minor axis.
+    """
+
+    # Initialization of basic properties
+    _e     = 0  # The ellipticity of the profile
+    _theta = 0  # The position angle of the profile
+    _A = 1  # The various parameters that specify the coordinate 
+    _B = 0  # transformation; Note that 'Profile' supports two ways of
+    _C = 0  # defining the source coordinates: either directly or via
+    _D = 0  # a transformation from reference coordinates (see below).
+ 
     @classmethod
     def set_theta(cls, value):
         """
@@ -374,18 +551,11 @@ class Profile(object):
         osfactor : int
            The supersampling factor. Each spaxel within 'osradius' will be
            supersampled into 'osfactor' times 'osfactor' sub-spaxels.
-        """
-        self._own_transform = None
-        self._own_size = None
+        """ 
+        # initialize parent class
+        super(Profile, self).__init__(**kwargs)
         
-        # Field of view must be specified beforehand
-        if self.transform == None:
-            logging.error("No (x,y)-coordinate system for spaxels defined.")
-        assert self.transform is not None, "Specify size first or provide x- & y-coordinates of each spaxel."
-
-        # add instance to registry of class (needed to iterate over instances)
-        self._registry.append(self)
-
+        # intialize basic properties
         self.Xc = Xc # Coordinates of source in reference system
         self.Yc = Yc
         self._xc = None # can contain direct coordinates for the centroid of the profile
@@ -452,134 +622,6 @@ class Profile(object):
             if not prop in omit:
                 setattr(self, prop, None)
     
-    def set_own_size(self, value):
-        """
-        Specify the size of the array on which to compute the profiles for this
-        instance only.
-
-        Parameters
-        ----------
-        value : len=2 tuple
-           The size must be provided as a tuple of length 2, providing the
-           number of spaxels in x- & y-direction, respectively. Note that
-           following the numpy counting, the first number gives the size in
-           y-direction.
-        """
-        assert isinstance(value, (tuple, list)), "'size' should be a tuple, not {0}".format(type(value).__name__)
-        assert len(value) == 2, "Array must be 2D, not {0:d}D".format(len(value))        
-        if value != self._own_size:
-
-            # Assumption is that spaxels cover a rectangular area with filling factor 1. Calculate x- & y-coordinates of each spaxel:
-            _x = np.resize(np.arange(value[1], dtype=np.float64), (value[0]*value[1],))
-            _y = np.arange(value[0]*value[1], dtype=np.float64)//value[1]
-            self._own_transform = np.vstack((_y, _x)).T
-            self._own_size = value
-
-            # Reset all arrays in this instance that were previously calculated.
-            self.reset()
-
-    def get_size(self):
-        """
-        The size of the spatial array on which the profile is calculated. 
-        
-        Returns
-        -------
-        size : tuple
-            The size of the spatial array. Note that a size=2 tuple that can be
-            related  to the y- & x-size of the array is only provided if the size
-            has been explicitely defined. Otherwise, a size=1 tuple with the
-            number of spaxels is returned.
-        """
-        if self._own_size == None: return self._size
-        else: return self._own_size
-        
-    def del_own_size(self):
-        """
-        Delete a specific size set for this instance.
-        """
-        if self._own_size == None: return
-        self._own_size = None
-        
-        # all properties for this instance must be recalculated.
-        self.reset()
-
-    size = property(get_size, set_own_size, del_own_size, "The size of the spatial array.")
-        
-    def set_own_transform(self, value):
-        """
-        Set an instance-specific transformation from spaxels to x-& y-coordinates.
-
-        Parameters
-        ----------
-        value : nd_array
-            An array specifying the x- and y-coordinate of each spaxel, having
-            size (<N_spaxels>, 2). Note that following the numpy counting, the
-            first number gives the size in y-direction.
-        """
-        if value.ndim != 2:
-            logging.critical("'transform' must be 2dim., is {0}dim.".format(value.ndim))
-        assert value.ndim == 2, "'transform' must be 2dim."
-        if value.shape[1] != 2:
-            logging.critical("'transform' must contain 2 spatial coordinates, is {0}.".format(value.shape[1]))
-        assert value.shape[1]==2, "'transform' must contain 2 spatial coordinates."
-        
-        # set basic class properties
-        self._own_transform = np.asarray(value, dtype=np.float64)
-        self._own_size = (value.shape[0],)
-
-        # reset all arrays calculated so far in this instance
-        self.reset()
-
-    def get_transform(self):
-        """
-        The transformation from spaxels to x- and y-coordinates. The
-        routine will use the specific transformation for this instance if it
-        has been defined, otherwise it will use the global one defined for th
-        class. Note that following the numpy counting, the first axis is the
-        y-direction.
-        
-        Returns
-        -------
-        transform : nd_array
-            The transformation from spaxels to x- and y-coordinates, provided as
-            an array of shape (2, <number of spaxels>)
-        """
-        if self._own_transform == None: return self._transform
-        else: return self._own_transform
-
-    def del_own_transform(self):
-        """
-        Delete a specific transformation for this instance.
-        """
-        if self._own_transform == None: return
-        self._own_transform = None
-        
-        # all properties for this instance must be recalculated.
-        self.reset()
-
-    transform = property(get_transform, set_own_transform, del_own_transform, "The transformation from spaxels to x- & y-coordinates.")
-
-    @property
-    def spaxel(self):
-        """
-        Return the indices of the individual spaxels
-        """
-        return np.arange(self.transform.shape[0], dtype=np.int32)
-
-    @property
-    def x(self):
-        """
-        Returns the x-coordinate of each spaxel.
-        """
-        return self.transform[:,1]
-
-    @property
-    def y(self):
-        """
-        Returns the y-coordinate of each spaxel.
-        """
-        return self.transform[:,0]
-
 # Define 'maxrad' property ####################################################
     def set_maxrad(self, value):
         """

@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-220, 2014/11/21
+221, 2014/12/01
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 220
+__revision__ = 221
 
 import datetime, itertools, os, sys, logging
 from multiprocessing import cpu_count, Pool
@@ -50,7 +50,7 @@ from scipy import ndimage, signal, spatial
 # note: PyQt4 imported below only if interaction enabled
 
 # required PampelMuse routines
-from pampelmuse.core import AperPhoto, Background, Sources
+from pampelmuse.core import AperPhoto, BackgroundGrid, Sources
 from pampelmuse.core.psf import *
 from pampelmuse.filters import ALIASES, get_filter
 from pampelmuse.functions.io import read_asciifile
@@ -297,10 +297,10 @@ def initfit(pampelmuse):
 
     # Initialize sources-class
     if pampelmuse.globsky: # add background component(s) if requested
-        if True: # pampelmuse.skysize<=0:
-            background = Background.constant()
+        if pampelmuse.skysize<=0:
+            background = BackgroundGrid.constant()
         else:
-            background = Background.from_shape(shape=pampelmuse.ifs_data.instrument.shape, rscale=pampelmuse.skysize/2.)
+            background = BackgroundGrid.from_shape(shape=pampelmuse.ifs_data.instrument.shape, rscale=pampelmuse.skysize/2.)
         for i, [y, x] in enumerate(background.centroids):
             valid = np.r_[valid, True]
             cfp_results["id"].append(str(-i-1))
