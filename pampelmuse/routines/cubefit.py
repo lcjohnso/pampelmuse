@@ -20,10 +20,10 @@ fit' if the configuration parameter USEQT of PampelMuse is enabled.
 
 Latest SVN revision
 -------------------
-221, 2014/12/02
+222, 2014/12/03
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 221
+__revision__ = 222
 
 import datetime, logging, os, sys
 import numpy as np
@@ -134,8 +134,8 @@ def cubefit(pampelmuse):
     else:
         fitter = StarFit(ifs_data=pampelmuse.ifs_data, sources=sources, psf_attributes=psf_attributes, maxrad=pampelmuse.psfrad, osradius=2, osfactor=5)
 
-    fitter(layerRange=(start,stop), lastFitIndex=lastFitIndex, asSmallIFU=pampelmuse.smallifu, jumpStart=pampelmuse.jumpstart,
-           ncpu=pampelmuse.cpucount, maxiter=pampelmuse.maxiter)
+    fitter(layerRange=(start,stop), lastFitIndex=lastFitIndex, asSmallIFU=pampelmuse.smallifu, jumpStart=pampelmuse.jumpstart, ncpu=pampelmuse.cpucount,
+           maxiter=pampelmuse.maxiter, use_sigma=pampelmuse.usesigma)
 
     if pampelmuse.useqt:
         app.exec_()
@@ -143,7 +143,6 @@ def cubefit(pampelmuse):
             sys.exit()
         
     logging.info("Saving results...")
-
 
     # storing spectra
     pampelmuse.hdulist["SPECTRA"] = sources.make_spectra_hdu()
@@ -154,7 +153,6 @@ def cubefit(pampelmuse):
             pampelmuse.hdulist["POSITIONS"] = sources.make_ifs_coordinates_hdu()
         except KeyError:
             pampelmuse.hdulist.append(sources.make_ifs_coordinates_hdu())
-
 
     # store coordinate transformation (only if it has been fitted)
     elif sources.transformation.contains_free_parameters:

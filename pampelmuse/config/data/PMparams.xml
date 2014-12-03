@@ -1,4 +1,4 @@
-<?xml version="1.0" ?><?xml-stylesheet type="text/xsl" href="PMstyle.xsl"?><ns0:configuration timestamp="2014-12-01T13:43:23Z" xmlns:ns0="http://www.tobedefined.com/pampelmuse" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.tobedefined.com/pampelmuse PMschema.xsd">
+<?xml version="1.0" ?><?xml-stylesheet type="text/xsl" href="PMstyle.xsl"?><ns0:configuration timestamp="2014-12-03T15:12:14Z" xmlns:ns0="http://www.tobedefined.com/pampelmuse" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.tobedefined.com/pampelmuse PMschema.xsd">
  
  <ns0:parameter category="1pho" inuse="0">
   <ns0:name>CFPCOLS</ns0:name>
@@ -66,7 +66,7 @@
  </ns0:parameter>
 
  
- <ns0:parameter category="3fit" inuse="1"><ns0:name>LAYERRNG</ns0:name><ns0:value dtype="tuple">(0, -1)</ns0:value><ns0:comment>The spectral range of the datacube that should be analysed, given as the indices of the first and the last layer in that range. By default, the whole cube is analysed.</ns0:comment><ns0:updated timestamp="2013-03-26T14:10:43Z">Appended parameter LAYERRNG to configuration file.</ns0:updated></ns0:parameter><ns0:parameter category="3fit" inuse="1">
+ <ns0:parameter category="3fit" inuse="1"><ns0:name>USESIGMA</ns0:name><ns0:value dtype="bool">True</ns0:value><ns0:comment>A flag indicating if the uncertainties of the IFS data should be used in the extraction.</ns0:comment><ns0:updated timestamp="2014-12-03T15:12:00Z">Appended parameter USESIGMA to configuration file.</ns0:updated></ns0:parameter><ns0:parameter category="3fit" inuse="1"><ns0:name>LAYERRNG</ns0:name><ns0:value dtype="tuple">(0, -1)</ns0:value><ns0:comment>The spectral range of the datacube that should be analysed, given as the indices of the first and the last layer in that range. By default, the whole cube is analysed.</ns0:comment><ns0:updated timestamp="2013-03-26T14:10:43Z">Appended parameter LAYERRNG to configuration file.</ns0:updated></ns0:parameter><ns0:parameter category="3fit" inuse="1">
   <ns0:name>PSFRAD</ns0:name>
   <ns0:value dtype="float">10.0</ns0:value>
   <ns0:comment>The radius out to which the PSF of a source will be defined. Should be large enough to avoid annuli of flux around the brighter sources in the residuals</ns0:comment>

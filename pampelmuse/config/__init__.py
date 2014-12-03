@@ -22,10 +22,10 @@ the header of a FITS HDU.
 
 Latest SVN revision
 -------------------
-210, 2014/10/23
+222, 2014/12/03
 """
 __author__   = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 210
+__revision__ = 222
 
 
 import datetime, os, re
@@ -49,7 +49,7 @@ class PampelMuseConfig(Namespace):
         
         # the following list contains all the keywords that can currently be changed during the analysis, i.e. when
         # calling a routine different from INITFIT or SINGLESRC:
-        self.changeable = ["verbose", "interact", "cpucount", "maxiter", "polytype", "polydeg", "subunres", "subsky"]
+        self.changeable = ["verbose", "interact", "cpucount", "maxiter", "polytype", "polydeg", "subunres", "subsky", "usesigma"]
         
         
     def read_defaults(self):
@@ -101,7 +101,7 @@ class PampelMuseConfig(Namespace):
         """
         for entry in ["revision", "utc", "verbose", "ifu", "interact", "useqt", "cpucount", "smallifu", "passband", "ccmaxoff", "aperrad", "apernois",
                       "reslim", "updaterl", "confdens", "snrcut", "binrad", "useunres", "unresbin", "globsky", "start", "stop", "psfrad",
-                      "jumpstart", "maxiter", "polytype", "polydeg", "subunres", "subsky",
+                      "jumpstart", "usesigma", "maxiter", "polytype", "polydeg", "subunres", "subsky"
                       ]:
            
             if hasattr(self, entry):
