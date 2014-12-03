@@ -15,10 +15,10 @@ if PampelMuse is started with the 'SUBTRES' option.
 
 Latest SVN revision
 -------------------
-221, 2014/12/02
+223, 2014/12/03
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 221
+__revision__ = 223
 import datetime, itertools, logging, os, sys
 from multiprocessing import cpu_count, Pool
 import numpy as np
@@ -136,7 +136,6 @@ def subtres(pampelmuse):
     # load full(!) cube into memory.
     logging.info("Creating an array to hold the results...")
     data = np.copy(pampelmuse.ifs_data.data.data)
-    sigma = np.ones((pampelmuse.ifs_data.instrument.nfiber, ), dtype=np.int32)
 
     if pampelmuse.ifs_data.ndim==3:
         xindex = np.asarray(pampelmuse.ifs_data.instrument.x, dtype=np.int32)
@@ -186,14 +185,14 @@ def subtres(pampelmuse):
                 imin = n*m
                 imax = min((n+1)*m, len(psf_instances))
                 
-                threads.append(pool.apply_async(get_psf_data, args=(psf_instances[imin:imax], sigma, background if pampelmuse.subsky else None)))
+                threads.append(pool.apply_async(get_psf_data, args=(psf_instances[imin:imax], None, background if pampelmuse.subsky else None)))
         
             pool.close()
             pool.join()
         
             results = list(itertools.chain.from_iterable([threads[n].get() for n in xrange(pampelmuse.cpucount)]))
         else:
-            results = get_psf_data(psf_instances, sigma, background if pampelmuse.subsky else None)
+            results = get_psf_data(psf_instances, None, background if pampelmuse.subsky else None)
 
         i0 = np.hstack((r[0] for r in results)) # the row indices
 
