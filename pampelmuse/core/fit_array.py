@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-222, 2014/12/03
+223, 2014/12/04
 """ 
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 222
+__revision__ = 223
 
 import contextlib, itertools, logging, os, sys, time
 import numpy as np, scipy
@@ -754,7 +754,7 @@ class StarFit(object):
                 try:
                     result = optimize.leastsq(self.optimize_single_psf, x0=x0, Dfun=self.jacobi_single_psf, col_deriv=1, args=(names, psf, data, sigma), full_output=1,
                                               epsfcn=0.0)
-                except AttributeError: # optimize.minpack.error as error: ## error handler to avoid code that code crashes completely
+                except: # optimize.minpack.error as error: ## error handler to avoid code that code crashes completely
                     result = (x0, None, {}, "Exception of type optimize.minpack.error encountered while executing fit.", 99)
                 
                     # If uncommented, the following lines save a FITS image of the source for which the fit failed.
