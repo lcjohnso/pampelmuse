@@ -22,10 +22,10 @@ Added
 
 Latest SVN revision
 -------------------
-204 # 2014/10/21
+225 # 2014/12/12
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 204
+__revision__ = 225
 
 import datetime, logging, os
 import numpy as np, matplotlib
@@ -38,10 +38,7 @@ from pampelmuse.core.psf import Variables
 from pampelmuse.functions.statistics import DER_SNR
 
 
-
-
 def getspectra(pampelmuse):
-
     logging.info("Executing requested routine GETSPECTRA [Revision {0:d}].".format(__revision__))
 
     if not os.path.exists(pampelmuse.getspectra.folder):
@@ -54,7 +51,6 @@ def getspectra(pampelmuse):
     # - Source catalogue
     sources = Sources(data=pampelmuse.hdulist["SOURCES"], instrument=pampelmuse.ifs_data.instrument)
 
-    
     # - Spectra
     logging.info("Obtaining source spectra...")
     try:
@@ -66,8 +62,7 @@ def getspectra(pampelmuse):
             sources.open_spectra_hdu(pampelmuse.hdulist[i])
     except KeyError:
         logging.critical("No spectra (HDU 'SPECTRA') have been provided.")
-    
-    
+        
     # - Positions
     logging.info("Obtaining information about source coordinates...")
 
@@ -84,7 +79,6 @@ def getspectra(pampelmuse):
         logging.warning("No coordinate transformation (HDU 'POSPARS') detected.")
 
     sources.info()
-
     
     # Initializing PSF variables
     logging.info("Obtaining PSF properties...")
@@ -95,12 +89,9 @@ def getspectra(pampelmuse):
         logging.warning("No information about PSF profile (HDU 'PSFPARS') found.")
         psf_attributes = None
 
-    
-    # initialize an empty header that will contain the header cards that are the
-    # same for all spectra collected from an observation
+    # initialize an empty header that will contain the header cards that are the same for all spectra collected from an observation
     header = fits.Header()
-    
-    
+        
     # add dispersion information to header
     header["CRPIX1"] = sources.crpix
     header["CRVAL1"] = sources.crval
@@ -111,14 +102,12 @@ def getspectra(pampelmuse):
     header["WSTEP"] = sources.cdelt
 ##    header["DC-FLAG"] = 0
 
-
     header["OBJNAME"] = "NAME" # place holder, will be adapted for each spectrum
 
     for key in ["OBJECT", "TELESCOP", "INSTRUME", "DATE-OBS", "MJD-OBS", "JUL-DATE", "EXPTIME", "RA", "DEC", "EPOCH"]:
         value = pampelmuse.ifs_data.get_key(key)
         if value != None:
             header[key] = value
-
 
     # add JUL-DATE keyword if only MJD-OBS is provided
     if "MJD-OBS" in header and "JUL-DATE" not in header:
@@ -170,10 +159,9 @@ def getspectra(pampelmuse):
         museextents = musepath.get_extents()
 
     # loop over all components, i.e. all spectra
-    for i in xrange(sources.ncmp): # collect spectrum and properties of every requested spectrum in observation
-
+    for i in xrange(sources.ncmp):  # collect spectrum and properties of every requested spectrum in observation
         j  = sources.indexmap[i][0] # The index of the primary (brightest) component contributing to the spectrum
-        k    = sources.specrow[j] # The index of the spectrum in the data array
+        k  = sources.specrow[j]     # The index of the spectrum in the data array
 
         # sanity check: sources with status 1 (=near brighter source) or -1 (=not used) should have no spectrum
         if sources.status[j] in [1,-1]:
@@ -232,8 +220,8 @@ def getspectra(pampelmuse):
             xy_j = np.mean(sources.ifs_coordinates[:,0,:,0], axis=0)
             
             # add x- and y-position of PSF centroid in cube
-            primary_hdu.header["HIERARCH SPECTRUM XCUBE"] = (xy_j[0], "[spaxel] x-position in the cube")
-            primary_hdu.header["HIERARCH SPECTRUM YCUBE"] = (xy_j[1], "[spaxel] y-position in the cube")
+            primary_hdu.header["HIERARCH SPECTRUM XCUBE"] = (xy_j[0], "[spaxel] x-position in cube")
+            primary_hdu.header["HIERARCH SPECTRUM YCUBE"] = (xy_j[1], "[spaxel] y-position in cube")
 
             # if instrument is MUSE, find by which IFU the spectrum was dispersed
             if pampelmuse.ifs_data.instrument.name == "muse":
@@ -255,6 +243,10 @@ def getspectra(pampelmuse):
             edgedistance = pampelmuse.ifs_data.instrument.distance_to_edge([xy_j])
             primary_hdu.header["HIERARCH SPECTRUM EDGEDIST"] = (edgedistance[0], "[spaxel] Distance to FOV edge")
 
+        elif sources.status[j] == 4:
+            # for sky component, add x- and y-position of patch centroid in cube
+            primary_hdu.header["HIERARCH SPECTRUM XCUBE"] = (sources.x[j], "[spaxel] x-centroid in cube")
+            primary_hdu.header["HIERARCH SPECTRUM YCUBE"] = (sources.y[j], "[spaxel] y-centroid in cube")
 
         # calculate S/N of the spectrum
         SNR = DER_SNR(sources.data[:,0,0])
@@ -265,19 +257,17 @@ def getspectra(pampelmuse):
 
         primary_hdu.header["HIERARCH SPECTRUM QLTFLAG"] = (flag, "Quality flag of source")
 
-
         if sources.status[j] == 0:
             name = "unresolved"
             primary_hdu.header["hierarch SPECTRUM TYPE"] = name
             primary_hdu.header["OBJNAME"] = "{0} {1} UNRES".format(pampelmuse.getspectra.specprefix.upper(), pampelmuse.ifu.upper())
         elif sources.status[j] == 4:
-            name = "sky"
-            primary_hdu.header["hierarch SPECTRUM TYPE"] = name
-            primary_hdu.header["OBJNAME"] = "{0} {1} SKY".format(pampelmuse.getspectra.specprefix.upper(), pampelmuse.ifu.upper())
+            name = "sky{0:08d}".format(abs(sources.ID[j]))
+            primary_hdu.header["hierarch SPECTRUM TYPE"] = "sky"
+            primary_hdu.header["OBJNAME"] = "{0} {1} SKY{2:d}".format(pampelmuse.getspectra.specprefix.upper(), pampelmuse.ifu.upper(), abs(sources.ID[j]))
         else:
             name = "id{0:09d}".format(ID)
             primary_hdu.header["hierarch SPECTRUM TYPE"] = "star"
-
 
         outname = "{0}{1}jd{2:07d}p{3:04d}f{4:03d}".format(pampelmuse.getspectra.specprefix, name, int(juldate), int(10000*(juldate-int(juldate))), int(flag))
         

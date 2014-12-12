@@ -21,10 +21,10 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-221, 2014/12/02
+225, 2014/12/12
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 221
+__revision__ = 225
 
 import collections, inspect, logging, os, re, warnings
 import numpy as np
@@ -61,10 +61,10 @@ def match_on_id(parent, child):
     c = np.asarray(child, dtype=np.int32)
     p = np.asarray(parent, dtype=np.int32)
 
-    ##  The following statement works but quickly eats up the whole memory if p or c are large
-#    return np.nonzero((c[:,np.newaxis]-p)==0)[1]
+    # The following statement works but quickly eats up the whole memory if p or c are large
+##    return np.nonzero((c[:,np.newaxis]-p)==0)[1]
     
-    ## following the suggestion from http://stackoverflow.com/questions/17374547/matching-elements-in-numpy-array
+    # Following the suggestion from http://stackoverflow.com/questions/17374547/matching-elements-in-numpy-array
     sort_idx = np.argsort(p)
     sorted_insert = np.searchsorted(p[sort_idx], c, side="left")
 
@@ -85,7 +85,6 @@ class Sources(object):
     * Load, maintain and save the set of IFU coordinates that is associated
       with the source catalog.
     """
-
     # available functions for polynomial fits:
     available = collections.OrderedDict()
     available["chebyshev"] = Chebyshev
@@ -260,7 +259,7 @@ class Sources(object):
         """
         return self._x
 
-    x  = property(get_x, set_x, None, "The source coordinates along the x-axis of the reference system.")
+    x = property(get_x, set_x, None, "The source coordinates along the x-axis of the reference system.")
 
 
 ## Reference y-coordinates
