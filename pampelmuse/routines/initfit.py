@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-221, 2014/12/01
+226, 2014/12/17
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 221
+__revision__ = 226
 
 import datetime, itertools, os, sys, logging
 from multiprocessing import cpu_count, Pool
@@ -121,8 +121,7 @@ def estimate_snr(psf_instances, sigma):
 def image_from_psf(psf_instances):
     nsrc = len(psf_instances)
     
-    i=0
-    for psf in psf_instances:
+    for i, psf in enumerate(psf_instances):
         logging.debug("Working on source #{0} [{1:0{2}d}/{3}]".format(psf.src_id, i+1, len(str(nsrc)), nsrc))
         if i==0:
             imsize = psf.size
@@ -134,9 +133,8 @@ def image_from_psf(psf_instances):
         # to avoid that for large source catalogs the whole memory is filled up with PSF profile arrays, each PSF is reset
         # (i.e. the arrays with the PSF values are deleted)
         psf.reset()
-        i+=1
 
-    return image
+    return image if len(psf_instances)>0 else 0
 
 
 
