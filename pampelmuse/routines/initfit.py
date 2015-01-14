@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-226, 2014/12/17
+227, 2015/01/10
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 226
+__revision__ = 227
 
 import datetime, itertools, os, sys, logging
 from multiprocessing import cpu_count, Pool
@@ -243,7 +243,7 @@ def initfit(pampelmuse):
 
     for i in xrange(pampelmuse.start, pampelmuse.stop):
         logging.debug("...working on layer {0:0{1}d}/{2:{1}d}".format(i-pampelmuse.start+1, len(str(pampelmuse.stop-pampelmuse.start)), pampelmuse.stop-pampelmuse.start))
-        wave_i = pampelmuse.ifs_data.crval+i*pampelmuse.ifs_data.cdelt
+        wave_i = pampelmuse.ifs_data.crval + (i + 1 - pampelmuse.ifs_data.crpix)*pampelmuse.ifs_data.cdelt
         if pampelmuse.ifs_data.cunit == "nm" or pampelmuse.ifs_data.ctype == "nm": wave_i *= 10
         elif pampelmuse.ifs_data.cunit == "um" or pampelmuse.ifs_data.ctype == "um": wave_i *= 1e4
         
@@ -692,8 +692,9 @@ def initfit(pampelmuse):
     sources.status  = status
         
     # include dispersion information in Sources catalogue
-    sources.ndisp = pampelmuse.stop-pampelmuse.start+1
-    sources.crval = pampelmuse.ifs_data.crval+pampelmuse.start*pampelmuse.ifs_data.cdelt
+    sources.ndisp = pampelmuse.stop - pampelmuse.start + 1
+    sources.crval = pampelmuse.ifs_data.crval
+    sources.crpix = pampelmuse.ifs_data.crpix - pampelmuse.start
     sources.cdelt = pampelmuse.ifs_data.cdelt
     sources.ctype = pampelmuse.ifs_data.ctype
     sources.cunit = pampelmuse.ifs_data.cunit

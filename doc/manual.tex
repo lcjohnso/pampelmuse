@@ -347,8 +347,17 @@ INITFIT performs the following steps in order to select a useful subset of the a
  \pmparameter{USEUNRES}{boolean}{False}{If True, the routine will collect set all sources inside the IFS field of view that are less than UNRESBIN magnitudes fainter than the faintest resolved source and extract a combined spectrum for them.}
  \pmparameter{UNRESBIN}{float}{$2.0$}{The width of the magnitude interval in the sense that the faintest sources included in the unresolved component are UNRESBIN magnitudes fainter than the faintest resolved sources. Only used if USEUNRES is True.}
  All sources in the unresolved component are given status $0$.
- \item To account for the spectrum of the night sky, an additional component that is spatially flat may be included in the extraction.
- \pmparameter{GLOBSKY}{boolean}{True}{If True, an additional component will be included in the extraction that accounts for the night sky (or a stellar component that is spatially flat).}
+ \item To account for the spectrum of the night sky or an unresolved stellar background, additional components may be included in the extraction. The way background components are currently handled can be summarized as follows. A homogeneous grid with a sampling of $2\times$\texttt{SKYSIZE} is defined across the field of view. Each gridpoint defines an additional component in the optimization. The weight of a spaxel in a gridpoint is obtained from an inverse distance weighting, where distance is measured using a two-dimensional Gaussian with width \texttt{SKYSIZE} centered on the gridpoint.
+ \pmparameter{GLOBSKY}{boolean}{True}{If True, one or more non-stellar components are included in the fit to account for background sources.}
+ \pmparameter{SKYSIZE}{float}{-1}{The effective radius of a background patch. If set to -1, only a constant background is used.}
+ As a rule of thumb, in crowded fields with a significant number of unresolved sources, \texttt{SKYSIZE} should be of the order of the spatial scale over which the stellar density changes significantly. As an example, Fig.~\ref{fig:residuals_skysize} compares the residuals of the extraction for a MUSE cube of NGC~6266 when using a constant or a variable sky. It is clear that the constant sky cannot account for the strong increase in stellar density towards the cluster centre. For this reason, the stars leave systematic positive residuals in the outskirts (where the sky is overestimated) and negative residuals in the centre (where the sky is underestimated).
+ 
+ \begin{figure}[ht]
+  \centering\includegraphics[width=12cm]{ngc6266_residuals_skysize.png}
+  \caption{Illustration of improper background handling, using MUSE commissioning data of NGC~6266. The left panel shows the residuals of the source extraction when using a constant background, the right panel shows the residuals with a variable background.}
+  \label{fig:residuals_skysize}
+ \end{figure}
+ 
  \item The next step depends on the size of the IFS data, more precisely on the number of spaxels. \pampelmuse was designed to handle data coming from various instruments, in particular PMAS and MUSE. Now, PMAS has $256$ spaxels while MUSE has more than $90\,000$. As a consequence, the way the PSF is optimized for the two instruments is different. Within a field of view as small as the one of PMAS, you will almost never find reasonably isolated and bright stars that allow you to constrain the PSF. Instead, for PMAS-like data the idea is to fit a PSF profile to all resolved sources simultaneously. While this approach works well for $\sim20$ sources which you typically resolve in a PMAS cube, it is computationally very demanding for the $\sim5\,000$ sources you expect in a MUSE cube. However, for MUSE data the chances of finding good PSF stars is much higher. To account for this  diversity in IFS data, \pampelmuse uses the parameter \texttt{SMALLIFU}.
  \pmparameter{SMALLIFU}{bool}{True}{This flag defines whether all resolved sources are used to fit the PSF and the coordinate transformation (if True) or only a subset of reasonably bright and isolated PSF sources.}
  My recommendation is to set \texttt{SMALLIFU} to True for cubes with less than $\sim2\,000$ spaxels and to False otherwise. In the latter case, INITFIT will search for suitable sources to model the PSF during the extraction. Potential PSF sources are those that fulfil the following criteria:
@@ -459,6 +468,17 @@ The routine SINGLESRC can act as a replacement for the INITFIT routine for field
 assuming that spectra for $N$ sources should be extracted from the IFS data. For each source an initial guess for the IFS coordinates must be provided. Also the status of each source must be provided. It should be $2$ for sources for which the flux and coordinates are fitted and $3$ for sources that are additionally used to fit the PSF parameters.
 
 SINGLESRC will perform aperture photometry for every provided source on each layer of the IFS data to improve the initial guesses for the source coordinates. Afterwards, the routine will prepare a PRM-file that can be used to start the following routines, i.e. CUBEFIT and POLYFIT. In contrast to the procedure desribed earlier, CUBEFIT will not constrain a coordinate transformation but directly fit the IFS coordinates of each source.
+
+\section{Troubleshooting}
+\subsection{Wiggles in extracted MUSE spectra}
+When running \pampelmuse with MUSE data, some extracted spectra may show wiggles in the continuum (see Fig.~\ref{fig:muse_spectra_wiggles}). The reason for this is that by default \pampelmuse uses the uncertainties provided by the MUSE pipeline (extension \texttt{STAT}). When resampling the data onto a homogeneous grid, the pipeline introduces similar wiggles in the uncertainties --- that affect the extraction. As a workaround, you can switch of the usage of the uncertainties during the extraction with the parameter \texttt{USESIGMA}.
+\pmparameter{USESIGMA}{float}{True}{Flag indicating if the uncertainties of the IFS data are used in the extraction.}
+
+\begin{figure}[ht]
+ \centering \includegraphics[width=8cm]{muse_spectra_wiggles.png}
+ \caption{Comparison of spectra extracted from a MUSE cube of NGC6266 with (green) and without (blue) using the uncertainties provided by the data reduction pipeline. Note that the spectra have been offset for clarity.}
+ \label{fig:muse_spectra_wiggles}
+\end{figure}
 
 
 \newcommand*\aap{A\&A}
