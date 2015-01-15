@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-227, 2015/01/10
+228, 2015/01/15
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 227
+__revision__ = 228
 
 import datetime, itertools, os, sys, logging
 from multiprocessing import cpu_count, Pool
@@ -300,6 +300,9 @@ def initfit(pampelmuse):
         else:
             background = BackgroundGrid.from_shape(shape=pampelmuse.ifs_data.instrument.shape, rscale=pampelmuse.skysize/2.)
         for i, [y, x] in enumerate(background.centroids):
+            # ignore sky components outside FoV
+            if pampelmuse.ifs_data.instrument.distance_to_edge([[x, y]])[0] < -pampelmuse.skysize:
+                continue
             valid = np.r_[valid, True]
             cfp_results["id"].append(str(-i-1))
             cfp_results["x"].append(str(x))
@@ -661,7 +664,6 @@ def initfit(pampelmuse):
         logging.critical("Did not find any resolved sources. Aborting...")
         raise ConfigurationError, "No resolved sources found. Check parameter file."
 
-    
     # if requested, update confusion limit. Note that the configuration that is stored in the header of the prm-file may contain two different
     # values for "RESLIM": the initial one provided by the user and the one just determined from the source list.
     if pampelmuse.updaterl:
@@ -707,13 +709,14 @@ def initfit(pampelmuse):
         # searching photometry results for usefuls PSF stars must fulfil following criteria:
         # (1) at least 3 magnitudes brighter than provided resolution limit (parameter `RESLIM')
         # (2) must have been identified as resolved (i.e. status==2) in the source selection 
-        # (3) must have an estimated S/N>20 (this is checked after aperture photometry)
-        # (4) at a distance of at least the PSF FWHM from the edge of the FoV 
-        # (5) isolation criterium:
+        # (3) must not have close companions (sources with status=1)
+        # (4) must have an estimated S/N>20 (this is checked after aperture photometry)
+        # (5) at a distance of at least the PSF FWHM from the edge of the FoV (3 x FWHM for MUSE)
+        # (6) isolation criterium:
         #      - a) relative contribution from neighboring sources inside PSFRAD smaller than value of parameter APERNOIS)
         #      - b) no brighter source inside 1.5 x PSFRAD distance
 
-        # The first isolation of a star is measured using a slightly modified version of the shoulder drop or topographic prominence
+        # The isolation of a star is measured using a slightly modified version of the shoulder drop or topographic prominence
         # (for the exact definition of the topographic prominence, see http://en.wikipedia.org/wiki/Topographic_prominence).
         # It is a measure for how strongly a source dominates its surroundings. The measure used here is the flux ratio of the
         # source itself and the brightest source within a distance r that we set to the value of the PSFRAD parameter.
@@ -721,10 +724,13 @@ def initfit(pampelmuse):
         logging.info("IDs of stars that fullfil search criteria:")
         logging.info("      ID    mag  shoulder_drop")
         for i in idx_magsorted:
-            
             if sources.mag[i] > (reslim-3): break
             if sources.status[i] != 2: continue
-            if pampelmuse.ifs_data.instrument.distance_to_edge(ifs_coordinates[[i]])[0] < fwhm[i]: continue
+            if (sources.primary == sources.ID[i]).sum() != 1: continue
+            
+            d_edge = pampelmuse.ifs_data.instrument.distance_to_edge(ifs_coordinates[[i]])[0]
+            if d_edge < fwhm[i]: continue
+            elif d_edge < 3*fwhm[i] and pampelmuse.ifs_data.instrument.name == "muse": continue
 
             # calculate shoulder drop
             dr = spatial.distance.cdist(ifs_coordinates[[i]], ifs_coordinates)[0]

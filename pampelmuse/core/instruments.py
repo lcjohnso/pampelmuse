@@ -26,10 +26,10 @@ like dead fibers or holes in the FoV are not handled.
 
 Latest SVN revision
 -------------------
-189, 2014/07/08
+228, 2015/01/15
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 189
+__revision__ = 228
 import logging, re
 import numpy as np
 from astropy.io import fits
@@ -981,25 +981,24 @@ class Muse(Instrument):
         if valid.size != self.nspaxel:
             logging.error("Size of boolean array [{0}] must match number of spaxels [{1}].".format(valid.size, self.nspaxel))
             return
+            
+        logging.info("Determining edge of MUSE field of view...")
 
-        ind1 = []
-        ind2 = []
-        for yi in xrange(int(self.y.min()), int(self.y.max()), 1):
-            
+        indx1 = []
+        indx2 = []
+        for yi in xrange(int(self.y.min()), int(self.y.max())):
             select = np.flatnonzero(valid&(self.y>=yi)&(self.y<(yi+1)))
-            
             if not select.any(): continue
             
             j1 = self.x[select].argmin()
             j2 = self.x[select].argmax()
 
-            ind1.append(select[j1])
-            ind2.append(select[j2])
+            indx1.append(select[j1])
+            indx2.append(select[j2])
+        indx2.reverse()
 
-        ind2.reverse()
-
-        self._edgepix = np.asarray(ind1 + ind2, dtype=np.int32)
-
+        self._edgepix = np.asarray(indx1 + indx2, dtype=np.int32)
+        
         
     def set_rotation_angle(self, value):
         """
