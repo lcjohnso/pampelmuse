@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-228, 2015/01/15
+229, 2015/01/16
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 228
+__revision__ = 229
 
 import datetime, itertools, os, sys, logging
 from multiprocessing import cpu_count, Pool
@@ -711,7 +711,7 @@ def initfit(pampelmuse):
         # (2) must have been identified as resolved (i.e. status==2) in the source selection 
         # (3) must not have close companions (sources with status=1)
         # (4) must have an estimated S/N>20 (this is checked after aperture photometry)
-        # (5) at a distance of at least the PSF FWHM from the edge of the FoV (3 x FWHM for MUSE)
+        # (5) at a distance of at least the PSF FWHM from the edge of the FoV (2 x FWHM for MUSE)
         # (6) isolation criterium:
         #      - a) relative contribution from neighboring sources inside PSFRAD smaller than value of parameter APERNOIS)
         #      - b) no brighter source inside 1.5 x PSFRAD distance
@@ -730,7 +730,7 @@ def initfit(pampelmuse):
             
             d_edge = pampelmuse.ifs_data.instrument.distance_to_edge(ifs_coordinates[[i]])[0]
             if d_edge < fwhm[i]: continue
-            elif d_edge < 3*fwhm[i] and pampelmuse.ifs_data.instrument.name == "muse": continue
+            elif d_edge < 2*fwhm[i] and pampelmuse.ifs_data.instrument.name == "muse": continue
 
             # calculate shoulder drop
             dr = spatial.distance.cdist(ifs_coordinates[[i]], ifs_coordinates)[0]

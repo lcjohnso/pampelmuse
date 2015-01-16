@@ -26,10 +26,10 @@ like dead fibers or holes in the FoV are not handled.
 
 Latest SVN revision
 -------------------
-228, 2015/01/15
+229, 2015/01/16
 """
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 228
+__revision__ = 229
 import logging, re
 import numpy as np
 from astropy.io import fits
@@ -974,30 +974,57 @@ class Muse(Instrument):
             A 1dim. array containing a flag for each spaxel that indi-
             cates whether the spaxel contains valid data.
         """
+        logging.info("Determining edge of MUSE field of view...")
+        
         if self.transform==None:
-            logging.warning("No transf. from spaxels to x & y available.")
+            logging.error("No transf. from spaxels to x & y available.")
             return
         
         if valid.size != self.nspaxel:
             logging.error("Size of boolean array [{0}] must match number of spaxels [{1}].".format(valid.size, self.nspaxel))
             return
-            
-        logging.info("Determining edge of MUSE field of view...")
 
-        indx1 = []
-        indx2 = []
+# Old method, had issue only a subset of the spaxels at the edge were selected
+#        indx1 = []
+#        indx2 = []
+#        for yi in xrange(int(self.y.min()), int(self.y.max())):
+#            select = np.flatnonzero(valid&(self.y>=yi)&(self.y<(yi+1)))
+#            if not select.any(): continue
+#            
+#            j1 = self.x[select].argmin()
+#            j2 = self.x[select].argmax()
+#
+#            indx1.append(select[j1])
+#            indx2.append(select[j2])
+#        indx2.reverse()
+
+        # first scan through the spaxels along the y and the x axis, find the spaxel with the lowest and the highest
+        # x resp. y value. Their indices are combined in the list 'ind'.
+        ind = []
         for yi in xrange(int(self.y.min()), int(self.y.max())):
             select = np.flatnonzero(valid&(self.y>=yi)&(self.y<(yi+1)))
-            if not select.any(): continue
-            
+            if not select.any():
+                continue
             j1 = self.x[select].argmin()
             j2 = self.x[select].argmax()
-
-            indx1.append(select[j1])
-            indx2.append(select[j2])
-        indx2.reverse()
-
-        self._edgepix = np.asarray(indx1 + indx2, dtype=np.int32)
+            ind.extend([select[j1], select[j2]])
+        for xi in xrange(int(self.x.min()), int(self.x.max())):
+            select = np.flatnonzero(valid&(self.x>=xi)&(self.x<(xi+1)))
+            if not select.any():
+                continue
+            j1 = self.y[select].argmin()
+            if j1 not in ind:
+                ind.append(select[j1])
+            j2 = self.y[select].argmax()
+            if j2 not in ind:
+                ind.append(select[j2])
+                
+        # for each spaxel included in 'ind', calculate the angle wrt. the centre of gravity, then sort the spaxels by
+        # increasing angle so that the polygon follows the edge of the field of view.
+        center = self.transform[ind].mean(axis=0)
+        angles = np.arctan2(self.x[ind]-center[0], self.y[ind]-center[1])
+    
+        self._edgepix = np.asarray(ind, dtype=np.int32)[angles.argsort()]
         
         
     def set_rotation_angle(self, value):
