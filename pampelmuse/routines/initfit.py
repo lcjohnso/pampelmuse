@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-229, 2015/01/16
+231, 2015/01/22
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 229
+__revision__ = 231
 
 import datetime, itertools, os, sys, logging
 from multiprocessing import cpu_count, Pool
@@ -95,7 +95,7 @@ def estimate_snr(psf_instances, sigma):
 
         for psf in psf_instances:
 
-            if psf==None:
+            if psf is None:
                 snRatios.append(0.)
                 continue
 
@@ -183,7 +183,7 @@ def initfit(pampelmuse):
         #      from the reference catalogue are in the centre of the FoV.
         # (iii) the rotation angle of the FoV will be set to zero degrees.
         
-        if pampelmuse.ifs_data.instrument.spaxel_scale==None: # check spaxel scale
+        if pampelmuse.ifs_data.instrument.spaxel_scale is None: # check spaxel scale
             pampelmuse.ifs_data.instrument.spaxel_scale = pampelmuse.pixscale
         
         pampelmuse.ifs_data.make_wcs() # initialize WCS
@@ -576,7 +576,7 @@ def initfit(pampelmuse):
 
     # collect FWHM of sources in single array
     fwhm = np.zeros((sources.nsrc,), dtype=np.float32)
-    for i in xrange(len(psf_instances)): fwhm[i] = 0 if psf_instances[i]==None else psf.fwhm
+    for i in xrange(len(psf_instances)): fwhm[i] = 0 if psf_instances[i] is None else psf.fwhm
 
     # get magnitude-sorted list of indices of the sources the instance of the Sources-class (brightest sources first)
     idx_magsorted = np.argsort(sources.mag)
@@ -828,11 +828,11 @@ def initfit(pampelmuse):
             # FWHM
             fwhm = np.sqrt(8.*np.log(2))*np.mean(A, axis=0)
             # TODO: should FWMH be updated as well?
-            logging.info("Mean FWHM: {0:.2f}pix.".format(fwhm.mean()))
+            logging.info("Mean FWHM: {0:.2f}pix.".format(float(fwhm.mean())))
 
             # Ellipticity
             e = 1. - np.mean(B/A, axis=0)
-            logging.info("Mean ellipticity: {0:.2f}".format(e.mean()))
+            logging.info("Mean ellipticity: {0:.2f}".format(float(e.mean())))
             ii = psf_variables.names.index("e")
             if psf_variables.free[ii]:
                 # need to check if dispersion information already included in PSF variables, otherwise, use numpy.resize that fills enlarged
@@ -845,7 +845,7 @@ def initfit(pampelmuse):
             _theta -= (-1)**(_theta<0)*np.pi/4.
             _theta += (-1)**(xy>0)*np.pi/4.
             theta = _theta.mean(axis=0)
-            logging.info("Mean position angle: {0:.2f}rad.".format(theta.mean()))
+            logging.info("Mean position angle: {0:.2f}rad.".format(float(theta.mean())))
             ii = psf_variables.names.index("theta")
             if psf_variables.free[ii]:
                 if psf_variables.data.shape[0] == 1: psf_variables.data =  np.resize(psf_variables.data, theta.shape+psf_variables.data.shape[1:])

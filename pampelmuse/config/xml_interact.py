@@ -31,10 +31,10 @@ another type, such as a float or a list.
 
 Latest SVN revision
 -------------------
-203, 2014/10/09
+231, 2015/01/22
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 203
+__revision__ = 231
 
 
 import datetime, logging, os, re, string, sys
@@ -208,8 +208,8 @@ class ModifyConfig:
         
         ##  create new parameter as etree.SubElement of the root
         attrib = {}
-        if category != None: attrib["category"] = category
-        if inuse != None: attrib["inuse"] = inuse
+        if category is not None: attrib["category"] = category
+        if inuse is not None: attrib["inuse"] = inuse
         
         new_param = ElementTree.SubElement(self.ptree.getroot(), "{0}parameter".format(self.ns), attrib=attrib)
 
@@ -220,7 +220,7 @@ class ModifyConfig:
         thevalue.text = str(value)
 
 
-        if comment != None:
+        if comment is not None:
             thecomment = ElementTree.SubElement(new_param, "{0}comment".format(self.ns))
             thecomment.text = comment
 
@@ -230,22 +230,22 @@ class ModifyConfig:
         theupdate.text = "Appended parameter {0} to configuration file.".format(new_name)
 
         ## check if any information about position of new parameter given
-        if ahead!=None and after!=None:
+        if ahead is not None and after is not None:
             logging.warning("Cannot use `ahead`- AND `after`-parameter.")
 
-        index=None
-        if ahead!=None:
+        index = None
+        if ahead is not None:
             if not ahead in self.pnames:
                 logging.error("Parameter '{0}' does not exist.".format(ahead))
             else:
                 index=self.pnames.index(ahead)
-        elif after!=None:
+        elif after is not None:
             if not after in self.pnames:
                 logging.error("Parameter '{0}' does not exist.".format(after))
             else:
                 index=self.pnames.index(after)+1
 
-        if index != None:
+        if index is not None:
             self.ptree.getroot().remove(new_param)
             self.ptree.getroot().insert(index, new_param)
             self.pnames.insert(index, new_name)
@@ -329,7 +329,7 @@ class ModifyConfig:
 
         theparam = self.ptree.findall("./{0}parameter".format(self.ns))[index]
 
-        if value != None:  ## check if value should be updated
+        if value is not None:  ## check if value should be updated
             dtype = re.findall(r"(^<type)( ')([a-z0-9]*.[a-z0-9]*)('>)", str(type(value)))[0][2]
 
 ##             thevalue = theparam.findall("./{0}value[@dtype]".format(self.ns))
@@ -359,7 +359,7 @@ class ModifyConfig:
 
             updates.append("Changed default value of parameter {0} to {1} (was {2})".format(thename, value, old_value))
 
-        if comment_r != None: ## check if comment should be replaced
+        if comment_r is not None:  # check if comment should be replaced
             
             ##  delete old comment(s) (if any)
             for comment in theparam.findall("./{0}comment".format(self.ns)):
@@ -367,12 +367,12 @@ class ModifyConfig:
 
             comment = comment_r
         
-        if comment != None: ##  add new comment
+        if comment is not None:  # add new comment
             newcomment = ElementTree.SubElement(theparam, "{0}comment".format(self.ns))
             newcomment.text = comment
 
-            ## schema requires that 'updated'-Elements are placed after
-            ## 'comment'-Elements. Following codes assures this.
+            # schema requires that 'updated'-Elements are placed after
+            # 'comment'-Elements. Following codes assures this.
 
             oldupdates = theparam.findall("./{0}updated".format(self.ns))
             if len(oldupdates)>0:
@@ -381,7 +381,7 @@ class ModifyConfig:
                 theparam.insert(cindex, newcomment)
             
             
-        if category != None:
+        if category is not None:
             if theparam.attrib.has_key("category"):
                 old_category = theparam.attrib["category"]
             else:
@@ -392,7 +392,7 @@ class ModifyConfig:
 
 
 
-        if inuse != None: ## check if usage-flag should be updated
+        if inuse is not None:  # check if usage-flag should be updated
             if theparam.attrib.has_key("inuse"):
                 old_inuse = transform_string(theparam.attrib["inuse"], "bool", abort_on_exception=self.AoE)
             else:
@@ -516,13 +516,13 @@ class ModifyConfig:
 
     def save_changes(self, filename=None, style=None):
 
-        if filename == None:
+        if filename is None:
             filename = self.filename
 
         self.ptree.getroot().set("timestamp", self.timestamp)
 
         txt = ElementTree.tostringlist(self.ptree.getroot(), encoding='ISO-8859-1')
-        if style != None:
+        if style is not None:
             txt.insert(1, '<?xml-stylesheet type="text/xsl" href="{0}"?>'.format(style))
 
         outfile = open(filename, "w")

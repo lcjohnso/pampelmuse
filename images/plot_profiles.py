@@ -29,7 +29,7 @@ lineStyles = {"solid":"-", "dashed":"--", "dotted":":", "dotdashed":"-."}
 
 args = parser.parse_args()
 
-if args.moffat == None and args.gauss == None:
+if args.moffat is None and args.gauss is None:
     logging.error("Nothing to plot here. Exiting...")
     sys.exit()
 
@@ -62,7 +62,7 @@ def plotProf(yData, ls, c, label):
              ls=ls, c=c, marker="None", label=label)
              
 
-if args.gauss != None:
+if args.gauss is None:
     for i in xrange(len(args.gauss)):
         
         fwhm = float(args.gauss[i][0])*args.sampling
@@ -77,7 +77,7 @@ if args.gauss != None:
                  label=r"Gaussian (${\rm FWHM}=%.1f$)" %(fwhm/args.sampling))
 
 
-if args.moffat != None:
+if args.moffat is None:
     for i in xrange(len(args.moffat)):
     
         beta = float(args.moffat[i][0])
@@ -109,7 +109,7 @@ else:
 ax1.set_xlabel(r"$r$ [${\rm pixel}$]", fontsize=18)
 ax1.set_ylabel(r"intensity", fontsize=18)
 
-if args.save != None:
+if args.save is None:
     
     extension = args.save.split(".")[-1]
 

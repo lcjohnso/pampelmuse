@@ -22,10 +22,10 @@ the header of a FITS HDU.
 
 Latest SVN revision
 -------------------
-222, 2014/12/03
+231, 2015/01/22
 """
 __author__   = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 222
+__revision__ = 231
 
 
 import datetime, os, re
@@ -81,8 +81,8 @@ class PampelMuseConfig(Namespace):
         
         for entry in hdu.header.cards:   
             match = self.configFinder.match(entry.keyword)
-            if match != None:
-                if match.group(2) == None: setattr(self, match.group(1).lower(), entry.value)
+            if match is not None:
+                if match.group(2) is None: setattr(self, match.group(1).lower(), entry.value)
                 else:
                     if not hasattr(self, match.group(1).lower()): # create sub-namespace if it does not exist
                         setattr(self, match.group(1).lower(), Namespace())
