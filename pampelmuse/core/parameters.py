@@ -24,13 +24,15 @@ currently not possible to add parameters afterwards.
 
 Latest SVN revision
 -------------------
-175, 2014/06/16
+232, 2015/01/30
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 175
+__revision__ = 232
 
-## import required python modules
-import logging, re
+# import required python modules
+import logging
+import re
+
 import numpy as np
 from numpy.polynomial import Chebyshev, Legendre, Hermite, Polynomial
 from astropy.io import fits
@@ -66,97 +68,100 @@ class Parameters(object):
             those in the FITS table. If no FITS table is provided, at least one
             parameter and its value must be provided.
         """
-        ## Initial defintions:
-        self.hdu   = hdu
-        self.ndisp = 1 ## The number of data points in dispersion direction
-        self._data = None ## The parameter values (and potentially smooth representations in dispersion direction)
-        
-        if order != None: ## The names of the parameters, check if any order is requested
+        # Initial defintions:
+        self.hdu = hdu
+        self.ndisp = 1  # The number of data points in dispersion direction
+        self._data = None  # The parameter values (and potentially smooth representations in dispersion direction)
+
+        if order is not None:  # The names of the parameters, check if any order is requested
             self.names = order
             for name in kwargs.keys():
-                if not name in self.names: self.names.append(name)
+                if name not in self.names:
+                    self.names.append(name)
         else:
             self.names = kwargs.keys()
-        
-        ## make sure 'hdu' is a fits.BinTableHDU if provided
-        if hdu != None and not isinstance(hdu, fits.BinTableHDU):
+
+        # make sure 'hdu' is a fits.BinTableHDU if provided
+        if hdu is not None and not isinstance(hdu, fits.BinTableHDU):
             logging.critical("If provided, 'hdu' must be a FITS Table-HDU.")
-            assert isinstance(hdu, fits.BinTableHDU), "Invalid type for argument 'hdu': {0}".format(re.findall(r"'(.*)'", str(type(hdu)))[0])
-          
-        ## read FITS Table if it has been provided:
-        if hdu != None:
-            if "EXTNAME" in hdu.header: logging.info("Reading parameters from HDU '{0}'...".format(hdu.header["EXTNAME"]))
-            else: logging.info("Reading parameters from unnamed HDU...")
-            
-            ## check if required fields 'name' and 'value exist':
+            assert isinstance(hdu, fits.BinTableHDU), "Invalid type for argument 'hdu': {0}".format(
+                re.findall(r"'(.*)'", str(type(hdu)))[0])
+
+        # read FITS Table if it has been provided:
+        if hdu is not None:
+            if "EXTNAME" in hdu.header:
+                logging.info("Reading parameters from HDU '{0}'...".format(hdu.header["EXTNAME"]))
+            else:
+                logging.info("Reading parameters from unnamed HDU...")
+
+            # check if required fields 'name' and 'value exist':
             for field in ["name", "value"]:
                 if not field in hdu.data.names:
                     logging.critical("Cannot find field '{0}' in provided HDU.".format(field))
                     assert field in hdu.data.names, "Required field '{0}' missing in HDU.".format(field)
-        
-            ## get dispersion information using the TFORM{i} header key (where i is the index of the field 'values')
+
+            # get dispersion information using the TFORM{i} header key (where i is the index of the field 'values')
             for i in xrange(hdu.header["TFIELDS"]):
-                if hdu.header["TTYPE{0}".format(i+1)] == "value":
-                    size = re.findall(r"([0-9]*)[A-Z]", hdu.header["TFORM{0}".format(i+1)])[0]
-                    if size != "": self.ndisp = int(size)
+                if hdu.header["TTYPE{0}".format(i + 1)] == "value":
+                    size = re.findall(r"([0-9]*)[A-Z]", hdu.header["TFORM{0}".format(i + 1)])[0]
+                    if size != "":
+                        self.ndisp = int(size)
                     break
-            
-            ## initialize the data array
-            self._data = np.zeros((self.ndisp, hdu.header["NAXIS2"], 2),  dtype=np.float32)
-            self._data[:] = np.nan ## no values have been provided so far
-                    
-            ## initialize a boolean array indicating if a parameter is free, i.e. should be optimized in a fit.
+
+            # initialize the data array
+            self._data = np.zeros((self.ndisp, hdu.header["NAXIS2"], 2), dtype=np.float32)
+            self._data[:] = np.nan  # no values have been provided so far
+
+            # initialize a boolean array indicating if a parameter is free, i.e. should be optimized in a fit.
             self.free = np.zeros(hdu.header["NAXIS2"], dtype=np.bool)
-                    
-            ## read the parameter values into the structure
+
+            # read the parameter values into the structure
             for i in xrange(hdu.data.size):
                 name = hdu.data.field("name")[i]
 
-                if not name in self.names: self.names.append(name)
+                if name not in self.names:
+                    self.names.append(name)
                 j = self.names.index(name)
 
-                self._data[:,j,0] = hdu.data.field("value")[i]
-                if "freepar" in hdu.data.names: ## check for optional column 'freepar'
-                    self.free[j]=hdu.data.field("freepar")[i]
-                if "isfitted" in hdu.data.names: ## check for optional column 'isfitted'
+                self._data[:, j, 0] = hdu.data.field("value")[i]
+                if "freepar" in hdu.data.names:  # check for optional column 'freepar'
+                    self.free[j] = hdu.data.field("freepar")[i]
+                if "isfitted" in hdu.data.names:  # check for optional column 'isfitted'
                     if hdu.data.field("isfitted")[i]:
-                        if "polyfit" in hdu.data.names: ## check for optional column 'polyfit'
-                            self._data[:,j,1]=hdu.data.field("polyfit")[i]
+                        if "polyfit" in hdu.data.names:  # check for optional column 'polyfit'
+                            self._data[:, j, 1] = hdu.data.field("polyfit")[i]
                         else:
                             logging.error("Cannot find fit to parameter '{0}'.".format(name))
-                    
 
                 logging.info("Added parameter '{0}' from HDU to the structure.".format(name))
-        
         else:
-            self._data = np.zeros((1, self.npars, 2),  dtype=np.float32)
-            self._data[:] = np.nan 
+            self._data = np.zeros((1, self.npars, 2), dtype=np.float32)
+            self._data[:] = np.nan
             self.free = np.zeros((self.npars,), dtype=np.bool)
-            
-        ## iterate over provided parameters
-        for name, value in kwargs.iteritems():
-                
-            ## get number of spectral pixels
-            ndisp = len(np.atleast_1d(value)) ## use np.atleast_1d to get len=1 for single values
 
-            ## get the index of the parameter in the array
+        # iterate over provided parameters
+        for name, value in kwargs.iteritems():
+
+            # get number of spectral pixels
+            ndisp = len(np.atleast_1d(value))  # use np.atleast_1d to get len=1 for single values
+
+            # get the index of the parameter in the array
             j = self.names.index(name)
 
-            ## add the parameter values(s) to the data. If the data does not contain dispersion information
-            ## but the parameter does, the data is expanded in dispersion direction
-            if self.ndisp == 1 and ndisp>1:
+            # add the parameter values(s) to the data. If the data does not contain dispersion information
+            # but the parameter does, the data is expanded in dispersion direction
+            if self.ndisp == 1 and ndisp > 1:
                 self.resize(ndisp)
-            elif self.ndisp>1 and ndisp>1 and self.ndisp!=ndisp:
+            elif self.ndisp > 1 and ndisp > 1 and self.ndisp != ndisp:
                 logging.error("Data array of keyword parameter '{0}' has invalid shape.".format(name))
-            self._data[:,j,0] = value
+            self._data[:, j, 0] = value
 
-        ## check if at least one parameter was provided.
+        # check if at least one parameter was provided.
         if self.npars == 0:
             logging.critical("Cannot initialize instance of Parameters - no data provided.")
             logging.critical("Either use 'hdu' or the keyword arguments to provide parameters.")
-        assert self.npars>0, "Cannot create an empty instance of Parameters."
-        
-        
+        assert self.npars > 0, "Cannot create an empty instance of Parameters."
+
     @property
     def npars(self):
         """
@@ -166,7 +171,6 @@ class Parameters(object):
             The number of parameters in the definition of the PSF profile.
         """
         return len(self.names)
-       
 
     @property
     def defined(self):
@@ -177,8 +181,7 @@ class Parameters(object):
             A 1dim. boolean array of length 'npars' that specifies if the
             value of each PSF parameter has been defined.
         """
-        return (self._data[...,0]==self._data[...,0]).all(axis=0)
-
+        return (self._data[..., 0] == self._data[..., 0]).all(axis=0)
 
     @property
     def fitted(self):
@@ -189,8 +192,7 @@ class Parameters(object):
             A 1dim. boolean array of length 'npars' that specifies if the
             value of each PSF parameter has been fitted.
         """
-        return (self._data[...,1]==self._data[...,1]).all(axis=0)
-
+        return (self._data[..., 1] == self._data[..., 1]).all(axis=0)
 
     @property
     def contains_free_parameters(self):
@@ -202,8 +204,7 @@ class Parameters(object):
             define the profile should  be fitted, i.e. is a free parameter
             and has NOT been fitted with a smooth function. 
         """
-        return (self.free&(self.fitted==False)).any()
-
+        return (self.free & (self.fitted == False)).any()
 
     @property
     def valid(self):
@@ -214,8 +215,7 @@ class Parameters(object):
             True or False depending on whether for each parameter either values
             or a fit exists.
         """
-        return (self.fitted|self.defined).all()
-
+        return (self.fitted | self.defined).all()
 
     def set_data(self, value):
         """
@@ -234,48 +234,51 @@ class Parameters(object):
             Note that if for 2dim. the length of both axes is equal to the number of
             parameters, it is assumed that the second axis is the parameters-axis.
         """
-        ## sanity check: either a list or a numpy array must be provided
-        assert isinstance(value, (list, np.ndarray)), "'data' must be a list or a numpy array, not {1}.".format(re.findall(r"'(.*)'", str(type(value)))[0])
+        # sanity check: either a list or a numpy array must be provided
+        assert isinstance(value, (list, np.ndarray)), "'data' must be a list or a numpy array, not {1}.".format(
+            re.findall(r"'(.*)'", str(type(value)))[0])
         value = np.atleast_1d(value)
-        
-        ## sanity check: data must be 1D, 2D, or 3D.
+
+        # sanity check: data must be 1D, 2D, or 3D.
         assert value.ndim in [1, 2, 3], "'data' must have dimensionality 1, 2, or 3, but has {0}".format(value.ndim)
-        
-        ## 1dim. data provided, assume one value provided per parameter, no fit, no dispersion information
+
+        # 1dim. data provided, assume one value provided per parameter, no fit, no dispersion information
         if value.ndim == 1:
             assert value.size == self.npars, "Shape of 'data' does not match no. of parameters in profile."
-            self._data = np.ones((1,self.npars,2),  dtype=np.float32)
-            self._data[...,0] = value
-            self._data[...,1] = np.nan
-        
-        ## 2dim. data provided, either no fit (if length of second axis equals number of parameters in profile) or no dispersion information provided (else)
+            self._data = np.ones((1, self.npars, 2), dtype=np.float32)
+            self._data[..., 0] = value
+            self._data[..., 1] = np.nan
+
+        # 2dim. data provided, either no fit (if length of second axis equals number of parameters in profile) or no
+        # dispersion information provided (else)
         if value.ndim == 2:
-            assert value.shape[0] == self.npars or value.shape[1] == self.npars, "Shape of 'data' does not match no. of parameters in profile."
-            if value.shape[1] == self.npars: ## no fit provided, second axis has same length as no. of parameters
-                self._data = np.ones((value.shape[0],self.npars,2),  dtype=np.float32)
-                self._data[...,0] = value
-                self._data[...,1] = np.nan
-            else: ## no dispersion information provided, first axis has same length as no. of parameters
-                assert value.shape[1] in [1, 2], "Second axis of 'data' must have length 1 (only data) or 2 (data and fit)."
+            assert value.shape[0] == self.npars or value.shape[1] == self.npars,\
+                "Shape of 'data' does not match no. of parameters in profile."
+            if value.shape[1] == self.npars:  # no fit provided, second axis has same length as no. of parameters
+                self._data = np.ones((value.shape[0], self.npars, 2), dtype=np.float32)
+                self._data[..., 0] = value
+                self._data[..., 1] = np.nan
+            else:  # no dispersion information provided, first axis has same length as no. of parameters
+                assert value.shape[1] in [1,
+                                          2], "Second axis of 'data' must have length 1 (only data) or 2 (data and fit)."
                 assert value.shape[0] == self.npars, "Shape of 'data' does not match no. of parameters in profile."
-                self._data = np.ones((1,self.npars,2), dtype=np.float32)
+                self._data = np.ones((1, self.npars, 2), dtype=np.float32)
                 if value.shape[1] == 1:
-                    self._data[...,0] = value
-                    self._data[...,1] = np.nan
+                    self._data[..., 0] = value
+                    self._data[..., 1] = np.nan
                 else:
                     self._data[:] = value
-        
-        ## 3dim. data provided, includes fit and dispersion information
+
+        # 3dim. data provided, includes fit and dispersion information
         if value.ndim == 3:
             assert value.shape[2] in [1, 2], "Last axis of 'data' must have length 1 (only data) or 2 (data and fit)."
             assert value.shape[1] == self.npars, "Shape of 'data' does not match no. of parameters in profile."
-            self._data = np.zeros((value.shape[0],self.npars,2),  dtype=np.float32)
+            self._data = np.zeros((value.shape[0], self.npars, 2), dtype=np.float32)
             self._data[:] = value
-        
-        ## update dispersion information
+
+        # update dispersion information
         self.ndisp = self._data.shape[0]
 
-    
     def get_data(self):
         """
         Returns
@@ -284,9 +287,8 @@ class Parameters(object):
             The data values of the parameters that define the PSF profile. 
         """
         return self._data
-        
-    data = property(get_data, set_data, None, "The data values of the parameters in the definition.")
 
+    data = property(get_data, set_data, None, "The data values of the parameters in the definition.")
 
     def resize(self, ndisp):
         """
@@ -300,28 +302,28 @@ class Parameters(object):
         ----------
         ndisp : int
             The new length of the dispersion axis.
-        """ 
-        ## sanity checks on provided value:
-        assert isinstance(ndisp, (int, np.int)), "'ndisp' must be an integer, not {0}.".format(re.findall(r"'(.*)'", str(type(ndisp)))[0])
-        assert ndisp>0, "'ndisp' must be >0 but is {0}".format(ndisp)
-        
-        ## an array can only be resized in place if it owns its data.
+        """
+        # sanity checks on provided value:
+        assert isinstance(ndisp, (int, np.int)), "'ndisp' must be an integer, not {0}.".format(
+            re.findall(r"'(.*)'", str(type(ndisp)))[0])
+        assert ndisp > 0, "'ndisp' must be >0 but is {0}".format(ndisp)
+
+        # an array can only be resized in place if it owns its data.
         assert self._data.base is None, "Cannot resize array because it does not own its data."
-        
-        if self.ndisp == ndisp: return ## do nothing if old and new shape are the same
+
+        if self.ndisp == ndisp:
+            return  # do nothing if old and new shape are the same
         elif self.ndisp > ndisp:
             logging.warning("Reducing size of parameter data. Some data will be lost.")
-             
-        self._data.resize((ndisp, self.npars, 2))
-        
-        ## if the data array grew in size, fill additional entries with nearest values
-        if self.ndisp < ndisp:
-            self._data[self.ndisp:] = self._data[self.ndisp-1]
-        
-        ## update dispersion information
-        self.ndisp = ndisp
-        
 
+        self._data.resize((ndisp, self.npars, 2))
+
+        # if the data array grew in size, fill additional entries with nearest values
+        if self.ndisp < ndisp:
+            self._data[self.ndisp:] = self._data[self.ndisp - 1]
+
+        # update dispersion information
+        self.ndisp = ndisp
 
     def info(self, names=None):
         """
@@ -337,36 +339,41 @@ class Parameters(object):
 
         logging.info(" Parameter  defined?  (mean)value  free?  fitted?")
 
-        if names == None: names = self.names
+        if names is None:
+            names = self.names
 
         for name in names:
-            if not name in self.names: continue
-            
-            i = self.names.index(name)
-        
-            logString = " *{0:8s}".format(name)
-            if self.defined[i]:
-                logString += "       [x]"
-            else:
-                logString += "       [ ]          NaN    [ ]      [ ]"
-                logging.info(logString)
+            if name not in self.names:
                 continue
 
-            logString += "{0:13.2f}".format(float(self._data[:,i,0].mean(axis=-1)))
+            i = self.names.index(name)
 
-            if self.free[i]: logString += "    [x]"
-            else: logString += "    [ ]"
+            logstring = " *{0:8s}".format(name)
+            if self.defined[i]:
+                logstring += "       [x]"
+            else:
+                logstring += "       [ ]          NaN    [ ]      [ ]"
+                logging.info(logstring)
+                continue
 
-            if self.fitted[i]: logString += "      [x]"
-            else: logString += "      [ ]"
+            logstring += "{0:13.2f}".format(float(self._data[:, i, 0].mean(axis=-1)))
 
-            logging.info(logString)
+            if self.free[i]:
+                logstring += "    [x]"
+            else:
+                logstring += "    [ ]"
 
+            if self.fitted[i]:
+                logstring += "      [x]"
+            else:
+                logstring += "      [ ]"
+
+            logging.info(logstring)
 
     def provideParNames(self):
         """
         Provide the names of the parameters in the definition in the form of
-        QStrings. This is eeded to load the names in the combo box of the GUI
+        QStrings. This is needed to load the names in the combo box of the GUI
         of PampelMuse. Note that this method requires PyQt4 to be installed
         on the system.
         
@@ -376,14 +383,14 @@ class Parameters(object):
             The names of the parameters that define the profile.
         """
         try:
-            ## check if PyQt4 is available on the system
+            # check if PyQt4 is available on the system
             from PyQt4 import QtCore
+
             return QtCore.QStringList(self.names)
         except ImportError:
             logging.error("PyQt4 is not available on the system.")
             logging.error("Cannot provide names of PSF parameters as QStrings.")
             return None
-
 
     def polynomial_fit(self, name, order, bins=1, mask=None, function="step"):
         """
@@ -410,35 +417,33 @@ class Parameters(object):
             The function used in the fitting. May be either 'plain', 'step', or
             'chebyshev'. A broken polynomials is used if function is set to 'step'.
         """
-
-        ## sanity check on provided parameter
-        if not name in self.names:
+        # sanity check on provided parameter
+        if name not in self.names:
             logging.error("Unknown parameter name '{0}' provided, cannot fit data.".format(name))
             return None
 
-        ## The index of the requested parameter
+        # The index of the requested parameter
         i = self.names.index(name)
-        
-        ## The fitting function that are currently available:
-        available = {"chebyshev": Chebyshev, "legendre":Legendre, "hermite":Hermite, "plain":Polynomial}
-        
-        ## check if fit function is valid:
+
+        # The fitting function that are currently available:
+        available = {"chebyshev": Chebyshev, "legendre": Legendre, "hermite": Hermite, "plain": Polynomial}
+
+        # check if fit function is valid:
         if not function.lower() in available.keys():
             logging.error("Unknown fitting function '{0}' provided., cannot fit data.".format(function))
             return None
         else:
-            Fitfunction = available[function.lower()]
+            fitfunction = available[function.lower()]
 
-        wCoord = np.arange(self.ndisp, dtype=np.float32)
+        wcoord = np.arange(self.ndisp, dtype=np.float32)
 
-        ## create pseudo-mask if None provided
-        if mask == None:
+        # create pseudo-mask if None provided
+        if mask is None:
             mask = np.ones((self.ndisp,), dtype=np.bool)
 
-        fit = Fitfunction.fit(wCoord[mask], self._data[:,i,0][mask], order)
+        fit = fitfunction.fit(wcoord[mask], self._data[:, i, 0][mask], order)
 
-        self._data[:,i,1] = fit(wCoord)
-
+        self._data[:, i, 1] = fit(wcoord)
 
     def make_hdu(self, include_fit=True, **kwargs):
         """
@@ -466,33 +471,31 @@ class Parameters(object):
         out_hdu : an  astropy.io.fits.BinTableHDU instance
             The HDU containing the parameters.
         """
-        
-        ## check if dispersion information exits or not, and adapt column format
+        # check if dispersion information exits or not, and adapt column format
         if self.ndisp == 1:
             dataFmt = "D"
         else:
             dataFmt = "{0}D".format(self.ndisp)
 
-        ## collect columns 'name', 'value', and 'freepar' that are always incldued in
-        ## the HDU
+        # collect columns 'name', 'value', and 'freepar' that are always included in  the HDU
 
-        out_columns = [
-            fits.Column(name="name", format="10A", array=self.names),
-            fits.Column(name="value", format=dataFmt, array=np.squeeze(self._data[...,0].swapaxes(0, 1))),
-            fits.Column(name="freepar", format="L", array=self.free)
-            ]
+        out_columns = [fits.Column(name="name", format="10A", array=self.names),
+                       fits.Column(name="value", format=dataFmt, array=np.squeeze(self._data[..., 0].swapaxes(0, 1))),
+                       fits.Column(name="freepar", format="L", array=self.free)
+                       ]
 
-        ## The columns 'isfitted' and 'polyfit' are only included upon request
+        # The columns 'isfitted' and 'polyfit' are only included upon request
         if include_fit:
             out_columns.extend([fits.Column(name="isfitted", format="L", array=self.fitted),
-                                fits.Column(name="polyfit", format=dataFmt, array=np.squeeze(self._data[...,1].swapaxes(0, 1)))])
+                                fits.Column(name="polyfit", format=dataFmt,
+                                            array=np.squeeze(self._data[..., 1].swapaxes(0, 1)))])
 
-        ## Store additional keyword arguments (if any) in the FITS header
+        # Store additional keyword arguments (if any) in the FITS header
         cards = []
         for key, value in kwargs.iteritems():
             cards.append(fits.Card(key=key.upper(), value=value))
-        
-        ## return HDU
+
+        # return HDU
         out_hdu = fits.new_table(out_columns, header=fits.Header(cards=cards))
         out_hdu.add_checksum()
 

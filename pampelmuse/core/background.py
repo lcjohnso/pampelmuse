@@ -21,14 +21,15 @@ Revision 221, 2014/12/02
 
 Latest SVN revision
 -------------------
-221, 2014/12/02
+232, 2015/01/30
 """
-__author__   = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 221
+__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
+__revision__ = 232
 
 import logging
-import numpy as np
 from scipy.spatial import distance
+
+import numpy as np
 
 # Required PampelMuse routines
 from pampelmuse.core.psf import Canvas
@@ -67,31 +68,36 @@ class BackgroundGrid(Canvas):
         """
         # call parent-class to access handling of profiles on (possibly irregularly sampled) spatial grid.
         super(BackgroundGrid, self).__init__(need_spaxels=False, **kwargs)
-        
+
         # check if input is valid
         self.centroids = np.asarray(centroids)
-        assert self.centroids.ndim==2 and self.centroids.shape[-1]==2, "Centroids must be a 2dim. array of shape (N,2)."
+        assert self.centroids.ndim == 2 and self.centroids.shape[-1] == 2,\
+            "Centroids must be a 2dim. array of shape (N,2)."
 
-        # make sure centroids are on a homogeneous grid: calculate distance to nearest neighbour, must be the same for each gridpoint
-        if self.centroids.shape[0]>1:
+        # make sure centroids are on a homogeneous grid: calculate distance to nearest neighbour, must be the same for
+        # each gridpoint
+        if self.centroids.shape[0] > 1:
             distances = distance.cdist(self.centroids, self.centroids)
             distances.sort(axis=0)
-            assert np.unique(distances[1]).size==1, "Centroids must form homogeneous grid."
+            assert np.unique(distances[1]).size == 1, "Centroids must form homogeneous grid."
 
-            self.rscale = distances[1][0]/2. # scale radius is set to half the distance between two adjacent centroids.
+            self.rscale = distances[1][0] / 2.
+            # scale radius is set to half the distance between two adjacent centroids.
         else:
             self.rscale = np.inf
 
-        self.n = n # the power-law index used to assign weights
+        self.n = n  # the power-law index used to assign weights
 
         # To make the computation more efficient, each background patch is only calculated out to a given radius
-        if maxrad==None: self.maxrad = 3*self.rscale
-        else: self.maxrad = maxrad
+        if maxrad is None:
+            self.maxrad = 3 * self.rscale
+        else:
+            self.maxrad = maxrad
 
         # initialize arrays that will contain information about background patches
         self._r = None
         self._f = None
-        self._used = None   
+        self._used = None
         self.background_properties = ["_r", "_f", "_used"]
 
     @classmethod
@@ -115,15 +121,15 @@ class BackgroundGrid(Canvas):
         """
         # create the grid with the centroids of the background patches
         # first get centroids along x and y
-        _xcentroids = np.arange(0, shape[0], 2*rscale)
-        _ycentroids = np.arange(0, shape[1], 2*rscale)
+        _xcentroids = np.arange(0, shape[0], 2 * rscale)
+        _ycentroids = np.arange(0, shape[1], 2 * rscale)
         # then make sure that distances to edges of FoV are approximately the same
-        _xcentroids += 0.5*(shape[0]-1-_xcentroids.max())
-        _ycentroids += 0.5*(shape[1]-1-_ycentroids.max())
+        _xcentroids += 0.5 * (shape[0] - 1 - _xcentroids.max())
+        _ycentroids += 0.5 * (shape[1] - 1 - _ycentroids.max())
         # combine x and y centroids to array of shape (2, gridsize)
-        xcentroids = np.resize(_xcentroids, _xcentroids.size*_ycentroids.size)
+        xcentroids = np.resize(_xcentroids, _xcentroids.size * _ycentroids.size)
         xcentroids.sort()
-        ycentroids = np.resize(_ycentroids, _xcentroids.size*_ycentroids.size) 
+        ycentroids = np.resize(_ycentroids, _xcentroids.size * _ycentroids.size)
         cls.set_size(shape)
         return cls(np.vstack((xcentroids, ycentroids)).T, **kwargs)
 
@@ -146,7 +152,7 @@ class BackgroundGrid(Canvas):
             A list with profile properties that
         """
         for prop in self.background_properties:
-            if not prop in omit:
+            if prop not in omit:
                 setattr(self, prop, None)
 
     @property
@@ -157,43 +163,47 @@ class BackgroundGrid(Canvas):
     @property
     def r(self):
         # get distance of each spaxel to each gridpoint, returned array has size (gridsize, nspaxel)
-        if self._r == None: # only calculate if not already available
-            if self._transform == None:
+        if self._r is None:  # only calculate if not already available
+            if self._transform is None:
                 logging.critical("Spaxel locations must be defined before calculating distances.")
-            assert self._transform != None, "Spaxel locations not known."
-            self._r = distance.cdist(self.centroids, self.transform) # resulting array has size (gridsize, nspaxel)
+            assert self._transform is not None, "Spaxel locations not known."
+            self._r = distance.cdist(self.centroids, self.transform)  # resulting array has size (gridsize, nspaxel)
         return self._r
 
     @property
     def f(self):
         # get weight of each spaxel in each background patch, returned array has size (gridsize, nspaxel)
-        if self._f == None: # only calculate if not already available
-            self._f = np.exp(-0.5*(self.r/self.rscale)**self.n)
-            self._f /= self._f.sum(axis=0) # normalize weights
+        if self._f is None:  # only calculate if not already available
+            self._f = np.exp(-0.5 * (self.r / self.rscale) ** self.n)
+            self._f /= self._f.sum(axis=0)  # normalize weights
         return self._f
-    
+
     # 'used' is an array that indicates for each background patch which spaxels contribute
     # There are two possibilities that lead to spaxels spaxels being excluded from one or more patches:
-    #    a) They are located at distances >'maxrad' to a gridpoint
-    #    b) They are included in a user-provided bad-pixel mask
-    # To make sure that spaxels excluded based on criterion (a) are not included again when the user provides a mask, the setter method is modified.
+    #  a) They are located at distances >'maxrad' to a gridpoint
+    #  b) They are included in a user-provided bad-pixel mask
+    # To make sure that spaxels excluded based on criterion (a) are not included again when the user provides a mask,
+    # the setter method is modified.
     def get_used(self):
-        if self._used == None: # only calculate if not already available
-            self._used = (self.r<=self.maxrad)
+        if self._used is None:  # only calculate if not already available
+            self._used = (self.r <= self.maxrad)
         return self._used
 
     def set_used(self, value):
-        self._used = None # remove possibly existing mask
+        self._used = None  # remove possibly existing mask
         try:
             value = np.asarray(value, dtype=np.bool)
         except:
             logging.critical("Invalid input for background spaxels mask: {0}".format(value))
         if value.size != self.used.shape[-1]:
-            logging.critical("Provided background spaxels mask has invalid size ({0} instead of {1}).".format(value.size, self.used.shape[-1]))
-        self._used = self.used&value # note call to 'self.used' leads to recalculation of included pixels based on distance wrt. 'maxrad'
+            logging.critical(
+                "Provided background spaxels mask has invalid size ({0} instead of {1}).".format(value.size,
+                                                                                                 self.used.shape[-1]))
+        self._used = self.used & value  # note call to 'self.used' leads to recalculation of included pixels based
+        # on distance wrt. 'maxrad'
 
     used = property(get_used, set_used, None, "The mask indicating which spaxels are used to measure the background.")
-        
+
     def get_flux(self, i):
         """
         Returns the indices of the used pixels and the corresponding weights
@@ -211,11 +221,11 @@ class BackgroundGrid(Canvas):
             A tuple of length 2 containing the indices of the used spaxels 
             and the corresponding fluxes.
         """
-        return (self.spaxel[self.used[i]], self.f[i, self.used[i]])
+        return self.spaxel[self.used[i]], self.f[i, self.used[i]]
 
 
 # following code outdated. - SK 14/12/01
-#    def __call__(self, u, v):
+# def __call__(self, u, v):
 #        """
 #        The __call__ method of the Background class is intended to be provided
 #        to the call of the scipy.distance.cdist routine. The idea is that this
@@ -310,10 +320,11 @@ class BackgroundGrid(Canvas):
 #            indices0.append(np.cumsum(used)[slc]-1)
 #            indices1.append(i*np.ones(slc.sum(), dtype=np.int32))
 #
-#        return sparse.coo_matrix((np.hstack(coeffs), (np.hstack(indices0), np.hstack(indices1))), shape=(used.sum(), self.gridsize))
+#        return sparse.coo_matrix((np.hstack(coeffs), (np.hstack(indices0), np.hstack(indices1))),
+#                                 shape=(used.sum(), self.gridsize))
 #
 #
-#class BackgroundPatch(Canvas):
+# class BackgroundPatch(Canvas):
 #    
 #    def __init__(self, xc, yc, rscale, maxrad, **kwargs):
 #        # initialize parent class
@@ -349,8 +360,7 @@ class BackgroundGrid(Canvas):
 #        for prop in self.profile_properties:
 #            if not prop in omit:
 #                setattr(self, prop, None)
-#        
-#        
+#
 #    @property
 #    def r(self):
 #        """
@@ -383,7 +393,8 @@ class BackgroundGrid(Canvas):
 #            sub-classes.
 #        """
 #        if self._f == None:
-#            self._f = 10**(-0.4*self.mag)/(2.*np.pi*self.std**2*(1.-self.e))*np.exp(-self.r**2/(2.*self.std**2)) + super(Gaussian, self).get_f(integrate=False)
+#            self._f = 10**(-0.4*self.mag)/(2.*np.pi*self.std**2*(1.-self.e))*np.exp(-self.r**2/(2.*self.std**2)) \
+#                + super(Gaussian, self).get_f(integrate=False)
 #        else:
 #            return self._f
 #

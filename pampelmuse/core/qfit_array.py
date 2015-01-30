@@ -15,20 +15,19 @@ in StarFit, so check the documentation of that class for further reference.
 
 Latest SVN release
 ------------------
-103, 2013/07/18
+232, 2015/01/30
 """
-__author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 103
+__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
+__revision__ = 232
 
 import logging
-import numpy as np
-from PyQt4 import QtCore, QtGui
 
-##  required PampelMuse-routines
+import numpy as np
+
+
+# required PampelMuse-routines
 from pampelmuse.core.fit_array import StarFit
 from pampelmuse.graphics.fitting_gui import FittingGui
-
-
 
 
 class QStarFit(StarFit, FittingGui):
@@ -39,8 +38,6 @@ class QStarFit(StarFit, FittingGui):
     is currently being analysed and the fit residuals for that layer). The
     GUI also allows the user to pause the fit after a layer has been analysed.
     """
-
-
     def __init__(self, **kwargs):
         """
         Initialize an instance of the class pampelmuse.core.qfit_array.QStarFit
@@ -54,12 +51,11 @@ class QStarFit(StarFit, FittingGui):
 
         super(QStarFit, self).__init__(**kwargs)
 
-        self.BUSY     = False ## possible states of the fitting loop 
-        self.FINISHED = False ## not defined in FittingGui-class
+        self.BUSY = False  # possible states of the fitting loop
+        self.FINISHED = False  # not defined in FittingGui-class
 
 
-
-    def __call__(self, jumpStart=False, **kwargs):
+    def __call__(self, jumpstart=False, **kwargs):
         """
         Execute the analysis of the IFS data.
 
@@ -75,16 +71,13 @@ class QStarFit(StarFit, FittingGui):
             Consult the documentation of that class for the supported
             arguments.
         """
-
         super(QStarFit, self).__call__(**kwargs)
 
-        ## start GUI that controls fitting process
+        # start GUI that controls fitting process
         super(QStarFit, self).show()
 
-        if jumpStart:
+        if jumpstart:
             super(QStarFit, self).startIt()
-
-
 
     def timeout(self):
         """
@@ -102,27 +95,25 @@ class QStarFit(StarFit, FittingGui):
             logging.warning("Fit stopped on user request.")
             self.timer.stop()
             self.close()
-    
+
         if self.PAUSED:
             self.sBar.showMessage("PAUSED")
             return
 
-        self.jj = (self.specPix>>1) - 1 - int(self.i/2) + self.i*np.mod(self.i, 2) + np.mod(self.specPix, 2)
-        ## jj is a counter that starts at the central spectral pixel and proceeds simultaneoulsy to the red and blue end.
+        self.jj = (self.specPix >> 1) - 1 - int(self.i / 2) + self.i * np.mod(self.i, 2) + np.mod(self.specPix, 2)
+        # jj is a counter that starts at the central spectral pixel and proceeds simultaneously to the red and blue end.
 
-        if self.i == self.specPix: ## if data-cube is entirely analysed
+        if self.i == self.specPix:  # if data-cube is entirely analysed
             self.timer.stop()
             self.save = True
             self.close()
-        else: ## update information in GUI
-            self.prefixString = "[{0:0{1}d}/{2}]".format(self.i, int(np.log10(self.specPix))+1, self.specPix)
-            self.sBar.showMessage("{0} Analyzing layer #{1}".format(self.prefixString, self.jj))
+        else:  # update information in GUI
+            self.prefix_string = "[{0:0{1}d}/{2}]".format(self.i, int(np.log10(self.specPix)) + 1, self.specPix)
+            self.sBar.showMessage("{0} Analyzing layer #{1}".format(self.prefix_string, self.jj))
 
             self.iter_fit_layer()
 
             self.i += 1
-
-
 
     def iter_fit_layer(self):
         """
@@ -134,35 +125,34 @@ class QStarFit(StarFit, FittingGui):
         the uncertainties associated with the fluces once the analysis is
         completed.
         """
-
-        ## change state of routine to indicate a fit is carried out
+        # change state of routine to indicate a fit is carried out
         self.BUSY = True
 
-        self.sBar.showMessage("{0} Fitting fluxes".format(self.prefixString))
+        self.sBar.showMessage("{0} Fitting fluxes".format(self.prefix_string))
 
         super(QStarFit, self).iter_fit_layer()
 
-        ## plot image that has been fitted
+        # plot image that has been fitted
         self.dataCanvas.addImage(self.data.reshape(self.spatShape))
 
-        ## create 2dim. residuals for plotting
+        # create 2dim. residuals for plotting
         if self.hasMask:
             resi1d = np.zeros((self.spatPix,), dtype='float32')
-            resi1d[self.pixMap>-1] = self.current
-            self.resi2d = (resi1d*self.sigma).reshape(self.spatShape)
+            resi1d[self.pixMap > -1] = self.current
+            self.resi2d = (resi1d * self.sigma).reshape(self.spatShape)
         else:
-            self.resi2d = (self.current*self.sigma).reshape(self.spatShape)
-            
+            self.resi2d = (self.current * self.sigma).reshape(self.spatShape)
+
         self.resiCanvas.addImage(self.resi2d)
 
-        self.pBar.setValue(100.*float(self.i+1)/self.specPix)
+        self.pBar.setValue(100. * float(self.i + 1) / self.specPix)
 
-        self.BUSY = False ## change status to indicste fit is completed
+        self.BUSY = False  # change status to indicste fit is completed
 
 
 ###############################################################################
-##             self.sBar.showMessage(\
-##                 "{0} Fitting PSF to Source #{1} ({2}/{3})".format(\
-##                     self.prefixString, self.sources.ID[i], j+1,
-##                     len(self.sources.psf_indices)))
-##             QtGui.QApplication.processEvents()
+#             self.sBar.showMessage(\
+#                 "{0} Fitting PSF to Source #{1} ({2}/{3})".format(\
+#                     self.prefixString, self.sources.ID[i], j+1,
+#                     len(self.sources.psf_indices)))
+#             QtGui.QApplication.processEvents()

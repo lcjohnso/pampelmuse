@@ -61,13 +61,10 @@ the data into memory yet but just checks whether the file(s) are valid.
 
 Latest SVN revision
 -------------------
-231, 2015/01/22"""
-__author__     = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__    = "0.18.6.0"
-__revision__   = 231
-
-
-
+232, 2015/01/30"""
+__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
+__version__ = "0.18.7.0"
+__revision__ = 232
 
 import sys
 sys.stdout.write("""
@@ -79,7 +76,6 @@ sys.stdout.write("""
 """.format(__version__, __author__))
 sys.stdout.flush()
 
-
 # IMPORT REQUIRED PYTHON MODULES
 import argparse, datetime, logging, os, re
 import numpy as np
@@ -89,12 +85,13 @@ from astropy.io import fits
 # at this point it is not known which logging level is requested in the PampelMuse configuration, however,
 # it is set to WARNING so that the user notices if certain parts of PampelMuse cannot be used because mandatory
 # python modules are missing
-logging.basicConfig(format="%(asctime)s[%(levelname)-8s]: %(message)s", datefmt='%m/%d/%Y %H:%M:%S', level=logging.WARNING)
+logging.basicConfig(format="%(asctime)s[%(levelname)-8s]: %(message)s", datefmt='%m/%d/%Y %H:%M:%S',
+                    level=logging.WARNING)
 logging.captureWarnings(True)
 
 # check if all dependencies are fulfilled:
 use_addwcs=True
-try: ## check if astLib is available
+try:  # check if astLib is available
     from astLib import astCoords
 except ImportError:
     logging.warning("Cannot import module 'astLib'.")
@@ -108,7 +105,7 @@ except ImportError:
     logging.warning("Routine ADDWCS cannot be used.")
     use_addwcs = False
 
-# check whether dependencies for graphical backends are fufilled
+# check whether dependencies for graphical backends are fulfilled
 graphics = True
 try:
     from PyQt4 import QtCore, QtGui
@@ -130,7 +127,7 @@ from pampelmuse.core.psf import Variables
 
 # import the PampelMuse subroutines
 from pampelmuse.routines import initfit, cubefit, polyfit, subtres, shotnoi, makecube, singlesrc, getspectra
-## if graphics: from pampelmuse.routines import initfit, polyfit
+# if graphics: from pampelmuse.routines import initfit, polyfit
 if use_addwcs: from pampelmuse.routines import addwcs
 
 
@@ -154,6 +151,7 @@ class GetValuesFromLine(argparse.Action):
             name, value = val.split("=")
             outdict[name.upper()] = value
         setattr(namespace, self.dest, outdict)
+
 
 # (ii) class to read configuration from an ascii file, provided as parameter
 #      'action' to the argparse argument '--fromfile'
@@ -209,19 +207,20 @@ PREFIX.prm.fits. This file is created by the routine INITFIT.""")
 #       is set to argparse.SUPPRESS, at most one of them will contibute to
 #       the namespace.
 group = PMparser.add_mutually_exclusive_group(required=False)
-group.add_argument("--fromfile", type=argparse.FileType('r'), action=GetValuesFromFile, dest="parameter", default=argparse.SUPPRESS, help="""
+group.add_argument("--fromfile", type=argparse.FileType('r'), action=GetValuesFromFile, dest="parameter",
+                   default=argparse.SUPPRESS, help="""
 Update configuration using the parameters provided in an ASCII-file: One
 parameter per line, name and value separated by '=', lines starting with '#'
 are ignored""")
-group.add_argument("--fromline", type=str, nargs=1, action=GetValuesFromLine, dest="parameter", default=argparse.SUPPRESS, help="""
+group.add_argument("--fromline", type=str, nargs=1, action=GetValuesFromLine, dest="parameter",
+                   default=argparse.SUPPRESS, help="""
 Update configuration using the parameters provided in the command line,
 following '--fromline'-string. Again, name and value must be separated
 by '=' (no whitespace!). Individual parameters  must be comma-separated.""")
 
 PMsubparsers = PMparser.add_subparsers(title='Available routines')
 
-
-## if graphics:
+# if graphics:
 IFparser = PMsubparsers.add_parser("INITFIT", help="""
 The sub-routine is used to assemble a source list that is used in the PSF
 fitting process. Recall that PampelMuse assumes that an inventory of the
@@ -278,7 +277,7 @@ steps are iterated until convergence. Once the analysis has completed, the resul
 are written to the PRM-file.""")
 CFparser.set_defaults(func=cubefit)
 
-## if graphics:
+# if graphics:
 PFparser = PMsubparsers.add_parser("POLYFIT", help="""
 This sub-routine loads the PampelMuse GUI and is designed for a visualization
 of the results from the PSF fit on the one hand and for an interactive modelling
@@ -303,14 +302,12 @@ If this flag is set, then the fits to the IFS coordinates of the sources are
 constrained such that all sources have the same slope with wavelength.""")
 PFparser.set_defaults(func=polyfit)
 
-
 SRparser = PMsubparsers.add_parser("SUBTRES", help="""
 The sub-routine is designed to subtract the contribution of the (resolved) stars
 from the IFS data. A PRM-file containing the results from a successful analysis
 with CUBEFIt should be available. The resulting data is stored as a Fit-file under
 <prefix>.res.fits.""")
 SRparser.set_defaults(func=subtres)
-
 
 SNparser = PMsubparsers.add_parser("SHOTNOI", help="""
 The sub-routine estimates the shot noise in each spatial pixel of an IFS data cube
@@ -379,7 +376,7 @@ pampelmuse.prefix = args.prefix
 pampelmuse.filename = "{0}.prm.fits".format(args.prefix)
 
 # initialize (sub)namespace for subroutine that will be called and add command-line arguments to this subspace.
-ns =  Namespace()
+ns = Namespace()
 for key, value in args.__dict__.iteritems():
     if not key in ["func", "parameter", "prefix"]:
         setattr(ns, key, value)
@@ -398,28 +395,32 @@ if args.func not in [initfit, singlesrc]:
 # ii) read default configuration into namespace
 pampelmuse.read_defaults()
 
-# iii) if PRM-file was opened, update the configuration using the primary header hierarch keys. Note that these keywords can be
-# either directly connected to PampelMuse (e.g. HIERARCH PAMPELMUSE IFU) or to one of its subroutines (e.g. HIERARCH PAMPELMUSE
-# INITFIT VERSION). In the latter case, the key will be added to the namespace of the corresponding subroutine.
+# iii) if PRM-file was opened, update the configuration using the primary header hierarch keys. Note that these
+# keywords can be either directly connected to PampelMuse (e.g. HIERARCH PAMPELMUSE IFU) or to one of its subroutines
+# (e.g. HIERARCH PAMPELMUSE INITFIT VERSION). In the latter case, the key will be added to the namespace of the
+# corresponding subroutine.
 if hasattr(pampelmuse, "hdulist"):
     pampelmuse.readHeader(pampelmuse.hdulist[0])
 
-# iv) update configuration using command line input. Note that during the analysis, i.e. when calling a routine different from
-# INITFIT or SINGLESRC, only a subset of the parameters can be changed. For example, it makes no sense to change the RESLIM
-# parameter after selecting the sources.
+# iv) update configuration using command line input. Note that during the analysis, i.e. when calling a routine
+# different from INITFIT or SINGLESRC, only a subset of the parameters can be changed. For example, it makes no sense
+# to change the RESLIM parameter after selecting the sources.
 if hasattr(args, "parameter"):
     for key, value in args.parameter.iteritems():
         if not hasattr(pampelmuse, key.lower()): # make sure only valid parameters are included
             logging.error("Unknown configuration parameter provided: '{0}'".format(key))
             continue
-        if args.func in [initfit, singlesrc] or key.lower() in pampelmuse.changeable: # make sure parameter can still be modified
-            try: setattr(pampelmuse, key.lower(), eval(value))
-            except NameError: setattr(pampelmuse, key.lower(), value)
+        if args.func in [initfit, singlesrc] or key.lower() in pampelmuse.changeable:
+            # make sure parameter can still be modified
+            try:
+                setattr(pampelmuse, key.lower(), eval(value))
+            except NameError:
+                setattr(pampelmuse, key.lower(), value)
         else:
             logging.warning("Configuration parameter '{0}' cannot be changed during the analysis.".format(key))
 
-# v) The PSF is handled specially - to facilitate its usage afterwards, a dedicated namespace is created in which all the
-# information is stored
+# v) The PSF is handled specially - to facilitate its usage afterwards, a dedicated namespace is created in which all
+# the information is stored
 if args.func in [initfit, singlesrc]:
     pampelmuse.psf = Namespace()
     
@@ -430,7 +431,8 @@ if args.func in [initfit, singlesrc]:
         logging.critical("Unknown PSF type: '{0}'".format(pampelmuse.psftype))
     pampelmuse.psf.profile = pampelmuse.psftype
 
-    # translate parameter PSFFIT from PampelMuse configuration into boolean array indicating which variables of the PSF are fitted.
+    # translate parameter PSFFIT from PampelMuse configuration into boolean array indicating which variables of the PSF
+    #  are fitted.
     freepar = np.zeros(len(parnames), dtype=np.bool)
     for i in xrange(freepar.size, 0, -1):
         if pampelmuse.psffit >= 2**i:
@@ -449,7 +451,6 @@ if args.func in [initfit, singlesrc]:
     
 del pampelmuse.psffit
 del pampelmuse.psfpars
-
 
 # set up log level:
 LOGLEVELS = {0:logging.CRITICAL, 1:logging.ERROR, 2:logging.WARNING, 3:logging.INFO, 4:logging.DEBUG}
@@ -489,9 +490,12 @@ else:
     residuals_ifs = None # mask data can be included as an HDU in science data file
 
 # open IFS data; for subroutine ADDWCS, the IFS data must be opened in 'update'-mode, otherwise read-only is sufficient
-if use_addwcs and args.func==addwcs: mode='update'
-else: mode='readonly'
-pampelmuse.ifs_data = Cube(data_ifs, instrument=pampelmuse.ifu, sigma=sigma_ifs, mask=mask_ifs, residuals=residuals_ifs, mode=mode)
+if use_addwcs and args.func == addwcs:
+    mode = 'update'
+else:
+    mode = 'readonly'
+pampelmuse.ifs_data = Cube(data_ifs, instrument=pampelmuse.ifu, sigma=sigma_ifs, mask=mask_ifs,
+                           residuals=residuals_ifs, mode=mode)
 
 # set range of layers to be analyzed properly (in case negative values were provided)
 # access start/stop information - get positive layer numbers for first and last layer that should be analysed

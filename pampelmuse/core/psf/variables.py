@@ -16,19 +16,17 @@ general framework for dealing with parameters within PampelMuse.
 
 Latest SVN revision
 -------------------
-175, 2014/06/16
+232, 2015/01/30
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 175
+__revision__ = 232
 
-import logging, os, re
+import logging
+
 import numpy as np
-from numpy.polynomial import Chebyshev, Legendre
-from astropy.io import fits
 
-## required PampelMuse-packages
+# required PampelMuse-packages
 from pampelmuse.core.parameters import Parameters
-
 
 
 class Variables(Parameters):
@@ -47,12 +45,12 @@ class Variables(Parameters):
     specific to the PSF parameters is defined here.
     """
 
-    ## define a dictionary containing the parameter names for each PSF profile supported by PampelMuse
-    PROFILES  = {"moffat": [        "beta", "fwhm", "e", "theta"],
-                 "gauss":  ["fwhm",                 "e", "theta"],
-                }
-                
-    LABELS = {"fwhm":r"$\mathrm{FWHM}\ [\mathrm{spaxel}]$", "beta":r"$\beta$", "e":r"$e$", "theta":r"$\theta\ [\mathrm{rad}]$"}
+    # define a dictionary containing the parameter names for each PSF profile supported by PampelMuse
+    PROFILES = {"moffat": ["beta", "fwhm", "e", "theta"],
+                "gauss": ["fwhm", "e", "theta"], }
+
+    LABELS = {"fwhm": r"$\mathrm{FWHM}\ [\mathrm{spaxel}]$", "beta": r"$\beta$", "e": r"$e$",
+              "theta": r"$\theta\ [\mathrm{rad}]$", }
 
     def __init__(self, profile=None, hdu=None, **kwargs):
         """
@@ -82,47 +80,50 @@ class Variables(Parameters):
             the names and values of the parameters of the profile.
         """
         logging.info("Initializing PSF parameters...")
-        
-        ##  if a profile but no hdu is provided, required PSF parameters that are not provided as keyword arguments are initialized to NaN
-        if profile != None and hdu == None and profile in self.PROFILES:
-            kwargs["order"] = self.PROFILES[profile] ## make sure PSF variables are in correct order
+
+        # if a profile but no hdu is provided, required PSF parameters that are not provided as keyword arguments are
+        # initialized to NaN
+        if profile is not None and hdu is None and profile in self.PROFILES:
+            kwargs["order"] = self.PROFILES[profile]  # make sure PSF variables are in correct order
             for name in self.PROFILES[profile]:
-                if not name in kwargs: kwargs[name] = np.nan
-        
-        ## call initialization method of super-class.
+                if name not in kwargs:
+                    kwargs[name] = np.nan
+
+        # call initialization method of super-class.
         super(Variables, self).__init__(hdu=hdu, **kwargs)
-    
-        ##  check if PSF profile has been defined (HDU header key supersedes keyword argument 'profile')
+
+        # check if PSF profile has been defined (HDU header key supersedes keyword argument 'profile')
         self.profile = profile
-        if self.hdu != None and "PSFTYPE" in self.hdu.header:
+        if self.hdu is not None and "PSFTYPE" in self.hdu.header:
             self.profile = self.hdu.header["PSFTYPE"]
         if self.profile is None:
-            if self.hdu == None or "PSFTYPE" not in self.hdu.header:
+            if self.hdu is None or "PSFTYPE" not in self.hdu.header:
                 logging.critical("Cannot infer PSF type: Parameter 'profile' not set.")
-            
-        ## check if PSF profile is supported
+
+        # check if PSF profile is supported
         if self.profile in self.PROFILES:
             logging.info("PSF is of type '{0}'".format(self.profile.upper()))
         else:
             logging.critical("Invalid PSF type: '{0}'".format(profile))
-            logging.critical("Supported types are: '{0}'".format("', '".join([psftype for psftype in self.PROFILES.keys()])))
+            logging.critical(
+                "Supported types are: '{0}'".format("', '".join([psftype for psftype in self.PROFILES.keys()])))
         assert self.profile in self.PROFILES, "PSF of type '{0}' not supported.".format(self.profile)
 
-        ## check if all required parameters are available
+        # check if all required parameters are available
         for name in self.PROFILES[self.profile]:
-            if not name in self.names:
-                ## in earlier versions (<0.9?) different variable names were used for the FWHM of a Moffat (Mfwhm) or a Gaussian (Gfwhm) profile,
-                ## so the presence of one of these names is checked.  
-                if name == "fwhm" and np.in1d(self.names, ["Gfwhm", "Mfwhm"]).any(): 
-                    if "Gfwhm" in self.names: i=self.names.index("Gfwhm")
-                    elif "Mfwhm" in self.names: i = self.names.index("Mfwhm")
+            if name not in self.names:
+                # in earlier versions (<0.9?) different variable names were used for the FWHM of a Moffat (Mfwhm) or a
+                # Gaussian (Gfwhm) profile, so the presence of one of these names is checked.
+                if name == "fwhm" and np.in1d(self.names, ["Gfwhm", "Mfwhm"]).any():
+                    if "Gfwhm" in self.names:
+                        i = self.names.index("Gfwhm")
+                    elif "Mfwhm" in self.names:
+                        i = self.names.index("Mfwhm")
                     logging.warning("Cannot find PSF parameter 'fwhm', using '{0}' instead.".format(self.names[i]))
                     self.names[i] = "fwhm"
                     continue
                 logging.critical("Missing required PSF parameter '{0}'.".format(name))
             assert name in self.names, "Cannot find '{0}' among available PSF parameters.".format(name)
-
-
 
     def info(self):
         """
@@ -130,19 +131,18 @@ class Variables(Parameters):
         i.e. whether they have been defined, what is their (mean) value, are
         they free parameters, and have the been fitted with a smooth function.
         """
-        
-        ## print out some information about the PSF profile in use
+
+        # print out some information about the PSF profile in use
         logging.info("Summary of current status of PSF parameters:")
         logging.info(" Type: '{0}'".format(self.profile))
 
-        ## call info method of super-class. Provide parameter names to get order right.
+        # call info method of super-class. Provide parameter names to get order right.
         super(Variables, self).info(self.PROFILES[self.profile])
-
 
     def make_hdu(self, **kwargs):
         """
         Write the current values of the PSF parameter to an fits.BinTableHDU
-        instance. The method is basically a wrapper of the'make_hdu' instance
+        instance. The method is basically a wrapper of the 'make_hdu' instance
         defined in the super-class and adds some header keywords that provide
         information about the PSF in use.
         
