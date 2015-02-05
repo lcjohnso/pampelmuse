@@ -21,10 +21,10 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-232, 2015/01/30
+234, 2015/02/05
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 232
+__revision__ = 234
 
 import collections
 import inspect
@@ -1736,7 +1736,8 @@ class Sources(object):
             FULLFIT is used to indicate if the coordinates are free parameters in a
             fit.
         """
-        if not fit: logging.info("Saving IFS coordinates to ImageHDU '{0}'...".format(name))
+        if not fit:
+            logging.info("Saving IFS coordinates to ImageHDU '{0}'...".format(name))
 
         # check which coordinates should be saved
         if ids is None:
@@ -1753,7 +1754,7 @@ class Sources(object):
             logging.info("Saving fits to IFS coordinates to BinTableHDU '{0}'...".format(name))
 
             # fits are saved for the requested sources that have polynomial fits available
-            ids_tosave = np.intersect1d(ids, self.ifs_coordinates_fit_functions)
+            ids_tosave = np.intersect1d(ids, self.ifs_coordinates_fit_functions.keys())
 
             if ids_tosave.size == 0:
                 logging.error("Position fits not available for any of the requested sources.")
@@ -1807,20 +1808,20 @@ class Sources(object):
                 i += 1
 
             # prepare the output table
-            outHDU = fits.new_table([fits.Column(name="id", format="J", array=src),
+            outhdu = fits.new_table([fits.Column(name="id", format="J", array=src),
                                      fits.Column(name="xfct", format="I", array=xfct),
                                      fits.Column(name="xprm", format="{0}E".format(xprm.shape[1]), array=xprm),
                                      fits.Column(name="yfct", format="I", array=yfct),
                                      fits.Column(name="yprm", format="{0}E".format(yprm.shape[1]), array=yprm)])
 
-            outHDU.header["EXTNAME"] = name
-            outHDU.header["hierarch PAMPELMUSE POSITIONS POLY"] = True
-            outHDU.header["hierarch PAMPELMUSE POSITIONS DOMAIN START"] = domain[0]
-            outHDU.header["hierarch PAMPELMUSE POSITIONS DOMAIN END"] = domain[1]
+            outhdu.header["EXTNAME"] = name
+            outhdu.header["hierarch PAMPELMUSE POSITIONS POLY"] = True
+            outhdu.header["hierarch PAMPELMUSE POSITIONS DOMAIN START"] = domain[0]
+            outhdu.header["hierarch PAMPELMUSE POSITIONS DOMAIN END"] = domain[1]
 
             # write the polynomial identifications
             for name, index in self.polyident.iteritems():
-                outHDU.header["hierarch PAMPELMUSE POSITIONS POLY{0}".format(index)] = name
+                outhdu.header["hierarch PAMPELMUSE POSITIONS POLY{0}".format(index)] = name
 
         else:
 
@@ -1837,14 +1838,14 @@ class Sources(object):
                 logging.critical("Cannot write IFS coordinates to HDU. No data available.")
                 return NotImplemented
 
-            outHDU = fits.ImageHDU(self.ifs_coordinates[:, to_store][..., int(fit)], name=name)
+            outhdu = fits.ImageHDU(self.ifs_coordinates[:, to_store][..., int(fit)], name=name)
 
-            outHDU.header["hierarch PAMPELMUSE POSITIONS POLY"] = False
-            outHDU.header["hierarch PAMPELMUSE POSITIONS FULLFIT"] = True
+            outhdu.header["hierarch PAMPELMUSE POSITIONS POLY"] = False
+            outhdu.header["hierarch PAMPELMUSE POSITIONS FULLFIT"] = True
 
             # create entry in header about ID of each source and the row containing its position
             for i in xrange(len(to_store)):
-                outHDU.header["hierarch PAMPELMUSE POSITIONS ID{0}".format(i)] = self.ID[self.ifs_coordinates_loaded][
+                outhdu.header["hierarch PAMPELMUSE POSITIONS ID{0}".format(i)] = self.ID[self.ifs_coordinates_loaded][
                     to_store[i]]
 
-        return outHDU
+        return outhdu
