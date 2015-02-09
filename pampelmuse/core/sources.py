@@ -23,6 +23,8 @@ Latest SVN revision
 -------------------
 234, 2015/02/05
 """
+import time
+
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
 __revision__ = 234
 
@@ -1219,6 +1221,7 @@ class Sources(object):
             range.
         """
         # for debugging: check where the call was triggered
+        t0 = time.time()
         curframe = inspect.currentframe()
         calframe = inspect.getouterframes(curframe, 2)
         logging.debug("call to Sources.load_ifs_coordinates() triggered by: {0} in {1}[@{2}]".format(
@@ -1244,7 +1247,7 @@ class Sources(object):
             # 'sorter' contains 2 arrays, one with the indices of the matched IDs in the proper order and one with the
             # indices of those IDs in the provided list of 'ids'.
             ids = self.ID[sorter[0]]
-
+        t1 = time.time()
         if layers is not None:
             assert isinstance(layers, (
                 int, np.integer, list,
@@ -1263,7 +1266,7 @@ class Sources(object):
         #    (<no. of requested layers>, <no of requested IDs>, 2, 2)
         # The last two axes distinguish between x or y coordinate and data or fit, respectively.
         self.ifs_coordinates = np.zeros((nlayer, len(ids), 2, 2), dtype=np.float32)
-
+        t2 = time.time()
         # first choice: if available, fill in IFS coordinates using open FITS HDU
         if self.ifs_coordinates_data_hdu is not None:
 
@@ -1286,8 +1289,8 @@ class Sources(object):
             processed = np.zeros((len(ids),), dtype=np.bool)
 
         if not processed.all():
-            ref_coords = np.vstack((self.x, self.y)).T[self.ifs_coordinates_loaded][processed == False]
-            src_indices = np.flatnonzero(processed == False)
+            ref_coords = np.vstack((self.x, self.y)).T[self.ifs_coordinates_loaded][~processed]
+            src_indices = np.flatnonzero(~processed)
 
             if self.transformation.valid:  # second option: fill in IFS coordinates via coordinate transformation
                 self.ifs_coordinates[:, src_indices, :, 0:1] = self.transformation(ref_coords)[layers][..., np.newaxis]
@@ -1310,12 +1313,18 @@ class Sources(object):
 
         # or from the dictionary of previously performed fits
         i = 0
+        wave = self.wave[layers]
         for ID in ids:
             if ID in self.ifs_coordinates_fit_functions.keys():
                 xfit, yfit = self.ifs_coordinates_fit_functions[ID]
-                self.ifs_coordinates[:, i, 0, 1] = xfit(self.wave[layers])
-                self.ifs_coordinates[:, i, 1, 1] = yfit(self.wave[layers])
+                self.ifs_coordinates[:, i, 0, 1] = xfit(wave)
+                self.ifs_coordinates[:, i, 1, 1] = yfit(wave)
             i += 1
+        t3 = time.time()
+        logging.debug("Time required to arrange IDs: {0}s".format(t1-t0))
+        logging.debug("Time required to initialize array: {0}s".format(t2-t1))
+        logging.debug("Time required to fill array: {0}s".format(t3-t2))
+
 
     def fit_coordinate_transformation(self, index=slice(None)):
         """
