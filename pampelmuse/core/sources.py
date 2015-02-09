@@ -1298,7 +1298,7 @@ class Sources(object):
                 # subarray is not as expected
             else:  # third option: just use reference coordinates
                 self.ifs_coordinates[:, src_indices, :, 0:1] = ref_coords[:, :, np.newaxis]
-
+        t3 = time.time()
         # the fits to the IFS coordinates can either be loaded from an available image HDU (deprecated)
         if self.ifs_coordinates_fit_hdu is not None and isinstance(self.ifs_coordinates_fit_hdu,
                                                                    fits.hdu.image._ImageBaseHDU):
@@ -1320,11 +1320,11 @@ class Sources(object):
                 self.ifs_coordinates[:, i, 0, 1] = xfit(wave)
                 self.ifs_coordinates[:, i, 1, 1] = yfit(wave)
             i += 1
-        t3 = time.time()
+        t4 = time.time()
         logging.debug("Time required to arrange IDs: {0}s".format(t1-t0))
         logging.debug("Time required to initialize array: {0}s".format(t2-t1))
-        logging.debug("Time required to fill array: {0}s".format(t3-t2))
-
+        logging.debug("Time required to load IFS coordinates: {0}s".format(t3-t2))
+        logging.debug("Time required to load fits to IFS coordinates: {0}s".format(t4-t3))
 
     def fit_coordinate_transformation(self, index=slice(None)):
         """
