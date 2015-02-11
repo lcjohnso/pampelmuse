@@ -21,22 +21,22 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-234, 2015/02/05
+237, 2015/02/11
 """
-import time
-
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 234
+__revision__ = 237
 
 import collections
 import inspect
 import logging
 import os
 import re
+import time
 import warnings
 
 import numpy as np
 from numpy.polynomial import Chebyshev, Legendre, Hermite, Polynomial
+from scipy.interpolate import InterpolatedUnivariateSpline
 from astropy.io import fits
 
 # check if PyQt is available 
@@ -906,9 +906,8 @@ class Sources(object):
         self.spectrum_loaded = np.zeros((self.ncmp, ), dtype=np.bool)
         self.spectrum_loaded[components] = True
 
-        # initialize array for IFS coordinates. The shape of the array is
-        #    (<no. of requested layers>, <no of requested IDs>, 2, 2)
-        # The last two axes distinguish between x or y coordinate and data or fit, respectively.
+        # initialize array for spectra. The shape of the array is (#<requested layers>, #<requested IDs>, 2)
+        # The last axis distinguishes between data or uncertainties.
         self.data = np.zeros((nlayer, components.size, 2), dtype=np.float32)
 
         # fill array using data from Spectrum HDU if one is available
@@ -1186,7 +1185,7 @@ class Sources(object):
             self.ifs_coordinates_fit_id = np.copy(ifs_coordinates_id)
             self.ifs_coordinates_fitted[match_on_id(self.ID, ifs_coordinates_id)] = True
 
-    def load_ifs_coordinates(self, ids=None, layers=None):
+    def load_ifs_coordinates(self, ids=None, layers=None, interpolate=False):
         """
         Load the IFS coordinates for an individual source, a subset of sources
         or the entire catalogue. The coordinates might be loaded for the entire
@@ -1224,7 +1223,7 @@ class Sources(object):
         t0 = time.time()
         curframe = inspect.currentframe()
         calframe = inspect.getouterframes(curframe, 2)
-        logging.debug("call to Sources.load_ifs_coordinates() triggered by: {0} in {1}[@{2}]".format(
+        logging.debug("Call to Sources.load_ifs_coordinates() triggered by: {0} in {1}[@{2}]".format(
             calframe[1][3], calframe[1][1], calframe[1][2]))
 
         # sanity checks on provided IDs and layers
@@ -1249,9 +1248,8 @@ class Sources(object):
             ids = self.ID[sorter[0]]
         t1 = time.time()
         if layers is not None:
-            assert isinstance(layers, (
-                int, np.integer, list,
-                np.ndarray)), "If provided, parameter 'layers' must be transformable to an array."
+            assert isinstance(layers, (int, np.integer, list, np.ndarray)), \
+                "If provided, parameter 'layers' must be transformable to an array."
             layers = np.atleast_1d(layers)
         else:
             layers = np.arange(self.ndisp)
@@ -1267,6 +1265,7 @@ class Sources(object):
         # The last two axes distinguish between x or y coordinate and data or fit, respectively.
         self.ifs_coordinates = np.zeros((nlayer, len(ids), 2, 2), dtype=np.float32)
         t2 = time.time()
+
         # first choice: if available, fill in IFS coordinates using open FITS HDU
         if self.ifs_coordinates_data_hdu is not None:
 
@@ -1293,12 +1292,22 @@ class Sources(object):
             src_indices = np.flatnonzero(~processed)
 
             if self.transformation.valid:  # second option: fill in IFS coordinates via coordinate transformation
-                self.ifs_coordinates[:, src_indices, :, 0:1] = self.transformation(ref_coords)[layers][..., np.newaxis]
+                ifs_coords = self.transformation(ref_coords)
+                if not interpolate or not np.isnan(ifs_coords[layers]).any():
+                    self.ifs_coordinates[:, src_indices, :, 0:1] = ifs_coords[layers][..., np.newaxis]
+                else:
+                    logging.warning("IFS coordinates include interpolated values.")
+                    for i in src_indices:
+                        for j in xrange(2):
+                            valid = ~np.isnan(ifs_coords[:, i, j])
+                            fct = InterpolatedUnivariateSpline(np.flatnonzero(valid), ifs_coords[valid, i, j], k=2)
+                            self.ifs_coordinates[:, i, j, 0] = fct(layers)
                 # 4th entry in square brackets must be slice; if an index (i.e. 0) is used, the shape of the resulting
                 # subarray is not as expected
             else:  # third option: just use reference coordinates
                 self.ifs_coordinates[:, src_indices, :, 0:1] = ref_coords[:, :, np.newaxis]
         t3 = time.time()
+
         # the fits to the IFS coordinates can either be loaded from an available image HDU (deprecated)
         if self.ifs_coordinates_fit_hdu is not None and isinstance(self.ifs_coordinates_fit_hdu,
                                                                    fits.hdu.image._ImageBaseHDU):
@@ -1357,7 +1366,8 @@ class Sources(object):
             "Need at least 2 sources with IFS coordinates to determine transformation."
 
         # if integer has been provided as keyword 'index', translate it into a slice
-        if isinstance(index, (int, np.int)): index = slice(index, index + 1, 1)
+        if isinstance(index, (int, np.int)):
+            index = slice(index, index + 1, 1)
 
         # carry out fit
         ref_coordinates = np.vstack((self.x, self.y)).T[self.ifs_coordinates_loaded]
@@ -1404,11 +1414,11 @@ class Sources(object):
         """
         # get index belonging to ID
         assert isinstance(ID, (int, np.integer)), "ID must be an integer, not {0}.".format(
-            re.findall(r"'(.*)'", str(type(hdu)))[0])
+            re.findall(r"'(.*)'", str(type(ID)))[0])
         try:
             i = np.flatnonzero(self.ID == ID)[0]
         except IndexError:
-            raise IndexError, "Provided ID #{0} not in source catalogue.".format(ID)
+            raise IndexError("Provided ID #{0} not in source catalogue.".format(ID))
 
         # load the coordinates if they have not been loaded previously
         if not self.ifs_coordinates_loaded[i] or self.ifs_coordinates.shape[0] < self.ndisp:
@@ -1440,8 +1450,8 @@ class Sources(object):
             are not used anymore.
         mask : array_like or None, optional
             An optional bad-pixel mask. If specified, must have as many pixels
-            as spectral pixels are available. Good pixels should be set to
-            True, bad ones to False.
+            as spectral pixels are available. Bad pixels should be set to
+            True, good ones to False.
         function : string, optional
             The fitting function that should be used. Currently a
             step-polynomial (step) or a Chebyshev polynomial (chebyshev) are
@@ -1459,21 +1469,20 @@ class Sources(object):
 
         # find the indices of the source(s) to be fitted in the catalogue
         if ids is None:
-            indices2Fit = np.flatnonzero(self.status < 4)
+            indices_to_fit = np.flatnonzero(self.status < 4)
         else:
-            indices2Fit = match_on_id(self.ID, np.atleast_1d(ids))
+            indices_to_fit = match_on_id(self.ID, np.atleast_1d(ids))
 
-        # check if IFU coords have been loaded, otherwise do so
-        if not self.ifs_coordinates_loaded[indices2Fit].all() or self.ifs_coordinates.shape[0] < self.ndisp:
-            self.load_ifs_coordinates(ids=self.ID[indices2Fit])
+        # check if IFU coordinates have been loaded, otherwise do so
+        if not self.ifs_coordinates_loaded[indices_to_fit].all() or self.ifs_coordinates.shape[0] < self.ndisp:
+            self.load_ifs_coordinates(ids=self.ID[indices_to_fit])
 
         if not function.lower() in self.available.keys():
             logging.critical("Unknown fitting function provided: {0}".format(function))
-        Fitfunction = self.available[function.lower()]
+        fitfunction = self.available[function.lower()]
 
         # create pseudo-mask if None provided
-        if mask is None:
-            mask = np.ones((self.ndisp,), dtype=np.bool)
+        valid = ~mask if mask is not None else np.ones((self.ndisp,), dtype=np.bool)
 
         # determine 'mean' coordinate if option 'commonSlope' selected
         if commonSlope:
@@ -1485,27 +1494,42 @@ class Sources(object):
             if instrument is not None:
                 used = used & instrument.infov(self.ifs_coordinates[..., 0].mean(axis=0))
 
-            meanCoord = np.mean(self.ifs_coordinates[:, used], axis=1)
-            xfit = Fitfunction.fit(self.wave[mask], meanCoord[mask, 0, 0], order)
-            yfit = Fitfunction.fit(self.wave[mask], meanCoord[mask, 1, 0], order)
+            meancoord = np.mean(self.ifs_coordinates[:, used], axis=1)
+            meanvalid = valid & ~np.isnan(meancoord)
+            xfit = fitfunction.fit(self.wave[meanvalid], meancoord[meanvalid, 0, 0], order)
+            yfit = fitfunction.fit(self.wave[meanvalid], meancoord[meanvalid, 1, 0], order)
 
             order = 0  # all individual coordinates are now "fitted" with zeroth order polynomials
 
+# TODO        _i = self.ifs_coordinates_loaded.cumsum()[indices_to_fit] - 1
+# TODO        slc = np.ix_(mask.nonzero()[0], _i)
+# TODO
+# TODO        t0 = time.time()
+# TODO        xfit = np.polynomial.polynomial.polyfit(self.wave[mask], self.ifs_coordinates[slc][..., 0, 0], order)
+# TODO        yfit = np.polynomial.polynomial.polyfit(self.wave[mask], self.ifs_coordinates[slc][..., 1, 0], order)
+# TODO        t1 = time.time()
+# TODO        print t1-t0, type(xfit), type(yfit)
+
         # loop over selected sources and get their polynomial coordinate fits
         k = 1
-        for j in indices2Fit:
+        for j in indices_to_fit:
 
             # get index of source in array of IFS coordinates
             i = self.ifs_coordinates_loaded.cumsum()[j] - 1
 
+            valid_xi = valid & ~np.isnan(self.ifs_coordinates[:, i, 0, 0])
+            valid_yi = valid & ~np.isnan(self.ifs_coordinates[:, i, 1, 0])
+
             if commonSlope:
-                xfit_i = xfit + Fitfunction.fit(self.wave[mask],
-                                                self.ifs_coordinates[mask, i, 0, 0] - xfit(self.wave[mask]), order)
-                yfit_i = yfit + Fitfunction.fit(self.wave[mask],
-                                                self.ifs_coordinates[mask, i, 1, 0] - yfit(self.wave[mask]), order)
+                valid_xi = valid & ~np.isnan(self.ifs_coordinates[:, i, 0, 0])
+                xfit_i = xfit + fitfunction.fit(
+                    self.wave[valid_xi], self.ifs_coordinates[valid_xi, i, 0, 0] - xfit(self.wave[valid_xi]), order)
+
+                yfit_i = yfit + fitfunction.fit(
+                    self.wave[valid_yi], self.ifs_coordinates[valid_yi, i, 1, 0] - yfit(self.wave[valid_yi]), order)
             else:
-                xfit_i = Fitfunction.fit(self.wave[mask], self.ifs_coordinates[mask, i, 0, 0], order)
-                yfit_i = Fitfunction.fit(self.wave[mask], self.ifs_coordinates[mask, i, 1, 0], order)
+                xfit_i = fitfunction.fit(self.wave[valid_xi], self.ifs_coordinates[valid_xi, i, 0, 0], order)
+                yfit_i = fitfunction.fit(self.wave[valid_yi], self.ifs_coordinates[valid_yi, i, 1, 0], order)
 
             self.ifs_coordinates_fit_functions[self.ID[j]] = [xfit_i, yfit_i]
 
@@ -1514,10 +1538,10 @@ class Sources(object):
             self.ifs_coordinates[:, i, 0, 1] = xfit_i(self.wave)
             self.ifs_coordinates[:, i, 1, 1] = yfit_i(self.wave)
 
-            logging.debug("Polynomial fit to source #{0} [{1}/{2}]".format(self.ID[j], k, len(indices2Fit)))
+            logging.debug("Polynomial fit to source #{0} [{1}/{2}]".format(self.ID[j], k, len(indices_to_fit)))
             if statusBar is not None:
-                statusBar.showMessage("Polynomial fit to source #{0} [{1}/{2}]".format(self.ID[j], k, len(indices2Fit)),
-                                      5000)
+                statusBar.showMessage(
+                    "Polynomial fit to source #{0} [{1}/{2}]".format(self.ID[j], k, len(indices_to_fit)), 5000)
             k += 1
 
     ##############################################################################

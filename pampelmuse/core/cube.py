@@ -17,15 +17,17 @@ word argument to the initialization method or obtained from the FITS
 header of the data, via standard keyword INSTRUME. The method will also
 check whether the IFS data contains HDUs providing either uncertainties
 (extension ERROR) or variances (extension STAT) and a bad-pixel mask
-(extension MASK). These can also provided as dedciated FITS-files.
+(extension MASK). These can also provided as dedicated FITS-files.
 
 Latest SVN revision
 -------------------
-232, 2015/01/30
+237, 2015/02/11
 
 """
+from pampelmuse.filters import get_filter
+
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 232
+__revision__ = 237
 
 import logging
 import types
@@ -454,13 +456,17 @@ class Cube:
 
         else:
             data = [self.instrument.make_grid(self.data.data), ]
-            if returnSigma: data.append(self.instrument.make_grid(self.sigma.data))
-            if returnMask: data.append(self.instrument.make_grid(self.mask.data))
+            if returnSigma:
+                data.append(self.instrument.make_grid(self.sigma.data))
+            if returnMask:
+                data.append(self.instrument.make_grid(self.mask.data))
 
             logging.info("Updating header information...")
             out_headers = [self.data.header, ]
-            if returnSigma: out_headers.append(self.sigma.header)
-            if returnMask: out_headers.append(self.mask.header)
+            if returnSigma:
+                out_headers.append(self.sigma.header)
+            if returnMask:
+                out_headers.append(self.mask.header)
 
             for key in ["crpix", "crval", "cdelt", "ctype", "cunit"]:
                 for header in out_headers:
@@ -479,9 +485,70 @@ class Cube:
                 else:
                     return fits.PrimaryHDU(data[0], header=out_headers[0])
             else:
-                if returnSigma | returnMask: return [fits.ImageHDU(data[i], header=out_headers[i]) for i in
-                                                     xrange(len(data))]
+                if returnSigma | returnMask:
+                    return [fits.ImageHDU(data[i], header=out_headers[i]) for i in xrange(len(data))]
                 return fits.ImageHDU(data[0], header=out_headers[0])
+
+    def integrate(self, layer_range=(0, -1), passband=None, use_sigma=False):
+
+        # get min. and max index
+        start = layer_range[0] if layer_range[0] >= 0 else self.ndisp + layer_range[0]
+        stop = layer_range[1] if layer_range[1] >= 0 else self.ndisp + layer_range[1] + 1
+
+        weights = np.ones(stop-start, dtype=np.float32)
+
+        if passband is not None:
+            wave = self.crval + (np.arange(start,  stop, dtype=np.float64) + 1 - self.crpix)*self.cdelt
+            if self.cunit == "nm" or self.ctype == "nm":
+                wave *= 10
+            elif self.cunit == "um" or self.ctype == "um":
+                wave *= 1e4
+            try:
+                # get photometric filter curve
+                fct = get_filter(passband)
+                wmin = fct.get_knots().min()  # min. of defined wavelength range
+                wmax = fct.get_knots().max()  # max. of defined wavelength range
+                valid = (wave > wmin) & (wave < wmax)
+                weights[valid] = fct(wave[valid])
+                weights[~valid] = 0
+                assert not np.isnan(weights).any()
+            except IOError:
+                logging.error("Unknown passband provided: {0}".format(passband))
+
+        # make loop to avoid extensive use of memory for large data-cubes
+        data_image = np.zeros(self.instrument.transform.shape[0], dtype=np.float32)
+        weight_image = np.zeros(data_image.shape, dtype=np.float32)
+
+        for i in xrange(start, stop):
+            logging.debug("Working on layer {0:0{1}d}/{2:{1}d}".format(i-start+1, len(str(stop-start)), stop-start))
+
+            data_i = self.data.layer(i)
+            if use_sigma:
+                if self.is_var:
+                    variance_i = self.sigma.layer(i)
+                else:
+                    variance_i = self.sigma.layer(i)**2
+
+            mask_i = np.isnan(data_i)
+            if use_sigma:
+                with np.errstate(invalid="ignore"):  # To avoid warning that <= cannot operate on NaN entries
+                    mask_i |= np.isnan(variance_i) | (variance_i <= 0)
+            if self.mask is not None:
+                mask_i |= np.asarray(self.mask.layer(i), dtype=np.bool)
+
+            weight_i = weights[i-start]/variance_i[~mask_i] if use_sigma else weights[i-start]
+            weight_image[~mask_i] += weight_i
+            data_image[~mask_i] += data_i[~mask_i]*weight_i
+
+        mask = (weight_image <= 0)
+        data_image[~mask] /= weight_image[~mask]
+        data_image[mask] = np.nan
+        if use_sigma:
+            sigma_image = np.zeros(data_image.shape, dtype=np.float32)
+            sigma_image[~mask] = np.sqrt(1./weight_image[~mask])
+            sigma_image[mask] = np.nan
+
+        return (data_image, sigma_image) if use_sigma else data_image
 
     def __del__(self):
         #  close FITS files that were opened by instance

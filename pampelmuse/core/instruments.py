@@ -709,6 +709,7 @@ class Instrument(object):
                     "Expected {0:d} fibres but got {1:d}.".format(self.nspaxel, calc_data.shape[self.spatial_axis]))
             return None
 
+
 class Pmas(Instrument):
     """
     Class to handle data observed with the PMAS/LArr instrument
@@ -913,8 +914,8 @@ class Argus(Instrument):
                     value = 0.3
                 else:
                     logging.error(
-                        "Cannot determine spaxel scale: invalid value '{0}' for HIERARCH-key 'ESO INS1 OPTI1 POS'".format(
-                            scalepos))
+                        "Cannot determine spaxel scale: invalid value '{0}' for HIERARCH-key 'ESO INS1 OPTI1 POS'"
+                        .format(scalepos))
             except KeyError:
                 logging.error("Cannot determine spaxel scale: HIERARCH-key 'ESO INS1 OPTI1 POS' is missing.")
                 return

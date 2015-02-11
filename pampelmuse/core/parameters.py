@@ -24,10 +24,10 @@ currently not possible to add parameters afterwards.
 
 Latest SVN revision
 -------------------
-232, 2015/01/30
+237, 2015/02/11
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 232
+__revision__ = 237
 
 # import required python modules
 import logging
@@ -96,7 +96,7 @@ class Parameters(object):
 
             # check if required fields 'name' and 'value exist':
             for field in ["name", "value"]:
-                if not field in hdu.data.names:
+                if field not in hdu.data.names:
                     logging.critical("Cannot find field '{0}' in provided HDU.".format(field))
                     assert field in hdu.data.names, "Required field '{0}' missing in HDU.".format(field)
 
@@ -172,51 +172,6 @@ class Parameters(object):
         """
         return len(self.names)
 
-    @property
-    def defined(self):
-        """
-        Returns
-        -------
-        defined : ndarray
-            A 1dim. boolean array of length 'npars' that specifies if the
-            value of each PSF parameter has been defined.
-        """
-        return (self._data[..., 0] == self._data[..., 0]).all(axis=0)
-
-    @property
-    def fitted(self):
-        """
-        Returns
-        -------
-        fitted : ndarray
-            A 1dim. boolean array of length 'npars' that specifies if the
-            value of each PSF parameter has been fitted.
-        """
-        return (self._data[..., 1] == self._data[..., 1]).all(axis=0)
-
-    @property
-    def contains_free_parameters(self):
-        """
-        Returns
-        -------
-        contains_free_parameters : boolean
-            True or False depending on whether any of the parameters that
-            define the profile should  be fitted, i.e. is a free parameter
-            and has NOT been fitted with a smooth function. 
-        """
-        return (self.free & (self.fitted == False)).any()
-
-    @property
-    def valid(self):
-        """
-        Returns
-        -------
-        valid : boolean
-            True or False depending on whether for each parameter either values
-            or a fit exists.
-        """
-        return (self.fitted | self.defined).all()
-
     def set_data(self, value):
         """
         Set the data values for the parameters. This method sets the internal
@@ -259,8 +214,8 @@ class Parameters(object):
                 self._data[..., 0] = value
                 self._data[..., 1] = np.nan
             else:  # no dispersion information provided, first axis has same length as no. of parameters
-                assert value.shape[1] in [1,
-                                          2], "Second axis of 'data' must have length 1 (only data) or 2 (data and fit)."
+                assert value.shape[1] in [1, 2],\
+                    "Second axis of 'data' must have length 1 (only data) or 2 (data and fit)."
                 assert value.shape[0] == self.npars, "Shape of 'data' does not match no. of parameters in profile."
                 self._data = np.ones((1, self.npars, 2), dtype=np.float32)
                 if value.shape[1] == 1:
@@ -289,6 +244,60 @@ class Parameters(object):
         return self._data
 
     data = property(get_data, set_data, None, "The data values of the parameters in the definition.")
+
+    @property
+    def mask(self):
+        """
+        :return:
+        Boolean array of same size as data array indicating which data values are
+        invalid.
+        """
+        return np.isnan(self._data)
+
+    @property
+    def defined(self):
+        """
+        Returns
+        -------
+        defined : ndarray
+            A 1dim. boolean array of length 'npars' that specifies if the
+            value of each PSF parameter has been defined.
+        """
+        return (~self.mask[..., 0]).any(axis=0)
+
+    @property
+    def fitted(self):
+        """
+        Returns
+        -------
+        fitted : ndarray
+            A 1dim. boolean array of length 'npars' that specifies if the
+            value of each PSF parameter has been fitted.
+        """
+        return (~self.mask[..., 1]).all(axis=0)
+
+    @property
+    def contains_free_parameters(self):
+        """
+        Returns
+        -------
+        contains_free_parameters : boolean
+            True or False depending on whether any of the parameters that
+            define the profile should  be fitted, i.e. is a free parameter
+            and has NOT been fitted with a smooth function.
+        """
+        return (self.free & ~self.fitted).any()
+
+    @property
+    def valid(self):
+        """
+        Returns
+        -------
+        valid : boolean
+            True or False depending on whether for each parameter either values
+            or a fit exists.
+        """
+        return (self.fitted | self.defined).all()
 
     def resize(self, ndisp):
         """
@@ -356,7 +365,7 @@ class Parameters(object):
                 logging.info(logstring)
                 continue
 
-            logstring += "{0:13.2f}".format(float(self._data[:, i, 0].mean(axis=-1)))
+            logstring += "{0:13.2f}".format(float(self._data[~self.mask[:, i, 0], i, 0].mean(axis=-1)))
 
             if self.free[i]:
                 logstring += "    [x]"
@@ -392,7 +401,7 @@ class Parameters(object):
             logging.error("Cannot provide names of PSF parameters as QStrings.")
             return None
 
-    def polynomial_fit(self, name, order, bins=1, mask=None, function="step"):
+    def polynomial_fit(self, name, order, mask=None, function="step", **kwargs):
         """
         Fit a parameter using a smooth function. Currently, the smooth function
         can be either a plain polynomial, a broken polynomial, or a Chebyshev
@@ -406,16 +415,13 @@ class Parameters(object):
             The order of the polynomial that should be fitted to the data. Note
             that for a broken polynomial, 'order' applies to each individual
             polynomial.
-        bins : int, optional
-            The number of plain polynomials that constitute that broken polynomial.
-            This parameter has no effect for plain or Chebyshev polynomials.
         mask : ndarray, optional
             If provided, it must be a 1dim. boolean array of the same length as
-            the parameter value array. Each datapoint where 'mask' is True will
+            the parameter value array. Each data point where 'mask' is True will
             be excluded from the fit.
         function : str, optional
-            The function used in the fitting. May be either 'plain', 'step', or
-            'chebyshev'. A broken polynomials is used if function is set to 'step'.
+            The function used in the fitting. May be either 'plain', 'legendre',
+            'hermite', or 'chebyshev'.
         """
         # sanity check on provided parameter
         if name not in self.names:
@@ -435,15 +441,17 @@ class Parameters(object):
         else:
             fitfunction = available[function.lower()]
 
-        wcoord = np.arange(self.ndisp, dtype=np.float32)
+        abscissa = np.arange(self.ndisp, dtype=np.float32)
 
         # create pseudo-mask if None provided
-        if mask is None:
-            mask = np.ones((self.ndisp,), dtype=np.bool)
+        if mask is not None:
+            mask |= self.mask[:, i, 0]
+        else:
+            mask = self.mask[:, i, 0]
+        print mask.sum()
+        fit = fitfunction.fit(abscissa[~mask], self._data[~mask, i, 0], order)
 
-        fit = fitfunction.fit(wcoord[mask], self._data[:, i, 0][mask], order)
-
-        self._data[:, i, 1] = fit(wcoord)
+        self._data[:, i, 1] = fit(abscissa)
 
     def make_hdu(self, include_fit=True, **kwargs):
         """
@@ -473,21 +481,22 @@ class Parameters(object):
         """
         # check if dispersion information exits or not, and adapt column format
         if self.ndisp == 1:
-            dataFmt = "D"
+            dataformat = "D"
         else:
-            dataFmt = "{0}D".format(self.ndisp)
+            dataformat = "{0}D".format(self.ndisp)
 
         # collect columns 'name', 'value', and 'freepar' that are always included in  the HDU
 
         out_columns = [fits.Column(name="name", format="10A", array=self.names),
-                       fits.Column(name="value", format=dataFmt, array=np.squeeze(self._data[..., 0].swapaxes(0, 1))),
+                       fits.Column(name="value", format=dataformat,
+                                   array=np.squeeze(self._data[..., 0].swapaxes(0, 1))),
                        fits.Column(name="freepar", format="L", array=self.free)
                        ]
 
         # The columns 'isfitted' and 'polyfit' are only included upon request
         if include_fit:
             out_columns.extend([fits.Column(name="isfitted", format="L", array=self.fitted),
-                                fits.Column(name="polyfit", format=dataFmt,
+                                fits.Column(name="polyfit", format=dataformat,
                                             array=np.squeeze(self._data[..., 1].swapaxes(0, 1)))])
 
         # Store additional keyword arguments (if any) in the FITS header

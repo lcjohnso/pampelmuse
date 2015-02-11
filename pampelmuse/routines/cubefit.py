@@ -20,10 +20,10 @@ fit' if the configuration parameter USEQT of PampelMuse is enabled.
 
 Latest SVN revision
 -------------------
-232, 2015/01/30
+237, 2015/02/11
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 232
+__revision__ = 237
 
 import datetime, logging, os, sys
 import numpy as np
@@ -95,23 +95,6 @@ def cubefit(pampelmuse):
 
     psf_attributes.info()
 
-    # Check for previous PampelMuse-results
-    try:
-        fitstatus = pampelmuse.cubefit.status
-    except AttributeError:
-        fitstatus = "NOT STARTED"
-    
-    if fitstatus == "STOPPED":
-        try:
-            lastfitindex = pampelmuse.cubefit.lastlayer
-        except AttributeError:
-            lastfitindex = None
-    else:
-        lastfitindex = None
-
-    if lastfitindex is not None:
-        logging.info("Continuing previously paused fit, current layer: {0}".format(lastfitindex))
-
     # Check the range of layers to be fitted 
     try:
         start = pampelmuse.start
@@ -140,9 +123,9 @@ def cubefit(pampelmuse):
         fitter = StarFit(ifs_data=pampelmuse.ifs_data, sources=sources, psf_attributes=psf_attributes,
                          maxrad=pampelmuse.psfrad, osradius=2, osfactor=5)
 
-    fitter(layerrange=(start, stop), lastfitindex=lastfitindex, assmallifu=pampelmuse.smallifu,
-           jumpstart=pampelmuse.jumpstart, ncpu=pampelmuse.cpucount, maxiter=pampelmuse.maxiter,
-           use_sigma=pampelmuse.usesigma)
+    fitter(layerrange=(start, stop), assmallifu=pampelmuse.smallifu, jumpstart=pampelmuse.jumpstart,
+           ncpu=pampelmuse.cpucount, maxiter=pampelmuse.maxiter, use_sigma=pampelmuse.usesigma,
+           nbin=pampelmuse.layerbin)
 
     if pampelmuse.useqt:
         app.exec_()
@@ -178,11 +161,7 @@ def cubefit(pampelmuse):
     # log status of analysis and create header of Primary HDU
     pampelmuse.cubefit.utc = datetime.datetime.utcnow().strftime("%y-%m-%d %H:%M:%S")
     pampelmuse.cubefit.revision = __revision__
-    if fitter.i != sources.ndisp:
-        pampelmuse.cubefit.status = "STOPPED"
-    else:
-        pampelmuse.cubefit.status = "SUCCESS"
-    pampelmuse.cubefit.lastlayer = fitter.i
+    pampelmuse.cubefit.status = "SUCCESS"
     pampelmuse.makeHeader(hdu=pampelmuse.hdulist[0])
     
     # Save the file

@@ -41,6 +41,8 @@ Latest SVN revision
 -------------------
 232, 2015/01/30
 """
+from scipy import interpolate
+
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
 __revision__ = 232
 
@@ -49,7 +51,7 @@ import re
 
 import numpy as np
 
-## required PampelMuse modules
+# required PampelMuse modules
 from pampelmuse.core.parameters import Parameters
 
 
@@ -277,8 +279,8 @@ class Transformation(Parameters):
             assert out_coords.shape[2] == 2, "Second axis of output coordinates array must be [x y]."
             outdata = out_coords
 
-            ## check if uncertainties provided
-            if out_sigma != None:
+            # check if uncertainties provided
+            if out_sigma is not None:
                 assert isinstance(out_sigma, np.ndarray), "Parameter 'out_sigma' must be numpy array, not {0}".format(
                     re.findall(r"'(.*)'", str(type(out_sigma)))[0])
                 assert out_sigma.shape == out_coords.shape, \
@@ -296,14 +298,14 @@ class Transformation(Parameters):
         logging.info("Best-fit parameters:")
         for i in xrange(self.npars):
             name = self.names[i]
-            logging.info("   {0} = {1:8.3f}".format(name, self.data[:, i, 0].mean()))
+            logging.info("   {0} = {1:8.3f}".format(name, self.data[~self.mask[:, i, 0], i, 0].mean()))
 
         logging.info("Offsets of individual sources:")
         if ids is not None:
             logging.info("       ID     dx     dy")
         else:
             logging.info("   source     dx     dy")
-        offset = outdata - self.__call__(indata)  # determine offsets
+        offset = (outdata - self.__call__(indata))[~(self.mask[..., 0].any(axis=1))]  # determine offsets
         for i in xrange(out_coords.shape[1]):
             if ids is not None:
                 ID = int(ids[i])
@@ -378,6 +380,13 @@ class Transformation(Parameters):
         _m[:, 0, 0] = self.data[:, 2, int(self.fitted[2])]  # parameter C
         _m[:, 1, 1] = self.data[:, 3, int(self.fitted[3])]  # parameter D
 
+        # if np.isnan(_m).any():
+        #     logging.warning("Coordinate transformation contains interpolated values.")
+        #     for i in xrange(2):
+        #         for j in xrange(2):
+        #             valid = ~np.isnan(_m[:, i, j])
+        #             fct = interpolate.InterpolatedUnivariateSpline(np.flatnonzero(valid), _m[valid, i, j],  k=2)
+        #             _m[~valid, i, j] = fct(np.flatnonzero(~valid))
         return _m
 
     @property
@@ -385,10 +394,17 @@ class Transformation(Parameters):
         # create matrix [[A B] [-B A]] for each layer (index 0 is spectral one)
         _f = np.zeros((self.ndisp, 2, 2), dtype=np.float32)
         _f[:, 0, 0] = self.data[:, 0, int(self.fitted[0])]
-        _f[:, 0, 1] = self.data[:, 1, int(self.fitted[0])]
-        _f[:, 1, 0] = -self.data[:, 1, int(self.fitted[0])]
+        _f[:, 0, 1] = self.data[:, 1, int(self.fitted[1])]
+        _f[:, 1, 0] = -self.data[:, 1, int(self.fitted[1])]
         _f[:, 1, 1] = self.data[:, 0, int(self.fitted[0])]
 
+        # if np.isnan(_f).any():
+        #     logging.warning("Coordinate transformation contains interpolated values.")
+        #     for i in xrange(2):
+        #         for j in xrange(2):
+        #             valid = ~np.isnan(_f[:, i, j])
+        #             fct = interpolate.InterpolatedUnivariateSpline(np.flatnonzero(valid), _f[valid, i, j],  k=2)
+        #             _f[~valid, i, j] = fct(np.flatnonzero(~valid))
         return _f
 
     def __call__(self, in_coords):

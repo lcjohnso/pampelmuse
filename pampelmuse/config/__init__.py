@@ -16,26 +16,28 @@ to store, update and read attributes. For each subroutine of PampelMuse, an
 individual instance of Namespace will be created.
 The class 'PampelMuseConfig' is also designed as a pure namspace. However,
 it defines two additional methods PampelMuseConfig.readHeader() and
-PampelMuseConfig.makeHeade() that can be used to read a configuration from
+PampelMuseConfig.makeHeader() that can be used to read a configuration from
 a FITS HDU and to store the current configuration of PampelMuse again in
 the header of a FITS HDU.
 
 Latest SVN revision
 -------------------
-231, 2015/01/22
+237, 2015/02/11
 """
-__author__   = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 231
+__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
+__revision__ = 237
 
-
-import datetime, os, re
+import datetime
+import os
+import re
 from astropy.io import fits
 
 # required PampelMuse routines
 from xml_interact import ModifyConfig, transform_string
 
 
-class Namespace(): pass
+class Namespace():
+    pass
 
 
 class PampelMuseConfig(Namespace):
@@ -49,9 +51,9 @@ class PampelMuseConfig(Namespace):
         
         # the following list contains all the keywords that can currently be changed during the analysis, i.e. when
         # calling a routine different from INITFIT or SINGLESRC:
-        self.changeable = ["verbose", "interact", "cpucount", "maxiter", "polytype", "polydeg", "subunres", "subsky", "usesigma"]
-        
-        
+        self.changeable = ["verbose", "interact", "cpucount", "maxiter", "polytype", "polydeg", "subunres", "subsky",
+                           "usesigma", "layerrng", "layerbin"]
+
     def read_defaults(self):
         """
         This method reads the default configuration from the XML file that is
@@ -60,12 +62,12 @@ class PampelMuseConfig(Namespace):
         
         __currentdir__ = os.path.abspath(os.path.dirname(__file__))
         
-        config_reader = ModifyConfig(os.path.join(__currentdir__, "data", "PMparams.xml"), os.path.join(__currentdir__, "data", "PMschema.xsd"))
+        config_reader = ModifyConfig(os.path.join(__currentdir__, "data", "PMparams.xml"), os.path.join(
+            __currentdir__, "data", "PMschema.xsd"))
         
         for key, value in config_reader.get_all().iteritems():
             setattr(self, key.lower(), value)
-        
-        
+
     def readHeader(self, hdu):
         """
         Read a configuration from the header of a FITS HDU.
@@ -82,13 +84,14 @@ class PampelMuseConfig(Namespace):
         for entry in hdu.header.cards:   
             match = self.configFinder.match(entry.keyword)
             if match is not None:
-                if match.group(2) is None: setattr(self, match.group(1).lower(), entry.value)
+                if match.group(2) is None:
+                    setattr(self, match.group(1).lower(), entry.value)
                 else:
-                    if not hasattr(self, match.group(1).lower()): # create sub-namespace if it does not exist
+                    if not hasattr(self, match.group(1).lower()):  # create sub-namespace if it does not exist
                         setattr(self, match.group(1).lower(), Namespace())
-                    setattr(self.__dict__[match.group(1).lower()],  match.group(2).lower(), entry.value) # add parameter to sub-namespace
-        
-        
+                    setattr(self.__dict__[match.group(1).lower()],  match.group(2).lower(), entry.value)
+                    # add parameter to sub-namespace
+
     def makeHeader(self, hdu=fits.PrimaryHDU()):
         """
         Save the current configuration in a astropy.io.fits.Header instance.
@@ -99,9 +102,10 @@ class PampelMuseConfig(Namespace):
             The HDU used to store the configuration, if none is provided,
             an empty HDU will be created.
         """
-        for entry in ["revision", "utc", "verbose", "ifu", "interact", "useqt", "cpucount", "smallifu", "passband", "ccmaxoff", "aperrad", "apernois",
-                      "reslim", "updaterl", "confdens", "snrcut", "binrad", "useunres", "unresbin", "globsky", "start", "stop", "psfrad",
-                      "jumpstart", "usesigma", "maxiter", "polytype", "polydeg", "subunres", "subsky"
+        for entry in ["revision", "utc", "verbose", "ifu", "interact", "useqt", "cpucount", "smallifu", "passband",
+                      "ccmaxoff", "aperrad", "apernois", "reslim", "updaterl", "confdens", "snrcut", "binrad",
+                      "useunres", "unresbin", "globsky", "start", "stop", "layerbin", "psfrad", "jumpstart",
+                      "usesigma", "maxiter", "polytype", "polydeg", "subunres", "subsky"
                       ]:
            
             if hasattr(self, entry):
@@ -121,7 +125,6 @@ class PampelMuseConfig(Namespace):
                 hdu.header["hierarch PAMPELMUSE PSF PARVALUE{0}".format(i)] = getattr(self.psf, "parvalue{0}".format(i))
                 hdu.header["hierarch PAMPELMUSE PSF FREEPAR{0}".format(i)] = getattr(self.psf, "freepar{0}".format(i))
                 i += 1
-
 
         if hasattr(self, "initfit"):
             for entry in ["revision", "utc", "ccxoff", "ccyoff", "reslim", "photzero"]:
@@ -146,12 +149,13 @@ class PampelMuseConfig(Namespace):
         if hasattr(self, "shotnoi"):
             for entry in ["revision", "utc"]:
                 if hasattr(self.shotnoi, entry):
-                    hdu.header["hierarch PAMPELMUSE SUBTRES {0}".format(entry.upper())]  = getattr(self.shotnoi, entry)
+                    hdu.header["hierarch PAMPELMUSE SUBTRES {0}".format(entry.upper())] = getattr(self.shotnoi, entry)
 
         if hasattr(self, "addwcs"):
-            for entry in ["revision", "utc", "RADECSYS", "EQUINOX", "WCSDIM", "CTYPE1", "CTYPE2", "CRVAL1", "CRVAL2", "CRPIX1", "CRPIX2", "CD1_1", "CD1_2",
-                          "CD2_1", "CD2_2"]:
+            for entry in ["revision", "utc", "RADECSYS", "EQUINOX", "WCSDIM", "CTYPE1", "CTYPE2", "CRVAL1", "CRVAL2",
+                          "CRPIX1", "CRPIX2", "CD1_1", "CD1_2", "CD2_1", "CD2_2"]:
                 if hasattr(self.addwcs, entry.lower()):
-                    hdu.header["hierarch PAMPELMUSE ADDWCS {0}".format(entry.upper())] = getattr(self.addwcs, entry.lower())
+                    hdu.header["hierarch PAMPELMUSE ADDWCS {0}".format(entry.upper())] = getattr(
+                        self.addwcs, entry.lower())
                     
         return hdu

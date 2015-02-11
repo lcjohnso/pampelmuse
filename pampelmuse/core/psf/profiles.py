@@ -2031,8 +2031,7 @@ class Moffat(Profile):
         """
         if self._f is None:
             self._f = 10 ** (-0.4 * self.mag) * (self.beta - 1.) / (np.pi * (self.r_d ** 2) * (1. - self.e)) * (1. + (
-            self.r / self.r_d) ** 2) ** (-self.beta) \
-                      + super(Moffat, self).get_f(integrate=False)
+                self.r / self.r_d) ** 2) ** (-self.beta) + super(Moffat, self).get_f(integrate=False)
         if integrate:
             return self.sum_os(self._f)
         else:
