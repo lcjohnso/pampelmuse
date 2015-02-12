@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-237, 2015/02/11
+238, 2015/02/12
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 237
+__revision__ = 238
 
 import contextlib
 import itertools
@@ -448,7 +448,7 @@ class StarFit(object):
                     f = InterpolatedUnivariateSpline(
                         (~self.psf_attributes.mask[:, i, 0]).nonzero()[0],
                         self.psf_attributes.data[~self.psf_attributes.mask[:, i, 0], i, 0], k=2)
-                    value = f(self.jj)
+                    value = float(f(self.jj))  # newer versions of scipy return an array of zero size
                 else:
                     value = self.psf_attributes.data[self.jj, i, 0]
             getattr(self.PSF, "set_{0}".format(prm))(value)
@@ -469,7 +469,7 @@ class StarFit(object):
                         f = InterpolatedUnivariateSpline(
                             (~self.sources.transformation.mask[:, i, 0]).nonzero()[0],
                             self.sources.transformation.data[~self.sources.transformation.mask[:, i, 0], i, 0], k=2)
-                        value = f(self.jj)
+                        value = float(f(self.jj))
                     else:
                         value = self.sources.transformation.data[self.jj, i, 0]
                 getattr(self.PSF, "set_{0}".format(prm))(value)
