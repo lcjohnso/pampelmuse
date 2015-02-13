@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-239, 2015/02/13
+240, 2015/02/13
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 239
+__revision__ = 240
 
 import contextlib
 import itertools
@@ -566,7 +566,7 @@ class StarFit(object):
                 logging.debug("{0} Relative changes in fluxes: {1}".format(self.prefix_string, delta_flux))
 
             # convergence criterion: median relative change in fluxes <0.005
-            if np.median(abs(delta_flux)) < 5e-3:
+            if np.median(abs(delta_flux)) < 5e-3 and n_iter > 1:
                 break
 
             # fit PSF/positions if requested
@@ -767,8 +767,8 @@ class StarFit(object):
         for i in self.psf_indices:
 
             names = ["flux"]  # the names of the free parameters for this PSF
-            x0 = [self.sources.data[
-                      self.jj, self.sources.specrow[i], 0]]  # the initial guesses for the parameter fit for this PSF
+            x0 = [self.sources.data[self.jj, self.sources.specrow[i], 0]]  # the initial guesses for the parameter
+            # fit for this PSF
             snratios.append(x0[0] / self.sources.data[self.jj, self.sources.specrow[i], 1])
 
             if self.update_coordinates[i]:
@@ -888,7 +888,7 @@ class StarFit(object):
                                                    float(self.sources.transformation.data[self.jj, i, 0]))
             logging.info(logstring)
 
-        elif not self.full_coordinates_fit:
+        elif not self.full_coordinates_fit and (~self.sources.ifs_coordinates_fitted).any():
             logging.error("{0} Cannot update coordinate transformation because <2 sources fitted successfully.".format(
                 self.prefix_string))
 

@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-237, 2015/02/11
+240, 2015/02/13
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 237
+__revision__ = 240
 
 import datetime, itertools, os, sys, logging
 from multiprocessing import cpu_count, Pool
@@ -238,7 +238,7 @@ def initfit(pampelmuse):
     # The sigma values are valid for the broadband image and must be increased to be representative for a typical
     # layer. As the image was obtained by integrating over a filter curve, the sigma values are multiplied by sqrt(N)
     # where N is the number of layers within the FWHM of the filter curve.
-    sigma_image *= np.sqrt(FILTERFWHM[pampelmuse.passband]/pampelmuse.ifs_data.cdelt)
+    sigma_image *= np.sqrt(FILTERFWHM[pampelmuse.passband.lower()]/pampelmuse.ifs_data.cdelt)
     if pampelmuse.ifs_data.cunit == "nm" or pampelmuse.ifs_data.ctype == "nm":  # FWHM given in Angstrom
         sigma_image /= np.sqrt(10)
     elif pampelmuse.ifs_data.cunit == "um" or pampelmuse.ifs_data.ctype == "um":
