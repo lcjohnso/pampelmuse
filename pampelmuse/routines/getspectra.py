@@ -22,10 +22,10 @@ Added
 
 Latest SVN revision
 -------------------
-237 # 2015/02/11
+239 # 2015/02/13
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 237
+__revision__ = 239
 
 import datetime
 import logging
@@ -142,13 +142,14 @@ def getspectra(pampelmuse):
     # add estimate for seeing on detector using the fitted FWHM of the PSF profile
     if psf_attributes is not None:
         i = list(psf_attributes.names).index("fwhm")
-        header["hierarch PAMPELMUSE SEEING"] = (psf_attributes.data[:, i, 0].mean(), "Fitted PSF FWHM in spaxels")
+        header["hierarch PAMPELMUSE SEEING"] = (psf_attributes.data[~psf_attributes.mask[:, i, 0], i, 0].mean(),
+                                                "Fitted PSF FWHM in spaxels")
 
     # for MUSE, the information which IFU dispersed the spectrum is added - hierarch key SPECTRUM IFUNO
     # In order for this to work, the rotation and extent of the MUSE FoV within the enclosing cube must be determined
     if pampelmuse.ifs_data.instrument.name == "muse":
         
-        logging.info("Determining edge of MUSE field of view...")
+        logging.info("Finding valid pixels in MUSE data...")
         for i in xrange(pampelmuse.ifs_data.ndisp):  # get extent of MUSE FoV in cube
             if i == 0:
                 mask = np.isnan(pampelmuse.ifs_data.data.layer(0))
@@ -161,6 +162,9 @@ def getspectra(pampelmuse):
         t.rotate_around(0, 0, -alpha)
         musepath = pampelmuse.ifs_data.instrument.edgepath.transformed(t)
         museextents = musepath.get_extents()
+
+    # load spectra for all components
+    sources.load_spectra()
 
     # loop over all components, i.e. all spectra
     for i in xrange(sources.ncmp):  # collect spectrum and properties of every requested spectrum in observation
@@ -179,12 +183,11 @@ def getspectra(pampelmuse):
         #  8 - The centroid of the star is outside the field of view
 
         # load spectrum for current component into memory
-        sources.load_spectra(components=[i, ])
-        primary_hdu = fits.PrimaryHDU(sources.data[pampelmuse.start:pampelmuse.stop, 0, 0], header=header)
+        primary_hdu = fits.PrimaryHDU(sources.data[pampelmuse.start:pampelmuse.stop, i, 0], header=header)
 
-        sigma_hdu = fits.ImageHDU(sources.data[pampelmuse.start:pampelmuse.stop, 0, 1])
+        sigma_hdu = fits.ImageHDU(sources.data[pampelmuse.start:pampelmuse.stop, i, 1])
         sigma_hdu.header["EXTNAME"] = "SIGMA"
-        
+
         if sources.status[j] in [2, 3]:
             
             ID = sources.ID[j]
@@ -221,10 +224,11 @@ def getspectra(pampelmuse):
                 primary_hdu.header["OBJNAME"] = "{0} {1} {2}".format(pampelmuse.getspectra.specprefix.upper(),
                                                                      pampelmuse.ifu.upper(), ID)
 
-            # load IFS coordinates for the star and check if it is inside the field of view
+            # load IFS coordinates for the star and check if it is inside the field of view; omit NaN values
             sources.load_ifs_coordinates(ids=ID)
-            xy_j = np.mean(sources.ifs_coordinates[:, 0, :, 0], axis=0)
-            
+            xy_coord = sources.ifs_coordinates[:, 0, :, 0]
+            xy_j = np.mean(xy_coord[(~np.isnan(xy_coord)).all(axis=1)], axis=0)
+
             # add x- and y-position of PSF centroid in cube
             primary_hdu.header["HIERARCH SPECTRUM XCUBE"] = (xy_j[0], "[spaxel] x-position in cube")
             primary_hdu.header["HIERARCH SPECTRUM YCUBE"] = (xy_j[1], "[spaxel] y-position in cube")
@@ -244,7 +248,7 @@ def getspectra(pampelmuse):
                     ifuno = 1
                 
                 primary_hdu.header["HIERARCH SPECTRUM IFUNO"] = (ifuno, "IFU of MUSE that dispersed spectrum")
-            
+
             infield = pampelmuse.ifs_data.instrument.infov(xy_j)
             if not infield:
                 flag += 8

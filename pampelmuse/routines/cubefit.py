@@ -20,10 +20,10 @@ fit' if the configuration parameter USEQT of PampelMuse is enabled.
 
 Latest SVN revision
 -------------------
-237, 2015/02/11
+239, 2015/02/13
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 237
+__revision__ = 239
 
 import datetime, logging, os, sys
 import numpy as np
@@ -49,7 +49,7 @@ def cubefit(pampelmuse):
 
     # Spectra
     try:
-        i= pampelmuse.hdulist.index_of("SPECTRA")
+        i = pampelmuse.hdulist.index_of("SPECTRA")
         try:
             j = pampelmuse.hdulist.index_of("SIGMASPC")
             sources.open_spectra_hdu(pampelmuse.hdulist[i], sigma_hdu=pampelmuse.hdulist[j])
@@ -57,6 +57,9 @@ def cubefit(pampelmuse):
             sources.open_spectra_hdu(pampelmuse.hdulist[i], sigma_hdu=None)
     except KeyError:
         logging.critical("No spectra (HDU 'SPECTRA') have been provided.")
+
+    if sources.ndisp != pampelmuse.ifs_data.ndisp:
+        logging.error("PRM-file and IFS data have incompatible dispersion dimensions.")
 
     # Positions
     logging.info("Obtaining information about source coordinates...")
@@ -104,11 +107,6 @@ def cubefit(pampelmuse):
         stop = pampelmuse.stop
     except AttributeError:
         stop = pampelmuse.ifs_data.ndisp-1
-    
-    if (stop-start+1) != sources.ndisp:
-        if not sources.ndisp == 1:
-            logging.error("Length of dispersion axis of PRM file does not match no of layers in requested range.")
-        sources.ndisp = (stop-start+1)
 
     # start fitting process:
     logging.info("Starting fit process...")

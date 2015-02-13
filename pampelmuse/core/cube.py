@@ -21,13 +21,12 @@ check whether the IFS data contains HDUs providing either uncertainties
 
 Latest SVN revision
 -------------------
-237, 2015/02/11
-
+239, 2015/02/13
 """
 from pampelmuse.filters import get_filter
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 237
+__revision__ = 239
 
 import logging
 import types
@@ -357,9 +356,9 @@ class Cube:
                 return self.file[0].header[n]
 
         if len(name) == 1:
-            logging.error("Key '{0}' missing in FITS header.".format(name[0]))
+            logging.warning("Key '{0}' missing in FITS header.".format(name[0]))
         else:
-            logging.error("None of keys '{0}' present in FITS header.".format("','".join(name)))
+            logging.warning("None of keys '{0}' present in FITS header.".format("','".join(name)))
         return None
 
     def make_wcs(self):

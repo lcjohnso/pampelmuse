@@ -21,10 +21,10 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-237, 2015/02/11
+239, 2015/02/13
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 237
+__revision__ = 239
 
 import collections
 import inspect
@@ -1238,9 +1238,9 @@ class Sources(object):
         match = match_on_id(self.ID, ids)
         if match.size < len(ids):
             logging.error("Invalid source IDs have been provided.")
-        assert match.size == len(ids), "Not all provided IDs have no counterpart in source catalogue."
+        assert match.size == len(ids), "Not all provided IDs have counterpart in source catalogue."
 
-        # bring the provided IDs in the correct order wrt the source catalogue (only if needed):
+        # bring the provided IDs in the correct order wrt. the source catalogue (only if needed):
         if (np.diff(match) < 0).any():
             sorter = np.unique(match, return_index=True)
             # 'sorter' contains 2 arrays, one with the indices of the matched IDs in the proper order and one with the

@@ -21,14 +21,17 @@ defines the methods that are called by Ui_PampelMuseGui.
 
 Latest SVN revision
 -------------------
-237, 2015/02/11
+239, 2015/02/13
 
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 237
+__revision__ = 239
 
-import datetime, logging, re, os, sys
-import matplotlib, matplotlib.pyplot as plt, numpy as np
+import logging
+import os
+import matplotlib
+import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib import patches, colors
 from astropy.io import fits
 from PyQt4.QtGui import QMainWindow, QHBoxLayout, QDoubleValidator, QFileDialog
@@ -38,14 +41,12 @@ from Ui_pampelmuse_gui import Ui_PampelMuseGui
 from exit_dialog import exitUnsavedDialog
 
 # Required PampelMuse packages
-from pampelmuse.config import Namespace, PampelMuseConfig
+from pampelmuse.config import PampelMuseConfig
 from pampelmuse.core import Sources
 from pampelmuse.core.coordinates import Transformation
 from pampelmuse.core.psf import Variables
 from pampelmuse.graphics.dynamic_plot_canvas import DynamicPlotCanvas
 from pampelmuse.graphics.dynamic_ima_canvas import DynamicImaCanvas
-
-
 
 
 class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
@@ -67,16 +68,16 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             are present in the analysed field, either provided as a FITS
             HDU (binary table) or a record array.
         fitsFile : string
-            A FITS-file containing the catalogue of sources and/or information about the
-            sources such as their spectra or positions or about the PSF. An example
+            A FITS-file containing the catalogue of sources and/or information about
+            the sources such as their spectra or positions or about the PSF. An example
             for such a file is a valid prm-file as it is created by PampelMuse.
         ifsData : string or instance of pampelmuse.core.cube.Cube, optional
             A FITS-file containing the datacube that is analysed or an instance of the
             Cube class of PampelMuse holding the IFS data.
         refImage : string or nd_array, optional
             A reference image, provided either as a FITS file or a 2dim image array.
-            Note that the idea is that the refrence coordinates used by PampelMuse are
-            the pixel coordinates in this image.
+            Note that the idea is that the reference coordinates used by PampelMuse
+            are the pixel coordinates in this image.
         parent : 
             The 'parent' argument, if not None, causes self to be 
             owned by Qt instead of PyQt. (copied from PyQt4 documentation)
@@ -93,7 +94,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
 
         # PampelMuse uses a suite of hierarch keywords to store its configuration
         # that we collect in a namespace
-        if namespace == None:
+        if namespace is None:
             self.namespace = PampelMuseConfig()
         else:
             self.namespace = namespace
@@ -154,8 +155,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             self.openReference(refImage, **kwargs)
         
         self.statusBar.showMessage("Ready", 5000)
-    
-    
+
     @property
     def instrument(self):
         """
@@ -163,8 +163,10 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         is copied from the instance of pampelmuse.core.cube.Cube if
         a data cube has been loaded.
         """
-        if self.ifsLoaded: return self.ifsPlot.cube.instrument
-        else: return None
+        if self.ifsLoaded:
+            return self.ifsPlot.cube.instrument
+        else:
+            return None
     
     @property
     def start(self):
@@ -175,7 +177,6 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             return self.namespace.start
         else:
             return None
-
 
     def loadSources(self, data):
         """
@@ -188,13 +189,11 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             should be available.
         """
         self.sources = Sources(data=data)
-        self.sourceList = {} # a dictionary that will contain the available HDUs
-                             # and the included spectral properties that can be
-                             # displayed/fitted.
-        self.pickSourcesOnRef() # initialize source selection via reference image
-                                # if possible
+        self.sourceList = {}  # a dictionary that will contain the available HDUs  and the included spectral properties
+        #  that can be displayed/fitted.
+        self.pickSourcesOnRef()  # initialize source selection via reference image if possible
     
-    
+
     def loadSpectra(self, data=None):
         """
         Read the source spectra from a 2dim. array or a fits ImageHU.
@@ -209,13 +208,13 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             If no data are provided, it is assumed that the 'Sources' instance
             that is currently active includes spectra.
         """
-        if not "sources" in self.__dict__:
+        if "sources" not in self.__dict__:
             logging.error("Cannot load spectra unless information about sources available.")
             return
 
-        if data != None:
+        if data is not None:
             self.sources.open_spectra_hdu(data=data)
-        self.sources.load_spectra() # read all spectra into memory
+        self.sources.load_spectra()  # read all spectra into memory
         
         # create entry about loaded data for data selection via QComboBox if not existent
         if self.spectrumShowHduComboBox.findText("Spectra") == -1:
@@ -223,8 +222,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         self.sourceList["Spectra"] = self.sources.provideComponentNames()
     
         self.dataLoaded()  # update status of GUI
-    
-    
+
     def loadCoordTrans(self, data=None):
         """
         Read the coordinate transformation from reference to IFU coordinates
@@ -394,7 +392,8 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         self.ifsPlot.loadCube(input)
         
         # enable display of fit residualas if they are available
-        if self.ifsPlot.cube.residuals != None: self.actionResiduals.setEnabled(True)
+        if self.ifsPlot.cube.residuals is not None:
+            self.actionResiduals.setEnabled(True)
         
         # include this instance in GUI
         ifsFrame = QHBoxLayout(self.ifuViewWidget)
@@ -402,7 +401,8 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         ifsFrame.setAlignment(Qt.AlignCenter)
     
         # load first layer by default
-        self.ifsPlot.loadLayer(0, residuals=self.actionResiduals.isChecked(), cmap=plt.cm.Blues, interpolation="nearest")
+        self.ifsPlot.loadLayer(0, residuals=self.actionResiduals.isChecked(), cmap=plt.cm.Blues,
+                               interpolation="nearest")
             
         # adapt layer range to match spectral dimension of datacube
         self.ifuLayerSelectSlider.setMaximum(self.ifsPlot.cube.ndisp-1)
@@ -413,7 +413,6 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         
         # default cut level is 100%
         self.ifuCutsComboBox.setCurrentIndex(0)
-##         self.on_ifuCutsComboBox_currentIndexChanged("100%")
         logging.debug("Successfully loaded IFS data into GUI.")   
             
         # By default, when a cube is loaded the interaction modus is set to 'grab', meaning
@@ -1362,11 +1361,10 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
 
         # if the GUI is used to identify sources in the IFU data, add the event to the
         # selection
-        if self.curId != None:
+        if self.curId is not None:
             self.identifiedSources[self.curId] = [x, y, 0., 0.]
             self.updateMarkHistPlot()
         self.ifsPlot.draw()
-
 
     def on_ifuPlot_picked(self, index):
         """
@@ -1517,16 +1515,14 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         """
         if not "refPlot" in self.__dict__: return
         self.refPlot.gotoView(self.refPlot.curViewIndex-1)
-        
-    
+
     @pyqtSignature("")
     def on_refForth_clicked(self):
         """
         Handle action when the 'go forth' button for the reference view is clicked.
         """
-        if not "refPlot" in self.__dict__: return
+        if "refPlot" not in self.__dict__: return
         self.refPlot.gotoView(self.refPlot.curViewIndex+1)
-    
 
     def on_refPlot_picked(self, index, select):
         """
@@ -1542,7 +1538,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             True) or de-selected (if False).
         """
         # recover index of ID in Sources catalogue
-        j = np.where((np.cumsum(self.refPlotSelected)-1)==index)[0][0]
+        j = np.where((np.cumsum(self.refPlotSelected)-1) == index)[0][0]
 
         # get source ID
         ID = self.sources.ID[j]
@@ -1550,9 +1546,9 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         # source is selected
         if select:
             # show information on selected source
-            statusMessage  = "Picked source #{0}: ".format(int(ID))
+            statusMessage = "Picked source #{0}: ".format(int(ID))
             statusMessage += "x={0:.2f}, y={1:.2f}".format(float(self.sources.x[j]), float(self.sources.y[j]))
-            if self.sources.mag != None:
+            if self.sources.mag is not None:
                 statusMessage += ", mag={0:.2f}".format(float(self.sources.mag[j]))
             self.statusBar.showMessage(statusMessage, 5000)
         
@@ -1577,7 +1573,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
                 # If so, load the data. same source in IFU viewer; Note that the method called below
                 # will also take care that the source is highlighted in the IFU viewer if possible.
                 indexInComboBox = self.spectrumShowIdentComboBox.findText(str(ID))
-                if indexInComboBox >= 0 and self.spectrumShowIdentComboBox.currentText()!=str(ID):
+                if indexInComboBox >= 0 and self.spectrumShowIdentComboBox.currentText() != str(ID):
                     self.spectrumShowIdentComboBox.setCurrentIndex(indexInComboBox)
                     self.spectrumShowGo.click()
 

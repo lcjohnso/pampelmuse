@@ -10,7 +10,7 @@ Purpose
 -------
 This module provides the class DynamicImaCanvas defines that is designed
 to display FITS image data (2D or 3D are supported) and to interact with it.
-It provides the basic functionailty like a zoom option or a pan option and
+It provides the basic functionality like a zoom option or a pan option and
 also allows one to interact with the data, like grabbing coordinates or
 picking data. The class is used by the PampelMuse GUI to display IFS data
 and reference data. In order to handle 2dim. IFS data, the Cube class is
@@ -18,21 +18,27 @@ loaded from pampelmuse.core.cube
 
 Latest SVN revision
 -------------------
-195, 2014/07/09
+239, 2015/02/13
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 195
+__revision__ = 239
 
 import logging
-import matplotlib.transforms, matplotlib.artist, matplotlib.pyplot, numpy as np
 from PyQt4 import QtCore
-from matplotlib import path, patches
+
+import matplotlib.transforms
+import matplotlib.artist
+import matplotlib.pyplot
+import numpy as np
+from matplotlib import patches
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg
 from matplotlib.patches import Rectangle
 
-##  required PampelMuse routines
+
+# required PampelMuse routines
 from pampelmuse.core.cube import Cube
+
 
 class DynamicImaCanvas(FigureCanvasQTAgg):
     """
@@ -56,17 +62,16 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
         dpi : int, optional
             The resolution of the figure canvas.
         """
-        
-        ## initialize the figure canvas
-        self.fig  = Figure(figsize=(width, height), dpi=dpi)
-        self.axes = self.fig.add_axes((0.05,0.05,0.9,0.9))
 
+        # initialize the figure canvas
+        self.fig = Figure(figsize=(width, height), dpi=dpi)
+        self.axes = self.fig.add_axes((0.05, 0.05, 0.9, 0.9))
 
-#         FigureCanvasQTAgg.__init__(self, self.fig)
+        # FigureCanvasQTAgg.__init__(self, self.fig)
         super(DynamicImaCanvas, self).__init__(self.fig)
         self.setParent(parent)
-        
-        ## Default setup
+
+        # Default setup
         self.cuts = None
         self.vrange = 100
 
@@ -74,36 +79,33 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
         self.cube = None
         self.layer = -1
         self.wave = 0
-        
-        ## The routine keeps a history of previously selected axis limits
-        ## in memory. This history can be used to recover previous views
-        ## of the data.
+
+        # The routine keeps a history of previously selected axis limits in memory. This history can be used to
+        # recover previous views of the data.
         self.curViewIndex = 0
         self.viewHistory = [(self.axes.get_xlim(), self.axes.get_ylim()), ]
 
-        ## Turn of autoscaling so the limits are not changes when
-        ## a data set is overplotted on an image.
+        # Turn of autoscaling so the limits are not changes when a data set is overplotted on an image.
         self.axes.set_autoscale_on(False)
 
-        ## Initialize the frame used to indicate a zoom into the data.
-        self.zoomFrame = Rectangle((0., 0.),  width=0., height=0., fc="None", lw=1.0, ls="solid", ec="0.5",
+        # Initialize the frame used to indicate a zoom into the data.
+        self.zoomFrame = Rectangle((0., 0.), width=0., height=0., fc="None", lw=1.0, ls="solid", ec="0.5",
                                    transform=self.axes.transData, gid="zoomFrame")
         self.axes.add_patch(self.zoomFrame)
 
-        ## start in normal mode (zoom and pan switched off)
+        # start in normal mode (zoom and pan switched off)
         self.zoom = False
         self.pan = False
-        self.inEvent = False ## will be True if pan or zoom is going on
-        
-        ## Initialize start coordinates of an event
+        self.inEvent = False  # will be True if pan or zoom is going on
+
+        # Initialize start coordinates of an event
         self.xInit = None
         self.yInit = None
-        
-        ## Handle events when axes instance is left or entered
-        self.onMotion  = self.fig.canvas.mpl_connect('motion_notify_event', self.on_mouseMotion_notify)
+
+        # Handle events when axes instance is left or entered
+        self.onMotion = self.fig.canvas.mpl_connect('motion_notify_event', self.on_mouseMotion_notify)
         self.enterAxes = self.fig.canvas.mpl_connect('axes_enter_event', self._uponEntering)
         self.leaveAxes = self.fig.canvas.mpl_connect('axes_leave_event', self._uponLeaving)
-
 
     def draw(self):
         """
@@ -114,16 +116,16 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
         variable immediately after each call to draw().
         
         """
-        ## draw() shows unanimated parts of plot that we also save as a static background for later recovery
+        # draw() shows unanimated parts of plot that we also save as a static background for later recovery
         super(DynamicImaCanvas, self).draw()
         self.background = self.figure.canvas.copy_from_bbox(self.axes.bbox)
-        
-        ## show animated part - needs to be called because draw() only plots static parts
-#        if self.vLine.get_animated(): self.axes.draw_artist(self.vLine)
-        
-        ## and blit just the redrawn (e.g. animated) area
-#        self.figure.canvas.blit(self.axes.bbox)
 
+        # show animated part - needs to be called because draw() only plots static parts
+        # if self.vLine.get_animated():
+        #     self.axes.draw_artist(self.vLine)
+
+        # and blit just the redrawn (e.g. animated) area
+        # self.figure.canvas.blit(self.axes.bbox)
 
     def addImage(self, image, update_axlims=True, reset_history=True, **kwargs):
         """
@@ -146,32 +148,30 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
             method are passed on to the call of matplotlib.pyplot.imshow
             that is used to display the data.
         """
-
-        ## Check if an imshow instance does exist, if so, update its data
-        if self.image == None:
+        # Check if an imshow instance does exist, if so, update its data
+        if self.image is None:
             self.imagePlot = self.axes.imshow(image, **kwargs)
         else:
             self.imagePlot.set_data(image)
 
         self.image = image
 
-        self.changeCuts() ## adapt cuts to the new data
+        self.changeCuts()  # adapt cuts to the new data
 
-        ## adjust axes limits
+        # adjust axes limits
         if update_axlims:
             self.updateAxesLimits()
-        
-        ## reset history of views
+
+        # reset history of views
         if reset_history:
             self.curViewIndex = 0
-            self.viewHistory  = [(self.axes.get_xlim(), self.axes.get_ylim()), ]
+            self.viewHistory = [(self.axes.get_xlim(), self.axes.get_ylim()), ]
 
-        ## do not display any ticks when plotting images
+        # do not display any ticks when plotting images
         self.axes.set_xticks([])
         self.axes.set_yticks([])
 
-        self.draw() ## update canvas view
-
+        self.draw()  # update canvas view
 
     def loadCube(self, input, instrument=None, checks={}, **kwargs):
         """
@@ -199,24 +199,22 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
             'name' contains a keyword set to the respective value.
         """
 
-        ## load cube using the dedicated PampelMuse class for this purpose that
-        ## also checks whether the data is valid (unless an instance was provided right away).
+        # load cube using the dedicated PampelMuse class for this purpose that
+        # also checks whether the data is valid (unless an instance was provided right away).
         if isinstance(input, str):
-            self.cube = Cube(name, instrument=instrument, checks=checks)
+            self.cube = Cube(input, instrument=instrument, checks=checks)
         else:
             self.cube = input
-      
-        ## define a Path that indicates the edges of the field of view of the instrument
-        ## and add it to the figure canvas.
-        ## such a Path is available in the pampelmuse.cube.instrument.Instrument instance,
-        ## yet the x- and y-axes need to be swapped.
+
+        # define a Path that indicates the edges of the field of view of the instrument and add it to the figure canvas.
+        # Such a Path is available in the pampelmuse.cube.instrument.Instrument instance, yet the x- and y-axes need to
+        # be swapped.
         t = matplotlib.transforms.Affine2D(np.array([[0, 1, 0], [1, 0, 0], [0, 0, 1]]))
         plotpath = self.cube.instrument.edgepath.transformed(t)
-      
+
         edgepatch = patches.PathPatch(plotpath, facecolor="None", edgecolor="r", lw=2, alpha=0.5)
         self.axes.add_patch(edgepatch)
-      
-      
+
     def loadLayer(self, i, residuals=False, **kwargs):
         """
         Display an individual layer from a loaded datacube. To display the
@@ -233,25 +231,24 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
             Any keyword arguments provided to this function will be passed
             on to the call of 'addImage' that is used to display the layer.
         """
-        ## check if a cube has been loaded, complain if not
-        if self.cube == None:
+        # check if a cube has been loaded, complain if not
+        if self.cube is None:
             logging.error("Cannot load layer as no cube is open.")
             return
-            
-        ## get the requested layer and pass it on to the addImage-method
+
+        # get the requested layer and pass it on to the addImage-method
         if not residuals:
             self.addImage(self.cube.data.layer(i, return_grid=True), **kwargs)
         else:
-            if self.cube.residuals == None:
+            if self.cube.residuals is None:
                 logging.error("Cannot display fit residuals because no residuals HDU is loaded.")
                 return
             else:
                 self.addImage(self.cube.residuals.layer(i, return_grid=True, return_aux=True), **kwargs)
 
-        ## store current wavelength and number of layer
+        # store current wavelength and number of layer
         self.wave = self.cube.wave[i]
         self.layer = i
-
 
     def changeCuts(self, vrange=None, locut=None, hicut=None):
         """
@@ -269,51 +266,51 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
             The absolute value of the upper cut level.
         """
 
-        ## get current cut levels
-        oldCuts = self.imagePlot.get_clim()
-        if self.cuts == None: self.cuts = oldCuts
+        # get current cut levels
+        oldcuts = self.imagePlot.get_clim()
+        if self.cuts is None:
+            self.cuts = oldcuts
 
-        ## check if absolute cuts have been provided
-        if locut!=None or hicut != None:
-            if locut != None:
+        # check if absolute cuts have been provided
+        if locut is not None or hicut is not None:
+            if locut is not None:
                 self.cuts = (locut, self.cuts[1])
-            if hicut != None:
+            if hicut is not None:
                 self.cuts = (self.cuts[0], hicut)
-                
-        ## check if relative cuts have been provided, if so, translate
-        ##  them into absolute cut levels.
-        elif vrange != None:
+
+        # check if relative cuts have been provided, if so, translate them into absolute cut levels.
+        elif vrange is not None:
             self.vrange = vrange
-            cutlev = float(self.vrange)/100.
-            npix   = self.image.size
-            cutpix = int((1-cutlev)*npix)
-            
-#            if self.layer != -1: ## if cube loaded, only science fibers are used to determine cuts
-#                _values = self.cube.get_layer(self.layer, return_sigma=False)
-#            else:
-#                _values = self.image.copy().reshape(-1)
+            cutlev = float(self.vrange) / 100.
+            npix = self.image.size
+            cutpix = int((1 - cutlev) * npix)
+
+            #            if self.layer != -1: ## if cube loaded, only science fibers are used to determine cuts
+            #                _values = self.cube.get_layer(self.layer, return_sigma=False)
+            #            else:
+            #                _values = self.image.copy().reshape(-1)
             _values = self.image.copy().reshape(-1)
-            values = _values[_values==_values] ## remove NaN pixels
-            
+            values = _values[_values == _values]  # remove NaN pixels
+
             if values.size == 0:
                 logging.error("Requested layer contains only NaN values.")
                 self.cuts = (0, 1)
             else:
-                ## sort pixel values    
+                # sort pixel values
                 values.sort()
-                self.cuts = (values[cutpix/2], 0.5*(values[-cutpix/2-1]+values[-cutpix/2-2]))
+                self.cuts = (values[cutpix / 2], 0.5 * (values[-cutpix / 2 - 1] + values[-cutpix / 2 - 2]))
 
-        ## change cuts and update canvas
-        logging.debug("Updated display cuts are min={0:.3g}, max={1:.3g}".format(float(self.cuts[0]), float(self.cuts[1])))
+        # change cuts and update canvas
+        logging.debug(
+            "Updated display cuts are min={0:.3g}, max={1:.3g}".format(float(self.cuts[0]), float(self.cuts[1])))
         self.imagePlot.set_clim(self.cuts[0], self.cuts[1])
         self.draw()
 
-        ## emit signal that cuts were changed
-        if self.cuts[0] != oldCuts[0]:
+        # emit signal that cuts were changed
+        if self.cuts[0] != oldcuts[0]:
             self.emit(QtCore.SIGNAL("changedLoCut"), self.cuts[0])
-        if self.cuts[1] != oldCuts[1]:
+        if self.cuts[1] != oldcuts[1]:
             self.emit(QtCore.SIGNAL("changedHiCut"), self.cuts[1])
-
 
     def updateAxesLimits(self):
         """
@@ -324,27 +321,26 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
         matplotlib.Collection and each scatter plot is an instance of the
         sub-class PathCollection.
         """
-
-        axesMin = [0, 0]
-        axesMax = [1, 1]
+        axesmin = [0, 0]
+        axesmax = [1, 1]
 
         if self.image is not None:
-            axesMin = [-0.5, -0.5]
-            axesMax = [self.image.shape[1]-0.5, self.image.shape[0]-0.5]
+            axesmin = [-0.5, -0.5]
+            axesmax = [self.image.shape[1] - 0.5, self.image.shape[0] - 0.5]
 
         if hasattr(self, "dataPlot") and isinstance(self.dataPlot, matplotlib.artist.Artist):
-            dataMin, dataMax = self.dataPlot.get_datalim(self.axes.transData).get_points()
+            datamin, datamax = self.dataPlot.get_datalim(self.axes.transData).get_points()
 
-            dataMinRound = [int(dataMin[0]-1*(dataMin[0]<0)), int(dataMin[1]-1*(dataMin[1]<0))] 
-            dataMaxRound = [int(dataMax[0]+1), int(dataMax[1]+1)]
-        
-            axesMin = np.min([axesMin, dataMinRound], axis=0)
-            axesMax = np.max([axesMax, dataMaxRound], axis=0)
+            dataminround = [int(datamin[0] - 1 * (datamin[0] < 0)), int(datamin[1] - 1 * (datamin[1] < 0))]
+            datamaxround = [int(datamax[0] + 1), int(datamax[1] + 1)]
 
-        logging.debug("Updated axes limits are x=[{0:.1f},{1:.1f}], y=[{2:.1f},{3:.1f}]".format(axesMin[0], axesMax[0], axesMin[1], axesMax[1]))
-        self.axes.set_xlim(axesMin[0], axesMax[0])
-        self.axes.set_ylim(axesMin[1], axesMax[1])
+            axesmin = np.min([axesmin, dataminround], axis=0)
+            axesmax = np.max([axesmax, datamaxround], axis=0)
 
+        logging.debug("Updated axes limits are x=[{0:.1f},{1:.1f}], y=[{2:.1f},{3:.1f}]".format(axesmin[0], axesmax[0],
+                                                                                                axesmin[1], axesmax[1]))
+        self.axes.set_xlim(axesmin[0], axesmax[0])
+        self.axes.set_ylim(axesmin[1], axesmax[1])
 
     def getNearestSpaxel(self, x, y):
         """
@@ -358,32 +354,31 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
         y : float
             The y-coordinate
         """
-        
-        ## return if no cube is loaded
-        if self.cube == None: return
-        
-        dr = self.cube.instrument.dist2spax(x, y)
-        i_min  = dr.argmin()
-        logging.debug("Loading spectrum for spaxel #{0}, x={1}, y={2}...".format(i_min, self.cube.instrument.x[i_min], self.cube.instrument.y[i_min]))
-        
-        return self.cube.data.spectrum(i_min)
-        
-#        ## get requested section of HDU
-#        elif self.cube.ndim == 3:
-#            return self.cube.data.spectrum[:, int(round(y)), int(round(x))]
-#        else:
-#            dr = self.cube.instrument.dist2spax(x, y)
-#
-#            ## need to take into account calibration/sky fibers that might be present
-#            ## in the data.
-#            i_min  = dr.argmin()
-#            f_min  = np.where((np.cumsum(self.cube.instrument.isscience)-1)==i_min)[0][0]
-#        
-#            if self.cube.instrument.spectral_axis==0:
-#                return self.cube.data_hdu.section[:, f_min]
-#            else:
-#                return self.cube.data_hdu.section[f_min]
+        # return if no cube is loaded
+        if self.cube is None:
+            return
 
+        dr = self.cube.instrument.dist2spax(x, y)
+        i_min = dr.argmin()
+        logging.debug("Loading spectrum for spaxel #{0}, x={1}, y={2}...".format(i_min, self.cube.instrument.x[i_min],
+                                                                                 self.cube.instrument.y[i_min]))
+        return self.cube.data.spectrum(i_min)
+
+    #        ## get requested section of HDU
+    #        elif self.cube.ndim == 3:
+    #            return self.cube.data.spectrum[:, int(round(y)), int(round(x))]
+    #        else:
+    #            dr = self.cube.instrument.dist2spax(x, y)
+    #
+    #            ## need to take into account calibration/sky fibers that might be present
+    #            ## in the data.
+    #            i_min  = dr.argmin()
+    #            f_min  = np.where((np.cumsum(self.cube.instrument.isscience)-1)==i_min)[0][0]
+    #
+    #            if self.cube.instrument.spectral_axis==0:
+    #                return self.cube.data_hdu.section[:, f_min]
+    #            else:
+    #                return self.cube.data_hdu.section[f_min]
 
     def addData(self, x, y, ids=None, **kwargs):
         """
@@ -409,30 +404,29 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
         """
         self.x = np.asarray(x)
         self.y = np.asarray(y)
-        
+
         assert self.x.shape == self.y.shape, "x- and y-coords must have same shape."
 
-        ## if previously data have been added, that is removed
+        # if previously data have been added, that is removed
         if hasattr(self, "dataPlot") and isinstance(self.dataPlot, matplotlib.artist.Artist):
             self.dataPlot.remove()
 
         self.dataPlot = self.axes.scatter(self.x, self.y, **kwargs)
-    
-        ## change axes limits to show all the data
+
+        # change axes limits to show all the data
         self.updateAxesLimits()
-        
-        ## reset history of views
+
+        # reset history of views
         self.curViewIndex = 0
-        self.viewHistory  = [(self.axes.get_xlim(), self.axes.get_ylim()), ]
-        
+        self.viewHistory = [(self.axes.get_xlim(), self.axes.get_ylim()), ]
+
         self.draw()
 
-        ## check if IDs were provided, otherwise numerate sources
-        if ids != None:
+        # check if IDs were provided, otherwise numerate sources
+        if ids is not None:
             self.ids = ids
         else:
             self.ids = np.arange(self.x.size, dtype='int32')
-
 
     @property
     def edgecolors(self):
@@ -441,23 +435,20 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
         on an image. The return value will be an array of the same length
         as the dataset even if all  markers have the same edgecolor.
         """
+        # return if no plot is available
+        if "dataPlot" not in self.__dict__:
+            return None
 
-        ## return if no plot is available
-        if not "dataPlot" in self.__dict__: return None
-    
-        ## get current edgecolors from dataset, they are returned as
-        ## RGBA values, so the length of the second dimension of the
-        ## return value is 4, the length of the first depends on how
-        ## the colors were initialized
+        # get current edgecolors from dataset, they are returned as RGBA values, so the length of the second dimension
+        # of the return value is 4, the length of the first depends on how the colors were initialized
         edgecolors = self.dataPlot.get_edgecolors()
-        
-        if edgecolors.shape[0] == 0: ## if colors were initialized to "None"
-            return np.zeros((self.x.size, edgecolors.shape[1]), dtype=np.float32)
-        elif edgecolors.shape[0] == 1: ## if a single color was provided
-            return np.resize(edgecolors, (self.x.size, edgecolors.shape[1]))
-        else: ## if different colours were provided
-            return edgecolors
 
+        if edgecolors.shape[0] == 0:  # if colors were initialized to "None"
+            return np.zeros((self.x.size, edgecolors.shape[1]), dtype=np.float32)
+        elif edgecolors.shape[0] == 1:  # if a single color was provided
+            return np.resize(edgecolors, (self.x.size, edgecolors.shape[1]))
+        else:  # if different colours were provided
+            return edgecolors
 
     @property
     def facecolors(self):
@@ -466,23 +457,19 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
         on an image. The return value will be an array of the same length
         as the dataset even if all markers have the same facecolor.
         """
-        
-        ## return if no plot is available
+        # return if no plot is available
         if not "dataPlot" in self.__dict__: return None
-        
-        ## get current facecolors from dataset, they are returned as
-        ## RGBA values, so the length of the second dimension of the
-        ## return value is 4, the length of the first depends on how
-        ## the colors were initialized
+
+        # get current facecolors from dataset, they are returned as RGBA values, so the length of the second dimension
+        # of the return value is 4, the length of the first depends on how the colors were initialized
         facecolors = self.dataPlot.get_facecolors()
 
-        if facecolors.shape[0] == 0: ## if colors were initialized to "None"
+        if facecolors.shape[0] == 0:  # if colors were initialized to "None"
             return np.zeros((self.x.size, facecolors.shape[1]), dtype=np.float32)
-        elif facecolors.shape[0] == 1: ## if a single color was provided
+        elif facecolors.shape[0] == 1:  # if a single color was provided
             return np.resize(facecolors, (self.x.size, facecolors.shape[1]))
-        else: ## if different colours were provided
+        else:  # if different colours were provided
             return facecolors
-
 
     def _uponEntering(self, event):
         """
@@ -496,18 +483,16 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
             The event that triggered the method call.
         """
         if event.inaxes != self.axes:
-            return ## do noting if wrong axes were entered
-        
-        try: ## disconnect initialization handler that might still be active
+            return  # do noting if wrong axes were entered
+
+        try:  # disconnect initialization handler that might still be active
             self.fig.canvas.mpl_disconnect(self.Init)
         except:
             pass
-        
-        ## initialize handler for mouse click unless a zoom or pan event is still active
+
+        # initialize handler for mouse click unless a zoom or pan event is still active
         if not self.inEvent:
             self.Init = self.fig.canvas.mpl_connect('button_press_event', self.on_mouseButton_pressed)
-
-        
 
     def _uponLeaving(self, event):
         """
@@ -522,11 +507,8 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
         if event.inaxes != self.axes:
             return
 
-        ## disconnect handlers for mouse movement and mouse clicks
+        # disconnect handlers for mouse movement and mouse clicks
         self.fig.canvas.mpl_disconnect(self.Init)
-
-
-
 
     def on_mouseButton_pressed(self, event):
         """
@@ -541,7 +523,6 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
         event : a matplotlib.backend_bases.MouseEvent instance
             The event that triggered the method call.
         """
-
         if not self.zoom and not self.pan:
             return
 
@@ -549,29 +530,27 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
         self.xInit = event.xdata
         self.yInit = event.ydata
 
-        ## In zoom mode, right mouse button causes recovery of
-        ## original view.
+        # In zoom mode, right mouse button causes recovery of  original view.
         if self.zoom:
-            if event.button == 3: ## recover original view.
+            if event.button == 3:  # recover original view.
                 self.xInit = None
                 self.yInit = None
                 self.gotoView(0)
                 return
-            self.zoomFrame.set_xy((self.xInit,self.yInit))
+            self.zoomFrame.set_xy((self.xInit, self.yInit))
             self.zoomFrame.set_animated(True)
-        elif self.pan: ## for panning, we need current axis limits
+        elif self.pan:  # for panning, we need current axis limits
             self.panWindowX = self.axes.get_xlim()
             self.panWindowY = self.axes.get_ylim()
 
-        ## disconnect initialization event to avoid multiple events.
+        # disconnect initialization event to avoid multiple events.
         self.fig.canvas.mpl_disconnect(self.Init)
         self.inEvent = True
 
-        ## initialize actions for mouse movement with button pressed and
-        ## release of button
-#        self.MotionKey = self.fig.canvas.mpl_connect('motion_notify_event', self.on_mouseMotion_notify)
+        # initialize actions for mouse movement with button pressed and
+        # release of button
+        #        self.MotionKey = self.fig.canvas.mpl_connect('motion_notify_event', self.on_mouseMotion_notify)
         self.Final = self.fig.canvas.mpl_connect('button_release_event', self.on_mouseButton_released)
-
 
     def on_mouseButton_released(self, event):
         """
@@ -585,48 +564,44 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
         event : a matplotlib.backend_bases.MouseEvent instance 
             The event that triggered the method call.
         """
-        ## check if the same button was released that triggered
-        ## the initialization call to '_grabCoordsInit'
-        if event.button != self.button:  return
-        
-        ## disconnect handlers for button release and movement
-        ## with mouse button pressed.
+        # check if the same button was released that triggered the initialization call to '_grabCoordsInit'
+        if event.button != self.button:
+            return
+
+        # disconnect handlers for button release and movement with mouse button pressed.
         self.inEvent = False
         self.fig.canvas.mpl_disconnect(self.Final)
-#        self.fig.canvas.mpl_disconnect(self.MotionKey)
+        #        self.fig.canvas.mpl_disconnect(self.MotionKey)
 
-        ## get coordinates where event took place and edges of
-        ## selected rectangle.
+        # get coordinates where event took place and edges of selected rectangle.
         if event.inaxes == self.axes:
             self.xFinal = event.xdata
             self.yFinal = event.ydata
 
-        if self.xInit != None and self.yInit != None:
+        if self.xInit is not None and self.yInit is not None:
             xmin, xmax = sorted([self.xInit, self.xFinal])
             ymin, ymax = sorted([self.yInit, self.yFinal])
-    
-            if self.zoom: ## if zoom, change limits to selected window
-                if xmin==xmax or ymin==ymax:
+
+            if self.zoom:  # if zoom, change limits to selected window
+                if xmin == xmax or ymin == ymax:
                     logging.error("Area selection must be 2dimensional.")
                 else:
                     self.axes.set_xlim(xmin, xmax)
                     self.axes.set_ylim(ymin, ymax)
                     self.draw()
-                self.zoomFrame.set_width(0) ## minimize zoom window
+                self.zoomFrame.set_width(0)  # minimize zoom window
                 self.zoomFrame.set_height(0)
                 self.zoomFrame.set_animated(False)
-    
+
             self.curViewIndex += 1
             self.viewHistory.insert(self.curViewIndex, (self.axes.get_xlim(), self.axes.get_ylim()))
-            if len(self.viewHistory) > self.curViewIndex+1:
-                self.viewHistory = self.viewHistory[:self.curViewIndex+1]
+            if len(self.viewHistory) > self.curViewIndex + 1:
+                self.viewHistory = self.viewHistory[:self.curViewIndex + 1]
 
-        ## initialize handler for next selection event
+        # initialize handler for next selection event
         self.xInit = None
         self.yInit = None
         self.Init = self.fig.canvas.mpl_connect('button_press_event', self.on_mouseButton_pressed)
-
-
 
     def on_mouseMotion_notify(self, event):
         """
@@ -652,36 +627,37 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
 
         x = int(round(event.xdata))
         y = int(round(event.ydata))
-        try: f = float(self.image[y, x])
-        except IndexError: f = np.nan
+        try:
+            f = float(self.image[y, x])
+        except IndexError:
+            f = np.nan
 
         self.emit(QtCore.SIGNAL("coordsChanged"), x, y, f)
 
-        if self.xInit == None or self.yInit == None:
+        if self.xInit is None or self.yInit is None:
             return
 
-        ## in case the button is released outside the axes, we use the
-        ## coordinates of the last motion event inside the axis
+        # in case the button is released outside the axes, we use the  coordinates of the last motion event inside the
+        # axis
         self.xFinal = event.xdata
         self.yFinal = event.ydata
 
-        if self.zoom: ##  span up zoom window
-            self.zoomFrame.set_width(self.xFinal-self.xInit)
-            self.zoomFrame.set_height(self.yFinal-self.yInit)
+        if self.zoom:  # span up zoom window
+            self.zoomFrame.set_width(self.xFinal - self.xInit)
+            self.zoomFrame.set_height(self.yFinal - self.yInit)
 
             self.figure.canvas.restore_region(self.background)
             self.axes.draw_artist(self.zoomFrame)
             self.figure.canvas.blit(self.axes.bbox)
 
-        elif self.pan: ## change x- and y-limits
-            dx = (self.xInit - self.xFinal)/2.
-            dy = (self.yInit - self.yFinal)/2.
-            self.axes.set_xlim(self.panWindowX[0]+dx, self.panWindowX[1]+dx)
-            self.axes.set_ylim(self.panWindowY[0]+dy, self.panWindowY[1]+dy)
+        elif self.pan:  # change x- and y-limits
+            dx = (self.xInit - self.xFinal) / 2.
+            dy = (self.yInit - self.yFinal) / 2.
+            self.axes.set_xlim(self.panWindowX[0] + dx, self.panWindowX[1] + dx)
+            self.axes.set_ylim(self.panWindowY[0] + dy, self.panWindowY[1] + dy)
             self.draw()
 
-
-    def gotoView(self,  index):
+    def gotoView(self, index):
         """
         Recover a previously used view of the data from the history of the
         displayed axis limits.
@@ -692,20 +668,20 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
             The index of the view to be recovered. The current index can be
             accessed via the property 'curViewIndex'.
         """
-        
-        ##  check if requested index is valid
+
+        # check if requested index is valid
         if index >= len(self.viewHistory) or index < -len(self.viewHistory):
             logging.error("Requested view index is out of range.")
             return
-    
-        ## update current index
+
+        # update current index
         self.curViewIndex = index
 
-        ## change axis limits
+        # change axis limits
         self.axes.set_xlim(self.viewHistory[index][0])
         self.axes.set_ylim(self.viewHistory[index][1])
-        
-        self.zoomFrame.set_width(0) ## minimize zoom  frame
+
+        self.zoomFrame.set_width(0)  # minimize zoom  frame
         self.zoomFrame.set_height(0)
-        
+
         self.draw()

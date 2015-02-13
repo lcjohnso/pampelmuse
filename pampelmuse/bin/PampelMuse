@@ -61,10 +61,10 @@ the data into memory yet but just checks whether the file(s) are valid.
 
 Latest SVN revision
 -------------------
-238, 2015/02/12"""
+239, 2015/02/13"""
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.19.1.0"
-__revision__ = 238
+__version__ = "0.19.2.0"
+__revision__ = 239
 
 import sys
 sys.stdout.write("""
@@ -77,7 +77,10 @@ sys.stdout.write("""
 sys.stdout.flush()
 
 # IMPORT REQUIRED PYTHON MODULES
-import argparse, datetime, logging, os, re
+import argparse
+import logging
+import os
+import re
 import numpy as np
 from astropy.io import fits
 
@@ -145,9 +148,9 @@ class GetValuesFromLine(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
         outdict = {}
         for _val in values[0].split(','):
-            val = re.sub(r'\s', '', _val) # remove whitespace characters
+            val = re.sub(r'\s', '', _val)  # remove whitespace characters
             if len(val.split("=")) != 2:
-                raise IOError, "Bad parameter definition in line: {0}".format(val)
+                raise IOError("Bad parameter definition in line: {0}".format(val))
             name, value = val.split("=")
             outdict[name.upper()] = value
         setattr(namespace, self.dest, outdict)
@@ -163,7 +166,7 @@ class GetValuesFromFile(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
         outdict = {}
         for _line in values:
-            if not len(_line)==1: # empty lines have len=1
+            if not len(_line) == 1:  # empty lines have len=1
                 if not _line[0] == "#":
                     line = re.sub(r'\s', '', _line) # remove whitespace characters
                     if not len(line.split("=")) == 2:
@@ -378,14 +381,14 @@ pampelmuse.filename = "{0}.prm.fits".format(args.prefix)
 # initialize (sub)namespace for subroutine that will be called and add command-line arguments to this subspace.
 ns = Namespace()
 for key, value in args.__dict__.iteritems():
-    if not key in ["func", "parameter", "prefix"]:
+    if key not in ["func", "parameter", "prefix"]:
         setattr(ns, key, value)
 setattr(pampelmuse, args.func.__name__, ns)
 
 # unless INITFIT or SINGLESRC is called, open existing PRM-file
 if args.func not in [initfit, singlesrc]:
     logging.info("Reading PampelMuse PRM-file: {0}".format(pampelmuse.filename))
-    pampelmuse.hdulist  = fits.open(pampelmuse.filename, mode="update")
+    pampelmuse.hdulist = fits.open(pampelmuse.filename, mode="update")
 
 # initialize the configuration of PampelMuse
 # i) the default configuration is saved in an XML-file that is shipped with PampelMuse
@@ -407,7 +410,7 @@ if hasattr(pampelmuse, "hdulist"):
 # to change the RESLIM parameter after selecting the sources.
 if hasattr(args, "parameter"):
     for key, value in args.parameter.iteritems():
-        if not hasattr(pampelmuse, key.lower()): # make sure only valid parameters are included
+        if not hasattr(pampelmuse, key.lower()):  # make sure only valid parameters are included
             logging.error("Unknown configuration parameter provided: '{0}'".format(key))
             continue
         if args.func in [initfit, singlesrc] or key.lower() in pampelmuse.changeable:
@@ -416,6 +419,9 @@ if hasattr(args, "parameter"):
                 setattr(pampelmuse, key.lower(), eval(value))
             except NameError:
                 setattr(pampelmuse, key.lower(), value)
+            if key.lower() == "layerrng":  # the layer range must be transformed into start and stop values
+                pampelmuse.start = pampelmuse.layerrng[0]
+                pampelmuse.stop = pampelmuse.layerrng[1]
         else:
             logging.warning("Configuration parameter '{0}' cannot be changed during the analysis.".format(key))
 
@@ -453,7 +459,7 @@ del pampelmuse.psffit
 del pampelmuse.psfpars
 
 # set up log level:
-LOGLEVELS = {0:logging.CRITICAL, 1:logging.ERROR, 2:logging.WARNING, 3:logging.INFO, 4:logging.DEBUG}
+LOGLEVELS = {0: logging.CRITICAL, 1: logging.ERROR, 2: logging.WARNING, 3: logging.INFO, 4: logging.DEBUG}
 logging.getLogger().setLevel(LOGLEVELS[pampelmuse.verbose])
 
 # Used as a test: an additional logger that gives the file and line where a warning message was triggered
@@ -477,17 +483,17 @@ else:
 if os.path.exists("{0}.err.fits".format(args.prefix)):
     sigma_ifs = "{0}.err.fits".format(args.prefix)
 else:
-    sigma_ifs = None # sigma data must be included as an HDU in science data file
+    sigma_ifs = None  # sigma data must be included as an HDU in science data file
 
 if os.path.exists("{0}.msk.fits".format(args.prefix)):
     mask_ifs = "{0}.msk.fits".format(args.prefix)
 else:
-    mask_ifs = None # mask data can be included as an HDU in science data file
+    mask_ifs = None  # mask data can be included as an HDU in science data file
 
 if os.path.exists("{0}.res.fits".format(args.prefix)):
     residuals_ifs = "{0}.res.fits".format(args.prefix)
 else:
-    residuals_ifs = None # mask data can be included as an HDU in science data file
+    residuals_ifs = None  # mask data can be included as an HDU in science data file
 
 # open IFS data; for subroutine ADDWCS, the IFS data must be opened in 'update'-mode, otherwise read-only is sufficient
 if use_addwcs and args.func == addwcs:
@@ -504,8 +510,10 @@ if not hasattr(pampelmuse, "start"):
 if not hasattr(pampelmuse, "stop"):
     pampelmuse.stop = pampelmuse.layerrng[1]
 del pampelmuse.layerrng
-if pampelmuse.start < 0: pampelmuse.start = pampelmuse.ifs_data.ndisp + pampelmuse.start
-if pampelmuse.stop < 0: pampelmuse.stop = pampelmuse.ifs_data.ndisp + pampelmuse.stop 
+if pampelmuse.start < 0:
+    pampelmuse.start = pampelmuse.ifs_data.ndisp + pampelmuse.start
+if pampelmuse.stop < 0:
+    pampelmuse.stop = pampelmuse.ifs_data.ndisp + pampelmuse.stop
 logging.info("Layer range used in analysis: {0}--{1}".format(pampelmuse.start, pampelmuse.stop))
 
 # execute the function connected to the requested (sub)routine

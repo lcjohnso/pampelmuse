@@ -17,17 +17,17 @@ axis represents the parameters, and the third axis always has length 2
 and contains the parameters value under index 0 and a potential fit of
 it under index 1.
 In the class Parameters, methods are defined to read in the parameters,
-modify them, accesss them and store them as a FITS-table. The set of
+modify them, access them and store them as a FITS-table. The set of
 parameters must be provided when a new instance is initialized.  It is
 currently not possible to add parameters afterwards.
 
 
 Latest SVN revision
 -------------------
-237, 2015/02/11
+239, 2015/02/13
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 237
+__revision__ = 239
 
 # import required python modules
 import logging
@@ -68,7 +68,7 @@ class Parameters(object):
             those in the FITS table. If no FITS table is provided, at least one
             parameter and its value must be provided.
         """
-        # Initial defintions:
+        # Initial definitions:
         self.hdu = hdu
         self.ndisp = 1  # The number of data points in dispersion direction
         self._data = None  # The parameter values (and potentially smooth representations in dispersion direction)

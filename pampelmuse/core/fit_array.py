@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-238, 2015/02/12
+239, 2015/02/13
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 238
+__revision__ = 239
 
 import contextlib
 import itertools
@@ -41,7 +41,7 @@ import scipy
 from scipy.interpolate import InterpolatedUnivariateSpline
 from multiprocessing import cpu_count, Pool
 from scipy import optimize, sparse
-
+# from astropy.io import fits
 
 if int(scipy.__version__.split(".")[1]) < 10:
     logging.warning("Version of SciPy is <0.10, using sparse.linalg.lsqr instead of faster scipy.linalg.lsmr")
@@ -49,8 +49,6 @@ if int(scipy.__version__.split(".")[1]) < 10:
 else:
     from scipy.sparse.linalg import lsmr
 # lsmr does the same as lsqr but faster (i.e. the Max Power way), it will only work for scipy versions >=0.10
-
-# from astropy.io import fits
 
 # required PampelMuse-packages
 from pampelmuse.core import BackgroundGrid
@@ -119,10 +117,13 @@ def get_psf_data(psf_instances, background=None):
     ----------
     psf_instances : list
         A list containing instances of a class defined in
-        the package pampelmuse.core.psf
-    sigma : nd_array
-        The uncertainties of the spaxels for which the PSF
-        profiles should be calculated. NOT USED ANYMORE
+        the package pampelmuse.core.psf. May also contain
+        integers if the parameter 'background' is set.
+    background : instance of pampelmuse.core.background.Background, optional
+        For every integer in the psf_instances list, the
+        method background.get_flux() is called to obtain
+        the flux distribution of the respective background
+        component.
         
     Returns
     -------
@@ -137,14 +138,10 @@ def get_psf_data(psf_instances, background=None):
     for psf in psf_instances:
         if not isinstance(psf, Profile):  # background component
             spaxels, fluxes = background.get_flux(psf)
-#             if sigma is not None:
-#                 fluxes = fluxes / sigma[background.used[psf]]
         else:  # stellar component
             spaxels, fluxes = psf.get_flux()
             if spaxels.size == 0:
                 logging.warning("Source #{0} entirely outside FoV.".format(psf.src_id))
-#             if sigma is not None:
-#                 fluxes = fluxes / sigma[psf.used]
         intflux = fluxes.sum()
         results.append([spaxels, fluxes, intflux])
     return results
@@ -331,10 +328,10 @@ class StarFit(object):
         if stop < 0:
             stop = self.sources.ndisp + (stop + 1)
         self.nbin = nbin
-        layers_to_analyse = np.arange(start + self.nbin//2, stop, self.nbin, dtype=np.int16)
+        layers_to_analyse = np.arange(start + self.nbin // 2, stop, self.nbin, dtype=np.int16)
         self.layers_to_analyse = np.zeros(layers_to_analyse.shape, dtype=layers_to_analyse.dtype)
-        self.layers_to_analyse[0::2] = layers_to_analyse[layers_to_analyse.size//2:]
-        self.layers_to_analyse[1::2] = layers_to_analyse[:layers_to_analyse.size//2][::-1]
+        self.layers_to_analyse[0::2] = layers_to_analyse[layers_to_analyse.size // 2:]
+        self.layers_to_analyse[1::2] = layers_to_analyse[:layers_to_analyse.size // 2][::-1]
 
         omitted_layers = ~np.in1d(np.arange(self.sources.ndisp, dtype=np.int16), self.layers_to_analyse)
 
@@ -342,10 +339,8 @@ class StarFit(object):
                                                                   self.layers_to_analyse.max()))
         logging.info("Binning factor per layer: {0}".format(self.nbin))
 
-        # Number of iterations per layer. Note that no iteration is needed if only fluxes are fitted
+        # Number of iterations per layer.
         self.maxiter = int(maxiter)
-#         if not self.psf_attributes.contains_free_parameters and not self.sources.contains_free_coordinates:
-#             self.maxiter = 1
         if self.maxiter > 1:
             logging.info("Maximum iterations per layer: {0}".format(self.maxiter))
         else:
@@ -353,16 +348,17 @@ class StarFit(object):
             self.maxiter = 1
 
         # if parameters (of the PSF or the coordinate transformation) are fitted, it must be ensured that the instances
-        # have correct dispersion information        
+        # have correct dispersion information
         if self.psf_attributes.ndisp != self.sources.ndisp:
             self.psf_attributes.resize(self.sources.ndisp)
-            if self.nbin > 1:  # set PSF parameters of omitted layers to NaN
-                self.psf_attributes.data[omitted_layers, :, 0] = np.nan
+            if self.nbin > 1:  # set fitted PSF parameters of omitted layers to NaN
+                self.psf_attributes.data[np.ix_(omitted_layers, self.psf_attributes.free, [True, False])] = np.nan
 
         if self.sources.transformation.valid and self.sources.transformation.ndisp != self.sources.ndisp:
             self.sources.transformation.resize(self.sources.ndisp)
-            if self.nbin > 1:  # set PSF parameters of omitted layers to NaN
-                self.sources.transformation.data[omitted_layers, :, 0] = np.nan
+            if self.nbin > 1:  # set fitted transformation parameters of omitted layers to NaN
+                self.sources.transformation.data[
+                    np.ix_(omitted_layers, self.sources.transformation.free, [True, False])] = np.nan
 
         # for large IFS data, get indices of sources used to fit PSF/positions
         self.assmallifu = assmallifu
@@ -403,7 +399,6 @@ class StarFit(object):
         """
         # loop over all layers in a datacube
         for i, self.jj in enumerate(self.layers_to_analyse):
-
             # A common prefix used for all logging messages related to the analysis of the current layer.
             self.prefix_string = "[{0:0{1}d}/{2}]".format(i, int(np.log10(self.layers_to_analyse.size)) + 1,
                                                           self.layers_to_analyse.size)
@@ -433,7 +428,7 @@ class StarFit(object):
 
         # load IFU coordinates for current layer into memory unless individual positions are fitted
         # if not self.full_coordinates_fit:
-        #     self.sources.load_ifs_coordinates(layers=self.jj)
+        # self.sources.load_ifs_coordinates(layers=self.jj)
 
         # update PSF instances
         # -with PSF parameters
@@ -456,8 +451,10 @@ class StarFit(object):
             i += 1
         logging.info(logstring[:-1])
 
-        # -with parameters of coordinate transformation (if available)
-        if self.sources.transformation.valid:
+        # -with parameters of coordinate transformation (if available and needed)
+        if not (self.sources.ifs_coordinates_fitted
+                | self.sources.ifs_coordinates_free)[~self.sources.is_background].all() \
+                and self.sources.transformation.valid:
             logstring = "{0} Initial coord. transformation:".format(self.prefix_string)
             i = 0
             for prm in self.sources.transformation.names:
@@ -478,25 +475,25 @@ class StarFit(object):
             logging.info(logstring[:-1])
 
         # -with direct positions if required
-        i = 0
-        for psf in self.psf_instances:
+        k = 0
+        for i, psf in enumerate(self.psf_instances):
             if not isinstance(psf, Profile):
                 continue
             if self.sources.ifs_coordinates_fitted[i]:
-                psf.set_xc(self.sources.ifs_coordinates[self.jj, i, 0, 1])
-                psf.set_yc(self.sources.ifs_coordinates[self.jj, i, 1, 1])
+                psf.set_xc(self.sources.ifs_coordinates[self.jj, k, 0, 1])
+                psf.set_yc(self.sources.ifs_coordinates[self.jj, k, 1, 1])
             elif self.sources.ifs_coordinates_free[i]:
-                psf.set_xc(self.sources.ifs_coordinates[self.jj, i, 0, 0])
-                psf.set_yc(self.sources.ifs_coordinates[self.jj, i, 1, 0])
-            i += 1
+                psf.set_xc(self.sources.ifs_coordinates[self.jj, k, 0, 0])
+                psf.set_yc(self.sources.ifs_coordinates[self.jj, k, 1, 0])
+            k += 1
 
         # WORK ON IFS DATA
         if self.nbin == 1:
             data = self.ifs_data.data.layer(self.jj)
             sigma = self.ifs_data.sigma.layer(self.jj) if self.use_sigma else None
         else:
-            jjmin = self.jj - self.nbin//2
-            jjmax = min(self.jj + self.nbin//2, self.ifs_data.ndisp)
+            jjmin = self.jj - self.nbin // 2
+            jjmax = min(self.jj + self.nbin // 2, self.ifs_data.ndisp)
             if self.use_sigma:
                 data, sigma = self.ifs_data.integrate(layer_range=(jjmin, jjmax), use_sigma=True)
             else:
@@ -553,17 +550,12 @@ class StarFit(object):
 
             # initial fit of fluxes, bring all components to integrated flux of one so they all have the same weight
             intflux = self.psf_matrix.sum(axis=0).getA1()
-            fit_matrix = self.psf_matrix*sparse.dia_matrix((1./intflux, [0]),
-                                                           shape=(self.psf_matrix.shape[1], self.psf_matrix.shape[1]))
+            fit_matrix = self.psf_matrix * sparse.dia_matrix((1. / intflux, [0]),
+                                                             shape=(self.psf_matrix.shape[1], self.psf_matrix.shape[1]))
             fit_matrix.data *= np.take(self.weights, fit_matrix.indices)
 
-            bestfit = lsmr(fit_matrix, self.current*self.weights)
-            self.sources.data[self.jj, self.valid_components, 0] += bestfit[0]/intflux
-
-            # apply weighting scheme
-            # divide residuals by model fluxes and weigh pixels by flux difference
-            # relative = self.current - self.model.sum(axis=1).getA1()
-            self.weights = 1./(1. + (self.current/self.model.sum(axis=1).getA1())**4)
+            bestfit = lsmr(fit_matrix, self.current * self.weights)
+            self.sources.data[self.jj, self.valid_components, 0] += bestfit[0] / intflux
 
             # determine relative change in fluxes
             delta_flux = bestfit[0] / self.sources.data[self.jj, self.valid_components, 0]
@@ -585,6 +577,11 @@ class StarFit(object):
                 else:
                     self.parameter_fit_on_large_ifu()
                 rebuild_matrix = True
+            else:
+                # apply weighting scheme
+                # divide residuals by model fluxes and weigh pixels by flux difference
+                # relative = self.current - self.model.sum(axis=1).getA1()
+                self.weights = 1. / (1. + (self.current / self.model.sum(axis=1).getA1()) ** 2)
 
             n_iter += 1
 
@@ -749,7 +746,7 @@ class StarFit(object):
         # Initialize parallelization (if requested)
         # TODO: enable parallelization again and make it work
         # if self.ncpu > 1:
-        #     pool    = Pool(self.ncpu)
+        # pool    = Pool(self.ncpu)
         #     threads = []
 
         # check if (and which) PSF parameters should be fitted
@@ -771,7 +768,7 @@ class StarFit(object):
 
             names = ["flux"]  # the names of the free parameters for this PSF
             x0 = [self.sources.data[
-                self.jj, self.sources.specrow[i], 0]]  # the initial guesses for the parameter fit for this PSF
+                      self.jj, self.sources.specrow[i], 0]]  # the initial guesses for the parameter fit for this PSF
             snratios.append(x0[0] / self.sources.data[self.jj, self.sources.specrow[i], 1])
 
             if self.update_coordinates[i]:
@@ -1079,7 +1076,7 @@ class StarFit(object):
             The residuals of the fit.
         """
         # logging.debug("Shape of Jacobi matrix: {0}".format(self.jacobi_multi_psf(x0, names).shape))
-        #        logging.debug("Shape of data: {0}".format(self.data.shape))
+        # logging.debug("Shape of data: {0}".format(self.data.shape))
         # update parameters in PSF-class
         for i in xrange(len(x0)):
             try:
@@ -1150,17 +1147,17 @@ class StarFit(object):
             # no updating requested
             return
 
-        assert(self.jj in self.layers_to_analyse)
+        assert (self.jj in self.layers_to_analyse)
         i = np.where(self.layers_to_analyse == self.jj)[0][0]
 
         if i < 2:
             # nothing to update yet
             return
-        elif i < 2*self.ntrack:
+        elif i < 2 * self.ntrack:
             # use all images that have been fitted so far
             lastfits = self.layers_to_analyse[:i]
         else:
-            lastfits = self.layers_to_analyse[i-2:max(0, i - 2 - 2*self.ntrack):-2]
+            lastfits = self.layers_to_analyse[i - 2:max(0, i - 2 - 2 * self.ntrack):-2]
 
         logging.debug("{0} Updating initial guesses of parameters using results from adjacent {1} layers.".format(
             self.prefix_string, lastfits.size))
