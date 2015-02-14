@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-240, 2015/02/13
+241, 2015/02/14
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 240
+__revision__ = 241
 
 import contextlib
 import itertools
@@ -476,6 +476,8 @@ class StarFit(object):
 
         # -with direct positions if required
         k = 0
+        logging.info("{0} Updating coordinates of PSF instances...".format(self.prefix_string))
+        t0 = time.time()
         for i, psf in enumerate(self.psf_instances):
             if not isinstance(psf, Profile):
                 continue
@@ -486,6 +488,7 @@ class StarFit(object):
                 psf.set_xc(self.sources.ifs_coordinates[self.jj, k, 0, 0])
                 psf.set_yc(self.sources.ifs_coordinates[self.jj, k, 1, 0])
             k += 1
+        logging.debug("{0} Time required to update PSF instances: {1:6.4f}s".format(self.prefix_string, time.time()-t0))
 
         # WORK ON IFS DATA
         if self.nbin == 1:
@@ -541,8 +544,12 @@ class StarFit(object):
             # create PSF matrix if required, divide by uncertainties
             if rebuild_matrix:
                 self.psf_matrix, self.valid_components = self.build_matrix()
+                t0 = time.time()
                 self.psf_matrix.data /= np.take(self.sigma, self.psf_matrix.indices)
                 rebuild_matrix = False
+                t1 = time.time()
+                logging.debug("{0} Time required to divide matrix by uncertainties: {1:6.3f}s".format(
+                    self.prefix_string, t1-t0))
 
             # update noise values
             self.sources.data[self.jj, self.valid_components, 1] = \
@@ -556,6 +563,8 @@ class StarFit(object):
 
             bestfit = lsmr(fit_matrix, self.current * self.weights)
             self.sources.data[self.jj, self.valid_components, 0] += bestfit[0] / intflux
+            t2 = time.time()
+            logging.debug("{0} Time required to solve matrix equation: {1:6.3f}s".format(self.prefix_string, t2-t1))
 
             # determine relative change in fluxes
             delta_flux = bestfit[0] / self.sources.data[self.jj, self.valid_components, 0]
@@ -667,7 +676,7 @@ class StarFit(object):
         # entries: the spaxels on which the PSF is defined, the corresponding fluxes, and the integrated flux
 
         t1 = time.time()
-        logging.debug("Time required to calculate PSF profiles: {0:.3f}s".format(t1 - t0))
+        logging.debug("{0} Time required to calculate PSF profiles: {1:.3f}s".format(self.prefix_string, t1 - t0))
 
         # Calculate combined integrated flux of each component
         intflux, unique_specrow = sum_by_group([r[-1] for r in results], specrow)
@@ -675,7 +684,7 @@ class StarFit(object):
         # unresolved component is only included if update_unresolved was set to True
 
         t2 = time.time()
-        logging.debug("Time required to combine components: {0:.3f}s".format(t2 - t1))
+        logging.debug("{0} Time required to combine components: {1:.3f}s".format(self.prefix_string, t2 - t1))
 
         # check if any row does not contribute at all
         empty_specrow = unique_specrow[intflux <= 0]
@@ -728,7 +737,7 @@ class StarFit(object):
             _Apsf = sparse.coo_matrix((f, (i0, i1)), shape=(nrows, ncols))
 
         t3 = time.time()
-        logging.debug("Time required to create matrix: {0:.3f}s".format(t3 - t2))
+        logging.debug("{0} Time required to create matrix: {1:.3f}s".format(self.prefix_string, t3 - t2))
 
         # return CSC matrix and boolean array indicating which components contribute flux
         zero_component = np.in1d(np.arange(self.sources.ncmp, dtype=np.int32), empty_specrow)
