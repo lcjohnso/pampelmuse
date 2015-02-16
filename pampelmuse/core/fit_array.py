@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-241, 2015/02/14
+242, 2015/02/16
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 241
+__revision__ = 242
 
 import contextlib
 import itertools
@@ -102,7 +102,12 @@ def sum_by_group(values, groups):
     return values, groups
 
 
-def get_psf_data(psf_instances, background=None):
+def init_worker(back):
+    global background
+    background = back
+
+
+def get_psf_data(psf_instances):
     """
     For a list of PSF instances, the function calculates
     the relative intensities of the PSF profile, divides
@@ -134,9 +139,13 @@ def get_psf_data(psf_instances, background=None):
         of each spaxel, and the integrated profile flux over the whole
         field of view.
     """
+    global background
+    if not hasattr(psf_instances, "__iter__"):
+        psf_instances = [psf_instances]
     results = []
     for psf in psf_instances:
         if not isinstance(psf, Profile):  # background component
+            # continue
             spaxels, fluxes = background.get_flux(psf)
         else:  # stellar component
             spaxels, fluxes = psf.get_flux()
@@ -555,22 +564,29 @@ class StarFit(object):
             self.sources.data[self.jj, self.valid_components, 1] = \
                 1. / np.sqrt(self.psf_matrix.multiply(self.psf_matrix).sum(axis=0)).getA1()
 
-            # initial fit of fluxes, bring all components to integrated flux of one so they all have the same weight
-            intflux = self.psf_matrix.sum(axis=0).getA1()
+            # Fit fluxes by direct matrix inversion
+            # The documentation of scipy states that to efficiently solve the matrix equation, the columns should
+            # be scaled to have the same euclidean norm. I am still not convince that this is true, but scale the
+            # columns nevertheless.
+            intflux = np.sqrt((self.psf_matrix.T*self.psf_matrix).diagonal())
             fit_matrix = self.psf_matrix * sparse.dia_matrix((1. / intflux, [0]),
                                                              shape=(self.psf_matrix.shape[1], self.psf_matrix.shape[1]))
             fit_matrix.data *= np.take(self.weights, fit_matrix.indices)
 
-            bestfit = lsmr(fit_matrix, self.current * self.weights)
-            self.sources.data[self.jj, self.valid_components, 0] += bestfit[0] / intflux
+            t1 = time.time()
+            bestfit = lsmr(fit_matrix, self.current * self.weights, atol=1e-5, show=False)
             t2 = time.time()
             logging.debug("{0} Time required to solve matrix equation: {1:6.3f}s".format(self.prefix_string, t2-t1))
 
+            self.sources.data[self.jj, self.valid_components, 0] += bestfit[0] / intflux
+            t3 = time.time()
+            logging.debug("{0} Time required to update fluxes: {1:6.3f}s".format(self.prefix_string, t3-t2))
+
             # determine relative change in fluxes
-            delta_flux = bestfit[0] / self.sources.data[self.jj, self.valid_components, 0]
+            delta_flux = bestfit[0] / (intflux*self.sources.data[self.jj, self.valid_components, 0])
 
             # some logging
-            logging.info("{0} Chi**2 of current fit: {1:.1f}".format(self.prefix_string, bestfit[4] ** 2))
+            logging.info("{0} Chi**2 of current fit: {1:.1f}".format(self.prefix_string, bestfit[3] ** 2))
             with printoptions(precision=4, suppress=True):
                 logging.debug("{0} Relative changes in fluxes: {1}".format(self.prefix_string, delta_flux))
 
@@ -651,7 +667,7 @@ class StarFit(object):
 
         # Initialize parallelization (if requested)
         if self.ncpu > 1:
-            pool = Pool(self.ncpu)
+            pool = Pool(self.ncpu, initializer=init_worker, initargs=(self.background,))
             threads = []
 
             # determine which sources should be calculated by which CPU
@@ -661,16 +677,18 @@ class StarFit(object):
                 imin = n * m
                 imax = min((n + 1) * m, self.sources.nsrc)
                 threads.append(
-                    pool.apply_async(get_psf_data, args=(psf_instances[imin:imax], self.background)))
+                    pool.apply_async(get_psf_data, args=(psf_instances[imin:imax], )))  # , self.background)))
+#             _results = pool.map_async(get_psf_data, psf_instances)
 
             pool.close()
             pool.join()
-
+#             results = list(itertools.chain.from_iterable(_results.get()))
             # Note: parallelization seems not to work when calling class methods. The different packages are still
             # processed
             results = list(itertools.chain.from_iterable([threads[n].get() for n in xrange(self.ncpu)]))
         else:
-            results = get_psf_data(psf_instances, self.background)
+            init_worker(self.background)
+            results = get_psf_data(psf_instances)
 
         # result is a list with length equal to the number of sources, each entry is again a list containing three
         # entries: the spaxels on which the PSF is defined, the corresponding fluxes, and the integrated flux
