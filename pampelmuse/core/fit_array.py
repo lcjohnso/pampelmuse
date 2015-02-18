@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-242, 2015/02/16
+243, 2015/02/18
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 242
+__revision__ = 243
 
 import contextlib
 import itertools
@@ -314,7 +314,8 @@ class StarFit(object):
             routine will update the initial guesses of the parameters that
             should be fitted prior to fitting a layer. To this aim, it uses
             the results from the fits to the 'ntrack' neighboring layers. If
-            you do not want this, set `ntrack' to zero. Default is 10.
+            you do not want this, set `ntrack' to zero. Default is 10. Note
+            that `ntrack' will be divided by `nbin', if layer binning is used.
         assmallifu : boolean, optional
             Flag indicating whether the data will be handled as coming from
             a small or a large IFU. This parameter controls how the PSF and/
@@ -394,7 +395,7 @@ class StarFit(object):
         self.use_sigma = use_sigma
 
         # The number of previously fitted layers used to obtain initial guesses
-        self.ntrack = ntrack
+        self.ntrack = int(ntrack//self.nbin) + 1 if self.nbin > 1 else ntrack
 
         # execute fit
         self.timeout()
@@ -517,7 +518,7 @@ class StarFit(object):
         if self.ifs_data.mask is not None:
             mask |= self.ifs_data.mask.layer(self.jj)
         if self.use_sigma:
-            mask |= np.isnan(sigma)
+            mask |= np.isnan(sigma) | (sigma <= 0)
 
         self.data = data[~mask]
         if sigma is None:
@@ -673,19 +674,19 @@ class StarFit(object):
             # determine which sources should be calculated by which CPU
             m = (len(psf_instances) // self.ncpu) + 1
 
-            for n in xrange(self.ncpu):
-                imin = n * m
-                imax = min((n + 1) * m, self.sources.nsrc)
-                threads.append(
-                    pool.apply_async(get_psf_data, args=(psf_instances[imin:imax], )))  # , self.background)))
-#             _results = pool.map_async(get_psf_data, psf_instances)
+#             for n in xrange(self.ncpu):
+#                 imin = n * m
+#                 imax = min((n + 1) * m, self.sources.nsrc)
+#                 threads.append(
+#                     pool.apply_async(get_psf_data, args=(psf_instances[imin:imax], )))  # , self.background)))
+            _results = pool.map_async(get_psf_data, psf_instances)
 
             pool.close()
             pool.join()
-#             results = list(itertools.chain.from_iterable(_results.get()))
+            results = list(itertools.chain.from_iterable(_results.get()))
             # Note: parallelization seems not to work when calling class methods. The different packages are still
             # processed
-            results = list(itertools.chain.from_iterable([threads[n].get() for n in xrange(self.ncpu)]))
+#             results = list(itertools.chain.from_iterable([threads[n].get() for n in xrange(self.ncpu)]))
         else:
             init_worker(self.background)
             results = get_psf_data(psf_instances)

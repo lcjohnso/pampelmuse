@@ -11,7 +11,7 @@ Purpose
 This module implements the class 'Cube' that facilitates the working
 with IFS data within PampelMuse. An instance of the class can be
 initialized using either 2dim. or 3dim. data. Note however, that for
-2dim. data informations about the instrument used to observe the data
+2dim. data information about the instrument used to observe the data
 must be available. This information can either be provided via a key-
 word argument to the initialization method or obtained from the FITS
 header of the data, via standard keyword INSTRUME. The method will also
@@ -21,12 +21,10 @@ check whether the IFS data contains HDUs providing either uncertainties
 
 Latest SVN revision
 -------------------
-239, 2015/02/13
+243, 2015/02/18
 """
-from pampelmuse.filters import get_filter
-
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 239
+__revision__ = 243
 
 import logging
 import types
@@ -38,6 +36,7 @@ from astropy.io import fits
 # required PampelMuse routines
 from pampelmuse.core.instruments import *
 from pampelmuse.core.instruments import available_instruments
+from pampelmuse.filters import get_filter
 
 
 class Cube:
@@ -212,8 +211,8 @@ class Cube:
             try:
                 if self.__dict__[key] != value:
                     logging.error("Invalid value encountered for '{0}' in <{1}>.".format(key, self.name))
-                    assert self.__dict__[key] == value, "Keyword '{0}' should  be {1} but is {2}" \
-                        .format(key, value, self.__dict__[key])
+                    assert self.__dict__[key] == value, "Keyword '{0}' should  be {1} but is {2}".format(
+                        key, value, self.__dict__[key])
             except KeyError:
                 logging.error("Cannot check validity of key '{0}' in <{1}> - not found.".format(key, self.name))
 
@@ -287,45 +286,51 @@ class Cube:
             The index of the HDU containing the requested data. If no matching
             HDU is found, None is returned.
         """
-        if hduname is not None and not hasattr(hduname, "__iter__"):
-            hduname = [hduname]  # make sure hduname is iterable
-
-        if filename is not None:
-            hdulist = fits.open(filename, mode=self.mode)
-        else:
-            hdulist = self.file
-
-        available_names = [hdu.name for hdu in hdulist]
+        hdunames = set(hduname)  # also makes a string iterable
 
         i = None  # will contain the index of the HDU to be loaded
 
-        # check if one of the provided names is available in the list of HDUs
-        for name in hduname:
-            try:
-                i = available_names.index(name)
-                if attribute == "sigma" and available_names[i] == "STAT": self.is_var = True
+        # preference is given to a filename, if provided. If not, the data file is searched for a matching HDU
+        if filename is not None:
+            hdulist = fits.open(filename, mode=self.mode)
+            if not any(hdu.name in hdunames for hdu in hdulist):
+                setattr(self, attribute, hdulist[0])
+                i = 0
+                if attribute == "sigma" and filename[-9:] == ".var.fits":
+                    self.is_var = True
+            else:
+                for _i, hdu in enumerate(hdulist):
+                    if hdu.name in hdunames:
+                        setattr(self, attribute, hdulist[_i])
+                        i = _i
+                        if attribute == "sigma" and hdu.name == "STAT":
+                            self.is_var = True
+                        break
+
+        for _i, hdu in enumerate(self.file):
+            if hdu.name in hdunames and i is not None:
+                logging.warning("Dedicated {0} file found ({1}), ignoring HDU '{2}'.".format(
+                    attribute.upper(), filename, hdu.name))
+            elif hdu.name in hdunames:
+                setattr(self, attribute, self.file[_i])
+                i = _i
+                if attribute == "sigma" and hdu.name == "STAT":
+                    self.is_var = True
                 break
-            except ValueError:
-                pass
 
         if i is None:
-            if filename is not None:
-                i = 0
-            else:
-                return None
+            return None
 
         # consistency checks: must have same dimensions as data
-        if hdulist[i].header["NAXIS"] != self.ndim:
+        if getattr(self, attribute).header["NAXIS"] != self.ndim:
             logging.error("Loaded HDU has different dimensionality than IFS data.")
             return
 
         # lengths of individual axes can be different, e.g. residuals are stored without calibration/sky fibers and
         # only for the wavelength range that is analysed
         for key in ["NAXIS{0}".format(j) for j in xrange(1, self.ndim + 1)]:
-            if hdulist[i].header[key] != self.data.header[key]:
+            if getattr(self, attribute).header[key] != self.data.header[key]:
                 logging.warning("Loaded HDU has different axis dimensions than IFS data.".format(key))
-
-        setattr(self, attribute, hdulist[i])
 
         return i
 

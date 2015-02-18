@@ -61,10 +61,10 @@ the data into memory yet but just checks whether the file(s) are valid.
 
 Latest SVN revision
 -------------------
-242, 2015/02/16"""
+243, 2015/02/18"""
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.19.2.3"
-__revision__ = 242
+__version__ = "0.19.2.4"
+__revision__ = 243
 
 import sys
 sys.stdout.write("""
@@ -482,6 +482,8 @@ else:
 
 if os.path.exists("{0}.err.fits".format(args.prefix)):
     sigma_ifs = "{0}.err.fits".format(args.prefix)
+elif os.path.exists("{0}.var.fits".format(args.prefix)):
+    sigma_ifs = "{0}.var.fits".format(args.prefix)
 else:
     sigma_ifs = None  # sigma data must be included as an HDU in science data file
 

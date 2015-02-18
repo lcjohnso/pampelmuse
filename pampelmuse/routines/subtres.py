@@ -15,12 +15,12 @@ if PampelMuse is started with the 'SUBTRES' option.
 
 Latest SVN revision
 -------------------
-239, 2015/02/13
+243, 2015/02/18
 """
 from scipy.interpolate import InterpolatedUnivariateSpline
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 239
+__revision__ = 243
 import datetime
 import itertools
 import logging
@@ -34,7 +34,7 @@ from scipy import sparse
 from pampelmuse.core import BackgroundGrid, Sources
 from pampelmuse.core.coordinates import Transformation
 from pampelmuse.core.psf import *
-from pampelmuse.core.fit_array import get_psf_data
+from pampelmuse.core.fit_array import get_psf_data, init_worker
 
 
 def subtres(pampelmuse):
@@ -195,24 +195,27 @@ def subtres(pampelmuse):
         
         # Initialize parallelization (if requested)
         if pampelmuse.cpucount > 1:
-            pool = Pool(pampelmuse.cpucount)
-            threads = []
-            
-            # determine which sources should be calculated by which CPU
-            m = (len(psf_instances)//pampelmuse.cpucount) + 1
-            
-            for n in xrange(pampelmuse.cpucount):
-                imin = n*m
-                imax = min((n+1)*m, len(psf_instances))
-                
-                threads.append(pool.apply_async(get_psf_data, args=(psf_instances[imin:imax],
-                                                                    background if pampelmuse.subsky else None)))
+            pool = Pool(pampelmuse.cpucount, initializer=init_worker,
+                        initargs=(background if pampelmuse.subsky else None,))
+#             threads = []
+#
+#             # determine which sources should be calculated by which CPU
+#             m = (len(psf_instances)//pampelmuse.cpucount) + 1
+#
+#             for n in xrange(pampelmuse.cpucount):
+#                 imin = n*m
+#                 imax = min((n+1)*m, len(psf_instances))
+#
+#                 threads.append(pool.apply_async(get_psf_data, args=(psf_instances[imin:imax])))
+            _results = pool.map_async(get_psf_data, psf_instances)
             pool.close()
             pool.join()
-        
-            results = list(itertools.chain.from_iterable([threads[n].get() for n in xrange(pampelmuse.cpucount)]))
+
+            results = list(itertools.chain.from_iterable(_results.get()))
+#            results = list(itertools.chain.from_iterable([threads[n].get() for n in xrange(pampelmuse.cpucount)]))
         else:
-            results = get_psf_data(psf_instances, background if pampelmuse.subsky else None)
+            init_worker(background if pampelmuse.subsky else None)
+            results = get_psf_data(psf_instances)
 
         i0 = np.hstack((r[0] for r in results))  # the row indices
 

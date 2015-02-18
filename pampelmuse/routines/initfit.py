@@ -790,8 +790,8 @@ def initfit(pampelmuse):
                             background="local", ncpu=pampelmuse.cpucount, nbin=pampelmuse.layerbin)
 
         # for testing purposes:
-#        tablehdu = fits.BinTableHDU(results)
-#        tablehdu.writeto("{0}.aperture.fits".format(pampelmuse.prefix), clobber=True)
+        # tablehdu = fits.BinTableHDU(results)
+        # tablehdu.writeto("{0}.aperture.fits".format(pampelmuse.prefix), clobber=True)
         
         # write spectra and IFS coordinates into instance of Sources, estimate S/N and exclude sources with S/N<20
         sources.load_ifs_coordinates(ids=results["id"][results["id"] >= 0])
