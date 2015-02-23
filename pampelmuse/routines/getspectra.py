@@ -22,10 +22,10 @@ Added
 
 Latest SVN revision
 -------------------
-239 # 2015/02/13
+244 # 2015/02/22
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 239
+__revision__ = 244
 
 import datetime
 import logging
@@ -263,7 +263,7 @@ def getspectra(pampelmuse):
             primary_hdu.header["HIERARCH SPECTRUM YCUBE"] = (sources.y[j], "[spaxel] y-centroid in cube")
 
         # calculate S/N of the spectrum
-        SNR = DER_SNR(sources.data[:, 0, 0])
+        SNR = DER_SNR(sources.data[pampelmuse.start:pampelmuse.stop, i, 0])
         if SNR < 10:
             flag += 2
         primary_hdu.header["HIERARCH SPECTRUM SNRATIO"] = (SNR, "Estimated signal-to-noise")
