@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-243, 2015/02/18
+245, 2015/02/27
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 243
+__revision__ = 245
 
 import contextlib
 import itertools
@@ -1175,13 +1175,13 @@ class StarFit(object):
             # no updating requested
             return
 
-        assert (self.jj in self.layers_to_analyse)
+        assert(self.jj in self.layers_to_analyse)
         i = np.where(self.layers_to_analyse == self.jj)[0][0]
 
         if i < 2:
             # nothing to update yet
             return
-        elif i < 2 * self.ntrack:
+        elif i <= 2 * self.ntrack:
             # use all images that have been fitted so far
             lastfits = self.layers_to_analyse[:i]
         else:
