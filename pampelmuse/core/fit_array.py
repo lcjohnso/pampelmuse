@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-245, 2015/02/27
+246, 2015/03/01
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 245
+__revision__ = 246
 
 import contextlib
 import itertools
@@ -603,11 +603,12 @@ class StarFit(object):
                 else:
                     self.parameter_fit_on_large_ifu()
                 rebuild_matrix = True
+            elif self.use_sigma:
+                # apply weighting scheme, similar to the one used in Stetson's DAOphot
+                # only possible if uncertainties are being used
+                self.weights = 1. / (1. + (abs(self.current) / (2.*self.sigma)) ** 2)
             else:
-                # apply weighting scheme
-                # divide residuals by model fluxes and weigh pixels by flux difference
-                # relative = self.current - self.model.sum(axis=1).getA1()
-                self.weights = 1. / (1. + (self.current / self.model.sum(axis=1).getA1()) ** 2)
+                break
 
             n_iter += 1
 
