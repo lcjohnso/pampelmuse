@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-246, 2015/03/01
+247, 2015/03/02
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 246
+__revision__ = 247
 
 import contextlib
 import itertools
@@ -561,10 +561,6 @@ class StarFit(object):
                 logging.debug("{0} Time required to divide matrix by uncertainties: {1:6.3f}s".format(
                     self.prefix_string, t1-t0))
 
-            # update noise values
-            self.sources.data[self.jj, self.valid_components, 1] = \
-                1. / np.sqrt(self.psf_matrix.multiply(self.psf_matrix).sum(axis=0)).getA1()
-
             # Fit fluxes by direct matrix inversion
             # The documentation of scipy states that to efficiently solve the matrix equation, the columns should
             # be scaled to have the same euclidean norm. I am still not convince that this is true, but scale the
@@ -582,6 +578,10 @@ class StarFit(object):
             self.sources.data[self.jj, self.valid_components, 0] += bestfit[0] / intflux
             t3 = time.time()
             logging.debug("{0} Time required to update fluxes: {1:6.3f}s".format(self.prefix_string, t3-t2))
+
+            # update noise values
+            self.sources.data[self.jj, self.valid_components, 1] = \
+                1. / (intflux * np.sqrt(fit_matrix.multiply(fit_matrix).sum(axis=0)).getA1())
 
             # determine relative change in fluxes
             delta_flux = bestfit[0] / (intflux*self.sources.data[self.jj, self.valid_components, 0])
