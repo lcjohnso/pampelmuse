@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-240, 2015/02/13
+248, 2015/03/22
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 240
+__revision__ = 248
 
 import datetime, itertools, os, sys, logging
 from multiprocessing import cpu_count, Pool
@@ -50,23 +50,13 @@ from scipy import ndimage, signal, spatial
 # note: PyQt4 imported below only if interaction enabled
 
 # required PampelMuse routines
+from pampelmuse import ConfigurationError
 from pampelmuse.core import AperPhoto, BackgroundGrid, Sources
 from pampelmuse.core.psf import *
 from pampelmuse.filters import ALIASES, FILTERFWHM
 from pampelmuse.functions.io import read_asciifile
 from pampelmuse.functions.statistics import DER_SNR
 # note: pampelmuse.graphics.PampelMuseGui imported below only if interaction enabled
-
-
-# class defines the exception that is raised when the parameters
-# in the PampelMuse-configuration are such that they do not allow
-# for a proper analysis of the provided input
-class ConfigurationError(EnvironmentError):
-    def __init__(self, value):
-        self.value = value
-
-    def __str__(self):
-        return repr(self.value)
 
 
 def estimate_snr(psf_instances, sigma):

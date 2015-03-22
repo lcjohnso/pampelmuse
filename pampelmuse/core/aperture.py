@@ -25,10 +25,10 @@ function pampelmuse.core.aperture.run_ap
 
 Latest SVN revision
 -------------------
-183, 2014/06/30
+248, 2015/03/22
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 183
+__revision__ = 248
 
 import itertools
 import logging
@@ -334,7 +334,10 @@ class AperPhoto:
             for name in ["x", "y", "x2", "y2", "xy"]:
                 dtype.append((name, np.float32, (self.cube.ndisp,)))
         self.results = np.zeros(self.nsources + (background == "global"), dtype=dtype)
-        self.results[:] = np.nan
+        if self.results.size == 1:
+            self.results.view("<f4")[:] = np.nan
+        else:
+            self.results[:] = np.nan
 
         # collect centroid coordinates for all sources and add their IDs to output array:
         centroids = np.zeros((self.nsources, 2), dtype=np.float32)
