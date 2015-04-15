@@ -73,7 +73,7 @@ inpsf = INPSF(Xc=ARRAY_SIZE[1]/2., Yc=ARRAY_SIZE[0]/2., mag=-10, maxrad=10,
               osradius=2, osfactor=5)
 inpsf.fwhm = 4.0
 
-outpsf = OUTPSF(Xc=inpsf.Xc, Yc=inpsf.Yc, mag=0, maxrad=10, osradius=2,
+outpsf = OUTPSF(Xc=inpsf.uc, Yc=inpsf.vc, mag=0, maxrad=10, osradius=2,
                 osfactor=5)
 
 ## initialize arrays to hold results, create NREAL random beta values

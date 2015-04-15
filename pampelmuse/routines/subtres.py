@@ -15,7 +15,7 @@ if PampelMuse is started with the 'SUBTRES' option.
 
 Latest SVN revision
 -------------------
-243, 2015/02/18
+249, 2015/04/15
 """
 from scipy.interpolate import InterpolatedUnivariateSpline
 
@@ -137,7 +137,7 @@ def subtres(pampelmuse):
             continue
         if sources.status[i] == 0 and not pampelmuse.subunres:  # check if unresolved component should be subtracted
             continue
-        psf_instances.append(PSF(Xc=sources.x[i], Yc=sources.y[i], mag=sources.weights[i], src_id=sources.ID[i],
+        psf_instances.append(PSF(uc=sources.x[i], vc=sources.y[i], mag=sources.weights[i], src_id=sources.ID[i],
                                  maxrad=pampelmuse.psfrad, osfactor=5, osradius=2))
         included[i] = True
     specrows = sources.specrow[included]

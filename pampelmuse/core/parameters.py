@@ -74,12 +74,12 @@ class Parameters(object):
         self._data = None  # The parameter values (and potentially smooth representations in dispersion direction)
 
         if order is not None:  # The names of the parameters, check if any order is requested
-            self.names = order
+            names = order
             for name in kwargs.keys():
-                if name not in self.names:
-                    self.names.append(name)
+                if name not in names:
+                    names.append(name)
         else:
-            self.names = kwargs.keys()
+            names = kwargs.keys()
 
         # make sure 'hdu' is a fits.BinTableHDU if provided
         if hdu is not None and not isinstance(hdu, fits.BinTableHDU):
@@ -108,12 +108,15 @@ class Parameters(object):
                         self.ndisp = int(size)
                     break
 
+            # parameters can either be defined
+            self.names = list(np.union1d(names, hdu.data["name"]))
+
             # initialize the data array
-            self._data = np.zeros((self.ndisp, hdu.header["NAXIS2"], 2), dtype=np.float32)
+            self._data = np.zeros((self.ndisp, len(self.names), 2), dtype=np.float32)
             self._data[:] = np.nan  # no values have been provided so far
 
             # initialize a boolean array indicating if a parameter is free, i.e. should be optimized in a fit.
-            self.free = np.zeros(hdu.header["NAXIS2"], dtype=np.bool)
+            self.free = np.zeros(self._data.shape[1], dtype=np.bool)
 
             # read the parameter values into the structure
             for i in xrange(hdu.data.size):
@@ -135,6 +138,7 @@ class Parameters(object):
 
                 logging.info("Added parameter '{0}' from HDU to the structure.".format(name))
         else:
+            self.names = names
             self._data = np.zeros((1, self.npars, 2), dtype=np.float32)
             self._data[:] = np.nan
             self.free = np.zeros((self.npars,), dtype=np.bool)

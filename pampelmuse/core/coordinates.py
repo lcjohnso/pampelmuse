@@ -24,27 +24,26 @@ The class 'Transformation' inherits from the class pampelmuse.core.parameters.Pa
 that defines a more general framework for dealing with parameters within PampelMuse.
 
 Currently the spaxel coordinates for a layer are determined from the reference
-coordinates via a transformation including four parameters, A, B, C, and D:
+coordinates via an affine transformation including six parameters, A, B, C, D, x0, y0:
 
-(i)  x_spaxel = A*x_ref + B*y_ref + C
-(ii) y_spexel = A*y_ref - B*x_ref + D
+(i)  x_spaxel = A*x_ref + C*y_ref + x0
+(ii) y_spaxel = D*y_ref - B*x_ref + y0
 
-The inverse transformation is given by the following formulae:
-(iii) x_ref = A'*x_spaxel + B'*y_spaxel + C'
-(iv)  y_ref = A'*y_spaxel - B'*x_spaxel + D'
-
-where A' = A/(A*A+B*B), B' = -B/(A*A+B*B), C' = (B*D-A*C)/(A*A+B*B), and
-D' = -(A*D+B*C)/(A*A+B*B)
+# TODO: update the following
+#OUTDATED#The inverse transformation is given by the following formulae:
+#OUTDATED#(iii) x_ref = A'*x_spaxel + B'*y_spaxel + C'
+#OUTDATED#(iv)  y_ref = A'*y_spaxel - B'*x_spaxel + D'
+#OUTDATED#
+#OUTDATED#where A' = A/(A*A+B*B), B' = -B/(A*A+B*B), C' = (B*D-A*C)/(A*A+B*B), and
+#OUTDATED#D' = -(A*D+B*C)/(A*A+B*B)
 
 
 Latest SVN revision
 -------------------
-232, 2015/01/30
+249, 2015/04/15
 """
-from scipy import interpolate
-
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 232
+__revision__ = 249
 
 import logging
 import re
@@ -85,14 +84,15 @@ def my_lsq_sigma(A, b, sigma=None):
     else:
         _A = A
         _b = b
+    slc = ~np.isnan(_b)
 
     if b.ndim == 1:
-        x = np.linalg.lstsq(_A, _b)[0]
+        x = np.linalg.lstsq(_A[slc], _b[slc])[0]
     else:
         if sigma is not None:
-            x = np.atleast_2d([np.linalg.lstsq(_A[i], _b[i])[0] for i in xrange(_b.shape[0])])
+            x = np.atleast_2d([np.linalg.lstsq(_A[i, slc], _b[i, slc])[0] for i in xrange(_b.shape[0])])
         else:
-            x = np.atleast_2d([np.linalg.lstsq(_A, _b[i])[0] for i in xrange(_b.shape[0])])
+            x = np.atleast_2d([np.linalg.lstsq(_A[slc], _b[i, slc])[0] for i in xrange(_b.shape[0])])
 
     return x
 
@@ -101,16 +101,19 @@ class Transformation(Parameters):
     """
     The class stores information about the coordinate transformation that is
     used by PampelMuse. So far, the coordinates transformation is defined as
-        x = A*u + B*v + C
-        y = A*v - B*u + D
+        x = A*u + C*v + x0
+        y =-B*u + D*v + y0
     With (x,y) being the coordinates in IFU pixels and (u,v) being the input
-    (or reference) coordinates. A-D are the parameters of the transformation.
+    (or reference) coordinates. A, B, C, D, x0, and y0 are the parameters of
+    the transformation.
+    Note that earlier versions used a simpler version of the coordinate trans-
+    formation, with C=B and D=A. This is still supported as input format.
     """
-    PARAMETERS = ["A", "B", "C", "D"]
+    PARAMETERS = ["A", "B", "C", "D", "x0", "y0"]
 
-    def __init__(self, **kwargs):
+    def __init__(self, conformal=False, **kwargs):
         """
-        Intialize an instance of the 'Transformation`-class.
+        Initialize an instance of the 'Transformation`-class.
        
         Parameters
         ----------
@@ -120,22 +123,36 @@ class Transformation(Parameters):
             to provide initial values to the parameters of the coordinate trans-
             formation.
         """
-        # if no HDU is provided as a keyword argument, check if the indiviudal parameters are provided, otherwise
+        self.conformal = conformal
+
+        # if no HDU is provided as a keyword argument, check if the individual parameters are provided, otherwise
         #  initialize them to NaN.
-        if not "hdu" in kwargs:
+        if "hdu" not in kwargs:
             for name in self.PARAMETERS:
-                if not name in kwargs: kwargs[name] = np.nan
+                if name not in kwargs:
+                    kwargs[name] = np.nan
 
         # call initialization method of super-class, make sure order is A, B, C, D.
         super(Transformation, self).__init__(order=self.PARAMETERS, **kwargs)
+
+        if self.defined.sum() == 4:
+            self.conformal = True
+            self._data[:, -2:] = self.data[:, -4:-2]
+            self._data[:, -4:-2] = np.nan
+            self.free[-2:] = self.free[-4:-2]
+            self.fitted[-2:] = self.fitted[-4:-2]
 
         # check if all required parameters are available
         i = 0
         for name in self.PARAMETERS:
             if name not in self.names:
-                logging.critical("Missing required parameter '{0}' of coord. transfomation.".format(name))
+                logging.critical("Missing required parameter '{0}' of coord. transformation.".format(name))
             #     assert name in self.names, "Cannot find '{0}' among parameters of coord. transf.".format(name)
             i += 1
+
+    @property
+    def valid(self):
+        return (self.fitted | self.defined).sum() >= 4
 
     def fit_to_data(self, in_coords, out_coords, ids=None, out_sigma=None):
         """
@@ -321,7 +338,7 @@ class Transformation(Parameters):
         A*x=b in a least squares sense for x=[A,B,C,D,...]. The input coordinates
         are written to A while the output coordinates constitute b.
         
-        NOTE: Deviating from the bahaviour of the method 'fit_to_data', the parameters
+        NOTE: Deviating from the behaviour of the method 'fit_to_data', the parameters
         of the transformation are not re-initialized here. Instead, the result of the
         least squared fit is returned.
         
@@ -351,13 +368,22 @@ class Transformation(Parameters):
         # fill matrix using input coordinates, the matrix equation will contain alternating equations for x and y,
         # equations involving output x coordinates in even rows (0,2,...N-2) and involving output y coordinates in
         # odd rows (1,3,...,N-1)
-        A = np.ones((N, 4), dtype=np.float32)
-        A[slice(0, N, 2), 0] = indata[:, 0]
-        A[slice(1, N, 2), 0] = indata[:, 1]
-        A[slice(0, N, 2), 1] = indata[:, 1]
-        A[slice(1, N, 2), 1] = -indata[:, 0]
-        A[slice(1, N, 2), 2] = 0.
-        A[slice(0, N, 2), 3] = 0.
+        if self.conformal:
+            A = np.ones((N, 4), dtype=np.float32)
+            A[slice(0, N, 2), 0] = indata[:, 0]
+            A[slice(1, N, 2), 0] = indata[:, 1]
+            A[slice(0, N, 2), 1] = indata[:, 1]
+            A[slice(1, N, 2), 1] = -indata[:, 0]
+            A[slice(1, N, 2), 2] = 0.
+            A[slice(0, N, 2), 3] = 0.
+        else:
+            A = np.zeros((N, 6), dtype=np.float32)
+            A[slice(0, N, 2), 0] = indata[:, 0]
+            A[slice(0, N, 2), 2] = indata[:, 1]
+            A[slice(0, N, 2), -2] = 1.
+            A[slice(1, N, 2), 1] = -indata[:, 0]
+            A[slice(1, N, 2), 3] = indata[:, 1]
+            A[slice(1, N, 2), -1] = 1.
 
         # make sure input is available as numpy arrays & join x- & y-data
         outdata = np.atleast_2d(outdata)
@@ -375,10 +401,10 @@ class Transformation(Parameters):
 
     @property
     def zmatrix(self):
-        # create diagonal matrix with trace [C D] for each layer (index 0 is spectral one)
+        # create diagonal matrix with trace [x0, y0] for each layer (index 0 is spectral one)
         _m = np.zeros((self.ndisp, 2, 2), dtype=np.float32)
-        _m[:, 0, 0] = self.data[:, 2, int(self.fitted[2])]  # parameter C
-        _m[:, 1, 1] = self.data[:, 3, int(self.fitted[3])]  # parameter D
+        _m[:, 0, 0] = self.data[:, -2, int(self.fitted[-2])]  # parameter x0
+        _m[:, 1, 1] = self.data[:, -1, int(self.fitted[-1])]  # parameter y0
 
         # if np.isnan(_m).any():
         #     logging.warning("Coordinate transformation contains interpolated values.")
@@ -391,12 +417,12 @@ class Transformation(Parameters):
 
     @property
     def fmatrix(self):
-        # create matrix [[A B] [-B A]] for each layer (index 0 is spectral one)
+        # create matrix [[A C] [-B D]] for each layer (index 0 is spectral one)
         _f = np.zeros((self.ndisp, 2, 2), dtype=np.float32)
         _f[:, 0, 0] = self.data[:, 0, int(self.fitted[0])]
-        _f[:, 0, 1] = self.data[:, 1, int(self.fitted[1])]
+        _f[:, 0, 1] = self.data[:, 1, int(self.fitted[1])] if self.conformal else self.data[:, 2, int(self.fitted[2])]
         _f[:, 1, 0] = -self.data[:, 1, int(self.fitted[1])]
-        _f[:, 1, 1] = self.data[:, 0, int(self.fitted[0])]
+        _f[:, 1, 1] = self.data[:, 0, int(self.fitted[0])] if self.conformal else self.data[:, 3, int(self.fitted[3])]
 
         # if np.isnan(_f).any():
         #     logging.warning("Coordinate transformation contains interpolated values.")
@@ -408,7 +434,7 @@ class Transformation(Parameters):
         return _f
 
     def __call__(self, in_coords):
-
+        print self.conformal
         return np.inner(self.zmatrix, np.ones(in_coords.shape, dtype=in_coords.dtype)).swapaxes(-2, -1) + np.inner(
             self.fmatrix, in_coords).swapaxes(-2, -1)
 

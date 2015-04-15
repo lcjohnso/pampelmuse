@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-247, 2015/03/02
+249, 2015/04/15
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 247
+__revision__ = 249
 
 import contextlib
 import itertools
@@ -268,7 +268,7 @@ class StarFit(object):
             else:
                 # for each stellar source, an instance of the requested PSF-class is added
                 self.psf_instances.append(self.PSF(
-                    Xc=self.sources.x[i], Yc=self.sources.y[i], mag=sources.weights[i],
+                    uc=self.sources.x[i], vc=self.sources.y[i], mag=sources.weights[i],
                     src_id=self.sources.ID[i], maxrad=maxrad, osfactor=osfactor, osradius=osradius))
 
         # Check if individual source positions should be fitted
@@ -437,68 +437,22 @@ class StarFit(object):
             self.sources.data[self.jj, np.isnan(self.sources.data[self.jj, :, 0]), 0] = 0
 
         # load IFU coordinates for current layer into memory unless individual positions are fitted
+        # not done anymore because it may take ages - instead the whole array is loaded when the fit is started
         # if not self.full_coordinates_fit:
         # self.sources.load_ifs_coordinates(layers=self.jj)
 
         # update PSF instances
         # -with PSF parameters
-        logstring = "{0} Initial PSF model:".format(self.prefix_string)
-        i = 0
-        for prm in self.psf_attributes.names:
-            if self.psf_attributes.fitted[i]:
-                value = self.psf_attributes.data[self.jj, i, 1]
-            else:
-                if self.psf_attributes.mask[self.jj, i, 0]:
-                    logging.warning("Access to NaN value in PSF data, interpolating...")
-                    f = InterpolatedUnivariateSpline(
-                        (~self.psf_attributes.mask[:, i, 0]).nonzero()[0],
-                        self.psf_attributes.data[~self.psf_attributes.mask[:, i, 0], i, 0], k=2)
-                    value = float(f(self.jj))  # newer versions of scipy return an array of zero size
-                else:
-                    value = self.psf_attributes.data[self.jj, i, 0]
-            getattr(self.PSF, "set_{0}".format(prm))(value)
-            logstring += " {1}={2:.2f},".format(self.prefix_string, prm, float(value))
-            i += 1
-        logging.info(logstring[:-1])
+        self.update_psf_parameters()
 
         # -with parameters of coordinate transformation (if available and needed)
-        if not (self.sources.ifs_coordinates_fitted
-                | self.sources.ifs_coordinates_free)[~self.sources.is_background].all() \
-                and self.sources.transformation.valid:
-            logstring = "{0} Initial coord. transformation:".format(self.prefix_string)
-            i = 0
-            for prm in self.sources.transformation.names:
-                if self.sources.transformation.fitted[i]:
-                    value = self.sources.transformation.data[self.jj, i, 1]
-                else:
-                    if self.sources.transformation.mask[self.jj, i, 0]:
-                        logging.warning("Access to NaN value in coordinate transformation data, interpolating...")
-                        f = InterpolatedUnivariateSpline(
-                            (~self.sources.transformation.mask[:, i, 0]).nonzero()[0],
-                            self.sources.transformation.data[~self.sources.transformation.mask[:, i, 0], i, 0], k=2)
-                        value = float(f(self.jj))
-                    else:
-                        value = self.sources.transformation.data[self.jj, i, 0]
-                getattr(self.PSF, "set_{0}".format(prm))(value)
-                logstring += " {1}={2:.2f},".format(self.prefix_string, prm, float(value))
-                i += 1
-            logging.info(logstring[:-1])
+        if self.sources.transformation.valid and not np.all((
+                self.sources.ifs_coordinates_fitted | self.sources.ifs_coordinates_free)[~self.sources.is_background]):
+            self.update_coordinate_transformation()
 
         # -with direct positions if required
-        k = 0
-        logging.info("{0} Updating coordinates of PSF instances...".format(self.prefix_string))
-        t0 = time.time()
-        for i, psf in enumerate(self.psf_instances):
-            if not isinstance(psf, Profile):
-                continue
-            if self.sources.ifs_coordinates_fitted[i]:
-                psf.set_xc(self.sources.ifs_coordinates[self.jj, k, 0, 1])
-                psf.set_yc(self.sources.ifs_coordinates[self.jj, k, 1, 1])
-            elif self.sources.ifs_coordinates_free[i]:
-                psf.set_xc(self.sources.ifs_coordinates[self.jj, k, 0, 0])
-                psf.set_yc(self.sources.ifs_coordinates[self.jj, k, 1, 0])
-            k += 1
-        logging.debug("{0} Time required to update PSF instances: {1:6.4f}s".format(self.prefix_string, time.time()-t0))
+        if self.sources.ifs_coordinates_fitted.any() or self.sources.ifs_coordinates_free.any():
+            self.update_ifs_coordinates()
 
         # WORK ON IFS DATA
         if self.nbin == 1:
@@ -616,6 +570,88 @@ class StarFit(object):
                 if self.maxiter > 1:
                     logging.warning("{0} Max. number of iterations reached.".format(self.prefix_string))
                 break
+
+    def update_psf_parameters(self):
+        """
+        Method to update the PSF parameters in all instances of PSF sources
+        prior to fitting a new layer of data.
+
+        :return:
+        """
+        logstring = "{0} Initial PSF model:".format(self.prefix_string)
+
+        # loop over PSF parameters
+        i = 0
+        for prm in self.psf_attributes.names:
+            if self.psf_attributes.fitted[i]:
+                value = self.psf_attributes.data[self.jj, i, 1]
+            else:
+                if self.psf_attributes.mask[self.jj, i, 0]:
+                    logging.warning("Access to NaN value in PSF data, interpolating...")
+                    f = InterpolatedUnivariateSpline(
+                        (~self.psf_attributes.mask[:, i, 0]).nonzero()[0],
+                        self.psf_attributes.data[~self.psf_attributes.mask[:, i, 0], i, 0], k=2)
+                    value = float(f(self.jj))  # newer versions of scipy return an array of zero size
+                    self.psf_attributes.data[self.jj, i, 0] = value
+                else:
+                    value = self.psf_attributes.data[self.jj, i, 0]
+            getattr(self.PSF, "set_{0}".format(prm))(value)
+            logstring += " {1}={2:.2f},".format(self.prefix_string, prm, float(value))
+            i += 1
+        logging.info(logstring[:-1])
+
+    def update_coordinate_transformation(self):
+        """
+        Method to update the parameters of the coordinate transformation in
+        all instances of PSF sources prior to fitting a new layer of data.
+
+        :return:
+        """
+        logstring = "{0} Initial coord. transformation:".format(self.prefix_string)
+
+        # loop over parameters of coordinate transformation
+        i = 0
+        for prm in self.sources.transformation.names:
+            if self.sources.transformation.fitted[i]:
+                value = self.sources.transformation.data[self.jj, i, 1]
+            else:
+                if self.sources.transformation.mask[self.jj, i, 0]:
+                    logging.warning("Access to NaN value in coordinate transformation data, interpolating...")
+                    f = InterpolatedUnivariateSpline(
+                        (~self.sources.transformation.mask[:, i, 0]).nonzero()[0],
+                        self.sources.transformation.data[~self.sources.transformation.mask[:, i, 0], i, 0], k=2)
+                    value = float(f(self.jj))
+                    self.sources.transformation.data[self.jj, i, 0] = value
+                else:
+                    value = self.sources.transformation.data[self.jj, i, 0]
+            getattr(self.PSF, "set_{0}".format(prm))(value)
+            logstring += " {1}={2:.2f},".format(self.prefix_string, prm, float(value))
+            i += 1
+        logging.info(logstring[:-1])
+
+    def update_ifs_coordinates(self):
+        """
+        Method to update the IFS coordinates i all instances of PSF sources
+        prior to fitting a new layer of data.
+
+        :return:
+        """
+        k = 0
+        logging.info("{0} Updating coordinates of PSF instances...".format(self.prefix_string))
+        t0 = time.time()
+        for i, psf in enumerate(self.psf_instances):
+            if not isinstance(psf, Profile):
+                continue
+            if self.sources.ifs_coordinates_fitted[i]:
+                psf.set_xc(self.sources.ifs_coordinates[self.jj, k, 0, 1])
+                psf.set_yc(self.sources.ifs_coordinates[self.jj, k, 1, 1])
+            elif self.sources.ifs_coordinates_free[i]:
+                psf.set_xc(self.sources.ifs_coordinates[self.jj, k, 0, 0])
+                psf.set_yc(self.sources.ifs_coordinates[self.jj, k, 1, 0])
+            k += 1
+
+        logging.debug("{0} Time required to update source coordinates: {1:6.4f}s".format(
+            self.prefix_string, time.time() - t0))
 
     @property
     def model(self):
@@ -1011,7 +1047,7 @@ class StarFit(object):
     def parameter_fit_on_small_ifu(self):
         """
         Perform the positions/PSF fit on the whole array. A non-linear least-
-        squares fit that uses Levenberg-Marquard optimization is performed
+        squares fit that uses Levenberg-Marquardt optimization is performed
         with all resolved sources. This fitting procedure is recommended only
         for IFUs with a small number of spatial pixels. The results of the fit
         are used to update the PSF and/or the parameters of the coordinate
@@ -1059,7 +1095,7 @@ class StarFit(object):
                     fitPars.append(self.psf_attributes.data[self.jj, i, 0])
                     parNames.append(self.psf_attributes.names[i])
 
-            # call Levenberg-Marquard solver from scipy.optimize (& provide Jacobian)
+            # call Levenberg-Marquardt solver from scipy.optimize (& provide Jacobian)
             try:
                 bestfit = optimize.leastsq(self.optimize_multi_psf, x0=fitPars, Dfun=self.jacobi_multi_psf, col_deriv=1,
                                            args=(parNames,), epsfcn=0.0)[0]

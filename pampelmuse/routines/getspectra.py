@@ -22,10 +22,10 @@ Added
 
 Latest SVN revision
 -------------------
-244 # 2015/02/22
+249 # 2015/04/15
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 244
+__revision__ = 249
 
 import datetime
 import logging
@@ -238,7 +238,7 @@ def getspectra(pampelmuse):
 
                 # translate to MUSE pixels by undoing derotator rotation, subtract minimum pixel of unrotated MUSE
                 # field (may not be zero)
-                xm = (np.cos(alpha)*xy_j[0] + np.sin(alpha)*xy_j[1])-museextents.xmin
+                # xm = (np.cos(alpha)*xy_j[0] + np.sin(alpha)*xy_j[1])-museextents.xmin
                 ym = (-np.sin(alpha)*xy_j[0] + np.cos(alpha)*xy_j[1])-museextents.ymin
                 
                 ifuno = int(24.*ym/(museextents.ymax-museextents.ymin))+1
@@ -266,7 +266,10 @@ def getspectra(pampelmuse):
         SNR = DER_SNR(sources.data[pampelmuse.start:pampelmuse.stop, i, 0])
         if SNR < 10:
             flag += 2
-        primary_hdu.header["HIERARCH SPECTRUM SNRATIO"] = (SNR, "Estimated signal-to-noise")
+        if not np.isnan(SNR):
+            primary_hdu.header["HIERARCH SPECTRUM SNRATIO"] = (SNR, "Estimated signal-to-noise")
+        else:
+            logging.error("S/N estimation returned NaN - Spectrum of source #{0} corrupted.".format(ID))
 
         if np.mean(sources.data[:, 0, 0]) < 0:
             flag += 4

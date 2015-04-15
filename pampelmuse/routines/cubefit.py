@@ -20,12 +20,14 @@ fit' if the configuration parameter USEQT of PampelMuse is enabled.
 
 Latest SVN revision
 -------------------
-239, 2015/02/13
+249, 2015/04/15
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 239
+__revision__ = 249
 
-import datetime, logging, os, sys
+import datetime
+import logging
+import sys
 import numpy as np
 # note that PyQt4 is loaded later and only if requested
 
@@ -75,7 +77,7 @@ def cubefit(pampelmuse):
         sources.transformation = Transformation(hdu=pampelmuse.hdulist[i])
     except KeyError:
         logging.warning("No coord. transf. (HDU 'POSPARS') detected.")
-        sources.ifs_coordinates_free[sources.status<4] = True
+        sources.ifs_coordinates_free[sources.status < 4] = True
     sources.info()
 
     # Initializing PSF properties
@@ -86,7 +88,7 @@ def cubefit(pampelmuse):
     except KeyError:  # otherwise, assume Gaussian, round with FWHM=3.0pixel
         logging.warning("No HDU 'PSFPARS' found. Using default PSF.")
         
-        kwargs = {"profile" : pampelmuse.pfsftype}
+        kwargs = {"profile": pampelmuse.pfsftype}
         free = []
         i = 0
         while hasattr(pampelmuse.psf, "parname{0}".format(i)):
@@ -136,7 +138,7 @@ def cubefit(pampelmuse):
     pampelmuse.hdulist["SPECTRA"] = sources.make_spectra_hdu()
 
     # Store IFU coordinates (only if they have been fitted)
-    if (sources.ifs_coordinates_free & (sources.ifs_coordinates_fitted == False)).any():
+    if (sources.ifs_coordinates_free & ~sources.ifs_coordinates_fitted).any():
         try:
             pampelmuse.hdulist["POSITIONS"] = sources.make_ifs_coordinates_hdu()
         except KeyError:

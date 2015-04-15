@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-248, 2015/03/22
+249, 2015/04/15
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 248
+__revision__ = 249
 
 import datetime, itertools, os, sys, logging
 from multiprocessing import cpu_count, Pool
@@ -338,7 +338,7 @@ def initfit(pampelmuse):
             psf_instances.append(None)
             continue
         
-        psf = PSF(Xc=sources.x[i], Yc=sources.y[i], mag=(sources.mag[i]-magz), src_id=sources.ID[i], maxrad=10.)
+        psf = PSF(uc=sources.x[i], vc=sources.y[i], mag=(sources.mag[i]-magz), src_id=sources.ID[i], maxrad=10.)
         psf_instances.append(psf)
 
         if (psf.mag+magz) <= pampelmuse.reslim:  # only add sources that are likely resolved
@@ -434,7 +434,7 @@ def initfit(pampelmuse):
             ccyoff = 0
 
         # initialize coordinate transformation
-        sources.transformation.data = np.array([1., 0., -ccxoff, -ccyoff], dtype=np.float32)
+        sources.transformation.data = np.array([1., 0., 0., 1., -ccxoff, -ccyoff], dtype=np.float32)
 
         # add measured offsets to INITFIT namespace so that they are included in the header of the PRM-file
         pampelmuse.initfit.ccxoff = ccxoff
@@ -484,8 +484,8 @@ def initfit(pampelmuse):
     for i in xrange(sources.nsrc):
         if sources.ID[i] < 0:
             continue
-        psf_instances[i].Xc = sources.x[i]
-        psf_instances[i].Yc = sources.y[i]
+        psf_instances[i].uc = sources.x[i]
+        psf_instances[i].vc = sources.y[i]
 
     if len(identified) >= 2:
 
@@ -502,7 +502,7 @@ def initfit(pampelmuse):
         logging.critical("At least 2 sources must be identified.")
         
     if pampelmuse.posfit == 1:
-        sources.transformation.free[2:] = True
+        sources.transformation.free[-2:] = True
     elif pampelmuse.posfit == 2:
         sources.transformation.free[:] = True
 

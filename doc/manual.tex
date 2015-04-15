@@ -121,7 +121,6 @@ In the following sections, the individual parameters of the configuration will b
 that provide its name, type (e.g. string or float), default value, and a (hopefully) helpful comment about its usage. Some parameters that influence the overall behaviour of \pampelmuse are provided in the following.
 \pmparameter{VERBOSE}{integer}{2}{The chattiness of \pampelmuse, i.e. the amount of output produced on the console, increasing from $0$ to $4$. The code uses the logging module of python, the different numbers correspond to the following levels: $0$--CRITICAL, $1$-ERROR, $2$--WARNING, $3$--INFO, $4$-DEBUG}
 \pmparameter{CPUCOUNT}{integer}{$1$}{The number of CPUs used by the parallelized parts of \pampelmuse. If set to $-1$, the code uses all available CPUs on the system.}
-\pmparameter{LAYERRNG}{tuple}{($0$, $-1$)}{The range of layers of the IFS data that should be analysed. The default corresponds to the full cube.}
 
 \subsection{Modifying the configuration}
 
@@ -189,6 +188,10 @@ If provided, the bad pixel mask should be zero for valid pixels and one for pixe
 Although not required, it is highly advantageous if the header of the FITS file containing the IFS data contains some basic WCS information, i.e. at least the keywords \texttt{RA}, \texttt{DEC}, and the matrix \texttt{CDi\_j}. \pampelmuse will use this information to determine the spaxel scale and the approximate location of the field of view on the sky. If no WCS information is available, the keyword \texttt{PIXSCALE} should be used to provide the spaxel scale.
 
 \pmparameter{PIXSCALE}{float}{1.0}{The scale of the spaxels in arcseconds. Note that this parameter is only used if the code cannot infer the spaxel size from the (WCS) information provided in the FITS header of the IFS data.}
+
+\pampelmuse also offers the possibility to analyse only a part of the datacube or to bin the data in spectral direction to speed up the analysis. Two parameters, \texttt{LAYERRNG} and \texttt{LAYERBIN} can be used to achieve this.
+\pmparameter{LAYERRNG}{tuple}{($0$, $-1$)}{The range of layers of the IFS data that should be analysed. The default corresponds to the full cube.}
+\pmparameter{LAYERBIN}{integer}{1}{The spectral binning factor of the IFS data during the analysis.}
 
 \subsection{The reference catalogue}
 As \pampelmuse does not currently include a dedicated source detection algorithm, the analysis relies on the presence of a reference catalogue, containing coordinates and magnitudes of the stars in and around the observed field. The best sources for such a catalogue are imaging data obtained with the \textit{Hubble} space telescope (HST) or ground based adaptive optics images. Note that the quality of the reference catalogue (especially its completeness and astrometric accuracy) will strongly influence the results of the analysis. For example, a common shortcoming of catalogues generated from HST data is that the brightest stars are often missing because they were saturated in the exposures. If this is the case, try to add them manually.
@@ -459,7 +462,7 @@ The routine will store all the extracted spectra in individual FITS files that c
 Note that this routine is called with the mandatory argument \texttt{<spectra prefix>} which is a string  (typically the name of the observed cluster, galaxy, ...) that is used as a common prefix to all FITS files that are written. Additionally, the routine may be called with the \texttt{--folder} option to provide a folder in which all spectra should be stored.
 
 \subsection{Recommended analysis strategy}
-The strategy I usually use when analysing IFS data is the following.  After selecting the sources for which spectra should be extracted via INITFIT, I perform a first extraction with CUBEFIT in which the PSF parameters and the coordinate transformation are optimized for each layer. Afterwards, I use POLYFIT to smooth the wavelength dependencies of those parameters via polynomial fits. Finally, I run CUBEFIT again. Since the PRM-file now contains the polynomial fits to the positions and PSF parameters, it will only fit the source fluxes without any iteration. Hence, the secoond run of CUBEFIT should be much faster than the first.
+The strategy I usually use when analysing IFS data is the following.  After selecting the sources for which spectra should be extracted via INITFIT, I perform a first extraction with CUBEFIT in which the PSF parameters and the coordinate transformation are optimized across the whole wavelength range  with a moderate binning in spectral  direction, $\texttt{LAYERBIN} \sim 50$. Afterwards, I use POLYFIT to smooth the wavelength dependencies of those parameters via polynomial fits. Finally, I run CUBEFIT again, this time without any spectral binning. Since the PRM-file now contains the polynomial fits to the positions and PSF parameters, it will only fit the source fluxes without any iteration. Hence, the secoond run of CUBEFIT should be much faster than the first.
 
 \subsection{Auxiliary routines}
 \subsubsection{SINGLESRC}
@@ -473,6 +476,7 @@ SINGLESRC will perform aperture photometry for every provided source on each lay
 \subsection{Wiggles in extracted MUSE spectra}
 When running \pampelmuse with MUSE data, some extracted spectra may show wiggles in the continuum (see Fig.~\ref{fig:muse_spectra_wiggles}). The reason for this is that by default \pampelmuse uses the uncertainties provided by the MUSE pipeline (extension \texttt{STAT}). When resampling the data onto a homogeneous grid, the pipeline introduces similar wiggles in the uncertainties --- that affect the extraction. As a workaround, you can switch of the usage of the uncertainties during the extraction with the parameter \texttt{USESIGMA}.
 \pmparameter{USESIGMA}{float}{True}{Flag indicating if the uncertainties of the IFS data are used in the extraction.}
+Note that the consequence of ignoring the uncertainties is obviously that all spaxels will have the same weight. This may lead to a poor overall fit if the data values cover a large range of intensities. Make sure to carefully check the quality of the extracted spectra afterwards. In some cases, it may be necessary to smooth the uncertainties outside of \pampelmuse prior to the extraction.
 
 \begin{figure}[ht]
  \centering \includegraphics[width=8cm]{muse_spectra_wiggles.png}
