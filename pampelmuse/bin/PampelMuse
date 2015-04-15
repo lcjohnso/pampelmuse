@@ -63,8 +63,8 @@ Latest SVN revision
 -------------------
 249, 2015/04/15"""
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.20.0.0"
-__revision__ = 249
+__version__ = "0.20.1.0"
+__revision__ = 250
 
 import sys
 sys.stdout.write("""
@@ -131,7 +131,8 @@ from pampelmuse.core.psf import Variables
 # import the PampelMuse subroutines
 from pampelmuse.routines import initfit, cubefit, polyfit, subtres, shotnoi, makecube, singlesrc, getspectra
 # if graphics: from pampelmuse.routines import initfit, polyfit
-if use_addwcs: from pampelmuse.routines import addwcs
+if use_addwcs:
+    from pampelmuse.routines import addwcs
 
 
 # Two small classes are defined that read the configuration provided by the

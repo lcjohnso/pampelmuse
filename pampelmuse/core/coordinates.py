@@ -40,10 +40,10 @@ coordinates via an affine transformation including six parameters, A, B, C, D, x
 
 Latest SVN revision
 -------------------
-249, 2015/04/15
+250, 2015/04/15
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 249
+__revision__ = 250
 
 import logging
 import re
@@ -87,13 +87,21 @@ def my_lsq_sigma(A, b, sigma=None):
     slc = ~np.isnan(_b)
 
     if b.ndim == 1:
-        x = np.linalg.lstsq(_A[slc], _b[slc])[0]
-    else:
-        if sigma is not None:
-            x = np.atleast_2d([np.linalg.lstsq(_A[i, slc], _b[i, slc])[0] for i in xrange(_b.shape[0])])
+        if slc.sum() > _A.shape[-1]:
+            x = np.linalg.lstsq(_A[slc], _b[slc])[0]
         else:
-            x = np.atleast_2d([np.linalg.lstsq(_A[slc], _b[i, slc])[0] for i in xrange(_b.shape[0])])
-
+            x = np.zeros(_A.shape[-1], dtype=np.float32)
+            x[:] = np.nan
+    else:
+        x = np.zeros((_b.shape[0], _A.shape[-1]), dtype=np.float32)
+        for i in xrange(_b.shape[0]):
+            if slc[i].sum() > _A.shape[-1]:
+                if sigma is not None:
+                    x[i] = np.linalg.lstsq(_A[i, slc[i]], _b[i, slc[i]])[0]
+                else:
+                    x[i] = np.linalg.lstsq(_A[slc[i]], _b[i, slc[i]])[0]
+            else:
+                x[i] = np.nan
     return x
 
 
@@ -434,7 +442,6 @@ class Transformation(Parameters):
         return _f
 
     def __call__(self, in_coords):
-        print self.conformal
         return np.inner(self.zmatrix, np.ones(in_coords.shape, dtype=in_coords.dtype)).swapaxes(-2, -1) + np.inner(
             self.fmatrix, in_coords).swapaxes(-2, -1)
 
