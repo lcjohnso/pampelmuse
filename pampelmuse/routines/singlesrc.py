@@ -17,10 +17,10 @@ proved using the first order moments determined in the calculation.
  
 Latest SVN revision
 -------------------
-248, 2015/03/22
+251, 2015/04/21
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-gooettingen.de)"
-__revision__ = 248
+__revision__ = 251
 
 import datetime, logging, os, re
 import numpy as np
@@ -95,7 +95,7 @@ def singlesrc(pampelmuse):
         if sources.ID[i] <= 0:
             psf_instances.append(None)
         else:
-            psf_instances.append(PSF(Xc=sources.x[i], Yc=sources.y[i], mag=0, src_id=sources.ID[i], maxrad=10.))
+            psf_instances.append(PSF(uc=sources.x[i], vc=sources.y[i], mag=0, src_id=sources.ID[i], maxrad=10.))
 
     # include dispersion information in Sources catalogue
     sources.ndisp = pampelmuse.stop-pampelmuse.start+1
