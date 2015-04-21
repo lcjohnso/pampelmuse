@@ -17,10 +17,10 @@ proved using the first order moments determined in the calculation.
  
 Latest SVN revision
 -------------------
-251, 2015/04/21
+252, 2015/04/21
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-gooettingen.de)"
-__revision__ = 251
+__revision__ = 252
 
 import datetime, logging, os, re
 import numpy as np
@@ -111,7 +111,7 @@ def singlesrc(pampelmuse):
 
         make_aper = AperPhoto(pampelmuse.ifs_data, [psf_instances[i] for i in np.flatnonzero(sources.status == 3)])
         results = make_aper(r_aper=pampelmuse.aperrad, layer_range=(pampelmuse.start, pampelmuse.stop),
-                            background="local", ncpu=pampelmuse.cpucount)
+                            background="local", ncpu=pampelmuse.cpucount, nbin=pampelmuse.layerbin)
         
     elif psf_variables.free.any():
         raise ConfigurationError("PSF variability must be set to zero if no source with status=3 provided.")
