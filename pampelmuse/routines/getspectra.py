@@ -22,10 +22,10 @@ Added
 
 Latest SVN revision
 -------------------
-249 # 2015/04/15
+253 # 2015/04/22
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 249
+__revision__ = 253
 
 import datetime
 import logging
@@ -156,10 +156,12 @@ def getspectra(pampelmuse):
             else:
                 mask &= np.isnan(pampelmuse.ifs_data.data.layer(i))
         pampelmuse.ifs_data.instrument.determine_edge(~(mask.flatten()))
-    
-        alpha = np.radians(pampelmuse.ifs_data.get_key("ESO INS DROT POSANG"))  # get rotation angle
+
+        print pampelmuse.ifs_data.get_key("ESO INS DROT POSANG")
+        alpha = pampelmuse.ifs_data.get_key("ESO INS DROT POSANG")  # get rotation angle
         t = matplotlib.transforms.Affine2D(np.array([[0, 1, 0], [1, 0, 0], [0, 0, 1]]))  # rotate edge of MUSE field
-        t.rotate_around(0, 0, -alpha)
+        if alpha is not None:
+            t.rotate_around(0, 0, -np.radians(alpha))
         musepath = pampelmuse.ifs_data.instrument.edgepath.transformed(t)
         museextents = musepath.get_extents()
 
@@ -234,7 +236,7 @@ def getspectra(pampelmuse):
             primary_hdu.header["HIERARCH SPECTRUM YCUBE"] = (xy_j[1], "[spaxel] y-position in cube")
 
             # if instrument is MUSE, find by which IFU the spectrum was dispersed
-            if pampelmuse.ifs_data.instrument.name == "muse":
+            if pampelmuse.ifs_data.instrument.name == "muse" and alpha is not None:
 
                 # translate to MUSE pixels by undoing derotator rotation, subtract minimum pixel of unrotated MUSE
                 # field (may not be zero)

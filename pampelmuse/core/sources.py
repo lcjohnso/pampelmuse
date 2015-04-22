@@ -21,10 +21,10 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-239, 2015/02/13
+253, 2015/04/22
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 239
+__revision__ = 253
 
 import collections
 import inspect
@@ -231,12 +231,13 @@ class Sources(object):
         """
         When the instance is terminated, the temporary files will be deleted.
         """
-        for filename in self._tmp_names: os.remove(filename)
+        for filename in self._tmp_names:
+            os.remove(filename)
 
-    ###############################################################################
+    ############################################################
     # Definitions of the various properties,                   #
     # and the methods to create & access them                  #
-    ###############################################################################
+    ############################################################
     @property
     def nsrc(self):
         """
@@ -1104,7 +1105,7 @@ class Sources(object):
                 xfctname = ident[hdu.data["xfct"][i]]  # the name of the polynomial as a string
                 yfctname = ident[hdu.data["yfct"][i]]
 
-                xfct = self.available[yfctname]  # the actual polynomial class
+                xfct = self.available[xfctname]  # the actual polynomial class
                 yfct = self.available[yfctname]
 
                 ifs_coordinates_id[i] = hdu.data["id"][i]
@@ -1192,7 +1193,7 @@ class Sources(object):
         cube, or an individual layer.
         The method tries to obtain the IFS coordinates in different ways (and
         in the following order):
-         (a) reading the coordinates from an avaiable FITS-ImageHDU. The method
+         (a) reading the coordinates from an available FITS-ImageHDU. The method
              Sources.open_coordinates_hdu() may be used to make such an HDU
              available.
          (b) using the coordinate transformation if it has been fully defined.
@@ -1203,7 +1204,7 @@ class Sources(object):
         may be used to make such an HDU available
 
         The routine will prepare a 4dim. array of shape (Ndisp, Nsrc, 2,2 ), and
-        store it as property Sources.ifs_coordinates. Its first axis respresents
+        store it as property Sources.ifs_coordinates. Its first axis represents
         the dispersion axis, its second axis distinguishes the individual sources,
         its third axis is x/y, and its forth axis contains the data under index 0
         and a potential fit to it under index 1.
@@ -1273,17 +1274,20 @@ class Sources(object):
             processed = np.in1d(ids, self.ifs_coordinates_data_id)
             # returns boolean array of length len(ids); processed[i]=True if ids[i] is in ifs_coordinates_data_id
 
-            # to fill in the IFS coordinates from an open HDU, a loop over the requested layers is performed unless the
-            # whole data are requested. While python loops are slow, this is the fastest way of getting the requested
-            # coordinates without loading the whole coordinates data into memory because a call like hdu.section[i] is
-            # much faster than a call like hdu.section[:,j,k]
+            # When using an open HDU to fill in the IFS coordinates from an open HDU, the data are loaded for all
+            # requested sources across the full spectral range. This is required to allow for interpolation of NaN
+            # values if requested.
             hdu_indices = match_on_id(self.ifs_coordinates_data_id, ids[processed])
-            if nlayer == self.ndisp and processed.all():
-                self.ifs_coordinates[..., 0] = self.ifs_coordinates_data_hdu.data[:, hdu_indices]
-            elif hdu_indices.size > 0:
-                for i in xrange(nlayer):
-                    self.ifs_coordinates[i:i + 1, processed, :, 0:1] = \
-                        self.ifs_coordinates_data_hdu.section[layers[i]][hdu_indices][..., np.newaxis]
+            ifs_coords = self.ifs_coordinates_data_hdu.data[:, hdu_indices]
+            if not interpolate or not np.isnan(ifs_coords[layers]).any():
+                self.ifs_coordinates[:, processed, :, 0:1] = ifs_coords[layers][..., np.newaxis]
+            else:
+                logging.warning("IFS coordinates include interpolated values.")
+                for i in np.nonzero(processed)[0]:
+                    for j in xrange(2):
+                        valid = ~np.isnan(ifs_coords[:, i, j])
+                        fct = InterpolatedUnivariateSpline(np.flatnonzero(valid), ifs_coords[valid, i, j], k=2)
+                        self.ifs_coordinates[:, i, j, 0] = fct(layers)
         else:
             processed = np.zeros((len(ids),), dtype=np.bool)
 
@@ -1303,7 +1307,7 @@ class Sources(object):
                             fct = InterpolatedUnivariateSpline(np.flatnonzero(valid), ifs_coords[valid, i, j], k=2)
                             self.ifs_coordinates[:, i, j, 0] = fct(layers)
                 # 4th entry in square brackets must be slice; if an index (i.e. 0) is used, the shape of the resulting
-                # subarray is not as expected
+                # sub-array is not as expected
             else:  # third option: just use reference coordinates
                 self.ifs_coordinates[:, src_indices, :, 0:1] = ref_coords[:, :, np.newaxis]
         t3 = time.time()
@@ -1645,18 +1649,19 @@ class Sources(object):
             select = np.arange(self.nsrc, dtype=np.int32)
 
         # sort by increasing magnitudes (if possible)
-        if self._mag is not None: select = select[self._mag[select].argsort()]
+        if not np.isnan(self._mag).all():
+            select = select[self._mag[select].argsort()]
 
-        outCols = [fits.Column(name="id", format="J", array=self.ID[select])]
+        outcols = [fits.Column(name="id", format="J", array=self.ID[select])]
 
         formats = {"x": "E", "y": "E", "mag": "E", "ra": "D", "dec": "D", "status": "I", "specrow": "I", "primary": "J"}
         for attribute in ["x", "y", "mag", "ra", "dec", "status", "primary", "specrow"]:
             if getattr(self, "_{0}".format(attribute)) is not None:
                 logging.debug("Adding column '{0}' to table...".format(attribute))
-                outCols.append(fits.Column(name=attribute, format=formats[attribute],
+                outcols.append(fits.Column(name=attribute, format=formats[attribute],
                                            array=getattr(self, "_{0}".format(attribute))[select]))
 
-        return fits.new_table(outCols, header=fits.Header(cards=[fits.Card(key="EXTNAME", value="SOURCES")]))
+        return fits.new_table(outcols, header=fits.Header(cards=[fits.Card(key="EXTNAME", value="SOURCES")]))
 
     def make_spectra_hdu(self, components=None):
         """
@@ -1713,14 +1718,16 @@ class Sources(object):
             # contain the spectra for a subset of the components. So a warning is triggered if an HDU that does
             # not include all spectra will be created.
 
-        outHDU = fits.ImageHDU(self.data, name="SPECTRA")
-        outHDU.header["CRPIX3"] = self.crpix
-        outHDU.header["CRVAL3"] = self.crval
-        outHDU.header["CDELT3"] = self.cdelt
-        if self.ctype is not None: outHDU.header["CTYPE3"] = self.ctype
-        if self.cunit is not None: outHDU.header["CUNIT3"] = self.cunit
+        outhdu = fits.ImageHDU(self.data, name="SPECTRA")
+        outhdu.header["CRPIX3"] = self.crpix
+        outhdu.header["CRVAL3"] = self.crval
+        outhdu.header["CDELT3"] = self.cdelt
+        if self.ctype is not None:
+            outhdu.header["CTYPE3"] = self.ctype
+        if self.cunit is not None:
+            outhdu.header["CUNIT3"] = self.cunit
 
-        return outHDU
+        return outhdu
 
     def make_ifs_coordinates_hdu(self, ids=None, fit=False, name="POSITIONS", **kwargs):
         """

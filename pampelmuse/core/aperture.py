@@ -25,18 +25,15 @@ function pampelmuse.core.aperture.run_ap
 
 Latest SVN revision
 -------------------
-248, 2015/03/22
+253, 2015/04/22
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 248
+__revision__ = 253
 
-import itertools
 import logging
-import sys
-from multiprocessing import cpu_count, Pool
-from scipy import spatial
-
 import numpy as np
+from multiprocessing import Pool
+from scipy import spatial
 
 # required PampelMuse-packages
 from pampelmuse.core import Cube
@@ -248,6 +245,8 @@ class AperPhoto:
         self.nsources = len(self.psf_instances)
         logging.info("Prepared aperture spectrophotometry for {0} source[s].".format(self.nsources))
 
+        self.layers_to_analyse = None
+
     def __call__(self, r_aper=3., layer_range=(0, -1), calc_moments=True, thresh=3., background="global", ncpu=1,
                  nbin=1):
         """
@@ -306,7 +305,7 @@ class AperPhoto:
         if stop < 0:
             stop = self.cube.ndisp + (stop + 1)
         self.nbin = nbin
-        layers_to_analyse = np.arange(start + self.nbin//2, stop, self.nbin, dtype=np.int16)
+        self.layers_to_analyse = np.arange(start + self.nbin//2, stop, self.nbin, dtype=np.int16)
 
         self.thresh = thresh
         self.calc_moments = calc_moments
@@ -357,17 +356,17 @@ class AperPhoto:
         _results = []
 
         i = 0
-        while i < layers_to_analyse.size:
+        while i < self.layers_to_analyse.size:
 
             if ncpu > 1:
                 pool = Pool(ncpu)
                 threads = []
 
             for nthreads in xrange(ncpu):
-                layer_index = layers_to_analyse[i]
+                layer_index = self.layers_to_analyse[i]
 
-                logging.info("   processing layer {0:{1}d}/{2}".format(i+1, len(str(layers_to_analyse.size)),
-                                                                       layers_to_analyse.size))
+                logging.info("   processing layer {0:{1}d}/{2}".format(i+1, len(str(self.layers_to_analyse.size)),
+                                                                       self.layers_to_analyse.size))
 
                 # load data
                 if nbin == 1:
@@ -376,7 +375,7 @@ class AperPhoto:
                         mask = self.cube.mask.layer(layer_index)
                         data[mask] = np.nan
                 else:
-                    if layer_index != layers_to_analyse[-1]:
+                    if layer_index != self.layers_to_analyse[-1]:
                         data = self.cube.integrate(layer_range=(layer_index-nbin//2, layer_index+nbin//2))
                     else:
                         data = self.cube.integrate(layer_range=(layer_index-nbin//2, stop))
@@ -390,7 +389,7 @@ class AperPhoto:
                         centroids, self.cube.instrument.transform, data, background, r_aper, calc_moments, thresh))
 
                 i += 1
-                if i == layers_to_analyse.size:
+                if i == self.layers_to_analyse.size:
                     break
 
             if ncpu > 1:
@@ -404,11 +403,11 @@ class AperPhoto:
         else:
             results = np.vstack(_results)
 
-        self.results["flux"][:results.shape[1], layers_to_analyse] = results[..., 0].T
+        self.results["flux"][:results.shape[1], self.layers_to_analyse] = results[..., 0].T
         if calc_moments:
             i = 1
             for name in ["x", "y", "x2", "y2", "xy"]:
-                self.results[name][:results.shape[1], layers_to_analyse] = results[..., i].T
+                self.results[name][:results.shape[1], self.layers_to_analyse] = results[..., i].T
                 i += 1
 
         return self.results

@@ -17,18 +17,21 @@ proved using the first order moments determined in the calculation.
  
 Latest SVN revision
 -------------------
-252, 2015/04/21
+253, 2015/04/22
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-gooettingen.de)"
-__revision__ = 252
+__revision__ = 253
 
-import datetime, logging, os, re
+import datetime
+import logging
+import os
+import re
 import numpy as np
 from astropy.io import fits
 
 # required PampelMuse routines
 from pampelmuse import ConfigurationError
-from pampelmuse.core import AperPhoto, Sources
+from pampelmuse.core import AperPhoto, BackgroundGrid, Sources
 from pampelmuse.core.psf import *
 
 
@@ -47,20 +50,36 @@ def singlesrc(pampelmuse):
             logging.critical("Cannot grab source information from string '{0}'.".format(entry))
             logging.critical("Source information must be provided as '<x>,<y>,<status>'.")
             assert source is not None, "Invalid input for source: {0}".format(entry)
-        sourcelist.append((i, source.group(1), source.group(2), 0.0, source.group(3), i))
+        sourcelist.append((i, source.group(1), source.group(2), source.group(3), i))
         logging.info("Added source at ({0},{1}) with status {2} and ID {3}.".format(
             source.group(1),  source.group(2), source.group(3), i))
         i += 1
         
-    if pampelmuse.globsky:
-        sourcelist.append((-1, 0.0, 0.0, 0.0, 4, -1))
-        logging.info("Added global sky component.")
-        
+    if pampelmuse.globsky:  # add background component(s) if requested
+        if pampelmuse.skysize <= 0:
+            background = BackgroundGrid.constant()
+        else:
+            background = BackgroundGrid.from_shape(shape=pampelmuse.ifs_data.instrument.shape,
+                                                   rscale=pampelmuse.skysize/2.)
+
+        n = 0
+        for i, [y, x] in enumerate(background.centroids):
+            # ignore sky components outside FoV
+            if pampelmuse.ifs_data.instrument.distance_to_edge([[x, y]])[0] < -pampelmuse.skysize \
+                    and pampelmuse.skysize > 0:
+                continue
+
+            sourcelist.append((-i-1, x, y, 4, -i-1))
+            n += 1
+
+        logging.info("Added {0} sky component(s).".format(n))
+
     # initialize Sources instance
     logging.info("Initializing the catalog of sources...")
-    input_catalog = np.array(sourcelist, dtype=[("id", "<i4"), ("x", "<f4"), ("y", "<f4"), ("mag", "<f4"), ("status", "<i2"), ("primary", "<i4")])
+    input_catalog = np.array(sourcelist, dtype=[("id", "<i4"), ("x", "<f4"), ("y", "<f4"), ("status", "<i2"),
+                                                ("primary", "<i4")])
     sources = Sources(input_catalog)
-    
+
     # initialize the PSF (attributes and profiles)
     logging.info("Initializing the PSF...")
     
@@ -98,12 +117,14 @@ def singlesrc(pampelmuse):
             psf_instances.append(PSF(uc=sources.x[i], vc=sources.y[i], mag=0, src_id=sources.ID[i], maxrad=10.))
 
     # include dispersion information in Sources catalogue
-    sources.ndisp = pampelmuse.stop-pampelmuse.start+1
-    sources.crval = pampelmuse.ifs_data.crval+pampelmuse.start*pampelmuse.ifs_data.cdelt
+    sources.ndisp = pampelmuse.stop - pampelmuse.start + 1
+    sources.crval = pampelmuse.ifs_data.crval + pampelmuse.start*pampelmuse.ifs_data.cdelt
     sources.cdelt = pampelmuse.ifs_data.cdelt
     sources.ctype = pampelmuse.ifs_data.ctype
     sources.cunit = pampelmuse.ifs_data.cunit
     sources.load_spectra()  # create dummy data: every spectrum is empty
+    sources.load_ifs_coordinates()  # initialize IFS coordinates
+    sources.ifs_coordinates_free[sources.ID >= 0] = True
 
     # carry out aperture spectrophotometry for PSF sources
     if (sources.status == 3).any():
@@ -112,78 +133,78 @@ def singlesrc(pampelmuse):
         make_aper = AperPhoto(pampelmuse.ifs_data, [psf_instances[i] for i in np.flatnonzero(sources.status == 3)])
         results = make_aper(r_aper=pampelmuse.aperrad, layer_range=(pampelmuse.start, pampelmuse.stop),
                             background="local", ncpu=pampelmuse.cpucount, nbin=pampelmuse.layerbin)
-        
+
+        dispmask = np.ones(pampelmuse.ifs_data.ndisp, dtype=np.bool)  # only work on layers used by aperture photometry
+        dispmask[make_aper.layers_to_analyse] = False
+
+        for i in xrange(results.size):
+            # add flux to Sources instance
+            j = np.where(sources.ID == results["id"][i])[0][0]
+            sources.data[:, sources.specrow[j], 0] = results["flux"][i]
+
+            # add IFS coordinates to Sources instance
+            k = sources.ifs_coordinates_loaded.cumsum()[j] - 1
+            sources.ifs_coordinates[:, k, 0, 0] = results["x"][i]
+            sources.ifs_coordinates[:, k, 1, 0] = results["y"][i]
+
+        sources.data[dispmask] = np.nan
+        sources.ifs_coordinates[dispmask] = np.nan
+
+        # Use results from aperture spectrophotometry to refine initial PSF parameters
+        # TODO: Make 'update_psf' a parameter in the PampelMuse configuration
+        update_psf = True if psf_variables.free.any() else False
+        if update_psf:
+            stars = (results["id"] >= 0)
+
+            logging.info("Estimated PSF properties from measured moments:")
+            x2 = np.ma.array(results[["x2"]][stars].view(np.float32).reshape(stars.sum(), -1))
+            x2.mask = np.isnan(x2)
+            y2 = np.ma.array(results[["y2"]][stars].view(np.float32).reshape(stars.sum(), -1))
+            y2.mask = np.isnan(y2)
+            xy = np.ma.array(results[["xy"]][stars].view(np.float32).reshape(stars.sum(), -1))
+            xy.mask = np.isnan(xy)
+
+            # get A, B:
+            with np.errstate(invalid="ignore"):
+                A = np.sqrt((x2 + y2)/2. + np.sqrt(((x2 - y2)/2.)**2 + xy**2))
+                A.mask[A <= 0] = True
+                B = np.sqrt((x2 + y2)/2. - np.sqrt(((x2 - y2)/2.)**2 + xy**2))
+                B.mask[B <= 0] = True
+
+            # FWHM
+            fwhm = np.sqrt(8.*np.log(2))*np.mean(A, axis=0)
+            # TODO: should FWHM be updated as well?
+            logging.info("Mean FWHM: {0:.2f}pix.".format(fwhm.mean()))
+
+            # Ellipticity
+            e = 1. - np.mean(B/A, axis=0)
+            logging.info("Mean ellipticity: {0:.2f}".format(e.mean()))
+            ii = psf_variables.names.index("e")
+            if psf_variables.free[ii]:
+                # need to check if dispersion information already included in PSF variables, otherwise, use numpy.resize
+                #  that fills enlarged array with repeated copies of available data
+                if psf_variables.data.shape[0] == 1:
+                    psf_variables.data = np.resize(psf_variables.data, e.shape+psf_variables.data.shape[1:])
+                psf_variables.data[:, ii, 0] = e.data
+
+            # Position angle
+            with np.errstate(invalid="ignore"):
+                _theta = 0.5*np.arctan(2*xy/(x2-y2))
+                _theta -= (-1)**(_theta < 0)*np.pi/4.
+                _theta += (-1)**(xy > 0)*np.pi/4.
+                theta = _theta.mean(axis=0)
+            logging.info("Mean position angle: {0:.2f}rad.".format(theta.mean()))
+            ii = psf_variables.names.index("theta")
+            if psf_variables.free[ii]:
+                if psf_variables.data.shape[0] == 1:
+                    psf_variables.data = np.resize(psf_variables.data, theta.shape+psf_variables.data.shape[1:])
+                psf_variables.data[:, ii, 0] = theta.data
+
+            if psf_variables.data.shape[0] > 1:
+                psf_variables.data[dispmask] = np.nan
+
     elif psf_variables.free.any():
         raise ConfigurationError("PSF variability must be set to zero if no source with status=3 provided.")
-    else:
-        results = []
-        
-    sources.load_spectra()
-    sources.load_ifs_coordinates()
-    sources.ifs_coordinates_free[sources.ID >= 0] = True
-    
-    i = 0
-    for j in np.flatnonzero(sources.status == 3):
-
-        # add flux of source to Sources instance
-        sources.data[:, sources.specrow[j], 0] = results["flux"][i]
-
-        if results["id"][i] >= 0:  # skip background component - not used anyway currently (background set to "local")
-                
-            # add IFS coordinates to Sources instance
-            sources.ifs_coordinates[:, i, 0, 0] = np.ma.array(results["x"][i], mask=np.isnan(results["x"][i]),
-                                                              fill_value=psf_instances[j].xc).filled()
-            sources.ifs_coordinates[:, i, 1, 0] = np.ma.array(results["y"][i], mask=np.isnan(results["y"][i]),
-                                                              fill_value=psf_instances[j].yc).filled()
-        i += 1
-
-    # Use results from aperture spectrophotometry to refine initial PSF parameters
-    # TODO: Make 'update_psf' a parameter in the PampelMuse configuration
-    update_psf = True if psf_variables.free.any() else False
-    if update_psf:
-        stars = (results["id"] >= 0)
-            
-        logging.info("Estimating PSF properties using measured moments...")
-        x2 = np.ma.array(results[["x2"]][stars].view(np.float32).reshape(stars.sum(), -1))
-        x2.mask = np.isnan(x2)
-        y2 = np.ma.array(results[["y2"]][stars].view(np.float32).reshape(stars.sum(), -1))
-        y2.mask = np.isnan(y2)
-        xy = np.ma.array(results[["xy"]][stars].view(np.float32).reshape(stars.sum(), -1))
-        xy.mask = np.isnan(xy)
-
-        # get A, B:
-        A = np.sqrt((x2+y2)/2.+np.sqrt(((x2-y2)/2.)**2+xy**2))
-        A.mask[A <= 0] = True
-        B = np.sqrt((x2+y2)/2.-np.sqrt(((x2-y2)/2.)**2+xy**2))
-        B.mask[B <= 0] = True
-        
-        # FWHM
-        fwhm = np.sqrt(8.*np.log(2))*np.mean(A, axis=0)
-        # TODO: should FWMH be updated as well?
-        logging.info("Mean FWHM: {0:.2f}pix.".format(fwhm.mean()))
-
-        # Ellipticity
-        e = 1. - np.mean(B/A, axis=0)
-        logging.info("Mean ellipticity: {0:.2f}".format(e.mean()))
-        ii = psf_variables.names.index("e")
-        if psf_variables.free[ii]:
-            # need to check if dispersion information already included in PSF variables, otherwise, use numpy.resize
-            #  that fills enlarged array with repeated copies of available data
-            if psf_variables.data.shape[0] == 1:
-                psf_variables.data = np.resize(psf_variables.data, e.shape+psf_variables.data.shape[1:])
-            psf_variables.data[:, ii, 0] = e.filled(e.mean())
-
-        # Position angle
-        _theta = 0.5*np.arctan(2*xy/(x2-y2))
-        _theta -= (-1)**(_theta < 0)*np.pi/4.
-        _theta += (-1)**(xy > 0)*np.pi/4.
-        theta = _theta.mean(axis=0)
-        logging.info("Mean position angle: {0:.2f}rad.".format(theta.mean()))
-        ii = psf_variables.names.index("theta")
-        if psf_variables.free[ii]:
-            if psf_variables.data.shape[0] == 1:
-                psf_variables.data = np.resize(psf_variables.data, theta.shape+psf_variables.data.shape[1:])
-            psf_variables.data[:, ii, 0] = theta.filled(theta.mean())
 
     # write results to file
     logging.info("Saving sources setup in file {0}.".format(pampelmuse.filename))
@@ -196,10 +217,6 @@ def singlesrc(pampelmuse):
     pampelmuse.singlesrc.revision = __revision__
 
     primary_hdu = pampelmuse.makeHeader()  # create header from namespace
-#    if usewcs:
-#        wcsheader = pampelmuse.ifs_data.wcs.to_header()
-#        for key in wcsheader:
-#            primary_hdu.header["hierarch PAMPELMUSE WCS {0}".format(key)] = wcsheader[key] ## (wcsheader[key], wcsheader.comments[key]) # cards too long if comment is included
     source_hdu = sources.make_catalogue_hdu()
     spectra_hdu = sources.make_spectra_hdu()
     positions_hdu = sources.make_ifs_coordinates_hdu()

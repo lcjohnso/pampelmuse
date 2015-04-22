@@ -21,11 +21,11 @@ defines the methods that are called by Ui_PampelMuseGui.
 
 Latest SVN revision
 -------------------
-239, 2015/02/13
+253, 2015/04/22
 
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 239
+__revision__ = 253
 
 import logging
 import os
@@ -594,6 +594,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         # load IFS coordinates for all resolved sources and first layer
         self.sources.load_ifs_coordinates(ids=self.sources.ID[self.sources.is_resolved], layers=self.sources.ndisp//2,
                                           interpolate=True)
+        print self.sources.ifs_coordinates
         if not self.sources.ifs_coordinates_loaded.any():
             return 1
 
@@ -629,7 +630,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         
             # if magnitudes are available in the sources catalogue, we use them to scale the
             # circles representing the sources.
-            if self.sources.mag is not None:
+            if not np.isnan(self.sources.mag).all():
                 sizes = 10.*(10**(-0.2*(
                     self.sources.mag[self.sources.is_resolved] - max(self.sources.mag[self.sources.is_resolved]))))
             else:

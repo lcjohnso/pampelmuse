@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-249, 2015/04/15
+253, 2015/04/23
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 249
+__revision__ = 253
 
 import contextlib
 import itertools
@@ -1201,7 +1201,7 @@ class StarFit(object):
     def update_parameters(self):
         """
         Method is used to update the initial guesses of the parameters of
-        the PSF and the coordiate transformation prior to a PSF fit.
+        the PSF and the coordinate transformation prior to a PSF fit.
         The new initial guesses are determined by calculating the mean
         of the results of the `Ntrack'/2 nearest images that have been
         fitted so far. For the parameters of the PSF and the coordinate
@@ -1234,8 +1234,10 @@ class StarFit(object):
                     self.sources.transformation.data[self.jj, i, 0] = np.median(
                         self.sources.transformation.data[lastfits, i, 0])
             else:  # update coordinates
-                self.sources.ifs_coordinates[self.jj, self.update_coordinates, :, 0] = np.median(
-                    self.sources.ifs_coordinates[lastfits], axis=0)[self.update_coordinates, :, 0]
+                assert(self.sources.ifs_coordinates_loaded[self.update_coordinates].all())
+                update = self.update_coordinates[self.sources.ifs_coordinates_loaded]
+                self.sources.ifs_coordinates[self.jj, update, :, 0] = np.median(
+                    self.sources.ifs_coordinates[lastfits], axis=0)[update, :, 0]
 
         if self.psf_attributes.contains_free_parameters:  # update PSF
             for i in np.flatnonzero(self.psf_attributes.free & ~self.psf_attributes.fitted):
