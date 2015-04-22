@@ -40,10 +40,10 @@ coordinates via an affine transformation including six parameters, A, B, C, D, x
 
 Latest SVN revision
 -------------------
-250, 2015/04/15
+254, 2015/04/22
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 250
+__revision__ = 254
 
 import logging
 import re
@@ -125,6 +125,9 @@ class Transformation(Parameters):
        
         Parameters
         ----------
+        conformal : boolean, optional
+            Flag telling whether the coordinate transformation is conformal,  i.e
+             only used 4 parameters instead of 6.
         kwargs
             Any keyword arguments that are provided are passed on to the call
             of the initialization method of the super-class. They might be used
@@ -143,12 +146,13 @@ class Transformation(Parameters):
         # call initialization method of super-class, make sure order is A, B, C, D.
         super(Transformation, self).__init__(order=self.PARAMETERS, **kwargs)
 
-        if self.defined.sum() == 4:
+        if self.defined.sum() == 4:  # if only four parameters are defined, the transformation is conformal
             self.conformal = True
-            self._data[:, -2:] = self.data[:, -4:-2]
-            self._data[:, -4:-2] = np.nan
-            self.free[-2:] = self.free[-4:-2]
-            self.fitted[-2:] = self.fitted[-4:-2]
+            if not self.defined[-2:].any():  # in this case, make sure that x0 and y0 are used instead of C and D
+                self._data[:, -2:] = self.data[:, -4:-2]
+                self._data[:, -4:-2] = np.nan
+                self.free[-2:] = self.free[-4:-2]
+                self.fitted[-2:] = self.fitted[-4:-2]
 
         # check if all required parameters are available
         i = 0

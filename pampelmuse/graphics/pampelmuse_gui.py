@@ -341,7 +341,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         # to later write the results to this file, we need its absolute path
         self.outfileName = os.path.abspath(fileName)
         
-        self.HDUList  = fits.open(fileName, mode="update")
+        self.HDUList = fits.open(fileName, mode="update")
     
         # search headers for HIERARCH PAMPELMUSE keywords.
         if not isinstance(self.namespace, PampelMuseConfig):
@@ -358,20 +358,24 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
 
             hduString += "{0} ".format(hdu.name)
         
-            if hdu.name == "SOURCES": self.loadSources(hdu)
-            elif hdu.name == "SPECTRA": self.loadSpectra(hdu)
-            elif hdu.name == "POSPARS": self.loadCoordTrans(hdu)
-            elif hdu.name == "POSITIONS": self.loadPositions(hdu)
-            elif hdu.name == "INPOSITIONS" and not "Coord. Transf." in self.sourceList.keys():
+            if hdu.name == "SOURCES":
+                self.loadSources(hdu)
+            elif hdu.name == "SPECTRA":
+                self.loadSpectra(hdu)
+            elif hdu.name == "POSPARS":
+                self.loadCoordTrans(hdu)
+            elif hdu.name == "POSITIONS":
                 self.loadPositions(hdu)
-            elif hdu.name == "PSFPARS": self.loadPsfParameters(hdu)
+            elif hdu.name == "INPOSITIONS" and "Coord. Transf." not in self.sourceList.keys():
+                self.loadPositions(hdu)
+            elif hdu.name == "PSFPARS":
+                self.loadPsfParameters(hdu)
    
         self.statusBar.showMessage("Opened file <{0}>, detected HDUs: {1}".format(self.outfileName, hduString),  5000)
 
         # enable saving to new filename
         self.actionSaveAs.setEnabled(True)
-    
-    
+
     def openIfs(self, input):
         """
         Open an IFS datacube and display it, using the widget foreseen
@@ -391,7 +395,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         self.ifsPlot = DynamicImaCanvas()
         self.ifsPlot.loadCube(input)
         
-        # enable display of fit residualas if they are available
+        # enable display of fit residuals if they are available
         if self.ifsPlot.cube.residuals is not None:
             self.actionResiduals.setEnabled(True)
         
@@ -594,7 +598,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         # load IFS coordinates for all resolved sources and first layer
         self.sources.load_ifs_coordinates(ids=self.sources.ID[self.sources.is_resolved], layers=self.sources.ndisp//2,
                                           interpolate=True)
-        print self.sources.ifs_coordinates
+
         if not self.sources.ifs_coordinates_loaded.any():
             return 1
 
@@ -845,7 +849,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         # write HDU containing directly fitted (i.e fitted using CUBEFIT) coordinates if they exist
         if self.sources.ifs_coordinates_free.any():
             if self.sources.ifs_coordinates_fitted.any():  # check if polynomial fits for at least one source exist.
-            # If so, use name INPOSITIONS here
+                # If so, use name INPOSITIONS here
                 try:
                     i = HDUList.index_of("INPOSITIONS")
                     HDUList[i] = self.sources.make_ifs_coordinates_hdu(fit=False, name="INPOSITIONS")
