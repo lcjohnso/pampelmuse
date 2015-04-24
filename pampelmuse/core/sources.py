@@ -21,10 +21,10 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-253, 2015/04/22
+256, 2015/04/24
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 253
+__revision__ = 256
 
 import collections
 import inspect
@@ -1286,8 +1286,11 @@ class Sources(object):
                 for i in np.nonzero(processed)[0]:
                     for j in xrange(2):
                         valid = ~np.isnan(ifs_coords[:, i, j])
-                        fct = InterpolatedUnivariateSpline(np.flatnonzero(valid), ifs_coords[valid, i, j], k=2)
-                        self.ifs_coordinates[:, i, j, 0] = fct(layers)
+                        if valid.sum() > 2:
+                            fct = InterpolatedUnivariateSpline(np.flatnonzero(valid), ifs_coords[valid, i, j], k=2)
+                            self.ifs_coordinates[:, i, j, 0] = fct(layers)
+                        else:
+                            self.ifs_coordinates[:, i, j, 0] = np.mean(ifs_coords[valid, i, j])
         else:
             processed = np.zeros((len(ids),), dtype=np.bool)
 
@@ -1304,8 +1307,11 @@ class Sources(object):
                     for i in src_indices:
                         for j in xrange(2):
                             valid = ~np.isnan(ifs_coords[:, i, j])
-                            fct = InterpolatedUnivariateSpline(np.flatnonzero(valid), ifs_coords[valid, i, j], k=2)
-                            self.ifs_coordinates[:, i, j, 0] = fct(layers)
+                            if valid.sum() > 2:
+                                fct = InterpolatedUnivariateSpline(np.flatnonzero(valid), ifs_coords[valid, i, j], k=2)
+                                self.ifs_coordinates[:, i, j, 0] = fct(layers)
+                            else:
+                                self.ifs_coordinates[:, i, j, 0] = np.mean(ifs_coords[valid, i, j])
                 # 4th entry in square brackets must be slice; if an index (i.e. 0) is used, the shape of the resulting
                 # sub-array is not as expected
             else:  # third option: just use reference coordinates

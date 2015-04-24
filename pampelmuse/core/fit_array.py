@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-253, 2015/04/23
+256, 2015/04/24
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 253
+__revision__ = 256
 
 import contextlib
 import itertools
@@ -588,10 +588,13 @@ class StarFit(object):
             else:
                 if self.psf_attributes.mask[self.jj, i, 0]:
                     logging.warning("Access to NaN value in PSF data, interpolating...")
-                    f = InterpolatedUnivariateSpline(
-                        (~self.psf_attributes.mask[:, i, 0]).nonzero()[0],
-                        self.psf_attributes.data[~self.psf_attributes.mask[:, i, 0], i, 0], k=2)
-                    value = float(f(self.jj))  # newer versions of scipy return an array of zero size
+                    if (~self.psf_attributes.mask[:, i, 0]).sum > 2:
+                        f = InterpolatedUnivariateSpline(
+                            (~self.psf_attributes.mask[:, i, 0]).nonzero()[0],
+                            self.psf_attributes.data[~self.psf_attributes.mask[:, i, 0], i, 0], k=2)
+                        value = float(f(self.jj))  # newer versions of scipy return an array of zero size
+                    else:
+                        value = np.mean(self.psf_attributes.data[~self.psf_attributes.mask[:, i, 0], i, 0])
                     self.psf_attributes.data[self.jj, i, 0] = value
                 else:
                     value = self.psf_attributes.data[self.jj, i, 0]
@@ -617,10 +620,14 @@ class StarFit(object):
             else:
                 if self.sources.transformation.mask[self.jj, i, 0]:
                     logging.warning("Access to NaN value in coordinate transformation data, interpolating...")
-                    f = InterpolatedUnivariateSpline(
-                        (~self.sources.transformation.mask[:, i, 0]).nonzero()[0],
-                        self.sources.transformation.data[~self.sources.transformation.mask[:, i, 0], i, 0], k=2)
-                    value = float(f(self.jj))
+                    if (~self.sources.transformation.mask[:, i, 0]).sum() > 2:  # interpolate only if >2 valid entries
+                        f = InterpolatedUnivariateSpline(
+                            (~self.sources.transformation.mask[:, i, 0]).nonzero()[0],
+                            self.sources.transformation.data[~self.sources.transformation.mask[:, i, 0], i, 0], k=2)
+                        value = float(f(self.jj))
+                    else:  # otherwise take mean of valid entries
+                        value = np.mean(
+                            self.sources.transformation.data[~self.sources.transformation.mask[:, i, 0], i, 0])
                     self.sources.transformation.data[self.jj, i, 0] = value
                 else:
                     value = self.sources.transformation.data[self.jj, i, 0]
