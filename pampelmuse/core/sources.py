@@ -21,10 +21,10 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-257, 2015/04/27
+258, 2015/04/27
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 257
+__revision__ = 258
 
 import collections
 import inspect
@@ -1287,9 +1287,8 @@ class Sources(object):
                     for j in xrange(2):
                         valid = ~np.isnan(ifs_coords[:, i, j])
                         if valid.sum() > 2:
-                            fct = InterpolatedUnivariateSpline(np.flatnonzero(valid), ifs_coords[valid, i, j],
-                                                               k=2, ext=3)
-                            self.ifs_coordinates[:, i, j, 0] = fct(layers)
+                            self.ifs_coordinates[:, i, j, 0] = np.interp(
+                                layers, np.flatnonzero(valid), ifs_coords[valid, i, j])
                         else:
                             self.ifs_coordinates[:, i, j, 0] = np.mean(ifs_coords[valid, i, j])
         else:
@@ -1309,9 +1308,8 @@ class Sources(object):
                         for j in xrange(2):
                             valid = ~np.isnan(ifs_coords[:, i, j])
                             if valid.sum() > 2:
-                                fct = InterpolatedUnivariateSpline(np.flatnonzero(valid), ifs_coords[valid, i, j],
-                                                                   k=2, ext=3)
-                                self.ifs_coordinates[:, i, j, 0] = fct(layers)
+                                self.ifs_coordinates[:, i, j, 0] = np.interp(
+                                    layers, np.flatnonzero(valid), ifs_coords[valid, i, j])
                             else:
                                 self.ifs_coordinates[:, i, j, 0] = np.mean(ifs_coords[valid, i, j])
                 # 4th entry in square brackets must be slice; if an index (i.e. 0) is used, the shape of the resulting

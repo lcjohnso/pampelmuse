@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-257, 2015/04/27
+258, 2015/04/27
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 257
+__revision__ = 258
 
 import contextlib
 import itertools
@@ -38,7 +38,6 @@ import logging
 import time
 import numpy as np
 import scipy
-from scipy.interpolate import InterpolatedUnivariateSpline
 from multiprocessing import cpu_count, Pool
 from scipy import optimize, sparse
 # from astropy.io import fits
@@ -589,10 +588,8 @@ class StarFit(object):
                 if self.psf_attributes.mask[self.jj, i, 0]:
                     logging.warning("Access to NaN value in PSF data, interpolating...")
                     if (~self.psf_attributes.mask[:, i, 0]).sum > 2:
-                        f = InterpolatedUnivariateSpline(
-                            (~self.psf_attributes.mask[:, i, 0]).nonzero()[0],
-                            self.psf_attributes.data[~self.psf_attributes.mask[:, i, 0], i, 0], k=2, ext=3)
-                        value = float(f(self.jj))  # newer versions of scipy return an array of zero size
+                        value = float(np.interp(self.jj, (~self.psf_attributes.mask[:, i, 0]).nonzero()[0],
+                                                self.psf_attributes.data[~self.psf_attributes.mask[:, i, 0], i, 0]))
                     else:
                         value = np.mean(self.psf_attributes.data[~self.psf_attributes.mask[:, i, 0], i, 0])
                     self.psf_attributes.data[self.jj, i, 0] = value
@@ -621,11 +618,9 @@ class StarFit(object):
                 if self.sources.transformation.mask[self.jj, i, 0]:
                     logging.warning("Access to NaN value in coordinate transformation data, interpolating...")
                     if (~self.sources.transformation.mask[:, i, 0]).sum() > 2:  # interpolate only if >2 valid entries
-                        f = InterpolatedUnivariateSpline(
-                            (~self.sources.transformation.mask[:, i, 0]).nonzero()[0],
-                            self.sources.transformation.data[~self.sources.transformation.mask[:, i, 0], i, 0],
-                            k=2, ext=3)
-                        value = float(f(self.jj))
+                        value = float(np.interp(
+                            self.jj, (~self.sources.transformation.mask[:, i, 0]).nonzero()[0],
+                            self.sources.transformation.data[~self.sources.transformation.mask[:, i, 0], i, 0]))
                     else:  # otherwise take mean of valid entries
                         value = np.mean(
                             self.sources.transformation.data[~self.sources.transformation.mask[:, i, 0], i, 0])
