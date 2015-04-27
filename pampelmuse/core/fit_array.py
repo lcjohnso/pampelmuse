@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-256, 2015/04/24
+257, 2015/04/27
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 256
+__revision__ = 257
 
 import contextlib
 import itertools
@@ -591,7 +591,7 @@ class StarFit(object):
                     if (~self.psf_attributes.mask[:, i, 0]).sum > 2:
                         f = InterpolatedUnivariateSpline(
                             (~self.psf_attributes.mask[:, i, 0]).nonzero()[0],
-                            self.psf_attributes.data[~self.psf_attributes.mask[:, i, 0], i, 0], k=2)
+                            self.psf_attributes.data[~self.psf_attributes.mask[:, i, 0], i, 0], k=2, ext=3)
                         value = float(f(self.jj))  # newer versions of scipy return an array of zero size
                     else:
                         value = np.mean(self.psf_attributes.data[~self.psf_attributes.mask[:, i, 0], i, 0])
@@ -623,7 +623,8 @@ class StarFit(object):
                     if (~self.sources.transformation.mask[:, i, 0]).sum() > 2:  # interpolate only if >2 valid entries
                         f = InterpolatedUnivariateSpline(
                             (~self.sources.transformation.mask[:, i, 0]).nonzero()[0],
-                            self.sources.transformation.data[~self.sources.transformation.mask[:, i, 0], i, 0], k=2)
+                            self.sources.transformation.data[~self.sources.transformation.mask[:, i, 0], i, 0],
+                            k=2, ext=3)
                         value = float(f(self.jj))
                     else:  # otherwise take mean of valid entries
                         value = np.mean(

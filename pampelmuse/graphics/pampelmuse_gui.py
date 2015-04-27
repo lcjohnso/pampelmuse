@@ -21,11 +21,11 @@ defines the methods that are called by Ui_PampelMuseGui.
 
 Latest SVN revision
 -------------------
-253, 2015/04/22
+257, 2015/04/27
 
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 253
+__revision__ = 257
 
 import logging
 import os
@@ -598,7 +598,6 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         # load IFS coordinates for all resolved sources and first layer
         self.sources.load_ifs_coordinates(ids=self.sources.ID[self.sources.is_resolved], layers=self.sources.ndisp//2,
                                           interpolate=True)
-
         if not self.sources.ifs_coordinates_loaded.any():
             return 1
 
