@@ -22,10 +22,10 @@ Added
 
 Latest SVN revision
 -------------------
-253 # 2015/04/22
+259 # 2015/04/28
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 253
+__revision__ = 259
 
 import datetime
 import logging
@@ -217,7 +217,8 @@ def getspectra(pampelmuse):
                     if not np.isnan(sources.ra[m]) and not np.isnan(sources.dec[m]):
                         primary_hdu.header["hierarch STAR{0} RA".format(l+1)] = sources.ra[m]
                         primary_hdu.header["hierarch STAR{0} DEC".format(l+1)] = sources.dec[m]
-                    primary_hdu.header["hierarch STAR{0} MAG".format(l+1)] = sources.mag[m]
+                    if not np.isnan(sources.mag[m]):
+                        primary_hdu.header["hierarch STAR{0} MAG".format(l+1)] = sources.mag[m]
                 primary_hdu.header["HIERARCH SPECTRUM MULTISTAR"] = (True, cmt)
                 primary_hdu.header["OBJNAME"] = "{0} {1} {2}+".format(pampelmuse.getspectra.specprefix.upper(),
                                                                       pampelmuse.ifu.upper(), ID)
