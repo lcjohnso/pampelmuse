@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-258, 2015/04/27
+260, 2015/04/28
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 258
+__revision__ = 260
 
 import contextlib
 import itertools
@@ -956,7 +956,7 @@ class StarFit(object):
                                                    float(self.sources.transformation.data[self.jj, i, 0]))
             logging.info(logstring)
 
-        elif not self.full_coordinates_fit and (~self.sources.ifs_coordinates_fitted).any():
+        elif self.sources.transformation.valid:
             logging.error("{0} Cannot update coordinate transformation because <2 sources fitted successfully.".format(
                 self.prefix_string))
 

@@ -22,10 +22,10 @@ Added
 
 Latest SVN revision
 -------------------
-259 # 2015/04/28
+260 # 2015/04/28
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 259
+__revision__ = 260
 
 import datetime
 import logging
@@ -205,7 +205,8 @@ def getspectra(pampelmuse):
                 primary_hdu.header["hierarch STAR DEC"] = sources.dec[j]
 
             # add magnitude to header
-            primary_hdu.header["hierarch STAR MAG"] = sources.mag[j]
+            if not np.isnan(sources.mag[j]):
+                primary_hdu.header["hierarch STAR MAG"] = sources.mag[j]
 
             #  Check if more than one source contribute to the spectrum
             cmt = "Whether multiple stars contribute"
