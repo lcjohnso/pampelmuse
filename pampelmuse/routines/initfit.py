@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-249, 2015/04/15
+261, 2015/04/30
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 249
+__revision__ = 261
 
 import datetime, itertools, os, sys, logging
 from multiprocessing import cpu_count, Pool
@@ -833,10 +833,11 @@ def initfit(pampelmuse):
             xy.mask = np.isnan(xy)
 
             # get A, B:
-            A = np.sqrt((x2+y2)/2.+np.sqrt(((x2-y2)/2.)**2+xy**2))
-            A.mask[A <= 0] = True
-            B = np.sqrt((x2+y2)/2.-np.sqrt(((x2-y2)/2.)**2+xy**2))
-            B.mask[B <= 0] = True
+            with np.errstate(invalid="ignore"):
+                A = np.sqrt((x2+y2)/2.+np.sqrt(((x2-y2)/2.)**2+xy**2))
+                A.mask[A <= 0] = True
+                B = np.sqrt((x2+y2)/2.-np.sqrt(((x2-y2)/2.)**2+xy**2))
+                B.mask[B <= 0] = True
             
             # FWHM
             fwhm = np.sqrt(8.*np.log(2))*np.mean(A, axis=0)
@@ -855,10 +856,11 @@ def initfit(pampelmuse):
                 psf_variables.data[:, ii, 0] = e.data
 
             # Position angle
-            _theta = 0.5*np.arctan(2*xy/(x2-y2))
-            _theta -= (-1)**(_theta < 0)*np.pi/4.
-            _theta += (-1)**(xy > 0)*np.pi/4.
-            theta = _theta.mean(axis=0)
+            with np.errstate(invalid="ignore"):
+                _theta = 0.5*np.arctan(2*xy/(x2-y2))
+                _theta -= (-1)**(_theta < 0)*np.pi/4.
+                _theta += (-1)**(xy > 0)*np.pi/4.
+                theta = _theta.mean(axis=0)
             logging.info("Mean position angle: {0:.2f}rad.".format(float(theta.mean())))
             ii = psf_variables.names.index("theta")
             if psf_variables.free[ii]:

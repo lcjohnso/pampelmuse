@@ -24,10 +24,10 @@ currently not possible to add parameters afterwards.
 
 Latest SVN revision
 -------------------
-239, 2015/02/13
+261, 2015/04/30
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 239
+__revision__ = 261
 
 # import required python modules
 import logging
@@ -302,6 +302,19 @@ class Parameters(object):
             or a fit exists.
         """
         return (self.fitted | self.defined).all()
+
+    def interpolate(self):
+        """
+        This method replaces NaN values (if any) in the data array via interpolation of
+        the valid array entries along the first axis. This is done independently for each
+        parameter, i.e. each chunk data[:, i, 0], with i >= 0 > npars.
+        """
+        for i in xrange(self.npars):
+            if 0 < (~self.mask[:, i, 0]).sum() < self.ndisp:
+                self.data[:, i, 0] = np.interp(np.arange(self.ndisp), (~self.mask[:, i, 0]).nonzero()[0],
+                                               self.data[~self.mask[:, i, 0], i, 0])
+            elif self.mask[:, i, 0].all():
+                logging.error("Data for parameter '{0}' only contains NaNs, cannot interpolate.".format(self.names[i]))
 
     def resize(self, ndisp):
         """

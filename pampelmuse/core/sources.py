@@ -21,10 +21,10 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-258, 2015/04/27
+261, 2015/04/30
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 258
+__revision__ = 261
 
 import collections
 import inspect
@@ -1286,11 +1286,12 @@ class Sources(object):
                 for i in np.nonzero(processed)[0]:
                     for j in xrange(2):
                         valid = ~np.isnan(ifs_coords[:, i, j])
-                        if valid.sum() > 2:
-                            self.ifs_coordinates[:, i, j, 0] = np.interp(
-                                layers, np.flatnonzero(valid), ifs_coords[valid, i, j])
+                        if valid.any():
+                            self.ifs_coordinates[:, i, j, 0] = np.interp(layers, np.flatnonzero(valid),
+                                                                         ifs_coords[valid, i, j])
                         else:
-                            self.ifs_coordinates[:, i, j, 0] = np.mean(ifs_coords[valid, i, j])
+                            self.ifs_coordinates[:, i, j, 0] = np.asarray([self.x[self.ifs_coordinates_loaded][i],
+                                                                           self.y[self.ifs_coordinates_loaded][i]])[j]
         else:
             processed = np.zeros((len(ids),), dtype=np.bool)
 
@@ -1496,18 +1497,25 @@ class Sources(object):
 
         # determine 'mean' coordinate if option 'commonSlope' selected
         if commonSlope:
+            # need to create masked array from IFS coordinates in order to get useful mean values
+            ifs_coordinates_ma = np.ma.MaskedArray(self.ifs_coordinates[..., 0],
+                                                   np.isnan(self.ifs_coordinates[..., 0]))
 
             # sources used for creating mean slope are those with status 2 or 3
             used = ((self.status > 1) & (self.status < 4))[self.ifs_coordinates_loaded]
 
             # if "instrument" is known, then only use sources within FoV to determine common slope.
             if instrument is not None:
-                used = used & instrument.infov(self.ifs_coordinates[..., 0].mean(axis=0))
+                used &= instrument.infov(ifs_coordinates_ma.mean(axis=0))
 
-            meancoord = np.mean(self.ifs_coordinates[:, used], axis=1)
-            meanvalid = valid & ~np.isnan(meancoord)
-            xfit = fitfunction.fit(self.wave[meanvalid], meancoord[meanvalid, 0, 0], order)
-            yfit = fitfunction.fit(self.wave[meanvalid], meancoord[meanvalid, 1, 0], order)
+            # get mean coordinate along x and y plus boolean array indicating for which layers valid data exist
+            meancoord_ma = np.ma.mean(ifs_coordinates_ma, axis=1)
+            meancoord = meancoord_ma.filled(np.nan)
+            meanvalid = valid[:, np.newaxis] & ~np.isnan(meancoord)
+
+            # fit mean coordinates with requested order
+            xfit = fitfunction.fit(self.wave[meanvalid[:, 0]], meancoord[meanvalid[:, 0], 0], order)
+            yfit = fitfunction.fit(self.wave[meanvalid[:, 1]], meancoord[meanvalid[:, 1], 1], order)
 
             order = 0  # all individual coordinates are now "fitted" with zeroth order polynomials
 
@@ -1521,25 +1529,31 @@ class Sources(object):
 # TODO        print t1-t0, type(xfit), type(yfit)
 
         # loop over selected sources and get their polynomial coordinate fits
-        k = 1
-        for j in indices_to_fit:
+        for n, j in enumerate(indices_to_fit):
 
             # get index of source in array of IFS coordinates
             i = self.ifs_coordinates_loaded.cumsum()[j] - 1
 
-            valid_xi = valid & ~np.isnan(self.ifs_coordinates[:, i, 0, 0])
-            valid_yi = valid & ~np.isnan(self.ifs_coordinates[:, i, 1, 0])
+            # for each source, get layers where x- and y-coordinate is defined. If it is not defined for any layer
+            # just use reference coordinate and trigger warning
+            valid_i = valid & np.any(~np.isnan(self.ifs_coordinates[:, i, :, 0]), axis=-1)
+            if valid_i.sum() > 0:
+                wave = self.wave[valid_i]
+                fx_wave = self.ifs_coordinates[valid_i, i, 0, 0]
+                fy_wave = self.ifs_coordinates[valid_i, i, 1, 0]
+            else:
+                wave = self.wave
+                fx_wave = self.x[j]*np.ones(self.ndisp)
+                fy_wave = self.y[j]*np.ones(self.ndisp)
+                logging.warning("Source #{0} has no valid IFS coordinates - using reference coordinates.".format(
+                    self.ID[j]))
 
             if commonSlope:
-                valid_xi = valid & ~np.isnan(self.ifs_coordinates[:, i, 0, 0])
-                xfit_i = xfit + fitfunction.fit(
-                    self.wave[valid_xi], self.ifs_coordinates[valid_xi, i, 0, 0] - xfit(self.wave[valid_xi]), order)
-
-                yfit_i = yfit + fitfunction.fit(
-                    self.wave[valid_yi], self.ifs_coordinates[valid_yi, i, 1, 0] - yfit(self.wave[valid_yi]), order)
+                xfit_i = xfit + fitfunction.fit(wave, fx_wave - xfit(wave), order, domain=xfit.domain)
+                yfit_i = yfit + fitfunction.fit(wave, fy_wave - yfit(wave), order, domain=yfit.domain)
             else:
-                xfit_i = fitfunction.fit(self.wave[valid_xi], self.ifs_coordinates[valid_xi, i, 0, 0], order)
-                yfit_i = fitfunction.fit(self.wave[valid_yi], self.ifs_coordinates[valid_yi, i, 1, 0], order)
+                xfit_i = fitfunction.fit(wave, fx_wave, order)
+                yfit_i = fitfunction.fit(wave, fy_wave, order)
 
             self.ifs_coordinates_fit_functions[self.ID[j]] = [xfit_i, yfit_i]
 
@@ -1548,11 +1562,10 @@ class Sources(object):
             self.ifs_coordinates[:, i, 0, 1] = xfit_i(self.wave)
             self.ifs_coordinates[:, i, 1, 1] = yfit_i(self.wave)
 
-            logging.debug("Polynomial fit to source #{0} [{1}/{2}]".format(self.ID[j], k, len(indices_to_fit)))
+            logging.debug("Polynomial fit to source #{0} [{1}/{2}]".format(self.ID[j], n, len(indices_to_fit)))
             if statusBar is not None:
-                statusBar.showMessage(
-                    "Polynomial fit to source #{0} [{1}/{2}]".format(self.ID[j], k, len(indices_to_fit)), 5000)
-            k += 1
+                statusBar.showMessage("Polynomial fit to source #{0} [{1}/{2}]".format(
+                    self.ID[j], n, len(indices_to_fit)), 5000)
 
     ##############################################################################
     #              Source selection methods/properties                           #
@@ -1809,14 +1822,14 @@ class Sources(object):
             # get the number of sources for which fits should be stored
             nfit = ids_tosave.size
 
-            # get the maximum polynomial degree used in the fits. Note that this would not be necessary one would use
-            # the feature that FITS tables can store arrays of variable length
+            # get the maximum polynomial degree used in the fits. Note that this would not be necessary if one would
+            # use the feature that FITS tables can store arrays of variable length
             # (http://docs.astropy.org/en/tmp-v0.1-wcython/io/fits/usage/unfamiliar.html)
             # Unfortunately, the implementation in astropy seems buggy and I always get an array full of zeros when
             # opening the file again. Therefore, in case different degrees have been used in the fits, the higher
             # orders of the low-order polynomials are padded with zeros.
             xmax = max(self.ifs_coordinates_fit_functions[i][0].degree() for i in ids_tosave)
-            ymax = max(self.ifs_coordinates_fit_functions[i][0].degree() for i in ids_tosave)
+            ymax = max(self.ifs_coordinates_fit_functions[i][1].degree() for i in ids_tosave)
 
             # prepare the arrays to hold the data
             src = np.zeros((nfit, ), dtype=np.int32)
@@ -1826,32 +1839,34 @@ class Sources(object):
             yprm = np.zeros((nfit, ymax + 1), dtype=np.float32)
 
             #  loop over all sources that have polynomial fits available
-            i = 0
-            for ID, polyfits in self.ifs_coordinates_fit_functions.iteritems():
-                if ID not in ids:
-                    continue
+            domain = None
+            for i, ID in enumerate(ids):
                 src[i] = ID
-                for fct in self.available.keys():
-                    # get fit function: first check which class the instance originates from, then translate name to
-                    # an integer
-                    if isinstance(polyfits[0], self.available[fct]):
-                        xfct[i] = self.polyident[fct]
-                xprm[i, :(polyfits[0].degree() + 1)] = polyfits[0].coef
-                for fct in self.available.keys():
-                    if isinstance(polyfits[1], self.available[fct]):
-                        yfct[i] = self.polyident[fct]
-                yprm[i, :(polyfits[1].degree() + 1)] = polyfits[1].coef
 
-                # store domain, this is needed because the domain set by the fit is the min and max of the fitted range
-                # and this if different from the default one used by the __init__ methods. Since currently the start
-                # and end of the domain are stored as HIERARCH-keywords, the domain must be the same for all fits.
-                if i == 0:
-                    domain = polyfits[0].domain
+                xfit, yfit = self.ifs_coordinates_fit_functions[ID]
+
+                # make sure all fit functions use the same domain, this is needed because the domain set by the fit
+                # is the min and max of the fitted range and this if different from the default one used by the
+                # __init__ methods. Since currently the start and end of the domain are stored as HIERARCH-keywords,
+                # the domain must be the same for all fits.
+                if domain is None:
+                    domain = xfit.domain
                 else:
-                    assert abs(polyfits[0].domain - domain).max() < 1e-3
-                assert abs(polyfits[1].domain - domain).max() < 1e-3
+                    if (xfit.domain != domain).any():
+                        xfit = xfit.convert(domain=domain)
+                if (yfit.domain != domain).any():
+                    yfit = yfit.convert(domain=domain)
 
-                i += 1
+                # to get fit function, first check which class the instance originates from, then translate name to
+                # an integer
+                for fct in self.available.keys():
+                    if isinstance(xfit, self.available[fct]):
+                        xfct[i] = self.polyident[fct]
+                xprm[i, :(xfit.degree() + 1)] = xfit.coef
+                for fct in self.available.keys():
+                    if isinstance(yfit, self.available[fct]):
+                        yfct[i] = self.polyident[fct]
+                yprm[i, :(yfit.degree() + 1)] = yfit.coef
 
             # prepare the output table
             outhdu = fits.new_table([fits.Column(name="id", format="J", array=src),
@@ -1868,9 +1883,7 @@ class Sources(object):
             # write the polynomial identifications
             for name, index in self.polyident.iteritems():
                 outhdu.header["hierarch PAMPELMUSE POSITIONS POLY{0}".format(index)] = name
-
         else:
-
             # make sure IFS coordinates are loaded for all sources AND across the entire dispersion range
             if not self.ifs_coordinates_loaded[match_on_id(self.ID, ids)].all() \
                     or self.ifs_coordinates.shape[0] != self.ndisp:
