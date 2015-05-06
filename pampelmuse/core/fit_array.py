@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-261, 2015/04/30
+262, 2015/05/06
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 261
+__revision__ = 262
 
 import contextlib
 import itertools
@@ -411,14 +411,20 @@ class StarFit(object):
         analysis using PyQt. Check the documentation of the QStarFit-class for
         further details.
         """
+        root = logging.getLogger()  # get logger for per-layer customisation using common prefix
+        hdlr = root.handlers[0]
+        ndigits = int(np.log10(self.layers_to_analyse.size)) + 1  # for logging prefix, get number of digits of N_layer
+
         # loop over all layers in cube that should be analysed
         for i, self.jj in enumerate(self.layers_to_analyse):
-            # A common prefix used for all logging messages related to the analysis of the current layer.
-            self.prefix_string = "[{0:0{1}d}/{2}]".format(i, int(np.log10(self.layers_to_analyse.size)) + 1,
-                                                          self.layers_to_analyse.size)
+
+            # Add a common prefix for all logging messages related to the analysis of the current layer.
+            fmt = logging.Formatter("%(asctime)s[%(levelname)-8s]: [{0:0{1}d}/{2}] %(message)s".format(
+                i+1, ndigits, self.layers_to_analyse.size), datefmt='%m/%d/%Y %H:%M:%S')
+            hdlr.setFormatter(fmt)
 
             # call fitting routine
-            logging.info("{0} Starting fit for layer #{1}.".format(self.prefix_string, self.jj))
+            logging.info("Starting fit for layer #{0}.".format(self.jj))
             self.iter_fit_layer()
 
     def iter_fit_layer(self):
@@ -495,7 +501,7 @@ class StarFit(object):
                 self.sigma = sigma[~mask]
         self.weights = np.ones(self.data.shape, dtype=np.float32)
 
-        logging.debug("{0} {1} masked pixels".format(self.prefix_string, mask.sum()))
+        logging.debug("{0} masked pixels".format(mask.sum()))
 
         # Set spaxel to (x,y) transformation of the PSF-instances, using the transformation of the Instrument instance
         # and the mask
@@ -513,7 +519,7 @@ class StarFit(object):
         while True:
 
             if self.maxiter > 1:
-                logging.info("{0} Iteration {1} (of max. {2})".format(self.prefix_string, n_iter, self.maxiter))
+                logging.info("Iteration {0} (of max. {1})".format(n_iter, self.maxiter))
 
             # create PSF matrix if required, divide by uncertainties
             if rebuild_matrix:
@@ -522,8 +528,7 @@ class StarFit(object):
                 self.psf_matrix.data /= np.take(self.sigma, self.psf_matrix.indices)
                 rebuild_matrix = False
                 t1 = time.time()
-                logging.debug("{0} Time required to divide matrix by uncertainties: {1:6.3f}s".format(
-                    self.prefix_string, t1-t0))
+                logging.debug("Time required to divide matrix by uncertainties: {0:6.3f}s".format(t1-t0))
 
             # Fit fluxes by direct matrix inversion
             # The documentation of scipy states that to efficiently solve the matrix equation, the columns should
@@ -537,11 +542,11 @@ class StarFit(object):
             t1 = time.time()
             bestfit = lsmr(fit_matrix, self.current * self.weights, atol=1e-5, show=False)
             t2 = time.time()
-            logging.debug("{0} Time required to solve matrix equation: {1:6.3f}s".format(self.prefix_string, t2-t1))
+            logging.debug("Time required to solve matrix equation: {0:6.3f}s".format(t2-t1))
 
             self.sources.data[self.jj, self.valid_components, 0] += bestfit[0] / intflux
             t3 = time.time()
-            logging.debug("{0} Time required to update fluxes: {1:6.3f}s".format(self.prefix_string, t3-t2))
+            logging.debug("Time required to update fluxes: {0:6.3f}s".format(t3-t2))
 
             # update noise values
             self.sources.data[self.jj, self.valid_components, 1] = \
@@ -551,9 +556,9 @@ class StarFit(object):
             delta_flux = bestfit[0] / (intflux*self.sources.data[self.jj, self.valid_components, 0])
 
             # some logging
-            logging.info("{0} Chi**2 of current fit: {1:.1f}".format(self.prefix_string, bestfit[3] ** 2))
+            logging.info("Chi**2 of current fit: {0:.1f}".format(bestfit[3] ** 2))
             with printoptions(precision=4, suppress=True):
-                logging.debug("{0} Relative changes in fluxes: {1}".format(self.prefix_string, delta_flux))
+                logging.debug("Relative changes in fluxes: {0}".format(delta_flux))
 
             # convergence criterion: median relative change in fluxes <0.005
             if np.median(abs(delta_flux)) < 5e-3 and n_iter > 1:
@@ -578,7 +583,7 @@ class StarFit(object):
 
             if n_iter > self.maxiter:
                 if self.maxiter > 1:
-                    logging.warning("{0} Max. number of iterations reached.".format(self.prefix_string))
+                    logging.warning("Max. number of iterations reached.")
                 break
 
     def update_psf_parameters(self, using=None):
@@ -594,7 +599,7 @@ class StarFit(object):
             A list containing the indices of the layers that are averaged to
             get the new value.
         """
-        logstring = "{0} Initial PSF model:".format(self.prefix_string)
+        logstring = "Initial PSF model:"
 
         if using is None:
             using = []
@@ -610,7 +615,7 @@ class StarFit(object):
                 else:
                     value = self.psf_attributes.data[self.jj, i, 0]
             getattr(self.PSF, "set_{0}".format(prm))(value)
-            logstring += " {1}={2:.2f},".format(self.prefix_string, prm, float(value))
+            logstring += " {0}={1:.2f},".format(prm, float(value))
         logging.info(logstring[:-1])
 
     def update_coordinate_transformation(self, using=None):
@@ -627,7 +632,7 @@ class StarFit(object):
             A list containing the indices of the layers that are averaged to
             get the new value.
         """
-        logstring = "{0} Initial coord. transformation:".format(self.prefix_string)
+        logstring = "Initial coord. transformation:"
 
         if using is None:
             using = []
@@ -643,7 +648,7 @@ class StarFit(object):
                 else:
                     value = self.sources.transformation.data[self.jj, i, 0]
             getattr(self.PSF, "set_{0}".format(prm))(value)
-            logstring += " {1}={2:.2f},".format(self.prefix_string, prm, float(value))
+            logstring += " {0}={1:.2f},".format(prm, float(value))
         logging.info(logstring[:-1])
 
     def update_ifs_coordinates(self, using=None):
@@ -663,7 +668,7 @@ class StarFit(object):
             using = []
 
         k = 0
-        logging.info("{0} Updating coordinates of PSF instances...".format(self.prefix_string))
+        logging.info("Updating coordinates of PSF instances...")
         t0 = time.time()
         for i, psf in enumerate(self.psf_instances):
             if not isinstance(psf, Profile):
@@ -681,8 +686,7 @@ class StarFit(object):
                     psf.set_yc(self.sources.ifs_coordinates[self.jj, k, 1, 0])
             k += 1
 
-        logging.debug("{0} Time required to update source coordinates: {1:6.4f}s".format(
-            self.prefix_string, time.time() - t0))
+        logging.debug("Time required to update source coordinates: {0:6.4f}s".format(time.time() - t0))
 
     @property
     def model(self):
@@ -752,7 +756,7 @@ class StarFit(object):
         # entries: the spaxels on which the PSF is defined, the corresponding fluxes, and the integrated flux
 
         t1 = time.time()
-        logging.debug("{0} Time required to calculate PSF profiles: {1:.3f}s".format(self.prefix_string, t1 - t0))
+        logging.debug("Time required to calculate PSF profiles: {0:.3f}s".format(t1 - t0))
 
         # Calculate combined integrated flux of each component
         intflux, unique_specrow = sum_by_group([r[-1] for r in results], specrow)
@@ -760,7 +764,7 @@ class StarFit(object):
         # unresolved component is only included if update_unresolved was set to True
 
         t2 = time.time()
-        logging.debug("{0} Time required to combine components: {1:.3f}s".format(self.prefix_string, t2 - t1))
+        logging.debug("Time required to combine components: {0:.3f}s".format(t2 - t1))
 
         # check if any row does not contribute at all
         empty_specrow = unique_specrow[intflux <= 0]
@@ -813,7 +817,7 @@ class StarFit(object):
             _Apsf = sparse.coo_matrix((f, (i0, i1)), shape=(nrows, ncols))
 
         t3 = time.time()
-        logging.debug("{0} Time required to create matrix: {1:.3f}s".format(self.prefix_string, t3 - t2))
+        logging.debug("Time required to create matrix: {0:.3f}s".format(t3 - t2))
 
         # return CSC matrix and boolean array indicating which components contribute flux
         zero_component = np.in1d(np.arange(self.sources.ncmp, dtype=np.int32), empty_specrow)
@@ -880,31 +884,45 @@ class StarFit(object):
             if data.size <= len(x0):
                 result = (x0, None, {}, "Number of free parameters exceeds number of datapoints.", 99)
             else:
-                try:
-                    result = optimize.leastsq(self.optimize_single_psf, x0=x0, Dfun=self.jacobi_single_psf, col_deriv=1,
-                                              args=(names, psf, data, sigma), full_output=1, epsfcn=0.0)
-                except:  # optimize.minpack.error as error:  # error handler to avoid code that code crashes completely
-                    result = (x0, None, {}, "Exception of type optimize.minpack.error encountered during fit.", 99)
+                # before fitting, first check if there is any significant peak inside a circle with radius FWHM
+                # centred on the initial guess
+                spaxel = np.unique(psf.osmap, return_index=True)[1]  # make sure every subspaxel only counted once
+                infwhm = (psf.r[spaxel] < psf.fwhm)
+                if (~infwhm).sum() >= 5:
+                    noise = np.std(data[~infwhm])
+                    peak = data[infwhm].max() - data[~infwhm].mean()
+                else:
+                    peak = data.max() - data.min()
+                    noise = np.median(data) - data.min()
+                if peak/noise <= 3:
+                    result = (x0, None, {}, "No significant peak detected.", 99)
+                else:
+                    try:
+                        result = optimize.leastsq(self.optimize_single_psf, x0=x0, Dfun=self.jacobi_single_psf,
+                                                  col_deriv=1, args=(names, psf, data, sigma), full_output=1,
+                                                  epsfcn=0.0)
+                    except:  # optimize.minpack.error as error:  # error handler to avoid code crashes completely
+                        result = (x0, None, {}, "Exception of type optimize.minpack.error encountered during fit.", 99)
 
-                    # If uncommented, the following lines save a FITS image of the source for which the fit failed.
-                    # used = self.ifs_data.instrument.dist2spax(psf.x, psf.y).argmin(axis=0)
-                    # calcdata = np.zeros(self.ifs_data.instrument.nspaxel, dtype=np.float32)
-                    # calcdata[used] += data
-                    # outdata  = self.ifs_data.instrument.make_grid(calcdata)[int(psf.y.min()):int(psf.y.max()),
-                    #                                                         int(psf.x.min()):int(psf.x.max())]
-                    # outhdu   = fits.PrimaryHDU(outdata)
-                    # outhdu.writeto("{0}_{1}.fits".format(self.jj, psf.src_id), clobber=True)
+                        # If uncommented, the following lines save a FITS image of the source for which the fit failed.
+                        # used = self.ifs_data.instrument.dist2spax(psf.x, psf.y).argmin(axis=0)
+                        # calcdata = np.zeros(self.ifs_data.instrument.nspaxel, dtype=np.float32)
+                        # calcdata[used] += data
+                        # outdata  = self.ifs_data.instrument.make_grid(calcdata)[int(psf.y.min()):int(psf.y.max()),
+                        #                                                         int(psf.x.min()):int(psf.x.max())]
+                        # outhdu   = fits.PrimaryHDU(outdata)
+                        # outhdu.writeto("{0}_{1}.fits".format(self.jj, psf.src_id), clobber=True)
 
-                # check if result of a successful fit makes any sense:
-                if 0 < result[-1] <= 4:
-                    if result[0][0] <= 0:  # fitted flux must be positive
-                        result = (x0, None, {}, "Fitted flux is not positive.", 99)
-                    elif posfitted[n]:  # offset between fitted centroid and initial guess must not exceed the FWHM
-                        ix = names.index("xc")
-                        iy = names.index("yc")
-                        offset = np.sqrt((result[0][ix]-x0[ix])**2 + (result[0][iy]-x0[iy])**2)
-                        if offset >= psf.fwhm:
-                            result = (x0, None, {}, "Offset between fitted centroid and initial guess >FWHM.", 99)
+                    # check if result of a successful fit makes any sense:
+                    if 0 < result[-1] <= 4:
+                        if result[0][0] <= 0:  # fitted flux must be positive
+                            result = (x0, None, {}, "Fitted flux is not positive.", 99)
+                        elif posfitted[n]:  # offset between fitted centroid and initial guess must not exceed the FWHM
+                            ix = names.index("xc")
+                            iy = names.index("yc")
+                            offset = np.sqrt((result[0][ix]-x0[ix])**2 + (result[0][iy]-x0[iy])**2)
+                            if offset >= psf.fwhm:
+                                result = (x0, None, {}, "Offset between fitted centroid and initial guess >FWHM.", 99)
 
             # reset attributes, positions and/or PSF parameters in PSF profile to status prior to fit
             psf.transform = self.transform
@@ -935,12 +953,11 @@ class StarFit(object):
 
             # log outcome of fit
             if not success:
-                logging.error("{0} PSF fit failed for source #{1}: {2}".format(self.prefix_string, self.sources.ID[i],
-                                                                               result[-2]))
+                logging.warning("PSF fit failed for source #{0}: {1}".format(self.sources.ID[i], result[-2]))
             else:
                 prmstring = ", ".join(["{0}={1:.2f}".format(names[k], result[0][k]) for k in xrange(1, len(names))])
-                logging.info("{0} Successfully fitted PSF of source #{1} (S/N={2:.1f}): f={3:.1f}, {4}".format(
-                    self.prefix_string, self.sources.ID[i], float(snratios[n]), result[0][0], prmstring))
+                logging.info("Successfully fitted PSF of source #{0} (S/N={1:.1f}): f={2:.1f}, {3}".format(
+                    self.sources.ID[i], float(snratios[n]), result[0][0], prmstring))
 
         # update coordinate transformation if available and possible
         if self.sources.transformation.valid:
@@ -949,7 +966,7 @@ class StarFit(object):
                 self.sources.transformation.data[self.jj, :, 0] = self.sources.transformation._fit_to_data(
                     refcoords[use], ifscoords[use])
 
-                logstring = "{0} Fitted coordinate transformation: ".format(self.prefix_string)
+                logstring = "Fitted coordinate transformation: "
                 for i in xrange(self.sources.transformation.npars):
                     name = self.sources.transformation.names[i]
                     value = self.sources.transformation.data[self.jj, i, 0]
@@ -959,8 +976,7 @@ class StarFit(object):
                 logging.info(logstring)
 
             else:
-                logging.error("{0} Cannot update coordinate transformation: < 2 successful PSF fits.".format(
-                    self.prefix_string))
+                logging.error("Cannot update coordinate transformation: < 2 successful PSF fits.")
                 self.sources.transformation.data[self.jj, :, 0] = np.nan
 
         # update PSF parameters
@@ -970,9 +986,9 @@ class StarFit(object):
             # the results of the successful fits are used. If no fit was successful, nothing is updated.
             if use.sum() == 0:
                 self.psf_attributes.data[self.jj, :, 0] = np.nan
-                logging.error("{0} Cannot update PSF parameters: no successful fits.".format(self.prefix_string))
+                logging.error("Cannot update PSF parameters: no successful fits.")
             else:
-                logstring = "{0} Updated PSF parameters:".format(self.prefix_string)
+                logstring = "Updated PSF parameters:"
                 for i, par in enumerate(psfnames):
                     ii = self.psf_attributes.names.index(par)
 
@@ -1019,7 +1035,7 @@ class StarFit(object):
                 # from the behaviour of getattr(self.PSF, "set_<PAR>")(<VALUE>)
                 setattr(psf, names[i], x0[i])
             except AssertionError as error:  # if parameter cannot be updated, raise LinAlgError
-                logging.error("{0} Encountered AssertionError: {1}".format(self.prefix_string, error))
+                logging.error("Encountered AssertionError: {0}".format(error))
                 raise np.linalg.linalg.LinAlgError("Invalid value '{0}' for parameter '{1}'.".format(x0[i], names[i]))
         # return residuals
         return data - x0[0] * (psf.f / sigma if sigma is not None else psf.f)
@@ -1082,7 +1098,7 @@ class StarFit(object):
                 getattr(self.PSF, "set_{0}".format(parnames[i]))(bestfit[i])
 
             # some logging:
-            logstring = "{0} Fitted coordinate transformation:".format(self.prefix_string)
+            logstring = "Fitted coordinate transformation:"
             for i in xrange(self.sources.transformation.npars):
                 logstring += " {0}={1:.2f},".format(self.sources.transformation.names[i],
                                                     float(self.sources.transformation.data[self.jj, i, 0]))
@@ -1106,7 +1122,7 @@ class StarFit(object):
                 success = True
             except:  # optimize.minpack.error: # error handler to avoid code that code crashes completely, seems to
                 # depend on numpy version which error is thrown
-                logging.error("{0} PSF fit failed.".format(self.prefix_string))
+                logging.error("PSF fit failed.")
                 bestfit = None
                 success = False
 
@@ -1118,7 +1134,7 @@ class StarFit(object):
                     getattr(self.PSF, "set_{0}".format(parnames[i]))(bestfit[i])
 
                 # some logging
-                logstring = "{0} Fitted PSF model:".format(self.prefix_string)
+                logstring = "Fitted PSF model:"
                 for i in xrange(self.psf_attributes.npars):
                     logstring += " {0}={1:.2f},".format(self.psf_attributes.names[i],
                                                         float(self.psf_attributes.data[self.jj, i, 0]))
