@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-262, 2015/05/06
+263, 2015/05/08
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 262
+__revision__ = 263
 
 import contextlib
 import itertools
@@ -399,7 +399,8 @@ class StarFit(object):
         self.use_sigma = use_sigma
 
         # The number of previously fitted layers used to obtain initial guesses
-        self.ntrack = int(ntrack//self.nbin) + 1 if self.nbin > 1 else ntrack
+        # TODO: Do we need to divide by the binning factor?
+        self.ntrack = ntrack  # int(ntrack//self.nbin) + 1 if self.nbin > 1 else ntrack
 
         # execute fit
         self.timeout()
@@ -889,8 +890,8 @@ class StarFit(object):
                 spaxel = np.unique(psf.osmap, return_index=True)[1]  # make sure every subspaxel only counted once
                 infwhm = (psf.r[spaxel] < psf.fwhm)
                 if (~infwhm).sum() >= 5:
-                    noise = np.std(data[~infwhm])
                     peak = data[infwhm].max() - data[~infwhm].mean()
+                    noise = np.std(data[~infwhm])
                 else:
                     peak = data.max() - data.min()
                     noise = np.median(data) - data.min()
