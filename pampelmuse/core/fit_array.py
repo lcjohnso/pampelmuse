@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-263, 2015/05/08
+264, 2015/05/11
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 263
+__revision__ = 264
 
 import contextlib
 import itertools
@@ -221,6 +221,8 @@ class StarFit(object):
         -------
             The newly created instance
         """
+        logging.debug("Initializing StarFit instance (revision: {0})".format(__revision__))
+
         super(StarFit, self).__init__(**kwargs)
 
         self.ifs_data = ifs_data
@@ -930,7 +932,7 @@ class StarFit(object):
             psf.maxrad = self.maxrad
             for j, name in enumerate(names[1:]):
                 delattr(psf, name)
-            if self.sources.ifs_coordinates_free[i]:
+            if posfitted[n]:
                 psf.set_xc(x0[names.index("xc")])
                 psf.set_yc(x0[names.index("yc")])
 
