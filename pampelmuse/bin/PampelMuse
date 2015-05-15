@@ -63,8 +63,8 @@ Latest SVN revision
 -------------------
 264, 2015/05/11"""
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.21.1.0"
-__revision__ = 264
+__version__ = "0.21.2.0"
+__revision__ = 265
 
 import sys
 sys.stdout.write("""

@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-264, 2015/05/11
+265, 2015/05/15
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 264
+__revision__ = 265
 
 import contextlib
 import itertools
@@ -869,7 +869,7 @@ class StarFit(object):
                 posfitted[n] = False
 
             # check if PSF parameters should be fitted
-            if i in self.sources.psf_indices:
+            if i in self.sources.psf_indices and self.psf_attributes.contains_free_parameters:
                 names.extend(psfnames)
                 for name in psfnames:
                     x0.append(getattr(psf, name))
