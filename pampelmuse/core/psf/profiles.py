@@ -39,10 +39,10 @@ ces simultaneously without having to loop over them.
 
 Latest SVN revision
 -------------------
-249, 2015/04/15
+266, 2015/05/21
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 249
+__revision__ = 266
 
 import logging
 from scipy import spatial
@@ -986,9 +986,9 @@ class Profile(Canvas):
     @property
     def oversampled(self):
         """
-        'used' is a boolean array that is set to True for each spaxel that is
-        supersampled in the calculation, i.e. is within a distance 'osradius'
-        to the profile centroid.
+        'oversampled' is a boolean array that is set to True for each spaxel
+        that is supersampled in the calculation, i.e. is within a distance
+        'osradius' to the profile centroid.
 
         Returns
         -------
@@ -996,7 +996,7 @@ class Profile(Canvas):
             A 1dim. boolean array with length = number of spaxels in class.
         """
         if self._oversampled is None:
-            self._oversampled = np.sqrt((self.x - self.xc) ** 2 + (self.y - self.vc) ** 2) <= self.osr
+            self._oversampled = np.sqrt((self.x - self.xc) ** 2 + (self.y - self.yc) ** 2) <= self.osr
         return self._oversampled
 
     @property
@@ -1017,7 +1017,7 @@ class Profile(Canvas):
         norm : nd_array
             A 1dim. array with length = number of spaxels in class. It provides
             the normalization for each spaxel, i.e. the value by which the
-            calculated fluxes must be devided to return the true ones. It is
+            calculated fluxes must be divided to return the true ones. It is
             basically 1 for each spaxel used in the calculation except for the
             supersampled ones, where it is equal to the number of sub-spaxels.
         """
@@ -1027,7 +1027,7 @@ class Profile(Canvas):
 
     # The supersampling of pixels is included in the following way:
     # All calculations are performed on 1dim. arrays, and every sub-spaxel is included in those arrays. The property
-    # 'osmap' keeps track of the parent spaxel of each (sub)spaxel used in the calclulation. When a calculated property
+    # 'osmap' keeps track of the parent spaxel of each (sub)spaxel used in the calculation. When a calculated property
     # is returned, by default the original spaxels are restored by averaging over the sub-spaxels. This is done using
     # the property 'ossummer' and the method 'sum_os'. The averaging can be turned off for internal calculations
     # (see below).
@@ -1042,8 +1042,9 @@ class Profile(Canvas):
             supersampled are included 'osfactor'**2 times.
         """
         if self._osmap is None:
-            self._osmap = np.hstack((self.spaxel[self.used], np.resize(self.spaxel[self.oversampled],
-                                                                       ((self.osf * self.osf - 1) * self.Nos,))))
+            # np.resize uses repeated copies of data to fill new values
+            self._osmap = np.hstack((self.spaxel[self.used],
+                                     np.resize(self.spaxel[self.oversampled], ((self.osf * self.osf - 1) * self.Nos,))))
             self._osmap.sort()
         return self._osmap
 
@@ -1104,8 +1105,9 @@ class Profile(Canvas):
             self._xos = self.x[self.osmap]
             if self.osf > 1:
                 # add offsets of sub-spaxel wrt. parent spaxel along x-axis
-                self._xos[np.in1d(self.osmap, np.flatnonzero(self.oversampled))] \
-                    += np.resize(self.osxgrid, (self.Nos * self.osxgrid.size,))
+                is_oversampled = np.in1d(self.osmap, np.flatnonzero(self.oversampled))
+                assert(is_oversampled.size == self.Nos * self.osxgrid.size)
+                self._xos[is_oversampled] += np.resize(self.osxgrid, (self.Nos * self.osxgrid.size,))
         return self._xos
 
     @property
@@ -1122,8 +1124,9 @@ class Profile(Canvas):
             self._yos = self.y[self.osmap]
             if self.osf > 1:
                 # add offsets of sub-spaxel wrt. parent spaxel along y-axis
-                self._yos[np.in1d(self.osmap, np.flatnonzero(self.oversampled))] \
-                    += np.resize(self.osygrid, (self.Nos * self.osygrid.size,))
+                is_oversampled = np.in1d(self.osmap, np.flatnonzero(self.oversampled))
+                assert(is_oversampled.size == self.Nos * self.osygrid.size)
+                self._yos[is_oversampled] += np.resize(self.osygrid, (self.Nos * self.osygrid.size,))
         return self._yos
 
     @property

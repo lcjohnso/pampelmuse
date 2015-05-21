@@ -21,10 +21,10 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-261, 2015/04/30
+266, 2015/05/21
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 261
+__revision__ = 266
 
 import collections
 import inspect
@@ -36,7 +36,6 @@ import warnings
 
 import numpy as np
 from numpy.polynomial import Chebyshev, Legendre, Hermite, Polynomial
-from scipy.interpolate import InterpolatedUnivariateSpline
 from astropy.io import fits
 
 # check if PyQt is available 
@@ -1537,14 +1536,16 @@ class Sources(object):
             # for each source, get layers where x- and y-coordinate is defined. If it is not defined for any layer
             # just use reference coordinate and trigger warning
             valid_i = valid & np.any(~np.isnan(self.ifs_coordinates[:, i, :, 0]), axis=-1)
+            if commonSlope:
+                valid_i &= meanvalid.all(axis=1)
             if valid_i.sum() > 0:
                 wave = self.wave[valid_i]
                 fx_wave = self.ifs_coordinates[valid_i, i, 0, 0]
                 fy_wave = self.ifs_coordinates[valid_i, i, 1, 0]
             else:
-                wave = self.wave
-                fx_wave = self.x[j]*np.ones(self.ndisp)
-                fy_wave = self.y[j]*np.ones(self.ndisp)
+                wave = self.wave[meanvalid.all(axis=1)] if commonSlope else self.wave
+                fx_wave = self.x[j]*np.ones(meanvalid.all(axis=1).sum() if commonSlope else self.ndisp)
+                fy_wave = self.y[j]*np.ones(meanvalid.all(axis=1).sum() if commonSlope else self.ndisp)
                 logging.warning("Source #{0} has no valid IFS coordinates - using reference coordinates.".format(
                     self.ID[j]))
 
