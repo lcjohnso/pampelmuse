@@ -39,10 +39,10 @@ ces simultaneously without having to loop over them.
 
 Latest SVN revision
 -------------------
-266, 2015/05/21
+267, 2015/05/21
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 266
+__revision__ = 267
 
 import logging
 from scipy import spatial
@@ -1106,7 +1106,7 @@ class Profile(Canvas):
             if self.osf > 1:
                 # add offsets of sub-spaxel wrt. parent spaxel along x-axis
                 is_oversampled = np.in1d(self.osmap, np.flatnonzero(self.oversampled))
-                assert(is_oversampled.size == self.Nos * self.osxgrid.size)
+                assert(is_oversampled.sum() == self.Nos * self.osxgrid.size)
                 self._xos[is_oversampled] += np.resize(self.osxgrid, (self.Nos * self.osxgrid.size,))
         return self._xos
 
@@ -1125,7 +1125,7 @@ class Profile(Canvas):
             if self.osf > 1:
                 # add offsets of sub-spaxel wrt. parent spaxel along y-axis
                 is_oversampled = np.in1d(self.osmap, np.flatnonzero(self.oversampled))
-                assert(is_oversampled.size == self.Nos * self.osygrid.size)
+                assert(is_oversampled.sum() == self.Nos * self.osygrid.size)
                 self._yos[is_oversampled] += np.resize(self.osygrid, (self.Nos * self.osygrid.size,))
         return self._yos
 
