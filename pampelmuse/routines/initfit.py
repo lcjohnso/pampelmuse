@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-261, 2015/04/30
+269, 2015/05/28
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 261
+__revision__ = 269
 
 import datetime, itertools, os, sys, logging
 from multiprocessing import cpu_count, Pool
@@ -129,6 +129,8 @@ def image_from_psf(psf_instances):
 def initfit(pampelmuse):
 
     logging.info("Executing requested routine INITFIT [Revision {0:d}].".format(__revision__))
+
+    logging.info("Using version designed for {0} IFUs.".format("small" if pampelmuse.smallifu else "large"))
 
     # get results from crowded-field photometry, initialize sources
     logging.info("Reading photometry results from file '{0}'.".format(pampelmuse.initfit.sourcelist))
