@@ -26,18 +26,21 @@ Example for usage:
 ['gaussian', 'A new PSF']
 >>> modifier.save_changes()
 
-The auxiliary function 'Transform_string' is designed to transfor a string into
-another type, such as a float or a list.
+The auxiliary function 'Transform_string' is designed to transform a string
+into another type, such as a float or a list.
 
 Latest SVN revision
 -------------------
-231, 2015/01/22
+268, 2015/05/27
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 231
+__revision__ = 268
 
 
-import datetime, logging, os, re, string, sys
+import datetime
+import logging
+import re
+import string
 from xml.etree import ElementTree
 from xml.dom.minidom import parseString
 
@@ -68,11 +71,11 @@ def transform_string(thestring, dtype, abort_on_exception=True):
     elif dtype == 'int':
         return int(thestring)
     elif dtype == 'bool':
-        ## using regular expressions for the transformation to bool
+        # using regular expressions for the transformation to bool
         return bool(int(re.sub("true", "1", re.sub("false", "0", string.lower(thestring)))))
     elif dtype in ['list', 'tuple']:
         thenumbers = thestring[1:-1].split(',')
-        if sum([len(re.findall('\.', s)) for s in thenumbers])==0:
+        if sum([len(re.findall('\.', s)) for s in thenumbers]) == 0:
             thelist = [int(x) for x in thenumbers]
         else:
             thelist = [float(x) for x in thenumbers]
@@ -85,10 +88,9 @@ def transform_string(thestring, dtype, abort_on_exception=True):
     else:
         logging.warning("Unknown datatype encountered:{0}".format(dtype))
         if abort_on_exception:
-            raise IOError, "Unknown datatype encountered:{0}".format(dtype)
+            raise IOError("Unknown datatype encountered:{0}".format(dtype))
         else:
             return None
-
 
 
 class ModifyConfig:
@@ -115,135 +117,132 @@ class ModifyConfig:
             an exception is encountered (i.e if parameter to be updated does
             not exist or definition  of a parameter is not unique)
         """
+        # # open XML-schema
+        # schema_doc = etree.parse(schema)
+        # self.xmlschema = etree.XMLSchema(schema_doc)
 
-        ## open XML-schema
-##         schema_doc = etree.parse(schema)
-##         self.xmlschema = etree.XMLSchema(schema_doc)
-
-        ## specifyXML-parser, include schema
-##        self.parser = etree.XMLParser(schema=self.xmlschema)
+        # # specifyXML-parser, include schema
+        # self.parser = etree.XMLParser(schema=self.xmlschema)
         self.parser = ElementTree.XMLParser()
 
-        ##  open file, validate against schema
+        # open file, validate against schema
         self.filename = filename
-        self.ptree    = ElementTree.parse(filename, self.parser)
+        self.ptree = ElementTree.parse(filename, self.parser)
 
-        ## get the namespace(s) for XPATH-searches:
-        ## WARNING: Hard-coded so far
+        # get the namespace(s) for XPATH-searches:
+        # WARNING: Hard-coded so far
         self.ns = "{http://www.tobedefined.com/pampelmuse}"
 
-        ## list of all existing parameter-names:
+        # list of all existing parameter-names:
         names = self.ptree.findall("./{0}parameter/{0}name".format(self.ns))
         self.pnames = [name.text for name in names]
 
-        ##  What time is it?
-        self.ut        = datetime.datetime.utcnow()
+        #  What time is it?
+        self.ut = datetime.datetime.utcnow()
         self.timestamp = self.ut.strftime("%Y-%m-%dT%H:%M:%SZ")
 
         self.AoE = abort_on_exception
-        
-        
 
     def add_parameter(self, name, value, comment=None, category=None, inuse=True, ahead=None, after=None):
         """
-        Add a new parameter to the configuration. Note that this method
-        should not be used to update existing parameters. For this
-        purpose, the `update_parameter`-method should be used.
+        Add a new parameter to the configuration. Note that this method should
+        not be used to update existing parameters. For this purpose, the
+        `update_parameter`-method should be used.
 
         Parameters
         ----------
         name : string
-            The name of the parameter. It should only contain alpha-
-            numerical characters. Note that all characters are auto-
-            matically set to uppercase.
+            The name of the parameter. It should only contain alphanumerical
+            characters. Note that all characters are automatically set to
+            uppercase.
         value : a standard python data-type
-            The default value of the parameter. Can be either a string,
-            a float, an integer, a boolean flag, a list or a tuple.
+            The default value of the parameter. Can be either a string, a
+            float, an integer, a boolean flag, a list or a tuple.
         comment : string, optional
             A comment to explain the purpose of the parameter.
         category : string,  optional
-            A keyword to specify which part of the configuration is
-            affected by the new parameter. Currently, it is only used
-            for visualization purposes.
+            A keyword to specify which part of the configuration is affected
+             by the new parameter. Currently, it is only used for
+             visualization purposes.
         inuse : boolean, optional
             A flag to indicate whether the parameter is used by the
             configuration. By default, `inuse` is set to True. In any case,
             the updated configuration will be validated against the XML-
             schema.
         ahead : string, optional
-            If specified, new parameter will be placed ahead of the given
-            one in the configuration.
+            If specified, new parameter will be placed ahead of the given one
+            in the configuration.
         after : string, optional
-            If specified, new parameter will be placed after the given
-            one in the configuration.
+            If specified, new parameter will be placed after the given one in
+            the configuration.
 
 
         Returns
         -------
         valid : an etree.XMLSchema.assertValid return-value
-            The new parameter is validated against the schema. If succesful,
+            The new parameter is validated against the schema. If successful,
             true is returned; otherwise the routine will return an error.
         """
-
-        ## check if parameter conforms to required format
-        ## only aplphanumeric characters are allowed 
+        # check if parameter conforms to required format - only alphanumeric characters are allowed
         new_name = string.upper(name.strip())
         if ''.join(re.findall('[0-9A-Z]', new_name)) != new_name:
             logging.error("Cannot add parameter '{0}' - invalid name!".format(new_name))
             if self.AoE:
-                raise IOError, "Cannot add parameter '{0}' since it contains invalid characters!".format(new_name)
+                raise IOError("Cannot add parameter '{0}' since it contains invalid characters!".format(new_name))
             return 0
 
-        ##  check if parameter is already present
+        #  check if parameter is already present
         if new_name in self.pnames:
 
             logging.error("Parameter '{0}' does already exist!".format(new_name))
             logging.error(" Use `update_parameter`-method!")
             if self.AoE:
-                raise IOError, "Parameter '{0}' does already exist!".format(new_name)
+                raise IOError("Parameter '{0}' does already exist!".format(new_name))
             return 0
 
-        ## get type of parameter using reglular expressions
-        dtype = re.findall(r"(^<type)( ')([a-z0-9]*.[a-z0-9]*)('>)",str(type(value)))[0][2]
+        # get type of parameter using regular expressions
+        dtype = re.findall(r"(^<type)( ')([a-z0-9]*.[a-z0-9]*)('>)", str(type(value)))[0][2]
         
-        ##  create new parameter as etree.SubElement of the root
+        #  create new parameter as etree.SubElement of the root
         attrib = {}
-        if category is not None: attrib["category"] = category
-        if inuse is not None: attrib["inuse"] = inuse
+        if category is not None:
+            attrib["category"] = category
+        if inuse is not None:
+            attrib["inuse"] = inuse
         
         new_param = ElementTree.SubElement(self.ptree.getroot(), "{0}parameter".format(self.ns), attrib=attrib)
 
         thename = ElementTree.SubElement(new_param, "{0}name".format(self.ns))
         thename.text = new_name
 
-        thevalue = ElementTree.SubElement(new_param, "{0}value".format(self.ns), attrib={"dtype":str(dtype)})
+        thevalue = ElementTree.SubElement(new_param, "{0}value".format(self.ns), attrib={"dtype": str(dtype)})
         thevalue.text = str(value)
-
 
         if comment is not None:
             thecomment = ElementTree.SubElement(new_param, "{0}comment".format(self.ns))
             thecomment.text = comment
 
-        ## store information about the update in the configuration
-        theupdate = ElementTree.SubElement(new_param, "{0}updated".format(self.ns), attrib={"timestamp":self.timestamp})
+        # store information about the update in the configuration
+        theupdate = ElementTree.SubElement(new_param, "{0}updated".format(self.ns),
+                                           attrib={"timestamp": self.timestamp})
 
         theupdate.text = "Appended parameter {0} to configuration file.".format(new_name)
 
-        ## check if any information about position of new parameter given
+        # check if any information about position of new parameter given
         if ahead is not None and after is not None:
             logging.warning("Cannot use `ahead`- AND `after`-parameter.")
 
         index = None
         if ahead is not None:
-            if not ahead in self.pnames:
+            if ahead not in self.pnames:
                 logging.error("Parameter '{0}' does not exist.".format(ahead))
             else:
-                index=self.pnames.index(ahead)
+                index = self.pnames.index(ahead)
         elif after is not None:
-            if not after in self.pnames:
+            if after not in self.pnames:
                 logging.error("Parameter '{0}' does not exist.".format(after))
             else:
-                index=self.pnames.index(after)+1
+                index = self.pnames.index(after) + 1
 
         if index is not None:
             self.ptree.getroot().remove(new_param)
@@ -254,11 +253,11 @@ class ModifyConfig:
 
         logging.info("Added parameter '{0} to configuration'".format(new_name))
         
-##         return self.xmlschema.assertValid(self.ptree)
+        # return self.xmlschema.assertValid(self.ptree)
         return 1
 
-
-    def update_parameter(self, name, value=None, comment=None, comment_r=None, category=None, inuse=None, force_update=False):
+    def update_parameter(self, name, value=None, comment=None, comment_r=None, category=None, inuse=None,
+                         force_update=False):
         """
         Update an existing parameter in the configuration. Note that this
         method should not be used to add new parameters. For this
@@ -278,7 +277,7 @@ class ModifyConfig:
             A comment to explain the purpose of the parameter. Note that
             a comment provided here is appended to the existing comment(s)
         comment_r : string, optional
-            Same as `comment`, only that exisiting comments (if any) are
+            Same as `comment`, only that existing comments (if any) are
             replaced by the new comment.
         category : string,  optional
             A keyword to specify which part of the configuration is
@@ -302,40 +301,37 @@ class ModifyConfig:
             updates are written to the configuration.
         """
         thename = string.upper(name)
-        updates = [] ## a container for all strings describing the
-                     ## individual updates
+        updates = []  # a container for all strings describing the individual updates
 
-        ## search parameter
-        if not thename in self.pnames:
+        # search parameter
+        if thename not in self.pnames:
             logging.error("Parameter '{0}' does not exist!".format(thename))
             logging.error(" Use `add_parameter`-method to include it!")
 
             if self.AoE:
-                raise IOError, "Parameter '{0}' does not exist!".format(thename)
-
+                raise IOError("Parameter '{0}' does not exist!".format(thename))
             return 0
 
-        ## Found multiple occurences -> abort
+        # Found multiple occurrences -> abort
         elif self.pnames.count(thename) > 1:
-            logging.crtitcal("Meaning of parameter '{0}' ambiguous!".format(thename))
+            logging.critical("Meaning of parameter '{0}' ambiguous!".format(thename))
             logging.critical("Please verify XML-file!")
             if self.AoE:
-                raise IOError, "Meaning of parameter {0} ambiguous!".format(thename)
-            return len(param_list)
+                raise IOError("Meaning of parameter {0} ambiguous!".format(thename))
+            return self.pnames.count(thename)
 
-
-        ##  Found exactly 1 occurence -> go on
+        #  Found exactly 1 occurrence -> go on
         index = self.pnames.index(thename)
 
         theparam = self.ptree.findall("./{0}parameter".format(self.ns))[index]
 
-        if value is not None:  ## check if value should be updated
+        if value is not None:  # check if value should be updated
             dtype = re.findall(r"(^<type)( ')([a-z0-9]*.[a-z0-9]*)('>)", str(type(value)))[0][2]
 
-##             thevalue = theparam.findall("./{0}value[@dtype]".format(self.ns))
-##             including attributes only works in latest versions of xml
+            # thevalue = theparam.findall("./{0}value[@dtype]".format(self.ns))
+            # including attributes only works in latest versions of xml
             thevalue = theparam.findall("./{0}value".format(self.ns))
-            assert len(thevalue)==1
+            assert len(thevalue) == 1
 
             vindex = list(theparam).index(thevalue[0])
             theparam.remove(thevalue[0])
@@ -343,11 +339,11 @@ class ModifyConfig:
             old_value = thevalue[0].text
             old_dtype = thevalue[0].attrib["dtype"]
 
-            if dtype != old_dtype: ## new data-type does not match old one
+            if dtype != old_dtype:  # new data-type does not match old one
                 logging.warning("Unmatching `dtype` encountered: {0} vs {1}".format(dtype, old_dtype))
                 if not force_update:
                     if self.AoE:
-                        raise IOError, "'{0}' requires '{1}', not '{2}'!".format(thename, old_dtype, dtype)
+                        raise IOError("'{0}' requires '{1}', not '{2}'!".format(thename, old_dtype, dtype))
 
                     return 0
                 else:
@@ -361,7 +357,7 @@ class ModifyConfig:
 
         if comment_r is not None:  # check if comment should be replaced
             
-            ##  delete old comment(s) (if any)
+            # delete old comment(s) (if any)
             for comment in theparam.findall("./{0}comment".format(self.ns)):
                 theparam.remove(comment)
 
@@ -375,14 +371,13 @@ class ModifyConfig:
             # 'comment'-Elements. Following codes assures this.
 
             oldupdates = theparam.findall("./{0}updated".format(self.ns))
-            if len(oldupdates)>0:
+            if len(oldupdates) > 0:
                 cindex = list(theparam).index(oldupdates[0])
                 theparam.remove(newcomment)
                 theparam.insert(cindex, newcomment)
             
-            
         if category is not None:
-            if theparam.attrib.has_key("category"):
+            if "category" in theparam.attrib:
                 old_category = theparam.attrib["category"]
             else:
                 old_category = "None"
@@ -390,10 +385,8 @@ class ModifyConfig:
 
             theparam.attrib["category"] = category
 
-
-
         if inuse is not None:  # check if usage-flag should be updated
-            if theparam.attrib.has_key("inuse"):
+            if "inuse" in theparam.attrib:
                 old_inuse = transform_string(theparam.attrib["inuse"], "bool", abort_on_exception=self.AoE)
             else:
                 old_inuse = True
@@ -404,18 +397,16 @@ class ModifyConfig:
                 updates.append("Enabled usage of parameter.".format(thename))
             theparam.set("inuse", str(int(inuse)))
 
+            for update in updates:  # write update information to file
 
-            for update in updates: ## write update information to file
-
-                theupdate = ElementTree.SubElement(theparam, "{0}updated".format(self.ns), attrib={"timestamp":self.timestamp})
+                theupdate = ElementTree.SubElement(theparam, "{0}updated".format(self.ns),
+                                                   attrib={"timestamp": self.timestamp})
                 theupdate.text = update
 
         self.ptree.getroot()[index] = theparam
 
-##         return self.xmlschema.assertValid(self.ptree)
+        # return self.xmlschema.assertValid(self.ptree)
         return 1
-
-
 
     def get_parameter(self, name, return_comment=True):
         """
@@ -439,32 +430,31 @@ class ModifyConfig:
         """
         thename = string.upper(name)
 
-        ##  search configuration for matching parameter
+        # search configuration for matching parameter
 
-        if not thename in self.pnames: ## None found -> abort
+        if thename not in self.pnames:  # None found -> abort
             logging.error("No such parameter: '{0}'".format(thename))
             if self.AoE:
-                raise IOError, " No such parameter: {0}".format(thename)
+                raise IOError(" No such parameter: {0}".format(thename))
             return None
-        elif self.pnames.count(thename) > 1: ## Multiple found -> abort
-            logging.crtitcal("Multiple occurences of parameter '{0}' found!".format(thename))
+        elif self.pnames.count(thename) > 1:  # Multiple found -> abort
+            logging.critical("Multiple occurrences of parameter '{0}' found!".format(thename))
             logging.critical("Please verify XML-file!")
             if self.AoE:
-                raise IOError, "Multiple occurences of parameter '{0}' found!".format(thename)
-            return len(param_list)
+                raise IOError("Multiple occurrences of parameter '{0}' found!".format(thename))
+            return self.pnames.count(thename)
 
-
-        ## Found one! -> go one & return its value (& comment)
+        # Found one! -> go one & return its value (& comment)
         index = self.pnames.index(thename)
 
         theparam = self.ptree.findall("./{0}parameter".format(self.ns))[index]
 
         thevalue = theparam.findall("./{0}value".format(self.ns))[0]
         
-        thetype  = thevalue.attrib["dtype"]
+        thetype = thevalue.attrib["dtype"]
 
-        thecomm  = theparam.findall("./{0}comment".format(self.ns))
-        comment  = ""
+        thecomm = theparam.findall("./{0}comment".format(self.ns))
+        comment = ""
         for comm in list(thecomm):
             comment += "-{0}".format(comm.text)
 
@@ -472,8 +462,6 @@ class ModifyConfig:
             return [transform_string(thevalue.text, thetype, abort_on_exception=self.AoE), comment]
         else:
             return transform_string(thevalue.text, thetype, abort_on_exception=self.AoE)
-
-            
 
     def get_all(self, return_comment=False):
         """
@@ -496,15 +484,15 @@ class ModifyConfig:
 
         for parameter in param_list:
 
-            thename  = parameter.findall("./{0}name".format(self.ns))[0]
+            thename = parameter.findall("./{0}name".format(self.ns))[0]
 
             thevalue = parameter.findall("./{0}value".format(self.ns))[0]
 
-            thetype  = thevalue.attrib["dtype"]
+            thetype = thevalue.attrib["dtype"]
 
             if return_comment:
-                thecomm  = parameter.findall("./{0}comment".format(self.ns))
-                comment  = ""
+                thecomm = parameter.findall("./{0}comment".format(self.ns))
+                comment = ""
                 for comm in list(thecomm):
                     comment += "-{0}".format(comm.text)
                 config[thename.text] = [transform_string(thevalue.text, thetype, abort_on_exception=self.AoE), comment]
@@ -512,7 +500,6 @@ class ModifyConfig:
                 config[thename.text] = transform_string(thevalue.text, thetype, abort_on_exception=self.AoE)
 
         return config
-
 
     def save_changes(self, filename=None, style=None):
 
@@ -526,9 +513,8 @@ class ModifyConfig:
             txt.insert(1, '<?xml-stylesheet type="text/xsl" href="{0}"?>'.format(style))
 
         outfile = open(filename, "w")
-        outfile.write(parseString("".join(txt)).toprettyxml(indent="",newl=""))
+        outfile.write(parseString("".join(txt)).toprettyxml(indent="", newl=""))
         outfile.close()
 
-##         self.ptree.write(filename, pretty_print=pretty_print,
-##                          xml_declaration=xml_declaration,
-##                          encoding=self.ptree.docinfo.encoding)
+        # self.ptree.write(filename, pretty_print=pretty_print, xml_declaration=xml_declaration,
+        #                  encoding=self.ptree.docinfo.encoding)

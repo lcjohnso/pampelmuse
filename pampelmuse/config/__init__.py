@@ -22,12 +22,13 @@ the header of a FITS HDU.
 
 Latest SVN revision
 -------------------
-237, 2015/02/11
+268, 2015/05/27
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 237
+__revision__ = 268
 
 import datetime
+import logging
 import os
 import re
 from astropy.io import fits
@@ -54,19 +55,74 @@ class PampelMuseConfig(Namespace):
         self.changeable = ["verbose", "interact", "cpucount", "maxiter", "polytype", "polydeg", "subunres", "subsky",
                            "usesigma", "layerrng", "layerbin"]
 
-    def read_defaults(self):
-        """
-        This method reads the default configuration from the XML file that is
-        part of PampelMuse and stored in the data directory of this package.
-        """
-        
+        # read the default configuration from he XML file that is part of PampelMuse and stored in the data directory
+        # of this package.
         __currentdir__ = os.path.abspath(os.path.dirname(__file__))
-        
-        config_reader = ModifyConfig(os.path.join(__currentdir__, "data", "PMparams.xml"), os.path.join(
-            __currentdir__, "data", "PMschema.xsd"))
-        
-        for key, value in config_reader.get_all().iteritems():
+        self.config_reader = ModifyConfig(os.path.join(__currentdir__, "data", "PMparams.xml"),
+                                          os.path.join(__currentdir__, "data", "PMschema.xsd"))
+
+        self.start = 0
+        self.stop = -1
+        for key, value in self.config_reader.get_all().iteritems():
+            if key.lower() == "layerrng":
+                self.start = value[0]
+                self.stop = value[1]
             setattr(self, key.lower(), value)
+
+    def update_parameter(self, key, value, only_changeable=False):
+        """
+        This method is used to change a configuration parameter for the
+        current analysis. It performs a number of consistency checks before
+        updating the parameter in order to not mess up the configuration.
+
+        Parameters
+        ----------
+        key : string
+            The name of the parameter that should be updated.
+        value : string or appropriate type
+            The updated value of the parameter. If a string is provided, the
+            method will check whether it can be evaluated, i.e. transformed
+            into another type.
+        only_changeable : bool, optional
+            If this flag is set to True, only the parameters specified in the
+            'changeable' attribute can be specified
+
+        Returns
+        -------
+        success : int
+            0 is update successful, 1 if failed with warning, 2 if failed with
+            error.
+        """
+        if not hasattr(self, key.lower()):  # make sure only valid parameters are included
+            logging.error("Unknown configuration parameter provided: '{0}'".format(key))
+            return 2
+
+        elif not only_changeable or key.lower() in self.changeable:  # make sure parameter can still be modified
+            if isinstance(value, str):
+                try:
+                    value = eval(value)
+                except NameError:  # a NameError is raised if value cannot be converted to  other type
+                    pass
+
+            # make sure updated parameter has same type
+            current_value = getattr(self, key.lower())
+            if isinstance(value, int) and isinstance(current_value, float):  # float can be replaced by int
+                value = float(value)
+            elif value in [0, 1] and isinstance(current_value, bool):  # bool can be replaced by 0 or 1
+                value = bool(value)
+            if type(value) == type(current_value):
+                setattr(self, key.lower(), value)
+                if key.lower() == "layerrng":  # the layer range must be transformed into start and stop values
+                    self.start = value[0]
+                    self.stop = value[1]
+                return 0
+            else:
+                logging.error("Parameter {0} requires {1}, but provided value '{2}' has {3}.".format(
+                    key.upper(), type(getattr(self, key.lower())), value, type(value)))
+                return 2
+        else:
+            logging.warning("Configuration parameter '{0}' cannot be changed during the analysis.".format(key))
+            return 1
 
     def readHeader(self, hdu):
         """
@@ -79,10 +135,10 @@ class PampelMuseConfig(Namespace):
             will scan the header of the HDU for hierarch keywords starting
             with PAMPELMUSE.
         """
-        self.configFinder = re.compile(r"PAMPELMUSE\s([A-Z]+)\s?([A-Z]\w+)?$")
+        config_finder = re.compile(r"PAMPELMUSE\s([A-Z]+)\s?([A-Z]\w+)?$")
         
         for entry in hdu.header.cards:   
-            match = self.configFinder.match(entry.keyword)
+            match = config_finder.match(entry.keyword)
             if match is not None:
                 if match.group(2) is None:
                     setattr(self, match.group(1).lower(), entry.value)

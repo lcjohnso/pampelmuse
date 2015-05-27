@@ -26,10 +26,10 @@ like dead fibers or holes in the FoV are not handled.
 
 Latest SVN revision
 -------------------
-232, 2015/01/30
+268, 2015/05/27
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 232
+__revision__ = 268
 import logging
 import re
 from scipy.spatial import distance
@@ -242,7 +242,7 @@ class Instrument(object):
         """
         try:
             self._rotation_angle = float(value)
-            logging.info("Rotation angle of IFS on the sky set to {0:.1f} degrees.".format(self._rotation_angle))
+            logging.info("Rotation angle of IFS on the sky is {0:.1f} degrees.".format(self._rotation_angle))
         except ValueError:
             logging.error("Illegal value for rotation angle: {0}".format(value))
 
@@ -267,7 +267,7 @@ class Instrument(object):
         """
         try:
             self._spaxel_scale = float(value)
-            logging.info("Sampling of IFS set to {0:.2f} spaxel/arcsec".format(self._spaxel_scale))
+            logging.info("Sampling of IFS is {0:.2f} spaxel/arcsec".format(self._spaxel_scale))
         except ValueError:
             logging.error("Illegal value for spaxel scale: {0}".format(value))
 
@@ -934,7 +934,7 @@ class Muse(Instrument):
 
     name = "muse"
 
-    def __init__(self, pixtable=False, shape=None, **kwargs):
+    def __init__(self, pixtable=False, shape=None, header=None, **kwargs):
         """
         Initialize an instance of the Muse class.
         
@@ -957,6 +957,10 @@ class Muse(Instrument):
             logging.error("The usage of MUSE pixtables is not yet supported.")
 
         self.shape = shape
+
+        if isinstance(header, fits.header.Header):
+            self.set_rotation_angle(header)
+            self.set_spaxel_scale(header)
 
         super(Muse, self).__init__(**kwargs)
 

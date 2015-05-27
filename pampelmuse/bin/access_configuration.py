@@ -14,18 +14,20 @@ parameters.
 
 Latest SVN revision
 -------------------
-221, 2014/12/01
+268, 2015/05/27
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 221
+__revision__ = 268
 
-import argparse, os, shutil, string
+import argparse
+import os
+import shutil
+import string
 
-## required PampelMuse modules
+# required PampelMuse modules
 from pampelmuse.config import ModifyConfig, transform_string
 
-
-## get path to XML data containing configuration
+# get path to XML data containing configuration
 __currentdir__ = os.path.dirname(__file__)
 __configpath__ = os.path.join(__currentdir__, os.pardir, "config", "data")
 
@@ -48,13 +50,12 @@ class MakeUpper(argparse.Action):
         setattr(namespace, self.dest, string.upper(values))
 
 
-
 parser = argparse.ArgumentParser(description="""
 Provides methods to change the PampelMuse configuration. The complete
 configuration of PampelMuse is stored in a single XML-file. The methods
 can be used to update the XML-file or to read parameters from it.""")
 
-parser.add_argument("method", type=str, choices=['U','A','R'], help="""
+parser.add_argument("method", type=str, choices=['U', 'A', 'R'], help="""
 Specifies whether a parameter should be [A]dded, [U]pdated or [R]ead.""")
 parser.add_argument("name", type=str, help="""
 The name of the parameter. Must always be provided, regardless of which
@@ -91,22 +92,24 @@ inuse = max([args.include, args.exclude])
 
 
 if args.method == "A":
-    success = modifier.add_parameter(name=args.name, value=transform_string(args.value, args.type), comment=args.comment, category=args.category, inuse=inuse,
+    success = modifier.add_parameter(name=args.name, value=transform_string(args.value, args.type),
+                                     comment=args.comment, category=args.category, inuse=inuse,
                                      ahead=args.ahead, after=args.after)
 elif args.method == "U":
 
     if args.replace_comment:
         comment_r = args.comment
-        args.comment=None
+        args.comment = None
     else:
-        comment_r=None
+        comment_r = None
 
-    if args.value != None:
-        value=transform_string(args.value, args.type)
+    if args.value is not None:
+        value = transform_string(args.value, args.type)
     else:
-        value=None
+        value = None
 
-    success = modifier.update_parameter(name=args.name, value=value, comment=args.comment, comment_r=comment_r, category=args.category, inuse=inuse)
+    success = modifier.update_parameter(name=args.name, value=value, comment=args.comment, comment_r=comment_r,
+                                        category=args.category, inuse=inuse)
 
 elif args.method == 'R':
     query_result = modifier.get_parameter(args.name)

@@ -61,10 +61,10 @@ the data into memory yet but just checks whether the file(s) are valid.
 
 Latest SVN revision
 -------------------
-267, 2015/05/21"""
+268, 2015/05/27"""
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.21.4.0"
-__revision__ = 267
+__version__ = "0.21.4.1"
+__revision__ = 268
 
 import sys
 sys.stdout.write("""
@@ -392,41 +392,29 @@ if args.func not in [initfit, singlesrc]:
     pampelmuse.hdulist = fits.open(pampelmuse.filename, mode="update")
 
 # initialize the configuration of PampelMuse
-# i) the default configuration is saved in an XML-file that is shipped with PampelMuse
+# i) read default configuration that is saved in an XML-file that is shipped with PampelMuse
 # To check the default configuration, open the XML file using any web browser, e.g.
 # >>> firefox $pampelmuse_path/pampelmuse/config/data/PMparams.xml
 
-# ii) read default configuration into namespace
-pampelmuse.read_defaults()
-
-# iii) if PRM-file was opened, update the configuration using the primary header hierarch keys. Note that these
+# ii) if PRM-file was opened, update the configuration using the primary header hierarch keys. Note that these
 # keywords can be either directly connected to PampelMuse (e.g. HIERARCH PAMPELMUSE IFU) or to one of its subroutines
 # (e.g. HIERARCH PAMPELMUSE INITFIT VERSION). In the latter case, the key will be added to the namespace of the
 # corresponding subroutine.
 if hasattr(pampelmuse, "hdulist"):
     pampelmuse.readHeader(pampelmuse.hdulist[0])
 
-# iv) update configuration using command line input. Note that during the analysis, i.e. when calling a routine
+# iii) update configuration using command line input. Note that during the analysis, i.e. when calling a routine
 # different from INITFIT or SINGLESRC, only a subset of the parameters can be changed. For example, it makes no sense
 # to change the RESLIM parameter after selecting the sources.
 if hasattr(args, "parameter"):
+    only_changeable = (args.func not in [initfit, singlesrc])  # check if only subset of parameters can be updated
     for key, value in args.parameter.iteritems():
-        if not hasattr(pampelmuse, key.lower()):  # make sure only valid parameters are included
-            logging.error("Unknown configuration parameter provided: '{0}'".format(key))
-            continue
-        if args.func in [initfit, singlesrc] or key.lower() in pampelmuse.changeable:
-            # make sure parameter can still be modified
-            try:
-                setattr(pampelmuse, key.lower(), eval(value))
-            except NameError:
-                setattr(pampelmuse, key.lower(), value)
-            if key.lower() == "layerrng":  # the layer range must be transformed into start and stop values
-                pampelmuse.start = pampelmuse.layerrng[0]
-                pampelmuse.stop = pampelmuse.layerrng[1]
-        else:
-            logging.warning("Configuration parameter '{0}' cannot be changed during the analysis.".format(key))
+        success = pampelmuse.update_parameter(key, value, only_changeable=only_changeable)
+        if success == 2:
+            logging.error("Invalid entry in user configuration: '{0}={1}".format(key, value))
+            raise IOError("Error encountered while updating configuration.")
 
-# v) The PSF is handled specially - to facilitate its usage afterwards, a dedicated namespace is created in which all
+# iv) The PSF is handled specially - to facilitate its usage afterwards, a dedicated namespace is created in which all
 # the information is stored
 if args.func in [initfit, singlesrc]:
     pampelmuse.psf = Namespace()
@@ -456,8 +444,8 @@ if args.func in [initfit, singlesrc]:
         setattr(pampelmuse.psf, "parvalue{0}".format(i), pampelmuse.psfpars[i])
         setattr(pampelmuse.psf, "freepar{0}".format(i), bool(freepar[i]))
     
-del pampelmuse.psffit
-del pampelmuse.psfpars
+delattr(pampelmuse, "psffit")
+delattr(pampelmuse, "psfpars")
 
 # set up log level:
 LOGLEVELS = {0: logging.CRITICAL, 1: logging.ERROR, 2: logging.WARNING, 3: logging.INFO, 4: logging.DEBUG}
@@ -508,11 +496,6 @@ pampelmuse.ifs_data = Cube(data_ifs, instrument=pampelmuse.ifu, sigma=sigma_ifs,
 
 # set range of layers to be analyzed properly (in case negative values were provided)
 # access start/stop information - get positive layer numbers for first and last layer that should be analysed
-if not hasattr(pampelmuse, "start"):
-    pampelmuse.start = pampelmuse.layerrng[0]
-if not hasattr(pampelmuse, "stop"):
-    pampelmuse.stop = pampelmuse.layerrng[1]
-del pampelmuse.layerrng
 if pampelmuse.start < 0:
     pampelmuse.start = pampelmuse.ifs_data.ndisp + pampelmuse.start
 if pampelmuse.stop < 0:

@@ -21,10 +21,10 @@ check whether the IFS data contains HDUs providing either uncertainties
 
 Latest SVN revision
 -------------------
-243, 2015/02/18
+268, 2015/05/27
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 243
+__revision__ = 268
 
 import logging
 import types
@@ -111,7 +111,8 @@ class Cube:
                 except KeyError:
                     pass
 
-            # if no 'INSTRUME' keyword is found, assume instrument name was provided as a string in 'instrument' argument
+            # if no 'INSTRUME' keyword is found, assume instrument name was provided as a string in 'instrument'
+            # argument
             if instrume is None:
                 instrume = instrument
 
