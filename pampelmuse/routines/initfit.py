@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-269, 2015/05/28
+270, 2015/05/28
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 269
+__revision__ = 270
 
 import datetime, itertools, os, sys, logging
 from multiprocessing import cpu_count, Pool
@@ -813,12 +813,15 @@ def initfit(pampelmuse):
             i += 1
         
         if len(sources.psf_indices) == 0:
-            logging.critical("No PSF sources found!")
+            logging.critical("Did not find any PSF sources!")
             raise ConfigurationError("No PSF sources found!")
         elif len(sources.psf_indices) < 4:
-            logging.warning("Found only {0} possible PSF source(s)".format(len(sources.psf_indices)))
-
-        if results.size > 3:
+            if sources.transformation.contains_free_parameters:
+                logging.critical("Did not find enough PSF sources to fit coordinate transformation.")
+                raise ConfigurationError("Not enough PSF sources found.")
+            else:
+                logging.warning("Found only {0} PSF source(s)".format(len(sources.psf_indices)))
+        else:
             # determine wavelength-dependent coordinate transformation
             logging.info("Determining wavelength-dependent coordinate transformation...")
             sources.fit_coordinate_transformation()
