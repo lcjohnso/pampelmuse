@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-271, 2015/07/28
+272, 2015/07/28
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 271
+__revision__ = 272
 
 import contextlib
 import itertools
@@ -585,22 +585,23 @@ class StarFit(object):
                 # apply weighting scheme, similar to the one used in Stetson's DAOphot
                 weights = 1. / (1. + (abs(self.current) / (2.*self.sigma)) ** 2)
 
-            if n_iter == 4:
-                import matplotlib.pyplot as plt
-                calcdata = np.zeros(self.ifs_data.instrument.nspaxel, dtype=np.float32)
-                calcdata[~self.mask] += self.current*self.sigma  # self.model.sum(axis=1).getA1()
-                model2d = self.ifs_data.instrument.make_grid(calcdata)
-
-                plt.imshow(model2d, cmap=plt.cm.YlOrRd_r, vmin=-100, vmax=1000)
-#                 plt.plot((self.model.sum(axis=1).getA1()), self.current, ls="None", marker="o", mew=0, ms=3,
-#                          mfc="g")
-#                 plt.hexbin(np.log10(self.model.sum(axis=1).getA1()), self.current*self.sigma,
-#                            gridsize=(100, 800), bins="log", cmap=plt.cm.YlOrRd_r)
-#                 plt.axhline(y=0, ls="--", c="r")
-#                 plt.hist(self.current, histtype="step", bins=1000, range=(0, 1000))
-
-                plt.show()
-                exit()
+# For testing: show 2D image of residuals
+#             if n_iter == 4:
+#                 import matplotlib.pyplot as plt
+#                 calcdata = np.zeros(self.ifs_data.instrument.nspaxel, dtype=np.float32)
+#                 calcdata[~self.mask] += self.current*self.sigma  # self.model.sum(axis=1).getA1()
+#                 model2d = self.ifs_data.instrument.make_grid(calcdata)
+#
+#                 plt.imshow(model2d, cmap=plt.cm.YlOrRd_r, vmin=-100, vmax=1000)
+# #                 plt.plot((self.model.sum(axis=1).getA1()), self.current, ls="None", marker="o", mew=0, ms=3,
+# #                          mfc="g")
+# #                 plt.hexbin(np.log10(self.model.sum(axis=1).getA1()), self.current*self.sigma,
+# #                            gridsize=(100, 800), bins="log", cmap=plt.cm.YlOrRd_r)
+# #                 plt.axhline(y=0, ls="--", c="r")
+# #                 plt.hist(self.current, histtype="step", bins=1000, range=(0, 1000))
+#
+#                 plt.show()
+#                 exit()
 
 
             n_iter += 1
