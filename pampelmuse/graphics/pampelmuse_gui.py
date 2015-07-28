@@ -21,11 +21,11 @@ defines the methods that are called by Ui_PampelMuseGui.
 
 Latest SVN revision
 -------------------
-257, 2015/04/27
+271, 2015/07/28
 
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 257
+__revision__ = 271
 
 import logging
 import os
@@ -1075,7 +1075,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         Handle event when the currently displayed spectral data should be fitted.
         """
         # handle case when no data has been selected/plotted:
-        if not "yData" in dir(self):
+        if "yData" not in dir(self):
             logging.error("Please select data to fit first.")
             self.statusBar.showMessage("Can't do! Please select data to fit first!", 5000)
             return
@@ -1090,7 +1090,6 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             return
 
         elif self.curProp == "PSF":
-            print self.mask.sum()
             self.psf.polynomial_fit(name=self.curRowName, order=order, mask=~self.mask, function=function.lower())
 
         elif self.curProp in ["x Positions", "y Positions"]:

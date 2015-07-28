@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-265, 2015/05/15
+271, 2015/07/28
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 265
+__revision__ = 271
 
 import contextlib
 import itertools
@@ -153,6 +153,34 @@ def get_psf_data(psf_instances):
         intflux = fluxes.sum()
         results.append([spaxels, fluxes, intflux])
     return results
+
+
+def calc_running_mad(x, y, n=500):
+    """
+    Given two 1D arrays x and y, the routine will determine the
+    median absolute deviation (MAD) of y as a function of x. To this
+    aim, the data are sorted by increasing x values and then the MAD
+    is measured in bins of n datapoints with increasing x values.
+    NOTE: It is assumed that the median value of y is zero.
+    """
+    indices = np.argsort(x)
+
+    bincenters = np.arange(n//2, indices.size, n)
+
+    xbin = np.zeros(bincenters.size, dtype=np.float32)
+    ybin = np.zeros(bincenters.size, dtype=np.float32)
+
+    for i, j in enumerate(bincenters):
+        imin = j - n//2
+        imax = min(j + n//2, len(x))
+
+        xbin[i] = x[indices[j]]
+
+        # use robust median absolute deviation (MAD) around an initial median value of zero
+        cury = y[indices[imin:imax]]
+        ybin[i] = np.median(abs(cury))
+
+    return xbin, ybin
 
 
 class StarFit(object):
@@ -473,45 +501,11 @@ class StarFit(object):
         if np.isnan(self.sources.data[self.jj, :, 0]).any():
             self.sources.data[self.jj, np.isnan(self.sources.data[self.jj, :, 0]), 0] = 0
 
-        # WORK ON IFS DATA
-        if self.nbin == 1:
-            data = self.ifs_data.data.layer(self.jj)
-            sigma = self.ifs_data.sigma.layer(self.jj) if self.use_sigma else None
-        else:
-            jjmin = self.jj - self.nbin // 2
-            jjmax = min(self.jj + self.nbin // 2, self.ifs_data.ndisp)
-            if self.use_sigma:
-                data, sigma = self.ifs_data.integrate(layer_range=(jjmin, jjmax), use_sigma=True)
-            else:
-                data = self.ifs_data.integrate(layer_range=(jjmin, jjmax), use_sigma=False)
-                sigma = None
+        # get 1D arrays containing valid data pixels, also sigma-values if requested
+        self.get_layer()
 
-        # check if mask is available, otherwise only NaN pixels will be masked
-        mask = np.isnan(data)
-        if self.ifs_data.mask is not None:
-            mask |= self.ifs_data.mask.layer(self.jj)
-        if self.use_sigma:
-            with np.errstate(invalid='ignore'):  # NaNs in sigma cause a runtime warning for <= otherwise
-                mask |= np.isnan(sigma) | (sigma <= 0)
-
-        self.data = data[~mask]
-        if sigma is None:
-            self.sigma = np.ones(self.data.shape, dtype=np.float32)
-        else:
-            if self.ifs_data.is_var:
-                self.sigma = np.sqrt(sigma[~mask])
-            else:
-                self.sigma = sigma[~mask]
-        self.weights = np.ones(self.data.shape, dtype=np.float32)
-
-        logging.debug("{0} masked pixels".format(mask.sum()))
-
-        # Set spaxel to (x,y) transformation of the PSF-instances, using the transformation of the Instrument instance
-        # and the mask
-        self.transform = self.ifs_data.instrument.transform[~mask]
-        self.PSF.set_transform(self.transform)
-        if self.background is not None:
-            self.background.set_transform(self.transform)
+        # initialize array for down-weighting of deviant pixels
+        weights = np.ones(self.data.shape, dtype=np.float32)
 
         # Reset matrix and possibly existing unresolved component from last layer
         self._unresolved_matrix = None
@@ -533,17 +527,29 @@ class StarFit(object):
                 t1 = time.time()
                 logging.debug("Time required to divide matrix by uncertainties: {0:6.3f}s".format(t1-t0))
 
+            # If variances are not provided externally, the code tries to estimate them by looking at the residuals
+            # between data and model as a function of the flux of the model pixels.
+            if not self.use_sigma:
+                modelfluxes = self.model.sum(axis=1).getA1()*self.sigma
+                residuals = self.current*self.sigma
+
+                xbin, ybin = calc_running_mad(modelfluxes, residuals)
+                sigma_corr = 1.4826*np.interp(modelfluxes, xbin, ybin)/self.sigma
+
+                self.psf_matrix.data /= np.take(sigma_corr, self.psf_matrix.indices)
+                self.sigma *= sigma_corr
+
             # Fit fluxes by direct matrix inversion
             # The documentation of scipy states that to efficiently solve the matrix equation, the columns should
-            # be scaled to have the same euclidean norm. I am still not convince that this is true, but scale the
+            # be scaled to have the same euclidean norm. I am still not convinced that this is true, but scale the
             # columns nevertheless.
             intflux = np.sqrt((self.psf_matrix.T*self.psf_matrix).diagonal())
             fit_matrix = self.psf_matrix * sparse.dia_matrix((1. / intflux, [0]),
                                                              shape=(self.psf_matrix.shape[1], self.psf_matrix.shape[1]))
-            fit_matrix.data *= np.take(self.weights, fit_matrix.indices)
+            fit_matrix.data *= np.take(weights, fit_matrix.indices)
 
             t1 = time.time()
-            bestfit = lsmr(fit_matrix, self.current * self.weights, atol=1e-5, show=False)
+            bestfit = lsmr(fit_matrix, self.current * weights, atol=1e-5, show=False)
             t2 = time.time()
             logging.debug("Time required to solve matrix equation: {0:6.3f}s".format(t2-t1))
 
@@ -575,15 +581,29 @@ class StarFit(object):
                 else:
                     self.parameter_fit_on_large_ifu()
                 rebuild_matrix = True
-            elif self.use_sigma:
-                # apply weighting scheme, similar to the one used in Stetson's DAOphot
-                # only possible if uncertainties are being used
-                self.weights = 1. / (1. + (abs(self.current) / (2.*self.sigma)) ** 2)
             else:
-                break
+                # apply weighting scheme, similar to the one used in Stetson's DAOphot
+                weights = 1. / (1. + (abs(self.current) / (2.*self.sigma)) ** 2)
+
+            if n_iter == 4:
+                import matplotlib.pyplot as plt
+                calcdata = np.zeros(self.ifs_data.instrument.nspaxel, dtype=np.float32)
+                calcdata[~self.mask] += self.current*self.sigma  # self.model.sum(axis=1).getA1()
+                model2d = self.ifs_data.instrument.make_grid(calcdata)
+
+                plt.imshow(model2d, cmap=plt.cm.YlOrRd_r, vmin=-100, vmax=1000)
+#                 plt.plot((self.model.sum(axis=1).getA1()), self.current, ls="None", marker="o", mew=0, ms=3,
+#                          mfc="g")
+#                 plt.hexbin(np.log10(self.model.sum(axis=1).getA1()), self.current*self.sigma,
+#                            gridsize=(100, 800), bins="log", cmap=plt.cm.YlOrRd_r)
+#                 plt.axhline(y=0, ls="--", c="r")
+#                 plt.hist(self.current, histtype="step", bins=1000, range=(0, 1000))
+
+                plt.show()
+                exit()
+
 
             n_iter += 1
-
             if n_iter > self.maxiter:
                 if self.maxiter > 1:
                     logging.warning("Max. number of iterations reached.")
@@ -690,6 +710,49 @@ class StarFit(object):
             k += 1
 
         logging.debug("Time required to update source coordinates: {0:6.4f}s".format(time.time() - t0))
+
+    def get_layer(self):
+        """
+        Open
+        """
+        # Get data layer, also sigma layer if requested; bin data if requested
+        if self.nbin == 1:
+            data = self.ifs_data.data.layer(self.jj)
+            sigma = self.ifs_data.sigma.layer(self.jj) if self.use_sigma else None
+        else:
+            jjmin = self.jj - self.nbin // 2
+            jjmax = min(self.jj + self.nbin // 2, self.ifs_data.ndisp)
+            if self.use_sigma:
+                data, sigma = self.ifs_data.integrate(layer_range=(jjmin, jjmax), use_sigma=True)
+            else:
+                data = self.ifs_data.integrate(layer_range=(jjmin, jjmax), use_sigma=False)
+                sigma = None
+
+        # check if mask is available, otherwise only NaN pixels will be masked
+        self.mask = np.isnan(data)
+        if self.ifs_data.mask is not None:
+            self.mask |= self.ifs_data.mask.layer(self.jj)
+        if self.use_sigma:
+            with np.errstate(invalid='ignore'):  # NaNs in sigma cause a runtime warning for <= otherwise
+                self.mask |= np.isnan(sigma) | (sigma <= 0)
+        logging.debug("Layer contains {0} masked pixels".format(self.mask.sum()))
+
+        # apply mask - note that any 2D data will be flattened by this
+        self.data = data[~self.mask]
+        if sigma is None:
+            self.sigma = np.ones(self.data.shape, dtype=np.float32)
+        else:  # check if variances have been provided instead of sigma
+            if self.ifs_data.is_var:
+                self.sigma = np.sqrt(sigma[~self.mask])
+            else:
+                self.sigma = sigma[~self.mask]
+
+        # Set spaxel to (x,y) transformation of the PSF-instances, using the transformation of the Instrument instance
+        # and the mask
+        self.transform = self.ifs_data.instrument.transform[~self.mask]
+        self.PSF.set_transform(self.transform)
+        if self.background is not None:
+            self.background.set_transform(self.transform)
 
     @property
     def model(self):
