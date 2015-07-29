@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-272, 2015/07/28
+273, 2015/07/29
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 272
+__revision__ = 273
 
 import contextlib
 import itertools
@@ -955,12 +955,13 @@ class StarFit(object):
                 # centred on the initial guess
                 spaxel = np.unique(psf.osmap, return_index=True)[1]  # make sure every subspaxel only counted once
                 infwhm = (psf.r[spaxel] < psf.fwhm)
+                truedata = data*sigma
                 if (~infwhm).sum() >= 5:
-                    peak = data[infwhm].max() - data[~infwhm].mean()
-                    noise = np.std(data[~infwhm])
+                    peak = truedata[infwhm].max() - truedata[~infwhm].mean()
+                    noise = np.std(truedata[~infwhm])
                 else:
-                    peak = data.max() - data.min()
-                    noise = np.median(data) - data.min()
+                    peak = truedata.max() - truedata.min()
+                    noise = np.median(truedata) - truedata.min()
                 if peak/noise <= 3:
                     result = (x0, None, {}, "No significant peak detected.", 99)
                 else:
