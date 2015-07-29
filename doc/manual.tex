@@ -249,29 +249,31 @@ The radius $r$ incorporates the ellipticity $e$ and the position angle $\theta$ 
 
 \section{The handling of the source coordinates}
 
-To obtain IFS spaxel coordinates ($x^n$, $y^n$) from the coordinates ($u^n$, $v^n$) of source $n$ in the reference catalogue, it is currently assumed that a global transformation exists that can be described by
+To obtain IFS spaxel coordinates ($x^n$, $y^n$) from the coordinates ($u^n$, $v^n$) of source $n$ in the reference catalogue, it is currently assumed that a global affine transformation exists that can be described by
 \begin{itemize}
- \item a scaling by a factor $\xi$,
+ \item a scaling by a factor $\xi$ along the $u$-axis,
+ \item a scaling by a factor $\nu$ along the $v$-axis,
  \item a rotation around an angle $\theta$,
  \item shifts along the $x$- and $y$-axis of the IFS cube.
 \end{itemize}
 In summary, we thus have the following formulae:
 \begin{align} 
- x^n = \xi\,\cos\theta\,u^n - \xi\,\sin\theta\,v^n + C \,, \\ 
+ x^n = \xi\,\cos\theta\,u^n - \nu\,\sin\theta\,v^n + x_\mathrm{0} \,, \\ 
 %
- y^n = \xi\,\sin\theta\,u^n + \xi\,\cos\theta\,v^n + D \,. 
+ y^n = \xi\,\sin\theta\,u^n + \nu\,\cos\theta\,v^n + y_\mathrm{0} \,. 
 \end{align}
 %
-Substuting $A=\xi\,\cos\theta$ and $B=-\xi\,\sin\theta$, we obtain
+Substituting $A=\xi\,\cos\theta$, $B=-\nu\,\cos\theta$, $C=-\nu\,\sin\theta$, and $D=\xi\,\sin\theta$ we obtain
 \begin{align} 
- x^n = A\,u^n + B\,v^n + C \,,\\
+ x^n = A\,u^n + C\,v^n + x_\mathrm{0} \,,\\
 %
- y^n = A\,v^n - B\,u^n + D \,. 
+ y^n = D\,v^n - B\,u^n + y_\mathrm{0} \,. 
 \end{align}
 
-The parameters $A$, $B$, $C$, and $D$ of the coordinate transformation can be optimized in the analysis. Their behavior during the extraction is controlled via the parameter \texttt{POSFIT}.
-\pmparameter{POSFIT}{integer}{2}{Defines how the coordinate transformation is handled during the analysis:\newline $0$ -- no optimization;\newline $1$ -- only optimize the shifts, i.e. parameters $A$ and $B$;\newline $2$ -- optimize all $4$ parameters of the transformation.}
+The parameters $A$ to $y_\mathrm{0}$ of the coordinate transformation can be optimized in the analysis. Their behavior during the extraction is controlled via the parameter \texttt{POSFIT}.
+\pmparameter{POSFIT}{integer}{2}{Defines how the coordinate transformation is handled during the analysis:\newline $0$ -- no optimization;\newline $1$ -- only optimize the shifts, i.e. parameters $x_\mathrm{0}$ and $y_\mathrm{0}$;\newline $2$ -- optimize all $6$ parameters of the transformation.}
 
+\textbf{Note that older versions of \pampelmuse only used $4$ parameters to determine the coordinate transformation, which is the special case of an affine transformation where $\xi=\nu$.}
 
 \section{The analysis with PampelMuse}
 
@@ -474,9 +476,9 @@ SINGLESRC will perform aperture photometry for every provided source on each lay
 
 \section{Troubleshooting}
 \subsection{Wiggles in extracted MUSE spectra}
-When running \pampelmuse with MUSE data, some extracted spectra may show wiggles in the continuum (see Fig.~\ref{fig:muse_spectra_wiggles}). The reason for this is that by default \pampelmuse uses the uncertainties provided by the MUSE pipeline (extension \texttt{STAT}). When resampling the data onto a homogeneous grid, the pipeline introduces similar wiggles in the uncertainties --- that affect the extraction. As a workaround, you can switch of the usage of the uncertainties during the extraction with the parameter \texttt{USESIGMA}.
-\pmparameter{USESIGMA}{float}{True}{Flag indicating if the uncertainties of the IFS data are used in the extraction.}
-Note that the consequence of ignoring the uncertainties is obviously that all spaxels will have the same weight. This may lead to a poor overall fit if the data values cover a large range of intensities. Make sure to carefully check the quality of the extracted spectra afterwards. In some cases, it may be necessary to smooth the uncertainties outside of \pampelmuse prior to the extraction.
+When running \pampelmuse with MUSE data, some extracted spectra may show wiggles in the continuum (see Fig.~\ref{fig:muse_spectra_wiggles}). The reason for this is that by default \pampelmuse uses the variances provided by the MUSE pipeline (extension \texttt{STAT}). However, the final reduction step --- resampling of the data onto a homogeneous grid --- shifts power into the covariances. As the covariances are neglected by the pipeline, the variances show similar wiggles. While formally the variances are correct for individual pixels, they underestimate the true ones as soon as one starts to combine pixels. But that is what \pampelmuse does, hence the wiggles appear. As a workaround, you can switch of the usage of the uncertainties during the extraction with the parameter \texttt{USESIGMA}.
+\pmparameter{USESIGMA}{float}{True}{Flag indicating if the uncertainties provided with the IFS data are used in the extraction.}
+If the uncertainties should not be used, the code tries to estimate them from the model. To this aim, the standard deviations of the residuals after subtracting the model from the data are determined as a function of the  model flux. In any case, make sure to carefully check the quality of the extracted spectra afterwards. In some cases, it may be necessary to smooth the uncertainties outside of \pampelmuse prior to the extraction.
 
 \begin{figure}[ht]
  \centering \includegraphics[width=8cm]{muse_spectra_wiggles.png}
