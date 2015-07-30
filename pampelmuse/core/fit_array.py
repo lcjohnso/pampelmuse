@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-273, 2015/07/29
+275, 2015/07/30
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 273
+__revision__ = 275
 
 import contextlib
 import itertools
@@ -427,6 +427,8 @@ class StarFit(object):
 
         # check if uncertainties should be used
         self.use_sigma = use_sigma
+        if not self.use_sigma:
+            self.last_sigma = []
 
         # The number of previously fitted layers used to obtain initial guesses
         # TODO: Do we need to divide by the binning factor?
@@ -530,12 +532,15 @@ class StarFit(object):
             # If variances are not provided externally, the code tries to estimate them by looking at the residuals
             # between data and model as a function of the flux of the model pixels.
             if not self.use_sigma:
-                modelfluxes = self.model.sum(axis=1).getA1()*self.sigma
-                residuals = self.current*self.sigma
+                if n_iter == 1 and len(self.last_sigma) > 0:
+                    xbin, ybin = self.last_sigma[-1]
+                    modelfluxes = self.data
+                else:
+                    modelfluxes = self.model.sum(axis=1).getA1()*self.sigma
+                    residuals = self.current*self.sigma
 
-                xbin, ybin = calc_running_mad(modelfluxes, residuals)
+                    xbin, ybin = calc_running_mad(modelfluxes, residuals)
                 sigma_corr = 1.4826*np.interp(modelfluxes, xbin, ybin)/self.sigma
-
                 self.psf_matrix.data /= np.take(sigma_corr, self.psf_matrix.indices)
                 self.sigma *= sigma_corr
 
@@ -603,11 +608,14 @@ class StarFit(object):
 #                 plt.show()
 #                 exit()
 
-
             n_iter += 1
             if n_iter > self.maxiter:
                 if self.maxiter > 1:
                     logging.warning("Max. number of iterations reached.")
+                if not self.use_sigma:  # Store current sigma estimate for analysis of adjacent layer
+                    self.last_sigma.insert(0, (xbin, ybin))
+                    if len(self.last_sigma) > 2:  # Only the last two sigma estimates are needed
+                        self.last_sigma = self.last_sigma[:2]
                 break
 
     def update_psf_parameters(self, using=None):
