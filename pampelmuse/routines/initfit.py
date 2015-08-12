@@ -37,16 +37,20 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-270, 2015/05/28
+276, 2015/08/12
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 270
+__revision__ = 276
 
-import datetime, itertools, os, sys, logging
+import datetime
+import itertools
+import os
+import sys
+import logging
 from multiprocessing import cpu_count, Pool
 import numpy as np 
 from astropy.io import fits
-from scipy import ndimage, signal, spatial
+from scipy import signal, spatial
 # note: PyQt4 imported below only if interaction enabled
 
 # required PampelMuse routines
@@ -328,6 +332,8 @@ def initfit(pampelmuse):
     # for parallelization, initialize cycle over CPUs so that whenever a new source should be included in the mock
     # image, the next CPU is picked until one source has been assigned to all CPUs, then start again with first CPU
     # and repeat.
+    if pampelmuse.cpucount is None or pampelmuse.cpucount == -1:
+        pampelmuse.cpucount = cpu_count()  # use all available CPUs
     cpu = itertools.cycle(range(pampelmuse.cpucount))
     tocpu = -1*np.ones((sources.nsrc,), dtype=np.int16)
     
