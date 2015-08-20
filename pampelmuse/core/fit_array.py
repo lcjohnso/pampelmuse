@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-275, 2015/07/30
+278, 2015/08/20
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 275
+__revision__ = 278
 
 import contextlib
 import itertools
@@ -964,7 +964,10 @@ class StarFit(object):
                 spaxel = np.unique(psf.osmap, return_index=True)[1]  # make sure every subspaxel only counted once
                 infwhm = (psf.r[spaxel] < psf.fwhm)
                 truedata = data*sigma
-                if (~infwhm).sum() >= 5:
+                if infwhm.sum() == 0:
+                    peak = 0
+                    noise = 1
+                elif (~infwhm).sum() >= 5:
                     peak = truedata[infwhm].max() - truedata[~infwhm].mean()
                     noise = np.std(truedata[~infwhm])
                 else:
@@ -1036,7 +1039,7 @@ class StarFit(object):
                     self.sources.ID[i], float(snratios[n]), result[0][0], prmstring))
 
         # update coordinate transformation if available and possible
-        if self.sources.transformation.valid:
+        if self.sources.transformation.valid and self.sources.transformation.contains_free_parameters:
             use = np.all(~np.isnan(ifscoords), axis=1)
             if use.sum() >= 2:
                 self.sources.transformation.data[self.jj, :, 0] = self.sources.transformation._fit_to_data(
