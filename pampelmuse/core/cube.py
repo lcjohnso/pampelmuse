@@ -21,10 +21,10 @@ check whether the IFS data contains HDUs providing either uncertainties
 
 Latest SVN revision
 -------------------
-268, 2015/05/27
+279, 2015/08/21
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 268
+__revision__ = 279
 
 import logging
 import types
@@ -494,7 +494,30 @@ class Cube:
                     return [fits.ImageHDU(data[i], header=out_headers[i]) for i in xrange(len(data))]
                 return fits.ImageHDU(data[0], header=out_headers[0])
 
-    def integrate(self, layer_range=(0, -1), passband=None, use_sigma=False):
+    def integrate(self, layer_range=(0, -1), passband=None, use_sigma=False, return_weights=False):
+        """
+        This method integrates the data over a given layer range. A passband
+        used to weight the individual layers may also be given. In addition,
+        the pixels may also be weighted by the uncertainties of the data.
+
+        :param layer_range: tuple
+            The indices of the first and the last+1 layer used in the integration.
+        :param passband: str
+            The name of the optional filtercurve over which to integrate.
+        :param use_sigma: boolean
+            Flag indicating if the data should be weighted by the uncertainties.
+        :param return_weights:
+            Flag indicating if the weights used for the individual layers should
+            be returned.
+
+        :return:
+        data_image: nd_array
+            The integrated image
+        sigma_image: nd_array
+            The integrated uncertainties (only if use_sigma=True)
+        weights : nd_array
+            The weights of the individual layers (ony if return_weights=True)
+        """
 
         # get min. and max index
         start = layer_range[0] if layer_range[0] >= 0 else self.ndisp + layer_range[0]
@@ -553,7 +576,10 @@ class Cube:
             sigma_image[~mask] = np.sqrt(1./weight_image[~mask])
             sigma_image[mask] = np.nan
 
-        return (data_image, sigma_image) if use_sigma else data_image
+        if not return_weights:
+            return (data_image, sigma_image) if use_sigma else data_image
+        else:
+            return (data_image, sigma_image, weights) if use_sigma else (data_image, weights)
 
     def __del__(self):
         #  close FITS files that were opened by instance

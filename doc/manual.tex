@@ -216,8 +216,11 @@ Here is an example of how a valid reference catalogue file may look like:
   ...
 \end{lstlisting} \end{center}
 
-\textbf{TBD: Add possibility to include filtercurve if it is missing.}
+\subsubsection{A note about filters}
+\pampelmuse comes with a limited number of filters. Currently, the transmission curves for \textit{F555W}, \textit{F606W}, \textit{F775W}, \textit{F814W}, and \textit{K} are provided. If the input photometry uses another filter, it is possible to provide \pampelmuse with the required information. To this aim, set the environment variable \texttt{PMFILTERPATH}. It must point to the folder in which the transmission curve of the filter is stored, e.g.
+\shellcmd{export PMFILTERPATH=\$HOME/data/filters}\,.
 
+The transmission curve of the filter must be available as a plain ascii file, containing at least two columns. The first column must contain the wavelength in units of Angstrom, the second column must contain the transmission in absolute values, i.e. ranging from $0$ to $1$. The name of the ascii file must be the name of the filter in capital letters. For example, if you want to use the SDSS g filter, the file should be named G or SDSS\_G, but not g.txt or sdss\_g. In the reference catalogue, you should use the same label for the photometry as you use for the filename. The parameter \texttt{PASSBAND} must also be set accordingly.
 
 \section{The PSF models}
 \label{sec:psf}

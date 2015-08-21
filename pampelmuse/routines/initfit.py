@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-276, 2015/08/12
+279, 2015/08/21
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 276
+__revision__ = 279
 
 import datetime
 import itertools
@@ -57,7 +57,7 @@ from scipy import signal, spatial
 from pampelmuse import ConfigurationError
 from pampelmuse.core import AperPhoto, BackgroundGrid, Sources
 from pampelmuse.core.psf import *
-from pampelmuse.filters import ALIASES, FILTERFWHM
+from pampelmuse.filters import ALIASES
 from pampelmuse.functions.io import read_asciifile
 from pampelmuse.functions.statistics import DER_SNR
 # note: pampelmuse.graphics.PampelMuseGui imported below only if interaction enabled
@@ -154,7 +154,7 @@ def initfit(pampelmuse):
     # make sure magnitudes are available
     if not pampelmuse.passband.lower() in cfp_results.keys():
         logging.critical("Did not find magnitudes in photometry file.")
-        raise IOError("Source magnitudes must be provided with photomtery.")
+        raise IOError("Source magnitudes must be provided with photometry.")
 
     # make sure either RA & Dec or x & y are available; if both are available, RA & Dec are preferred over x & y
     usewcs = False  # set to True if WCS coordinates are available
@@ -229,12 +229,13 @@ def initfit(pampelmuse):
     # which the magnitudes were provided.
     logging.info("Creating mock {0}-band image from IFS data...".format(pampelmuse.passband))
 
-    data_image, sigma_image = pampelmuse.ifs_data.integrate(layer_range=(pampelmuse.start, pampelmuse.stop),
-                                                            passband=pampelmuse.passband, use_sigma=True)
+    data_image, sigma_image, weights = pampelmuse.ifs_data.integrate(
+        layer_range=(pampelmuse.start, pampelmuse.stop), passband=pampelmuse.passband, use_sigma=True,
+        return_weights=True)
     # The sigma values are valid for the broadband image and must be increased to be representative for a typical
     # layer. As the image was obtained by integrating over a filter curve, the sigma values are multiplied by sqrt(N)
-    # where N is the number of layers within the FWHM of the filter curve.
-    sigma_image *= np.sqrt(FILTERFWHM[pampelmuse.passband.lower()]/pampelmuse.ifs_data.cdelt)
+    # where N is the effective width of the filter curve in units of the spectral sampling.
+    sigma_image *= np.sqrt(weights.sum())
     if pampelmuse.ifs_data.cunit == "nm" or pampelmuse.ifs_data.ctype == "nm":  # FWHM given in Angstrom
         sigma_image /= np.sqrt(10)
     elif pampelmuse.ifs_data.cunit == "um" or pampelmuse.ifs_data.ctype == "um":

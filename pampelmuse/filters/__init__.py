@@ -33,14 +33,17 @@ from scipy import interpolate
 ALIASES = {"f555w": ["v", "vvega"], "f606w": ["vvega", "v"], "f814w": ["ivega", "i"], "k": ["kmag", ]}
 
 # FWHM values of the individual filters, given in Angstroms, FWHM values for HST filters from ACS
-FILTERFWHM = {"f555w": 847.79, "f606w": 1583.2, "f814w": 1541.6, "k": 3900.}
+# FILTERFWHM = {"f555w": 847.79, "f606w": 1583.2, "f814w": 1541.6, "k": 3900.}
+# not used anymore as of rev. 279
 
 
 def get_filter(name):
     """
     Reads the filter curve for the provided passband name and returns it
     as an interpolator. Note that the filter curves are searched for in
-    the 'data' folder that is part of this package.
+    the 'data' folder that is part of this package. In addition, the routine
+    checks for an environment variable PMFILTERPATH. Is it is set, then it
+    will also use filter curves present in that directory.
     
     Parameters
     ----------
@@ -59,19 +62,31 @@ def get_filter(name):
     """
     # get actual location of this package on disk
     __currentdir__ = os.path.abspath(os.path.dirname(__file__))
-    
-    # get list of available filters
-    filters = os.listdir(os.path.join(__currentdir__, "data"))
-    
+
+    filterfile = None
+
     # check if filter is available
-    if not name.upper() in filters:
-        logging.critical("Cannot find filtercurve for passband {0}".format(name.upper))
-        raise IOError("Missing filtercurve for passband {0}".format(name.upper()))
+    # first choice: environment variable PMFILTERPATH
+    pmfilterpath = os.environ.get("PMFILTERPATH")
+    if pmfilterpath is not None:
+        # get list of available filters
+        user_filters = os.listdir(pmfilterpath)
+        if name.upper() in user_filters:
+            filterfile = os.path.join(pmfilterpath, name.upper())
+
+    # second choice: the filters.data directory of PampelMuse
+    if filterfile is None:
+        # get list of available filters
+        filters = os.listdir(os.path.join(__currentdir__, "data"))
+        if name.upper() in filters:
+            filterfile = os.path.join(__currentdir__, "data", name.upper())
+
+    if filterfile is None:
+        logging.critical("Cannot find transmission curve for passband {0}".format(name.upper))
+        raise IOError("Missing transmission curve for passband {0}".format(name.upper()))
     
     # open filter curve
-    filtercurve = np.genfromtxt(os.path.join(__currentdir__, "data", name.upper()), usecols=(0, 1),
-                                dtype=[("wl", np.float32), ("tp", np.float32)])
+    filtercurve = np.genfromtxt(filterfile, usecols=(0, 1), dtype=[("wl", np.float32), ("tp", np.float32)])
 
     # return the filter curve as a scipy.interpolate.UnivariateSpline instance
-    f = interpolate.UnivariateSpline(filtercurve["wl"], filtercurve["tp"], k=3, s=0)
-    return f
+    return interpolate.UnivariateSpline(filtercurve["wl"], filtercurve["tp"], k=3, s=0)
