@@ -39,10 +39,10 @@ ces simultaneously without having to loop over them.
 
 Latest SVN revision
 -------------------
-267, 2015/05/21
+280, 2015/10/30
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 267
+__revision__ = 280
 
 import logging
 from scipy import spatial
@@ -2513,7 +2513,7 @@ class Moffat(Profile):
         else:
             return self._diff_D
 
-    diff_B = property(get_diff_D, None, None, "The partial derivative of the PSF wrt. 'D'.")
+    diff_D = property(get_diff_D, None, None, "The partial derivative of the PSF wrt. 'D'.")
 
     def get_diff_x0(self, integrate=True):
         """
@@ -2562,6 +2562,744 @@ class Moffat(Profile):
         if self._diff_y0 is None:
             self._diff_y0 = self.get_f(integrate=False) * -2. * self.beta * self.r / (
                 self.r_d ** 2 * (1. + (self.r / self.r_d) ** 2)) * super(Moffat, self).get_diff_y0(integrate=False)
+        if integrate:
+            return self.sum_os(self._diff_y0)
+        else:
+            return self._diff_y0
+
+    diff_y0 = property(get_diff_y0, None, None, "The partial derivative of the PSF wrt. 'y0'.")
+
+
+class DoubleGaussian(Profile):
+    """
+    This class describes a two dimensional double Gaussian profile. The
+    functional form of the double Gaussian with unity flux is given as
+
+    dG(r) = f*G1(r) + (1-f)*G2(r),
+
+    where G1 and G2 are both Gaussian profiles, i.e. have functional form
+
+    G(r) = 1/(2*pi*std^2*(1-e))*exp(-r^2/(2*std**2)).
+
+    In this implementation, each Gaussian has up to three free parameters, the
+    FWHM, the ellipticity e, and the position angle theta. The ratio between
+    the flux in profile 1 and 2 is labeled f12.
+    """
+    _f12 = 0.5
+    _fwhm1 = 3.
+    _fwhm2 = 10.
+    function = "double gaussian"
+
+    @classmethod
+    def set_f12(cls, value):
+        """
+        Set the flux ratio between Gaussian 1 and 2 for all instances of the
+        class. Calling this method will overwrite any instance-specific values
+        of the flux ratio that might be present.
+
+        Parameters
+        ----------
+        value : float
+            The flux ratio, given in spaxels
+        """
+        assert isinstance(value, (float, np.float32, np.float64)), "'f12' must be a float, not {0:s}".format(
+            type(value).__name__)
+        assert 0 < value < 1, "'f12' must be in range [0, 1] but is {0:.1f}".format(float(value))
+        if value != cls._f12:
+            cls._f12 = value
+
+            for inst in cls._registry:
+                inst._own_f12 = None  # reset possible instance-specific value
+
+                # all properties that include the FWHM need to be recalculated
+                inst.reset(omit=["_used", "_oversampled", "_osmap", "_ossummer", "_xos", "_yos", "_u", "_v", "_r"])
+
+    @classmethod
+    def set_fwhm1(cls, value):
+        """
+        Set the FWHM of Gaussian 1 for all instances of the class. Calling
+        this method will overwrite any instance-specific values of the FWHM
+        that might be present.
+
+        Parameters
+        ----------
+        value : float
+            The FWHM, given in spaxels
+        """
+        assert isinstance(value, (float, np.float32, np.float64)), "'fwhm1' must be a float, not {0:s}".format(
+            type(value).__name__)
+        assert value > 0, "'fwhm1' must be >0 but is {0:.1f}".format(float(value))
+        if value != cls._fwhm1:
+            cls._fwhm1 = value
+
+            for inst in cls._registry:
+                inst._own_fwhm = None  # reset possible instance-specific value
+
+                # all properties that include the FWHM need to be recalculated
+                inst.reset(omit=["_used", "_oversampled", "_osmap", "_ossummer", "_xos", "_yos", "_u", "_v", "_r"])
+
+    @classmethod
+    def set_fwhm2(cls, value):
+        """
+        Set the FWHM of Gaussian 2 for all instances of the class. Calling
+        this method will overwrite any instance-specific values of the FWHM
+        that might be present.
+
+        Parameters
+        ----------
+        value : float
+            The FWHM, given in spaxels
+        """
+        assert isinstance(value, (float, np.float32, np.float64)), "'fwhm2' must be a float, not {0:s}".format(
+            type(value).__name__)
+        assert value > 0, "'fwhm2' must be >0 but is {0:.1f}".format(float(value))
+        if value != cls._fwhm2:
+            cls._fwhm2 = value
+
+            for inst in cls._registry:
+                inst._own_fwhm = None  # reset possible instance-specific value
+
+                # all properties that include the FWHM need to be recalculated
+                inst.reset(omit=["_used", "_oversampled", "_osmap", "_ossummer", "_xos", "_yos", "_u", "_v", "_r"])
+
+    def __init__(self, uc, vc, mag, src_id=0, maxrad=np.inf, osradius=0, osfactor=1, **kwargs):
+        """
+        Initialize an instance of the Gaussian-class.
+
+        Parameters
+        ----------
+        uc : float
+            The x-centroid of the profile in the reference system.
+        vc : float
+            The y-centroid of the profile in the reference system.
+        mag : float
+            The integrated magnitude of the profile. The integrated flux is
+            unity for a magnitude of zero.
+        src_id : int
+            The ID of the source in any catalogue.
+        maxrad : float
+            The maximum distance from the profile centroid where the
+            contribution of the profile will be calculated. Default is to
+            calculate it for the full field of view.
+        osradius : float
+            The radius from the profile centroid within which the spaxels
+            will be supersampled to improve the accuracy of the calculation.
+            Default is no supersampling.
+        osfactor : int
+           The supersampling factor. Each spaxel within 'osradius' will be
+           supersampled into 'osfactor' times 'osfactor' sub-spaxels.
+        **kwargs
+            Any other keyword provided to this method will be parsed to the
+            'get_f' method of the current super-class.
+        """
+        self._own_f12 = None  # can be set to an instance-specific flux ratio
+        self._own_fwhm1 = None  # can be set to an instance-specific FWHM of Gaussian 1
+        self._own_fwhm2 = None  # can be set to an instance-specific FWHM of Gaussian 2
+
+        # call super-class
+        super(DoubleGaussian, self).__init__(uc=uc, vc=vc, mag=mag, src_id=src_id, maxrad=maxrad, osradius=osradius,
+                                             osfactor=osfactor, **kwargs)
+
+        self._exp1 = None
+        self._exp2 = None
+        self._fderiv = None
+        self._diff_f12 = None  # place-holder for partial differential wrt. the flux ratio between Gaussians 1 and 2
+        self._diff_fwhm1 = None  # place-holder for partial differential wrt. the FWHM of Gaussian 1
+        self._diff_fwhm2 = None  # place-holder for partial differential wrt. the FWHM of Gaussian 2
+        self.profile_properties.extend(["_exp1", "_exp2", "_fderiv", "_diff_f12", "_diff_fwhm1", "_diff_fwhm2"])
+
+    # Define the 'f12' property to set and return the flux ratio of the two Gaussians ########
+    def get_f12(self):
+        """
+        Return the flux ratio of the Gaussians of the profile. The routine
+        will use the specific value defined for the instance if available
+        and otherwise fall back to the one of the class.
+
+        Returns
+        -------
+        f12 : float
+            The flux ratio of the Gaussians of the profile.
+        """
+        if self._own_f12 is None:
+            return self._f12
+        else:
+            return self._own_f12
+
+    def set_own_f12(self, value):
+        """
+        Set the flux ratio of the Gaussians for this instance.
+
+        Parameters
+        ----------
+        value : float
+            The flux ratio of the Gaussians of the profile.
+        """
+        assert isinstance(value, (float, np.float32, np.float64)), "'f12' must be a float, not {0:s}".format(
+            type(value).__name__)
+        assert 0 < value < 1, "'f12' must be in range [0, 1] but is {0:.1f}".format(float(value))
+        if value != self._own_f12:
+            self._own_f12 = value
+
+            # all properties that use the FWHM need to  be recalculated
+            self.reset(omit=["_used", "_oversampled", "_osmap", "_ossummer", "_xos", "_yos", "_u", "_v", "_r"])
+
+    def del_own_f12(self):
+        """
+        Delete the value of the flux ratio for this instance.
+        """
+        if self._own_f12 is None:
+            return
+        self._own_f12 = None
+
+        # all properties that use the FWHM need to  be recalculated
+        self.reset(omit=["_used", "_oversampled", "_osmap", "_ossummer", "_xos", "_yos", "_u", "_v", "_r"])
+
+    f12 = property(get_f12, set_own_f12, del_own_f12, "The flux ratio of the Gaussians.")
+
+    # Define the 'fwhm1' property to set and return the FWHM of Gaussian 1 ########
+    def get_fwhm1(self):
+        """
+        Return the FWHM of Gaussian 1. The routine will use the specific
+        value defined for the instance if available and otherwise fall
+        back to the one of the class.
+
+        Returns
+        -------
+        fwhm1 : float
+            The FWHM of the profile.
+        """
+        if self._own_fwhm1 is None:
+            return self._fwhm1
+        else:
+            return self._own_fwhm1
+
+    def set_own_fwhm1(self, value):
+        """
+        Set the FWHM of Gaussian 1 for this instance.
+
+        Parameters
+        ----------
+        value : float
+            The FWHM of the profile.
+        """
+        assert isinstance(value, (float, np.float32, np.float64)), "'fwhm1' must be a float, not {0:s}".format(
+            type(value).__name__)
+        assert value > 0, "'fwhm1' must be >0 but is {0:.1f}".format(float(value))
+        if value != self._own_fwhm1:
+            self._own_fwhm1 = value
+
+            # all properties that use the FWHM need to  be recalculated
+            self.reset(omit=["_used", "_oversampled", "_osmap", "_ossummer", "_xos", "_yos", "_u", "_v", "_r"])
+
+    def del_own_fwhm1(self):
+        """
+        Delete the value of the FWHM of Gaussian 1 for this instance.
+        """
+        if self._own_fwhm1 is None:
+            return
+        self._own_fwhm1 = None
+
+        # all properties that use the FWHM need to  be recalculated
+        self.reset(omit=["_used", "_oversampled", "_osmap", "_ossummer", "_xos", "_yos", "_u", "_v", "_r"])
+
+    fwhm1 = property(get_fwhm1, set_own_fwhm1, del_own_fwhm1, "The FWHM of Gaussian 1.")
+
+    # Define the 'fwhm2' property to set and return the FWHM of Gaussian 2 ########
+    def get_fwhm2(self):
+        """
+        Return the FWHM of Gaussian 2. The routine will use the specific
+        value defined for the instance if available and otherwise fall
+        back to the one of the class.
+
+        Returns
+        -------
+        fwhm2 : float
+            The FWHM of Gaussian 2.
+        """
+        if self._own_fwhm2 is None:
+            return self._fwhm2
+        else:
+            return self._own_fwhm2
+
+    def set_own_fwhm2(self, value):
+        """
+        Set the FWHM of Gaussian 2 for this instance.
+
+        Parameters
+        ----------
+        value : float
+            The FWHM of the profile.
+        """
+        assert isinstance(value, (float, np.float32, np.float64)), "'fwhm2' must be a float, not {0:s}".format(
+            type(value).__name__)
+        assert value > 0, "'fwhm2' must be >0 but is {0:.1f}".format(float(value))
+        if value != self._own_fwhm2:
+            self._own_fwhm2 = value
+
+            # all properties that use the FWHM need to  be recalculated
+            self.reset(omit=["_used", "_oversampled", "_osmap", "_ossummer", "_xos", "_yos", "_u", "_v", "_r"])
+
+    def del_own_fwhm2(self):
+        """
+        Delete the value of the FWHM for this instance.
+        """
+        if self._own_fwhm2 is None:
+            return
+        self._own_fwhm2 = None
+
+        # all properties that use the FWHM need to  be recalculated
+        self.reset(omit=["_used", "_oversampled", "_osmap", "_ossummer", "_xos", "_yos", "_u", "_v", "_r"])
+
+    fwhm2 = property(get_fwhm2, set_own_fwhm2, del_own_fwhm2, "The FWHM of Gaussian 2.")
+
+    @property
+    def fwhm(self):
+        """
+        Estimate the FWHM of the PSF as the weighted ratio of the two
+        individual Gaussians.
+        """
+        return self.f12*self.fwhm1 + (1. - self.f12)*self.fwhm2
+
+    @property
+    def std1(self):
+        """
+        Returns
+        -------
+        std1 : float
+            The standard deviation of Gaussian 1, measured in spaxels.
+        """
+        return self.fwhm1 / np.sqrt(8. * np.log(2.))
+
+    @property
+    def std2(self):
+        """
+        Returns
+        -------
+        std2 : float
+            The standard deviation of Gaussian 2, measured in spaxels.
+        """
+        return self.fwhm2 / np.sqrt(8. * np.log(2.))
+
+    def get_exp1(self):
+        """
+
+        :return:
+        """
+        if self._exp1 is None:
+            self._exp1 = np.exp(-self.r**2/(2.*self.std1**2))
+        return self._exp1
+
+    exp1 = property(get_exp1, None, None, "Helper function to get exponential term of Gaussian 1.")
+
+    def get_exp2(self):
+        """
+
+        :return:
+        """
+        if self._exp2 is None:
+            self._exp2 = np.exp(-self.r**2/(2.*self.std2**2))
+        return self._exp2
+
+    exp2 = property(get_exp2, None, None, "Helper function to get exponential term of Gaussian 2.")
+
+    def get_fderiv(self):
+        """
+
+        :return:
+        """
+        if self._fderiv is None:
+            self._fderiv = -(self.f12 / (2.*np.pi*self.std1**4 * (1. - self.e)) * self.exp1 + (1. - self.f12) / (
+                2.*np.pi*self.std2**4 * (1. - self.e)) * self.exp2)
+        return self._fderiv
+
+    fderiv = property(get_fderiv, None, None, "Helper function to get partial derivatives wrt. r")
+
+    # The property 'f' that returns the actual spatial intensity profile
+    def get_f(self, integrate=True):
+        """
+        Method that calculates the actual intensity profile of the double
+        Gaussian.
+
+        Parameters:
+        -----------
+        integrate : bool, optional
+            Whether or not the values should be averaged over the individual
+            sub-spaxels before they are returned.
+        **kwargs
+            Any other keyword provided to this method will be parsed to the
+            'get_f' method of the current super-class.
+
+        Returns:
+        --------
+        f : nd_array
+            The intensity distribution for the spaxels used in the calculation.
+            If parameter 'integrate' is set, the intensities are returned only
+            for the parents spaxels after averaging over the sub-spaxels.
+        """
+        if self._f is None:
+            self._f = 10 ** (-0.4 * self.mag) * (self.f12 / (2.*np.pi*self.std1**2 * (1. - self.e)) * self.exp1 + (
+                1. - self.f12) / (2.*np.pi*self.std2**2 * (1. - self.e)) * self.exp2) + super(
+                DoubleGaussian, self).get_f(integrate=False)
+        if integrate:
+            return self.sum_os(self._f)
+        else:
+            return self._f
+
+    f = property(get_f, None, None, "The intensity distribution corresponding to the current PSF.")
+
+    def get_diff_f12(self, integrate=True):
+        """
+        Calculate the partial derivative of the double Gaussian profile wrt.
+        the flux ratio of Gaussians 1 and 2.
+
+        Parameters
+        ----------
+        integrate : bool, optional
+            Whether or not the values should be averaged over the individual
+            sub-spaxels before they are returned.
+
+        Returns
+        -------
+        diff_f12 : nd_array
+            The partial derivative, either for all (sub-)spaxels or after
+            averaging over the sub-spaxels.
+        """
+        if self._diff_f12 is None:
+            self._diff_f12 = 10 ** (-0.4 * self.mag) * (
+                1. / (2.*np.pi*self.std1**2 * (1. - self.e)) * self.exp1 - 1. / (
+                    2.*np.pi*self.std2**2 * (1. - self.e)) * self.exp2)
+        if integrate:
+            return self.sum_os(self._diff_f12)
+        else:
+            return self._diff_f12
+
+    diff_f12 = property(get_diff_f12, None, None,
+                        "The partial derivative of the PSF wrt. the flux ratio of Gaussians 1 and 2.")
+
+    def get_diff_fwhm1(self, integrate=True):
+        """
+        Calculate the partial derivative of the double Gaussian profile wrt.
+        the FWHM of Gaussian 1.
+
+        Parameters
+        ----------
+        integrate : bool, optional
+            Whether or not the values should be averaged over the individual
+            sub-spaxels before they are returned.
+
+        Returns
+        -------
+        diff_fwhm1 : nd_array
+            The partial derivative, either for all (sub-)spaxels or after
+            averaging over the sub-spaxels.
+        """
+        if self._diff_fwhm1 is None:
+            self._diff_fwhm1 = 10 ** (-0.4 * self.mag) * self.f12 / (2.*np.pi*self.std1**3 * (1. - self.e)) * (
+                self.r**2/self.std1**2 - 2) / np.sqrt(8. * np.log(2.)) * self.exp1
+        if integrate:
+            return self.sum_os(self._diff_fwhm1)
+        else:
+            return self._diff_fwhm1
+
+    diff_fwhm1 = property(get_diff_fwhm1, None, None, "The partial derivative of the PSF wrt. the FWHM of Gaussian 1.")
+
+    def get_diff_fwhm2(self, integrate=True):
+        """
+        Calculate the partial derivative of the double Gaussian profile wrt.
+        the FWHM of Gaussian 2.
+
+        Parameters
+        ----------
+        integrate : bool, optional
+            Whether or not the values should be averaged over the individual
+            sub-spaxels before they are returned.
+
+        Returns
+        -------
+        diff_fwhm2 : nd_array
+            The partial derivative, either for all (sub-)spaxels or after
+            averaging over the sub-spaxels.
+        """
+        if self._diff_fwhm2 is None:
+            self._diff_fwhm2 = 10**(-0.4 * self.mag) * (1. - self.f12) / (2.*np.pi*self.std2**3 * (1. - self.e)) * (
+                self.r**2/self.std2**2 - 2) / np.sqrt(8. * np.log(2.)) * self.exp2
+        if integrate:
+            return self.sum_os(self._diff_fwhm2)
+        else:
+            return self._diff_fwhm2
+
+    diff_fwhm2 = property(get_diff_fwhm2, None, None, "The partial derivative of the PSF wrt. the FWHM of Gaussian 2.")
+
+    # The ellipticity 'e'
+    def get_diff_e(self, integrate=True):
+        """
+        Calculate the partial derivative of the double Gaussian profile wrt.
+        the ellipticity 'e'.
+
+        Parameters
+        ----------
+        integrate : bool, optional
+            Whether or not the values should be averaged over the individual
+            sub-spaxels before they are returned.
+
+        Returns
+        -------
+        diff_e : nd_array
+            The partial derivative, either for all (sub-)spaxels or after
+            averaging over the sub-spaxels.
+        """
+        if self._diff_e is None:
+            self._diff_e = self.get_f(integrate=False) * (1. / (1. - self.e)) + 10**(-0.4 * self.mag) * self.r * super(
+                DoubleGaussian, self).get_diff_e(integrate=False) * self.fderiv
+        if integrate:
+            return self.sum_os(self._diff_e)
+        else:
+            return self._diff_e
+
+    diff_e = property(get_diff_e, None, None, "The partial derivative of the PSF wrt. the ellipticity.")
+
+    # The position angle 'theta'
+    def get_diff_theta(self, integrate=True):
+        """
+        Calculate the partial derivative of the double Gaussian profile wrt.
+        the position angle 'theta'.
+
+        Parameters
+        ----------
+        integrate : bool, optional
+            Whether or not the values should be averaged over the individual
+            sub-spaxels before they are returned.
+
+        Returns
+        -------
+        diff_theta : nd_array
+            The partial derivative, either for all (sub-)spaxels or after
+            averaging over the sub-spaxels.
+        """
+        if self._diff_theta is None:
+            self._diff_theta = 10**(-0.4 * self.mag) * self.fderiv * self.r * super(
+                DoubleGaussian, self).get_diff_theta(integrate=False)
+        if integrate:
+            return self.sum_os(self._diff_theta)
+        else:
+            return self._diff_theta
+
+    diff_theta = property(get_diff_theta, None, None, "The partial derivative of the PSF wrt. the pos. angle 'theta'.")
+
+    # The centroid coordinates
+    def get_diff_xc(self, integrate=True):
+        """
+        Calculate the partial derivative of the double Gaussian profile wrt.
+        xc, the centroid of the profile in x-direction.
+
+        Parameters
+        ----------
+        integrate : bool, optional
+            Whether or not the values should be averaged over the individual
+            sub-spaxels before they are returned.
+
+        Returns
+        -------
+        diff_xc : nd_array
+            The partial derivative, either for all (sub-)spaxels or after
+            averaging over the sub-spaxels.
+        """
+        if self._diff_xc is None:
+            self._diff_xc = 10**(-0.4 * self.mag) * self.fderiv * self.r * super(
+                DoubleGaussian, self).get_diff_xc(integrate=False)
+        if integrate:
+            return self.sum_os(self._diff_xc)
+        else:
+            return self._diff_xc
+
+    diff_xc = property(get_diff_xc, None, None,
+                       "The partial derivative of the double Gaussian PSF wrt. xc, the x-centroid of the profile.")
+
+    def get_diff_yc(self, integrate=True):
+        """
+        Calculate the partial derivative of the double Gaussian profile wrt.
+        yc, the centroid of the profile in y-direction.
+
+        Parameters
+        ----------
+        integrate : bool, optional
+            Whether or not the values should be averaged over the individual
+            sub-spaxels before they are returned.
+
+        Returns
+        -------
+        diff_yc : nd_array
+            The partial derivative, either for all (sub-)spaxels or after
+            averaging over the sub-spaxels.
+        """
+        if self._diff_yc is None:
+            self._diff_yc = 10**(-0.4 * self.mag) * self.fderiv * self.r * super(
+                DoubleGaussian, self).get_diff_yc(integrate=False)
+        if integrate:
+            return self.sum_os(self._diff_yc)
+        else:
+            return self._diff_yc
+
+    diff_yc = property(get_diff_yc, None, None,
+                       "The partial derivative of the double Gaussian PSF wrt. yc, the y-centroid of the profile.")
+
+    # The parameters of the coordinate transformation
+    def get_diff_A(self, integrate=True):
+        """
+        Calculate the partial derivative of the double Gaussian profile wrt.
+        the parameter 'A' of the coordinate transformation.
+
+        Parameters
+        ----------
+        integrate : bool, optional
+            Whether or not the values should be averaged over the individual
+            sub-spaxels before they are returned.
+
+        Returns
+        -------
+        diff_A : nd_array
+            The partial derivative, either for all (sub-)spaxels or after
+            averaging over the sub-spaxels.
+        """
+        if self._diff_A is None:
+            self._diff_A = 10**(-0.4 * self.mag) * self.fderiv * self.r * super(
+                DoubleGaussian, self).get_diff_A(integrate=False)
+        if integrate:
+            return self.sum_os(self._diff_A)
+        else:
+            return self._diff_A
+
+    diff_A = property(get_diff_A, None, None, "The partial derivative of the PSF wrt. 'A'.")
+
+    def get_diff_B(self, integrate=True):
+        """
+        Calculate the partial derivative of the double Gaussian profile wrt.
+        the parameter 'B' of the coordinate transformation.
+
+        Parameters
+        ----------
+        integrate : bool, optional
+            Whether or not the values should be averaged over the individual
+            sub-spaxels before they are returned.
+
+        Returns
+        -------
+        diff_B : nd_array
+            The partial derivative, either for all (sub-)spaxels or after
+            averaging over the sub-spaxels.
+        """
+        if self._diff_B is None:
+            self._diff_B = 10**(-0.4 * self.mag) * self.fderiv * self.r * super(
+                DoubleGaussian, self).get_diff_B(integrate=False)
+        if integrate:
+            return self.sum_os(self._diff_B)
+        else:
+            return self._diff_B
+
+    diff_B = property(get_diff_B, None, None, "The partial derivative of the PSF wrt. 'B'.")
+
+    def get_diff_C(self, integrate=True):
+        """
+        Calculate the partial derivative of the double Gaussian profile wrt.
+        the parameter 'C' of the coordinate transformation.
+
+        Parameters
+        ----------
+        integrate : bool, optional
+            Whether or not the values should be averaged over the individual
+            sub-spaxels before they are returned.
+
+        Returns
+        -------
+        diff_C : nd_array
+            The partial derivative, either for all (sub-)spaxels or after
+            averaging over the sub-spaxels.
+        """
+        if self._diff_C is None:
+            self._diff_C = 10**(-0.4 * self.mag) * self.fderiv * self.r * super(
+                DoubleGaussian, self).get_diff_C(integrate=False)
+        if integrate:
+            return self.sum_os(self._diff_C)
+        else:
+            return self._diff_C
+
+    diff_C = property(get_diff_C, None, None, "The partial derivative of the PSF wrt. 'C'.")
+
+    def get_diff_D(self, integrate=True):
+        """
+        Calculate the partial derivative of the double Gaussian profile wrt.
+        the parameter 'D' of the coordinate transformation.
+
+        Parameters
+        ----------
+        integrate : bool, optional
+            Whether or not the values should be averaged over the individual
+            sub-spaxels before they are returned.
+
+        Returns
+        -------
+        diff_B : nd_array
+            The partial derivative, either for all (sub-)spaxels or after
+            averaging over the sub-spaxels.
+        """
+        if self._diff_D is None:
+            self._diff_D = 10**(-0.4 * self.mag) * self.fderiv * self.r * super(
+                DoubleGaussian, self).get_diff_D(integrate=False)
+        if integrate:
+            return self.sum_os(self._diff_D)
+        else:
+            return self._diff_D
+
+    diff_D = property(get_diff_D, None, None, "The partial derivative of the PSF wrt. 'D'.")
+
+    def get_diff_x0(self, integrate=True):
+        """
+        Calculate the partial derivative of the double Gaussian profile wrt.
+        the parameter 'x0' of the coordinate transformation.
+
+        Parameters
+        ----------
+        integrate : bool, optional
+            Whether or not the values should be averaged over the individual
+            sub-spaxels before they are returned.
+
+        Returns
+        -------
+        diff_x0 : nd_array
+            The partial derivative, either for all (sub-)spaxels or after
+            averaging over the sub-spaxels.
+        """
+
+        if self._diff_x0 is None:
+            self._diff_x0 = 10**(-0.4 * self.mag) * self.fderiv * self.r * super(
+                DoubleGaussian, self).get_diff_x0(integrate=False)
+        if integrate:
+            return self.sum_os(self._diff_x0)
+        else:
+            return self._diff_x0
+
+    diff_x0 = property(get_diff_x0, None, None, "The partial derivative of the PSF wrt. 'x0'.")
+
+    def get_diff_y0(self, integrate=True):
+        """
+        Calculate the partial derivative of the double Gaussian profile wrt.
+        the parameter 'y0' of the coordinate transformation.
+
+        Parameters
+        ----------
+        integrate : bool, optional
+            Whether or not the values should be averaged over the individual
+            sub-spaxels before they are returned.
+
+        Returns
+        -------
+        diff_y0 : nd_array
+            The partial derivative, either for all (sub-)spaxels or after
+            averaging over the sub-spaxels.
+        """
+        if self._diff_y0 is None:
+            self._diff_y0 = 10**(-0.4 * self.mag) * self.fderiv * self.r * super(
+                DoubleGaussian, self).get_diff_y0(integrate=False)
         if integrate:
             return self.sum_os(self._diff_y0)
         else:

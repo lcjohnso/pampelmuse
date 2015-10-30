@@ -21,10 +21,10 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-266, 2015/05/21
+280, 2015/10/30
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 266
+__revision__ = 280
 
 import collections
 import inspect
@@ -1538,7 +1538,7 @@ class Sources(object):
             valid_i = valid & np.any(~np.isnan(self.ifs_coordinates[:, i, :, 0]), axis=-1)
             if commonSlope:
                 valid_i &= meanvalid.all(axis=1)
-            if valid_i.sum() > 0:
+            if valid_i.sum() > order:
                 wave = self.wave[valid_i]
                 fx_wave = self.ifs_coordinates[valid_i, i, 0, 0]
                 fy_wave = self.ifs_coordinates[valid_i, i, 1, 0]
@@ -1546,7 +1546,7 @@ class Sources(object):
                 wave = self.wave[meanvalid.all(axis=1)] if commonSlope else self.wave
                 fx_wave = self.x[j]*np.ones(meanvalid.all(axis=1).sum() if commonSlope else self.ndisp)
                 fy_wave = self.y[j]*np.ones(meanvalid.all(axis=1).sum() if commonSlope else self.ndisp)
-                logging.warning("Source #{0} has no valid IFS coordinates - using reference coordinates.".format(
+                logging.warning("Not enough successful fits for source #{0} - using reference coordinates.".format(
                     self.ID[j]))
 
             if commonSlope:

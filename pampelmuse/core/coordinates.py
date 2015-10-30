@@ -29,21 +29,33 @@ coordinates via an affine transformation including six parameters, A, B, C, D, x
 (i)  x_spaxel = A*x_ref + C*y_ref + x0
 (ii) y_spaxel = D*y_ref - B*x_ref + y0
 
-# TODO: update the following
-#OUTDATED#The inverse transformation is given by the following formulae:
-#OUTDATED#(iii) x_ref = A'*x_spaxel + B'*y_spaxel + C'
-#OUTDATED#(iv)  y_ref = A'*y_spaxel - B'*x_spaxel + D'
-#OUTDATED#
-#OUTDATED#where A' = A/(A*A+B*B), B' = -B/(A*A+B*B), C' = (B*D-A*C)/(A*A+B*B), and
-#OUTDATED#D' = -(A*D+B*C)/(A*A+B*B)
+or in matrix notation:
 
+r_spaxel = [[A C] [-B D]] * r_ref + r0
+
+The inverse transformation can be obtained by matrix inversion:
+
+[[A C] [-B D]]^-1 = 1./(AD + BC) [[D -C] [B A]]
+
+The following definitions are made:
+
+A' = D/(AD + BC)
+B' = -B/(AD + BC)
+C' = -C/(AD + BC)
+D' = A/(AD + BC)
+x0' = -(D*x0 - C*y0)/(AD + BC)
+y0' = -(B*x0 + A*y0)/(AD + BC)
+
+This results in the inverse transformation:
+(iii) x_ref = A'*x_spaxel + C'*y_spaxel + x0'
+(iv)  y_ref = D'*y_spaxel - B'*x_spaxel + y0'
 
 Latest SVN revision
 -------------------
-254, 2015/04/22
+280, 2015/10/30
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 254
+__revision__ = 280
 
 import logging
 import re

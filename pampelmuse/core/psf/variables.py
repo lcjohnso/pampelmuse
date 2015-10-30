@@ -16,10 +16,10 @@ general framework for dealing with parameters within PampelMuse.
 
 Latest SVN revision
 -------------------
-232, 2015/01/30
+280, 2015/10/30
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 232
+__revision__ = 280
 
 import logging
 
@@ -47,10 +47,12 @@ class Variables(Parameters):
 
     # define a dictionary containing the parameter names for each PSF profile supported by PampelMuse
     PROFILES = {"moffat": ["beta", "fwhm", "e", "theta"],
-                "gauss": ["fwhm", "e", "theta"], }
+                "gauss": ["fwhm", "e", "theta"],
+                "double_gauss": ["f12", "fwhm1", "fwhm2", "e", "theta"]}
 
     LABELS = {"fwhm": r"$\mathrm{FWHM}\ [\mathrm{spaxel}]$", "beta": r"$\beta$", "e": r"$e$",
-              "theta": r"$\theta\ [\mathrm{rad}]$", }
+              "theta": r"$\theta\ [\mathrm{rad}]$", "fwhm1": r"$\mathrm{FWHM}_1\ [\mathrm{spaxel}]$",
+              "fwhm2": r"$\mathrm{FWHM}_2\ [\mathrm{spaxel}]$", "f12": r"$f_\mathrm{12}$"}
 
     def __init__(self, profile=None, hdu=None, **kwargs):
         """

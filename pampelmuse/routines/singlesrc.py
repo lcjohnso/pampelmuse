@@ -17,10 +17,10 @@ proved using the first order moments determined in the calculation.
  
 Latest SVN revision
 -------------------
-255, 2015/04/24
+280, 2015/10/30
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-gooettingen.de)"
-__revision__ = 255
+__revision__ = 280
 
 import datetime
 import logging
@@ -89,6 +89,8 @@ def singlesrc(pampelmuse):
         PSF = Moffat
     elif pampelmuse.psf.profile == "gauss":
         PSF = Gaussian
+    elif pampelmuse.psf.profile == "double_gauss":
+        PSF = DoubleGaussian
 
     i = 0
     while hasattr(pampelmuse.psf, "parname{0}".format(i)):

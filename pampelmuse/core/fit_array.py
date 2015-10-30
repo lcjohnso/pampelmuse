@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-278, 2015/08/20
+280, 2015/10/30
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 278
+__revision__ = 280
 
 import contextlib
 import itertools
@@ -38,6 +38,7 @@ import logging
 import time
 import numpy as np
 import scipy
+from exceptions import Exception
 from multiprocessing import cpu_count, Pool
 from scipy import optimize, sparse
 # from astropy.io import fits
@@ -51,7 +52,7 @@ else:
 
 # required PampelMuse-packages
 from pampelmuse.core import BackgroundGrid
-from pampelmuse.core.psf import Profile, Gaussian, Moffat
+from pampelmuse.core.psf import *
 
 
 # for a nicer printing of numpy arrays, following suggestion from
@@ -280,8 +281,10 @@ class StarFit(object):
             self.PSF = Gaussian
         elif self.psf_attributes.profile == "moffat":
             self.PSF = Moffat
+        elif self.psf_attributes.profile == "double_gauss":
+            self.PSF = DoubleGaussian
         else:
-            logging.critical("Invalid PSF type: '{0}'".format(self.psf_attributes.psftype))
+            logging.critical("Invalid PSF type: '{0}'".format(self.psf_attributes.profile))
             raise IOError("PSF type not understood.")
 
         # initialize PSF-class for every source included
@@ -1069,6 +1072,7 @@ class StarFit(object):
             else:
                 logstring = "Updated PSF parameters:"
                 for i, par in enumerate(psfnames):
+                    logging.debug("Updating PSF parameter {0}...".format(par))
                     ii = self.psf_attributes.names.index(par)
 
                     # weight individual parameter fits using S/N of sources
@@ -1164,11 +1168,11 @@ class StarFit(object):
             for i in xrange(self.sources.transformation.npars):
                 if self.sources.transformation.free[i] and not self.sources.transformation.fitted[i]:
                     parnames.append(self.sources.transformation.names[i])
-                    fitpars.append(getattr(self.PSF, parnames[-1]))
+                    fitpars.append(getattr(self.PSF, "_{0}".format(parnames[-1])))
 
             # call Levenberg-Marquardt solver from scipy.optimize (& provide Jacobian)
-            bestfit = optimize.leastsq(self.optimize_multi_psf, x0=fitpars, Dfun=self.jacobi_multi_psf, col_deriv=1,
-                                       args=(parnames,), epsfcn=0.0)[0]
+            bestfit = optimize.leastsq(self.optimize_multi_psf, x0=fitpars,  # Dfun=self.jacobi_multi_psf,
+                                       col_deriv=1, args=(parnames,), epsfcn=0.0)[0]
 
             # update parameters using fit results
             for i in xrange(len(parnames)):
@@ -1192,16 +1196,16 @@ class StarFit(object):
             for i in xrange(self.psf_attributes.npars):
                 if self.psf_attributes.free[i] and not self.psf_attributes.fitted[i]:
                     parnames.append(self.psf_attributes.names[i])
-                    fitpars.append(getattr(self.PSF, parnames[-1]))
+                    fitpars.append(getattr(self.PSF, "_{0}".format(parnames[-1])))
 
             # call Levenberg-Marquardt solver from scipy.optimize (& provide Jacobian)
             try:
-                bestfit = optimize.leastsq(self.optimize_multi_psf, x0=fitpars, Dfun=self.jacobi_multi_psf, col_deriv=1,
-                                           args=(parnames,), epsfcn=0.0)[0]
+                bestfit = optimize.leastsq(self.optimize_multi_psf, x0=fitpars,  # Dfun=self.jacobi_multi_psf,
+                                           col_deriv=1, args=(parnames,), epsfcn=0.0)[0]
                 success = True
-            except:  # optimize.minpack.error: # error handler to avoid code that code crashes completely, seems to
-                # depend on numpy version which error is thrown
-                logging.error("PSF fit failed.")
+            except Exception, msg:  # optimize.minpack.error: # error handler to avoid code that code crashes
+                # completely, seems to depend on numpy version which error is thrown
+                logging.error("PSF fit failed: {0}".format(msg))
                 bestfit = None
                 success = False
 

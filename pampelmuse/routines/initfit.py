@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-279, 2015/08/21
+280, 2015/10/30
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 279
+__revision__ = 280
 
 import datetime
 import itertools
@@ -208,6 +208,8 @@ def initfit(pampelmuse):
         PSF = Moffat
     elif pampelmuse.psf.profile == "gauss":
         PSF = Gaussian
+    elif pampelmuse.psf.profile == "double_gauss":
+        PSF = DoubleGaussian
 
     i = 0
     while hasattr(pampelmuse.psf, "parname{0}".format(i)):

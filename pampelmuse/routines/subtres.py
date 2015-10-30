@@ -15,12 +15,11 @@ if PampelMuse is started with the 'SUBTRES' option.
 
 Latest SVN revision
 -------------------
-249, 2015/04/15
+280, 2015/10/30
 """
-from scipy.interpolate import InterpolatedUnivariateSpline
-
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 243
+__revision__ = 280
+
 import datetime
 import itertools
 import logging
@@ -29,6 +28,7 @@ from multiprocessing import Pool
 import numpy as np
 from astropy.io import fits
 from scipy import sparse
+from scipy.interpolate import InterpolatedUnivariateSpline
 
 # required PampelMuse-packages
 from pampelmuse.core import BackgroundGrid, Sources
@@ -121,8 +121,10 @@ def subtres(pampelmuse):
         PSF = Gaussian
     elif psf_attributes.profile == "moffat":
         PSF = Moffat
+    elif psf_attributes.profile == "double_gauss":
+        PSF = DoubleGaussian
     else:
-        logging.critical("Invalid PSF type: '{0}'".format(psf_attributes.psftype))
+        logging.critical("Invalid PSF type: '{0}'".format(psf_attributes.profile))
         raise IOError("PSF type not understood.")
     PSF.set_transform(pampelmuse.ifs_data.instrument.transform)
 

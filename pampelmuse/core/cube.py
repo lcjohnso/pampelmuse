@@ -147,15 +147,15 @@ class Cube:
         fits.hdu.image._ImageBaseHDU.layer = types.MethodType(self.instrument.get_layer, None,
                                                               fits.hdu.image._ImageBaseHDU)
 
-        # open data HDU - check if HDU "DATA" exists, otherwise use first HDU
+        # open data HDU - check if properly named HDU exists, otherwise use first HDU
         hduname = 0
-        for name in ["DATA", "mapping.DATA"]:
+        for name in ["DATA", "mapping.DATA", "SCI"]:
             if name in [hdu.name for hdu in self.file]:
                 hduname = name
                 break
         self.data = self.file[hduname]
 
-        # check dimensionality of data: must be 3D if transformation from spaxels to x- & y-coords unknown,
+        # check dimensionality of data: must be 3D if transformation from spaxels to x- & y-coordinates unknown,
         # otherwise 2dim. data is accepted
         self.ndim = self.data.header["NAXIS"]
 
@@ -184,7 +184,11 @@ class Cube:
         self.nlayer = self.data.header["NAXIS{0}".format(self.spectral_index)]
 
         # Reading information about wavelength coverage
-        self.crpix = self.data.header['CRPIX{0}'.format(self.spectral_index)]
+        try:
+            self.crpix = self.data.header['CRPIX{0}'.format(self.spectral_index)]
+        except KeyError:
+            logging.warning("Cannot find keyword CRPIX{0}.".format(self.spectral_index))
+            self.crpix = 1
         self.crval = self.data.header['CRVAL{0}'.format(self.spectral_index)]
 
         try:
@@ -221,7 +225,7 @@ class Cube:
 
         # check if file with uncertainties is available, otherwise check data file:
         i = self.load_auxiliary_hdu("sigma", filename=sigma,
-                                    hduname=["SIGMA", "ERROR", "STAT", "mapping.NOISE", "NOISE"])
+                                    hduname=["SIGMA", "ERROR", "STAT", "mapping.NOISE", "NOISE", "VAR"])
         if self.sigma is None:
             logging.error("Unable to load uncertainties for IFS data.")
         else:
@@ -304,7 +308,7 @@ class Cube:
                     if hdu.name in hdunames:
                         setattr(self, attribute, hdulist[_i])
                         i = _i
-                        if attribute == "sigma" and hdu.name == "STAT":
+                        if attribute == "sigma" and hdu.name in ["STAT", "VAR"]:
                             self.is_var = True
                         break
 
