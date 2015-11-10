@@ -24,10 +24,10 @@ currently not possible to add parameters afterwards.
 
 Latest SVN revision
 -------------------
-261, 2015/04/30
+281, 2015/11/10
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 261
+__revision__ = 281
 
 # import required python modules
 import logging
@@ -523,6 +523,6 @@ class Parameters(object):
 
         # return HDU
         out_hdu = fits.new_table(out_columns, header=fits.Header(cards=cards))
-        out_hdu.add_checksum()
+#         out_hdu.add_checksum()
 
         return out_hdu            
