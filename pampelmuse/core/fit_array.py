@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-280, 2015/10/30
+282, 2015/11/11
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 280
+__revision__ = 282
 
 import contextlib
 import itertools
@@ -1161,6 +1161,7 @@ class StarFit(object):
 
         # Fit position parameters
         if self.sources.contains_free_coordinates:
+            logging.info("Optimizing source coordinates...")
 
             # collect free parameters
             fitpars = []
@@ -1171,7 +1172,7 @@ class StarFit(object):
                     fitpars.append(getattr(self.PSF, "_{0}".format(parnames[-1])))
 
             # call Levenberg-Marquardt solver from scipy.optimize (& provide Jacobian)
-            bestfit = optimize.leastsq(self.optimize_multi_psf, x0=fitpars,  # Dfun=self.jacobi_multi_psf,
+            bestfit = optimize.leastsq(self.optimize_multi_psf, x0=fitpars, Dfun=self.jacobi_multi_psf,
                                        col_deriv=1, args=(parnames,), epsfcn=0.0)[0]
 
             # update parameters using fit results
@@ -1189,6 +1190,7 @@ class StarFit(object):
 
         # fit PSF parameters
         if self.psf_attributes.contains_free_parameters:
+            logging.info("Optimizing PSF parameters...")
 
             # collect free parameters
             fitpars = []
@@ -1200,7 +1202,7 @@ class StarFit(object):
 
             # call Levenberg-Marquardt solver from scipy.optimize (& provide Jacobian)
             try:
-                bestfit = optimize.leastsq(self.optimize_multi_psf, x0=fitpars,  # Dfun=self.jacobi_multi_psf,
+                bestfit = optimize.leastsq(self.optimize_multi_psf, x0=fitpars, Dfun=self.jacobi_multi_psf,
                                            col_deriv=1, args=(parnames,), epsfcn=0.0)[0]
                 success = True
             except Exception, msg:  # optimize.minpack.error: # error handler to avoid code that code crashes
@@ -1256,6 +1258,7 @@ class StarFit(object):
 
         # calculate new model
         psf_matrix = self.build_matrix(update_unresolved=False)[0]
+        psf_matrix.data /= np.take(self.sigma, psf_matrix.indices)
 
         model = psf_matrix * sparse.dia_matrix((self.sources.data[self.jj, self.valid_components, 0], [0]),
                                                shape=(self.valid_components.sum(), self.valid_components.sum()))
