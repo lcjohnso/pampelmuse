@@ -21,10 +21,10 @@ check whether the IFS data contains HDUs providing either uncertainties
 
 Latest SVN revision
 -------------------
-279, 2015/08/21
+283, 2015/11/12
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 279
+__revision__ = 283
 
 import logging
 import types
@@ -253,6 +253,7 @@ class Cube:
         """
         if self._wave is None:
             self._wave = np.arange(self.ndisp, dtype=np.float64)
+            self._wave -= (self.crpix - 1)
             self._wave *= self.cdelt
             self._wave += self.crval
         return self._wave
@@ -541,6 +542,8 @@ class Cube:
                 wmin = fct.get_knots().min()  # min. of defined wavelength range
                 wmax = fct.get_knots().max()  # max. of defined wavelength range
                 valid = (wave > wmin) & (wave < wmax)
+                if valid.sum() == 0:
+                    logging.error("No overlap between provided wavelength range and passband {0}.".format(passband))
                 weights[valid] = fct(wave[valid])
                 weights[~valid] = 0
                 assert not np.isnan(weights).any()

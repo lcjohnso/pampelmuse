@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-280, 2015/10/30
+283, 2015/11/12
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 280
+__revision__ = 283
 
 import datetime
 import itertools
@@ -244,6 +244,9 @@ def initfit(pampelmuse):
         sigma_image *= np.sqrt(1e4)
 
     mask = np.isnan(data_image)
+    if mask.all():
+        logging.error("{0}-image created from IFS data contains only NaNs.".format(pampelmuse.passband))
+        logging.error("Check overlap between {0} throughput and IFS wavelength coverage.".format(pampelmuse.passband))
 
     # if a MUSE data has been provided, try to determine edge of field of view as smallest polygon to includes all
     # valid spaxels.

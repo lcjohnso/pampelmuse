@@ -21,11 +21,11 @@ defines the methods that are called by Ui_PampelMuseGui.
 
 Latest SVN revision
 -------------------
-271, 2015/07/28
+283, 2015/11/12
 
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 271
+__revision__ = 283
 
 import logging
 import os
@@ -1200,13 +1200,15 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         
         # show new layer if IFU data
         if self.ifsLoaded:
-            self.ifsPlot.loadLayer(p0, residuals=self.actionResiduals.isChecked(), update_axlims=False, reset_history=False)
+            self.ifsPlot.loadLayer(p0, residuals=self.actionResiduals.isChecked(), update_axlims=False,
+                                   reset_history=False)
  
             # change cuts unless absolute values were set by the user:
-            if self.ifuCutsComboBox.currentText()!="User":
+            if self.ifuCutsComboBox.currentText() != "User":
                 self.on_ifuCutsComboBox_currentIndexChanged(self.ifuCutsComboBox.currentText())
 
             #  also update position of pointer if it is currently animated
+
             if self.dataPlot.vLine.get_animated():
                 self.dataPlot.vLine.set_data([self.ifsPlot.wave, self.ifsPlot.wave], self.dataPlot.axes.get_ylim())
             
