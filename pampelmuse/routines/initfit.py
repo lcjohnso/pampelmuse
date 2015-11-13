@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-283, 2015/11/12
+284, 2015/11/13
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 283
+__revision__ = 284
 
 import datetime
 import itertools
@@ -93,13 +93,13 @@ def estimate_snr(psf_instances, sigma):
                 snRatios.append(0.)
                 continue
 
-            logging.debug("Estimating S/N  for source #{0}.".format(psf.src_id))
-
             if (sigma[psf.used] == 0).any():
                 logging.error("Sigma image contains invalid pixels with values <=0.")
 
             # measure S/N
             snRatios.append(np.sqrt(((psf.f/sigma[psf.used])**2).sum()))
+
+            logging.debug("Estimated S/N for source #{0}: {1}.".format(psf.src_id, snRatios[-1]))
 
             # add the flux contribution of this source in the FoV
             totFlux += psf.f.sum()
@@ -241,7 +241,7 @@ def initfit(pampelmuse):
     if pampelmuse.ifs_data.cunit == "nm" or pampelmuse.ifs_data.ctype == "nm":  # FWHM given in Angstrom
         sigma_image /= np.sqrt(10)
     elif pampelmuse.ifs_data.cunit == "um" or pampelmuse.ifs_data.ctype == "um":
-        sigma_image *= np.sqrt(1e4)
+        sigma_image /= np.sqrt(1e4)
 
     mask = np.isnan(data_image)
     if mask.all():
