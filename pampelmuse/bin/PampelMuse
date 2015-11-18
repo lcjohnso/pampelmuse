@@ -61,10 +61,10 @@ the data into memory yet but just checks whether the file(s) are valid.
 
 Latest SVN revision
 -------------------
-286, 2015/11/18"""
+287, 2015/11/18"""
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.23.4.0"
-__revision__ = 286
+__version__ = "0.23.5.0"
+__revision__ = 287
 
 import sys
 sys.stdout.write("""
