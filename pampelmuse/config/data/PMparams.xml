@@ -1,6 +1,11 @@
-<?xml version="1.0" ?><?xml-stylesheet type="text/xsl" href="PMstyle.xsl"?><ns0:configuration timestamp="2015-02-11T20:33:40Z" xmlns:ns0="http://www.tobedefined.com/pampelmuse" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.tobedefined.com/pampelmuse PMschema.xsd">
+<?xml version="1.0" ?><?xml-stylesheet type="text/xsl" href="PMstyle.xsl"?><ns0:configuration timestamp="2015-11-18T13:30:09Z" xmlns:ns0="http://www.tobedefined.com/pampelmuse" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.tobedefined.com/pampelmuse PMschema.xsd">
  
- <ns0:parameter category="1pho" inuse="0">
+ <ns0:parameter category="1pho" inuse="1">
+     <ns0:name>CATALOG</ns0:name>
+     <ns0:value dtype="str">None</ns0:value>
+     <ns0:comment>The input catalog used by the INITFIT routine.  If set to None, the code expects it as a command line parameter.</ns0:comment>
+     <ns0:updated timestamp="2015-11-18T13:27:25Z">Appended parameter CATALOG to configuration file.</ns0:updated>
+ <ns0:updated timestamp="2015-11-18T13:30:09Z">Changed default value of parameter CATALOG to None (was None)</ns0:updated></ns0:parameter><ns0:parameter category="1pho" inuse="0">
   <ns0:name>CFPCOLS</ns0:name>
   <ns0:value dtype="tuple">(0, 1, 2, 3)</ns0:value>
   <ns0:comment>The columns of the crowded-field photometry file that contain: ID, x position, y position and magnitude of the stars</ns0:comment>
