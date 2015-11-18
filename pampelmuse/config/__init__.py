@@ -22,11 +22,12 @@ the header of a FITS HDU.
 
 Latest SVN revision
 -------------------
-268, 2015/05/27
+286, 2015/11/18
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 268
+__revision__ = 286
 
+import ast
 import datetime
 import logging
 import os
@@ -98,28 +99,48 @@ class PampelMuseConfig(Namespace):
             return 2
 
         elif not only_changeable or key.lower() in self.changeable:  # make sure parameter can still be modified
-            if isinstance(value, str):
-                try:
-                    value = eval(value)
-                except NameError:  # a NameError is raised if value cannot be converted to  other type
-                    pass
 
-            # make sure updated parameter has same type
+            # get current value of the parameter
             current_value = getattr(self, key.lower())
-            if isinstance(value, int) and isinstance(current_value, float):  # float can be replaced by int
-                value = float(value)
-            elif value in [0, 1] and isinstance(current_value, bool):  # bool can be replaced by 0 or 1
-                value = bool(value)
-            if type(value) == type(current_value):
-                setattr(self, key.lower(), value)
-                if key.lower() == "layerrng":  # the layer range must be transformed into start and stop values
-                    self.start = value[0]
-                    self.stop = value[1]
-                return 0
-            else:
-                logging.error("Parameter {0} requires {1}, but provided value '{2}' has {3}.".format(
-                    key.upper(), type(getattr(self, key.lower())), value, type(value)))
+
+            if isinstance(current_value, bool):
+                try:
+                    value = bool(value)
+                except ValueError:
+                    logging.error("New value for parameter {0} cannot be casted to boolean.".format(key.upper()))
+                    return 1
+            elif isinstance(current_value, int):
+                try:
+                    value = int(value)
+                except ValueError:
+                    logging.error("New value for parameter {0} cannot be casted to integer.".format(key.upper()))
+                    return 1
+            elif isinstance(current_value, float):
+                try:
+                    value = float(value)
+                except ValueError:
+                    logging.error("New value for parameter {0} cannot be casted to float.".format(key.upper()))
+                    return 1
+            elif isinstance(current_value, str):
+                try:
+                    value = str(value)
+                except ValueError:
+                    logging.error("New value for parameter {0} cannot be casted to string.".format(key.upper()))
+                    return 1
+            elif isinstance(current_value, tuple):
+                try:
+                    value = ast.literal_eval(value)
+                    if key.lower() == "layerrng":  # the layer range must be transformed into start and stop values
+                        self.start = value[0]
+                        self.stop = value[1]
+                except ValueError:
+                    logging.error("New value for parameter {0} cannot be casted to tuple.".format(key.upper()))
+                    return 1
+            else:  # The code should never come here.
+                logging.error("Something went terribly wrong.")
                 return 2
+
+            return 0
         else:
             logging.warning("Configuration parameter '{0}' cannot be changed during the analysis.".format(key))
             return 1
