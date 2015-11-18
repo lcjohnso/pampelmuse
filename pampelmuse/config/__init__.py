@@ -22,10 +22,10 @@ the header of a FITS HDU.
 
 Latest SVN revision
 -------------------
-287, 2015/11/18
+288, 2015/11/18
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 287
+__revision__ = 288
 
 import ast
 import datetime
@@ -140,6 +140,7 @@ class PampelMuseConfig(Namespace):
                 logging.error("Something went terribly wrong.")
                 return 2
 
+            logging.debug("Updating parameter {0} to new value {1}.".format(key.upper(), value))
             setattr(self, key.lower(), value)
             return 0
         else:
