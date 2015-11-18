@@ -22,10 +22,10 @@ the header of a FITS HDU.
 
 Latest SVN revision
 -------------------
-288, 2015/11/18
+289, 2015/11/18
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 288
+__revision__ = 289
 
 import ast
 import datetime
@@ -105,7 +105,7 @@ class PampelMuseConfig(Namespace):
 
             if isinstance(current_value, bool):
                 try:
-                    value = bool(value)
+                    value = ast.literal_eval(value)  # bool(<string>) will always return True
                 except ValueError:
                     logging.error("New value for parameter {0} cannot be casted to boolean.".format(key.upper()))
                     return 1

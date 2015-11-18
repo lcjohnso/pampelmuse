@@ -63,8 +63,8 @@ Latest SVN revision
 -------------------
 288, 2015/11/18"""
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.23.5.1"
-__revision__ = 288
+__version__ = "0.23.6.0"
+__revision__ = 289
 
 import sys
 sys.stdout.write("""
@@ -443,7 +443,10 @@ if args.func in [initfit, singlesrc]:
         setattr(pampelmuse.psf, "parname{0}".format(i), name)
         setattr(pampelmuse.psf, "parvalue{0}".format(i), pampelmuse.psfpars[i])
         setattr(pampelmuse.psf, "freepar{0}".format(i), bool(freepar[i]))
-    
+
+if args.func == initfit and pampelmuse.initfit.sourcelist is None:
+    pampelmuse.initfit.sourcelist = pampelmuse.catalog
+
 delattr(pampelmuse, "psffit")
 delattr(pampelmuse, "psfpars")
 
