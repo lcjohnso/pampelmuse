@@ -27,10 +27,10 @@ uncertainties complete the analysis of each layer.
 
 Latest SVN revision
 -------------------
-282, 2015/11/11
+290, 2015/11/18
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 282
+__revision__ = 290
 
 import contextlib
 import itertools
@@ -1044,7 +1044,7 @@ class StarFit(object):
         # update coordinate transformation if available and possible
         if self.sources.transformation.valid and self.sources.transformation.contains_free_parameters:
             use = np.all(~np.isnan(ifscoords), axis=1)
-            if use.sum() >= 2:
+            if (2*use.sum()) >= self.sources.transformation.free.sum():
                 self.sources.transformation.data[self.jj, :, 0] = self.sources.transformation._fit_to_data(
                     refcoords[use], ifscoords[use])
 

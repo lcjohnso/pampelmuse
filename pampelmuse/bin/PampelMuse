@@ -61,10 +61,10 @@ the data into memory yet but just checks whether the file(s) are valid.
 
 Latest SVN revision
 -------------------
-288, 2015/11/18"""
+290, 2015/11/18"""
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.23.6.0"
-__revision__ = 289
+__version__ = "0.23.6.1"
+__revision__ = 290
 
 import sys
 sys.stdout.write("""
@@ -222,7 +222,7 @@ Update configuration using the parameters provided in the command line,
 following '--fromline'-string. Again, name and value must be separated
 by '=' (no whitespace!). Individual parameters  must be comma-separated.""")
 
-PMsubparsers = PMparser.add_subparsers(title='Available routines')
+PMsubparsers = PMparser.add_subparsers(help='Available routines')
 
 # if graphics:
 IFparser = PMsubparsers.add_parser("INITFIT", help="""

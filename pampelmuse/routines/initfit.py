@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-284, 2015/11/13
+290, 2015/11/18
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 284
+__revision__ = 290
 
 import datetime
 import itertools
@@ -256,6 +256,12 @@ def initfit(pampelmuse):
         
         sigma_image[mask] = np.inf
         data_image[mask] = 0
+
+    if data_image.sum() <= 0:
+        logging.error("Flux sum in {0}-image is negative.".format(pampelmuse.passband))
+        if pampelmuse.zeromag > 99.:
+            logging.critical("Unable to measure photometric zeropoint, provide ZEROMAG manually.")
+            exit()
 
     # The source catalogue may cover a significantly larger area on the sky than the IFS data. To limit the memory
     # usage and the computation time in such cases, the code tries to cut out the relevant part. This is done by
@@ -828,7 +834,7 @@ def initfit(pampelmuse):
             logging.critical("Did not find any PSF sources!")
             raise ConfigurationError("No PSF sources found!")
         elif len(sources.psf_indices) < 4:
-            if sources.transformation.contains_free_parameters:
+            if pampelmuse.posfit > 1:  # sources.transformation.contains_free_parameters:
                 logging.critical("Did not find enough PSF sources to fit coordinate transformation.")
                 raise ConfigurationError("Not enough PSF sources found.")
             else:
