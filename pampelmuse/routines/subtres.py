@@ -15,10 +15,10 @@ if PampelMuse is started with the 'SUBTRES' option.
 
 Latest SVN revision
 -------------------
-280, 2015/10/30
+293, 2015/12/03
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 280
+__revision__ = 293
 
 import datetime
 import itertools
@@ -114,6 +114,9 @@ def subtres(pampelmuse):
         psf_attributes = Variables(**kwargs)
         psf_attributes.free = np.atleast_1d(free)
 
+    if psf_attributes.ndisp != sources.ndisp:
+        psf_attributes.resize(sources.ndisp)
+    psf_attributes.interpolate()
     psf_attributes.info()
 
     # Initialize PSF profiles of the sources:
