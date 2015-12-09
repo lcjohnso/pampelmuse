@@ -54,7 +54,7 @@ class PampelMuseConfig(Namespace):
         # the following list contains all the keywords that can currently be changed during the analysis, i.e. when
         # calling a routine different from INITFIT or SINGLESRC:
         self.changeable = ["verbose", "interact", "cpucount", "maxiter", "polytype", "polydeg", "subunres", "subsky",
-                           "usesigma", "layerrng", "layerbin"]
+                           "usesigma", "layerrng", "layerbin", "psfrad"]
 
         # read the default configuration from he XML file that is part of PampelMuse and stored in the data directory
         # of this package.

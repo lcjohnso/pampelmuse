@@ -37,10 +37,10 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-290, 2015/11/18
+293, 2015/12/09
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 290
+__revision__ = 293
 
 import datetime
 import itertools
@@ -474,8 +474,7 @@ def initfit(pampelmuse):
 
         app = QtGui.QApplication(sys.argv)
     
-        identifier = PampelMuseGui(sources=sources, ifsData=pampelmuse.ifs_data, refImage=identification_image,
-                                   magCut=pampelmuse.reslim-1.)
+        identifier = PampelMuseGui(sources=sources, ifsData=pampelmuse.ifs_data, refImage=identification_image)
 
         if usewcs:  # overplot positions of sources on IFS as determined via cross-correlation
             identifier.addFovToReference(-dx+ccxoff+pampelmuse.ifs_data.instrument.shape[0]//2,

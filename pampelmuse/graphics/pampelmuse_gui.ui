@@ -6,12 +6,12 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>800</width>
-    <height>800</height>
+    <width>875</width>
+    <height>808</height>
    </rect>
   </property>
   <property name="windowTitle">
-   <string>MainWindow</string>
+   <string>PampelMuse</string>
   </property>
   <widget class="QWidget" name="centralWidget">
    <widget class="QWidget" name="layoutWidget">
@@ -19,8 +19,8 @@
      <rect>
       <x>0</x>
       <y>0</y>
-      <width>800</width>
-      <height>717</height>
+      <width>873</width>
+      <height>719</height>
      </rect>
     </property>
     <layout class="QVBoxLayout" name="centralVBox">
@@ -334,7 +334,7 @@
           <widget class="QWidget" name="refViewWidget" native="true">
            <property name="minimumSize">
             <size>
-             <width>350</width>
+             <width>250</width>
              <height>250</height>
             </size>
            </property>
@@ -429,7 +429,70 @@
         </layout>
        </item>
        <item>
-        <widget class="Line" name="imageSepLine">
+        <widget class="Line" name="line">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <layout class="QVBoxLayout" name="verticalLayout">
+         <item>
+          <widget class="QCheckBox" name="showStarsCheckBox">
+           <property name="text">
+            <string>Plot stars?</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout">
+           <item>
+            <widget class="QLabel" name="label">
+             <property name="text">
+              <string>min</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QDoubleSpinBox" name="minMagSpinBox"/>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout_2">
+           <item>
+            <widget class="QLabel" name="label_2">
+             <property name="text">
+              <string>max</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QDoubleSpinBox" name="maxMagSpinBox">
+             <property name="value">
+              <double>99.989999999999995</double>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <spacer name="verticalSpacer">
+           <property name="orientation">
+            <enum>Qt::Vertical</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>20</width>
+             <height>40</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <widget class="Line" name="line_2">
          <property name="orientation">
           <enum>Qt::Vertical</enum>
          </property>
@@ -500,6 +563,19 @@
              </property>
              <property name="checkable">
               <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QSpinBox" name="ifuLayerSelectSpinBox">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="maximum">
+              <number>9999</number>
              </property>
             </widget>
            </item>
@@ -606,9 +682,6 @@
              </property>
             </widget>
            </item>
-           <item>
-            <widget class="QSpinBox" name="ifuLayerSelectSpinBox"/>
-           </item>
           </layout>
          </item>
         </layout>
@@ -630,7 +703,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>800</width>
+     <width>875</width>
      <height>25</height>
     </rect>
    </property>
@@ -638,8 +711,10 @@
     <property name="title">
      <string>File</string>
     </property>
-    <addaction name="actionSave"/>
+    <addaction name="actionLoadImage"/>
+    <addaction name="separator"/>
     <addaction name="actionSaveAs"/>
+    <addaction name="actionSave"/>
     <addaction name="separator"/>
     <addaction name="actionQuit"/>
    </widget>
@@ -790,6 +865,14 @@
    </property>
    <property name="toolTip">
     <string>Display the residuals of the fit (if available)</string>
+   </property>
+  </action>
+  <action name="actionLoadImage">
+   <property name="text">
+    <string>Load image</string>
+   </property>
+   <property name="toolTip">
+    <string>Load FITS image from disk</string>
    </property>
   </action>
  </widget>

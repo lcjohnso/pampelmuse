@@ -18,10 +18,10 @@ loaded from pampelmuse.core.cube
 
 Latest SVN revision
 -------------------
-239, 2015/02/13
+293, 2015/12/09
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 239
+__revision__ = 293
 
 import logging
 from PyQt4 import QtCore
@@ -80,6 +80,10 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
         self.layer = -1
         self.wave = 0
 
+        self.wcs = None
+
+        self.dataPlot = None
+
         # The routine keeps a history of previously selected axis limits in memory. This history can be used to
         # recover previous views of the data.
         self.curViewIndex = 0
@@ -127,7 +131,7 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
         # and blit just the redrawn (e.g. animated) area
         # self.figure.canvas.blit(self.axes.bbox)
 
-    def addImage(self, image, update_axlims=True, reset_history=True, **kwargs):
+    def addImage(self, image, update_axlims=True, reset_history=True, wcs=None, **kwargs):
         """
         Add a new data to the figure. This method can only
         handle 2dim. data. To load IFU data, the method
@@ -143,6 +147,8 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
         reset_history : boolean, optional
             Flag indicating whether or not the history containing the
             previously used axes limits should be reset.
+        wcs : instance of astropy.wcs.WCS, optional
+            Can be used to convert pixel to world coordinates and vice versa.
         kwargs
             Any additional keyword arguments that are provided to this
             method are passed on to the call of matplotlib.pyplot.imshow
@@ -171,9 +177,12 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
         self.axes.set_xticks([])
         self.axes.set_yticks([])
 
+        if wcs is not None:
+            self.wcs = wcs
+
         self.draw()  # update canvas view
 
-    def loadCube(self, input, instrument=None, checks={}, **kwargs):
+    def loadCube(self, input, instrument=None, checks={}, wcs=None, **kwargs):
         """
         Load an IFU data set, either by providing a filename or a valid
         instance of the 'Cube' class of PampelMuse. Note that if a filename is
@@ -193,7 +202,9 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
         instrument : string or pampelmuse.core.instruments.Instrument instance, optional
             Can be either the name of the instrument that observed the data or an
             'Instrument' instance. If neither is provided, 'name' must contain 3dim.
-            data. Note that this keyword only has an effect if 'name' contains a filename. 
+            data. Note that this keyword only has an effect if 'name' contains a filename.
+        wcs : instance of astropy.wcs.WCS, optional
+            Can be used to convert pixel to world coordinates and vice versa.
         checks : dict, optional
             For each key in 'checks', the routine will verify that the FITS header of
             'name' contains a keyword set to the respective value.
@@ -214,6 +225,9 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
 
         edgepatch = patches.PathPatch(plotpath, facecolor="None", edgecolor="r", lw=2, alpha=0.5)
         self.axes.add_patch(edgepatch)
+
+        if wcs is not None:
+            self.wcs = wcs
 
     def loadLayer(self, i, residuals=False, **kwargs):
         """
@@ -330,7 +344,6 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
 
         if hasattr(self, "dataPlot") and isinstance(self.dataPlot, matplotlib.artist.Artist):
             datamin, datamax = self.dataPlot.get_datalim(self.axes.transData).get_points()
-
             dataminround = [int(datamin[0] - 1 * (datamin[0] < 0)), int(datamin[1] - 1 * (datamin[1] < 0))]
             datamaxround = [int(datamax[0] + 1), int(datamax[1] + 1)]
 
@@ -380,7 +393,7 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
     #            else:
     #                return self.cube.data_hdu.section[f_min]
 
-    def addData(self, x, y, ids=None, **kwargs):
+    def addData(self, x, y, ids=None, update_axes_limits=True, **kwargs):
         """
         Overplot a dataset on an image as a scatterplot. If the `picker`-keyword
         is provided within kwargs, it is possible to interactively select data from
@@ -398,6 +411,9 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
             in the dataset. The ID is not used in this method, it is defined
             as a placeholder for methods that deal with the picking of the
             data points that build up on this method.
+        update_axes_limits : boolean, optional
+            Flag indicating if the axes limits should be updated after the
+            plot is included.
         kwargs
             Any keyword arguments provided to this function are passed on to the
             call of matplotlib.pyplot.scatter that is used to diisplay the data.
@@ -414,11 +430,12 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
         self.dataPlot = self.axes.scatter(self.x, self.y, **kwargs)
 
         # change axes limits to show all the data
-        self.updateAxesLimits()
+        if update_axes_limits:
+            self.updateAxesLimits()
 
-        # reset history of views
-        self.curViewIndex = 0
-        self.viewHistory = [(self.axes.get_xlim(), self.axes.get_ylim()), ]
+            # reset history of views
+            self.curViewIndex = 0
+            self.viewHistory = [(self.axes.get_xlim(), self.axes.get_ylim()), ]
 
         self.draw()
 
@@ -458,7 +475,8 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
         as the dataset even if all markers have the same facecolor.
         """
         # return if no plot is available
-        if not "dataPlot" in self.__dict__: return None
+        if "dataPlot" not in self.__dict__:
+            return None
 
         # get current facecolors from dataset, they are returned as RGBA values, so the length of the second dimension
         # of the return value is 4, the length of the first depends on how the colors were initialized

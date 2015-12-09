@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 
-# Form implementation generated from reading ui file '/home/kamann/prog/DISTRIBUTE/kamann-code.2/trunk/pampelmuse/graphics/exit_dialog.ui'
+# Form implementation generated from reading ui file 'exit_dialog.ui'
 #
-# Created: Mon Sep 30 10:37:10 2013
+# Created: Mon Dec  7 15:39:02 2015
 #      by: PyQt4 UI code generator 4.9.1
 #
 # WARNING! All changes made in this file will be lost!
@@ -41,14 +41,4 @@ class Ui_exitUnsavedDialog(object):
     def retranslateUi(self, exitUnsavedDialog):
         exitUnsavedDialog.setWindowTitle(QtGui.QApplication.translate("exitUnsavedDialog", "Leave PampelMuse", None, QtGui.QApplication.UnicodeUTF8))
         self.label.setText(QtGui.QApplication.translate("exitUnsavedDialog", "Unsaved changes exist! Proceed?", None, QtGui.QApplication.UnicodeUTF8))
-
-
-if __name__ == "__main__":
-    import sys
-    app = QtGui.QApplication(sys.argv)
-    exitUnsavedDialog = QtGui.QDialog()
-    ui = Ui_exitUnsavedDialog()
-    ui.setupUi(exitUnsavedDialog)
-    exitUnsavedDialog.show()
-    sys.exit(app.exec_())
 
