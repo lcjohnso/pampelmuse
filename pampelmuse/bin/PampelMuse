@@ -61,10 +61,10 @@ the data into memory yet but just checks whether the file(s) are valid.
 
 Latest SVN revision
 -------------------
-293, 2015/12/09"""
+295, 2016/01/13"""
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.23.9.0"
-__revision__ = 293
+__version__ = "0.24.0.0"
+__revision__ = 295
 
 import sys
 sys.stdout.write("""
@@ -93,19 +93,21 @@ logging.basicConfig(format="%(asctime)s[%(levelname)-8s]: %(message)s", datefmt=
 logging.captureWarnings(True)
 
 # check if all dependencies are fulfilled:
-use_addwcs=True
+use_addwcs = True
 try:  # check if astLib is available
     from astLib import astCoords
 except ImportError:
     logging.warning("Cannot import module 'astLib'.")
     logging.warning("Routine ADDWCS cannot be used.")
+    astCoords = None
     use_addwcs = False
 
-try: # check if pyraf available
+try:  # check if pyraf available
     from pyraf.iraf import images
 except ImportError:
     logging.warning("Cannot import module 'pyraf'.")
     logging.warning("Routine ADDWCS cannot be used.")
+    images = None
     use_addwcs = False
 
 # check whether dependencies for graphical backends are fulfilled
@@ -114,11 +116,14 @@ try:
     from PyQt4 import QtCore, QtGui
 except ImportError:
     logging.error("Cannot load 'PyQt4'-modules")
+    QtCore = None
+    QtGui = None
     graphics = False
 try:
-    import matplotlib.pyplot
+    import matplotlib
 except ImportError:
     logging.error("Cannot load 'matplotlib'-modules")
+    matplotlib = None
     graphics = False
 if not graphics:
     logging.error("Routines INITFIT and POLYFIT cannot be used.")
@@ -495,7 +500,7 @@ if use_addwcs and args.func == addwcs:
 else:
     mode = 'readonly'
 pampelmuse.ifs_data = Cube(data_ifs, instrument=pampelmuse.ifu, sigma=sigma_ifs, mask=mask_ifs,
-                           residuals=residuals_ifs, mode=mode)
+                           residuals=residuals_ifs, mode=mode, memmap=False)
 
 # set range of layers to be analyzed properly (in case negative values were provided)
 # access start/stop information - get positive layer numbers for first and last layer that should be analysed

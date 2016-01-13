@@ -31,10 +31,10 @@ into another type, such as a float or a list.
 
 Latest SVN revision
 -------------------
-268, 2015/05/27
+296, 2016/01/13
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 268
+__revision__ = 296
 
 
 import datetime
@@ -75,7 +75,9 @@ def transform_string(thestring, dtype, abort_on_exception=True):
         return bool(int(re.sub("true", "1", re.sub("false", "0", string.lower(thestring)))))
     elif dtype in ['list', 'tuple']:
         thenumbers = thestring[1:-1].split(',')
-        if sum([len(re.findall('\.', s)) for s in thenumbers]) == 0:
+        if thenumbers == [""]:
+            thelist = []
+        elif sum([len(re.findall('\.', s)) for s in thenumbers]) == 0:
             thelist = [int(x) for x in thenumbers]
         else:
             thelist = [float(x) for x in thenumbers]

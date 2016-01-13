@@ -438,7 +438,7 @@
        <item>
         <layout class="QVBoxLayout" name="verticalLayout">
          <item>
-          <widget class="QCheckBox" name="showStarsCheckBox">
+          <widget class="QLabel" name="plotStarsLabel">
            <property name="text">
             <string>Plot stars?</string>
            </property>
@@ -475,6 +475,46 @@
             </widget>
            </item>
           </layout>
+         </item>
+         <item>
+          <widget class="QCheckBox" name="plotStarsCheckBoxPSF">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+           <property name="text">
+            <string>PSF</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QCheckBox" name="plotStarsCheckBoxResolved">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+           <property name="text">
+            <string>Resolved</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QCheckBox" name="plotStarsCheckBoxNearby">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+           <property name="text">
+            <string>Nearby</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QCheckBox" name="plotStarsCheckBoxUnresolved">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+           <property name="text">
+            <string>Unresolved</string>
+           </property>
+          </widget>
          </item>
          <item>
           <spacer name="verticalSpacer">

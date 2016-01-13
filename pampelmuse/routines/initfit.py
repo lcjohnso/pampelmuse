@@ -745,11 +745,17 @@ def initfit(pampelmuse):
         # ratio of the source itself and the brightest source within a distance r that we set to the value of the
         # PSFRAD parameter.
 
+        if len(pampelmuse.saturated) > 0:
+            logging.warning("Stars flagged as saturated and not considered as PSF stars: {0}".format(
+                    ", ".join([str(star) for star in pampelmuse.saturated])))
+
         logging.info("IDs of stars that fullfil search criteria:")
         logging.info("      ID    mag  shoulder_drop")
         for i in idx_magsorted:
             if sources.mag[i] > (reslim-3):
                 break
+            if sources.ID[i] in pampelmuse.saturated:
+                continue
             if sources.status[i] != 2:
                 continue
             if (sources.primary == sources.ID[i]).sum() != 1:

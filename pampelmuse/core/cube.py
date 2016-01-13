@@ -21,10 +21,10 @@ check whether the IFS data contains HDUs providing either uncertainties
 
 Latest SVN revision
 -------------------
-283, 2015/11/12
+295, 2016/01/13
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 283
+__revision__ = 295
 
 import logging
 import types
@@ -48,7 +48,8 @@ class Cube:
     is available.
     """
 
-    def __init__(self, name, sigma=None, mask=None, residuals=None, instrument=None, mode='readonly', checks={}):
+    def __init__(self, name, sigma=None, mask=None, residuals=None, instrument=None, mode='readonly', memmap=True,
+                 checks=None):
         """
         Initialize a new instance of the 'Cube' class.
         
@@ -74,9 +75,12 @@ class Cube:
             Can be used to provide information about the instrument used to observe
             the data. Note that if not instrument information is provided, only 3dim.
             data is accepted.
-        mode :  string, optional
+        mode : string, optional
             Open mode, 'readonly' (default), 'update', 'append', 'denywrite', or
             'ostream'. This parameter is passed to astropy.io.fits.open().
+        memmap : boolean, optional
+            Whether memory mapping is used or not. This parameter is passed on to the
+            calls of astropy.io.fits.open.
         checks : dictionary, optional
             An optional list of (keyword, value)-pairs used to check the consistency
             of the datacube with previously loaded data.
@@ -84,6 +88,7 @@ class Cube:
 
         self.name = name
         self.mode = mode
+        self.memmap = memmap
 
         self._wave = None
 
@@ -98,7 +103,7 @@ class Cube:
 
         # open datacube:
         logging.info("Reading IFS data from file {0}...".format(self.name))
-        self.file = fits.open(name, mode=self.mode)
+        self.file = fits.open(name, mode=self.mode, memmap=self.memmap)
 
         # if no instrument instance is provided, first option is to look for header keyword 'INSTRUME'
         # NOTE: unfortunately PMAS does not use the INSTRUME key (even though it is a standard FITS key, Martin!)
@@ -180,7 +185,7 @@ class Cube:
             self.spectral_index = 3
 
         # check if data compatible with coordinate transformation of the instrument
-        self.nvoxel = reduce(lambda x, y: x * y, self.data.data.shape)
+        self.nvoxel = reduce(lambda x, y: x * y, self.data.shape)
         self.nlayer = self.data.header["NAXIS{0}".format(self.spectral_index)]
 
         # Reading information about wavelength coverage
@@ -212,14 +217,15 @@ class Cube:
         self.ndisp = self.data.header['NAXIS{0}'.format(self.spectral_index)]
 
         # perform sanity checks if requested
-        for key, value in checks.iteritems():
-            try:
-                if self.__dict__[key] != value:
-                    logging.error("Invalid value encountered for '{0}' in <{1}>.".format(key, self.name))
-                    assert self.__dict__[key] == value, "Keyword '{0}' should  be {1} but is {2}".format(
-                        key, value, self.__dict__[key])
-            except KeyError:
-                logging.error("Cannot check validity of key '{0}' in <{1}> - not found.".format(key, self.name))
+        if checks is not None:
+            for key, value in checks.iteritems():
+                try:
+                    if self.__dict__[key] != value:
+                        logging.error("Invalid value encountered for '{0}' in <{1}>.".format(key, self.name))
+                        assert self.__dict__[key] == value, "Keyword '{0}' should  be {1} but is {2}".format(
+                                key, value, self.__dict__[key])
+                except KeyError:
+                    logging.error("Cannot check validity of key '{0}' in <{1}> - not found.".format(key, self.name))
 
         logging.info("Opening data HDU successful.")
 
@@ -279,11 +285,11 @@ class Cube:
         attribute : string
             The name of the attribute that should be set to the HDU using the
             setattr-method.
-        hdunames : string or iterable
+        hduname : string or iterable
             One or more names to identify the HDU in the file (if no filename
             is provided, the list of HDUs of the file containing the IFS data
             is searched.
-        filename, string, optional
+        filename : string, optional
             The name of the file containing the HDU.
 
         Returns
@@ -298,7 +304,7 @@ class Cube:
 
         # preference is given to a filename, if provided. If not, the data file is searched for a matching HDU
         if filename is not None:
-            hdulist = fits.open(filename, mode=self.mode)
+            hdulist = fits.open(filename, mode=self.mode, memmap=self.memmap)
             if not any(hdu.name in hdunames for hdu in hdulist):
                 setattr(self, attribute, hdulist[0])
                 i = 0

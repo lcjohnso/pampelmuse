@@ -18,10 +18,10 @@ loaded from pampelmuse.core.cube
 
 Latest SVN revision
 -------------------
-293, 2015/12/09
+295, 2016/01/13
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 293
+__revision__ = 295
 
 import logging
 from PyQt4 import QtCore
@@ -182,7 +182,7 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
 
         self.draw()  # update canvas view
 
-    def loadCube(self, input, instrument=None, checks={}, wcs=None, **kwargs):
+    def loadCube(self, input, instrument=None, checks=None, wcs=None, **kwargs):
         """
         Load an IFU data set, either by providing a filename or a valid
         instance of the 'Cube' class of PampelMuse. Note that if a filename is
@@ -196,7 +196,7 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
         
         Parameters
         ----------
-        name : string or an instance of pampelmuse.core.cube.Cube
+        input : string or an instance of pampelmuse.core.cube.Cube
             If a string is provided, it must be the name of the FITS file containing the
             IFU data.
         instrument : string or pampelmuse.core.instruments.Instrument instance, optional
@@ -209,6 +209,8 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
             For each key in 'checks', the routine will verify that the FITS header of
             'name' contains a keyword set to the respective value.
         """
+        if checks is None:
+            checks = {}
 
         # load cube using the dedicated PampelMuse class for this purpose that
         # also checks whether the data is valid (unless an instance was provided right away).
@@ -377,25 +379,9 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
                                                                                  self.cube.instrument.y[i_min]))
         return self.cube.data.spectrum(i_min)
 
-    #        ## get requested section of HDU
-    #        elif self.cube.ndim == 3:
-    #            return self.cube.data.spectrum[:, int(round(y)), int(round(x))]
-    #        else:
-    #            dr = self.cube.instrument.dist2spax(x, y)
-    #
-    #            ## need to take into account calibration/sky fibers that might be present
-    #            ## in the data.
-    #            i_min  = dr.argmin()
-    #            f_min  = np.where((np.cumsum(self.cube.instrument.isscience)-1)==i_min)[0][0]
-    #
-    #            if self.cube.instrument.spectral_axis==0:
-    #                return self.cube.data_hdu.section[:, f_min]
-    #            else:
-    #                return self.cube.data_hdu.section[f_min]
-
     def addData(self, x, y, ids=None, update_axes_limits=True, **kwargs):
         """
-        Overplot a dataset on an image as a scatterplot. If the `picker`-keyword
+        Overplot a dataset on an image as a scatter plot. If the `picker`-keyword
         is provided within kwargs, it is possible to interactively select data from
         the canvas once the data set is shown.
         

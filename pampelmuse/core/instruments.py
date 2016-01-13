@@ -26,10 +26,10 @@ like dead fibers or holes in the FoV are not handled.
 
 Latest SVN revision
 -------------------
-268, 2015/05/27
+295, 2016/01/13
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 268
+__revision__ = 295
 import logging
 import re
 from scipy.spatial import distance
@@ -531,7 +531,8 @@ class Instrument(object):
             return None
 
         if hdu.header["NAXIS"] == 2:
-            if self.naux > 0: i = np.flatnonzero(np.cumsum(self.isscience) == (i + 1))[0]  # ignore non-science fibers
+            if self.naux > 0:
+                i = np.flatnonzero(np.cumsum(self.isscience) == (i + 1))[0]  # ignore non-science fibers
             if self.spectral_axis == 1:
                 return hdu.section[i]
             else:

@@ -22,10 +22,10 @@ the header of a FITS HDU.
 
 Latest SVN revision
 -------------------
-289, 2015/11/18
+295, 2016/01/13
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 289
+__revision__ = 295
 
 import ast
 import datetime
@@ -136,6 +136,12 @@ class PampelMuseConfig(Namespace):
                 except ValueError:
                     logging.error("New value for parameter {0} cannot be casted to tuple.".format(key.upper()))
                     return 1
+            elif isinstance(current_value, list):
+                try:
+                    value = ast.literal_eval(value)
+                except ValueError:
+                    logging.error("ew value for parameter {0} cannot be casted to list.".format(key.upper()))
+                    return 1
             else:  # The code should never come here.
                 logging.error("Something went terribly wrong.")
                 return 2
@@ -204,6 +210,10 @@ class PampelMuseConfig(Namespace):
                 hdu.header["hierarch PAMPELMUSE PSF PARVALUE{0}".format(i)] = getattr(self.psf, "parvalue{0}".format(i))
                 hdu.header["hierarch PAMPELMUSE PSF FREEPAR{0}".format(i)] = getattr(self.psf, "freepar{0}".format(i))
                 i += 1
+
+        if hasattr(self, "saturated"):
+            for i, star_id in enumerate(self.saturated):
+                hdu.header["hierarch PAMPELMUSE SATURATED ID{0:03d}".format(i)] = star_id
 
         if hasattr(self, "initfit"):
             for entry in ["revision", "utc", "ccxoff", "ccyoff", "reslim", "photzero"]:
