@@ -21,13 +21,14 @@ top panel, named 'Spectrum Viewer'.
 
 Latest SVN revision
 -------------------
-239, 2015/02/13
+294, 2016/01/13
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 239
+__revision__ = 294
 
 import inspect
 import logging
+import time
 from PyQt4 import QtCore
 
 import matplotlib.pyplot
@@ -257,19 +258,19 @@ class DynamicPlotCanvas(FigureCanvasQTAgg):
         # check if plot to be updated exists
         if name not in self.thePlots.keys():
             logging.error("Cannot update plot '{0}': unknown identifier.".format(name))
-
+        t0 = time.time()
         # update data
         if xData is not None:
             self.thePlots[name].set_xdata(xData)
         if yData is not None:
             self.thePlots[name].set_ydata(yData)
-
+        t1 = time.time()
         # reset vertical line used to highlight cursor position
         self.vLine.set_data([], [])
-
+        t2 = time.time()
         for i in xrange(len(self.axes.patches)):
             self.axes.patches[i].set_height(0)
-
+        t3 = time.time()
         # update axes limits if requested
         if updateYRange:
             self.axes.axes.relim()
@@ -277,19 +278,21 @@ class DynamicPlotCanvas(FigureCanvasQTAgg):
 
             self.fullXRange = self.axes.get_xlim()
             self.fullYRange = self.axes.get_ylim()
-
+        t4 = time.time()
         # update labels if requested
         if xLabel is not None:
             self.axes.set_xlabel(xLabel, fontsize=20)
 
         if yLabel is not None:
             self.axes.set_ylabel(yLabel, fontsize=20)
-
+        t5 = time.time()
         # modify height of rectangles.
         for i in xrange(len(self.axes.patches)):
             self.axes.patches[i].set_height(1)
-
+        t6 = time.time()
         self.draw()  # update canvas.
+        t7 = time.time()
+        print(t1-t0, t2-t1, t3-t2, t4-t3, t5-t4, t6-t5, t7-t6)
 
     def _uponEntering(self, event):
         """
