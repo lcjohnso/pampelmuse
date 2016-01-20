@@ -22,10 +22,10 @@ the header of a FITS HDU.
 
 Latest SVN revision
 -------------------
-295, 2016/01/13
+296, 2016/01/20
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 295
+__revision__ = 296
 
 import ast
 import datetime
@@ -174,8 +174,11 @@ class PampelMuseConfig(Namespace):
                 else:
                     if not hasattr(self, match.group(1).lower()):  # create sub-namespace if it does not exist
                         setattr(self, match.group(1).lower(), Namespace())
-                    setattr(self.__dict__[match.group(1).lower()],  match.group(2).lower(), entry.value)
-                    # add parameter to sub-namespace
+                    if match.group(1).lower() == "saturated":
+                        self.saturated.append(entry.value)
+                    else:
+                        setattr(self.__dict__[match.group(1).lower()],  match.group(2).lower(), entry.value)
+                        # add parameter to sub-namespace
 
     def makeHeader(self, hdu=fits.PrimaryHDU()):
         """
