@@ -22,16 +22,16 @@ Added
 
 Latest SVN revision
 -------------------
-260 # 2015/04/28
+297 # 2016/01/21
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 260
+__revision__ = 297
 
 import datetime
 import logging
 import os
 import numpy as np
-import matplotlib
+from matplotlib import transforms
 from astropy.io import fits
 
 # required PampelMuse-packages
@@ -157,9 +157,8 @@ def getspectra(pampelmuse):
                 mask &= np.isnan(pampelmuse.ifs_data.data.layer(i))
         pampelmuse.ifs_data.instrument.determine_edge(~(mask.flatten()))
 
-        print pampelmuse.ifs_data.get_key("ESO INS DROT POSANG")
         alpha = pampelmuse.ifs_data.get_key("ESO INS DROT POSANG")  # get rotation angle
-        t = matplotlib.transforms.Affine2D(np.array([[0, 1, 0], [1, 0, 0], [0, 0, 1]]))  # rotate edge of MUSE field
+        t = transforms.Affine2D(np.array([[0, 1, 0], [1, 0, 0], [0, 0, 1]]))  # rotate edge of MUSE field
         if alpha is not None:
             t.rotate_around(0, 0, -np.radians(alpha))
         musepath = pampelmuse.ifs_data.instrument.edgepath.transformed(t)
