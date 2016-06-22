@@ -54,16 +54,16 @@ Latest SVN revision
 -------------------
 280, 2015/10/30
 """
-__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 280
-
 import logging
 import re
-
 import numpy as np
 
 # required PampelMuse modules
-from pampelmuse.core.parameters import Parameters
+from ..core.parameters import Parameters
+
+
+__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
+__revision__ = 280
 
 
 def my_lsq_sigma(A, b, sigma=None):
@@ -474,7 +474,7 @@ class Transformation(Parameters):
     def make_hdu(self, **kwargs):
         """
         Write the current values of the parameters of the coordinate
-        tranformation to a fits.BinTableHDU instance. The method is
+        transformation to a fits.BinTableHDU instance. The method is
         basically a wrapper of the 'make_hdu' instance defined in the
         super-class and adds some header keywords that provide further
         information about the coordinate transformation in use.
