@@ -20,7 +20,7 @@
       <x>0</x>
       <y>0</y>
       <width>873</width>
-      <height>719</height>
+      <height>742</height>
      </rect>
     </property>
     <layout class="QVBoxLayout" name="centralVBox">
@@ -220,7 +220,7 @@
          <item>
           <widget class="QSpinBox" name="spectrumFitOrderSpinBox">
            <property name="maximum">
-            <number>12</number>
+            <number>30</number>
            </property>
           </widget>
          </item>
@@ -744,12 +744,12 @@
      <x>0</x>
      <y>0</y>
      <width>875</width>
-     <height>25</height>
+     <height>30</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
     <property name="title">
-     <string>File</string>
+     <string>Fi&amp;le</string>
     </property>
     <addaction name="actionLoadImage"/>
     <addaction name="separator"/>
@@ -760,11 +760,11 @@
    </widget>
    <widget class="QMenu" name="menuSpectrum">
     <property name="title">
-     <string>Spectrum</string>
+     <string>Spectr&amp;um</string>
     </property>
     <widget class="QMenu" name="menuFitting">
      <property name="title">
-      <string>Fitting</string>
+      <string>&amp;Fitting</string>
      </property>
      <addaction name="actionFit_all_positions"/>
      <addaction name="actionForce_common_slope"/>
@@ -777,7 +777,7 @@
     </property>
     <widget class="QMenu" name="menuDisplay">
      <property name="title">
-      <string>Display</string>
+      <string>&amp;Display</string>
      </property>
      <addaction name="separator"/>
      <addaction name="actionData"/>
@@ -887,7 +887,7 @@
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>Data</string>
+    <string>&amp;Data</string>
    </property>
    <property name="toolTip">
     <string>Display the IFS data</string>
@@ -901,7 +901,7 @@
     <bool>false</bool>
    </property>
    <property name="text">
-    <string>Residuals</string>
+    <string>&amp;Residuals</string>
    </property>
    <property name="toolTip">
     <string>Display the residuals of the fit (if available)</string>
@@ -909,7 +909,7 @@
   </action>
   <action name="actionLoadImage">
    <property name="text">
-    <string>Load image</string>
+    <string>&amp;Load image</string>
    </property>
    <property name="toolTip">
     <string>Load FITS image from disk</string>
