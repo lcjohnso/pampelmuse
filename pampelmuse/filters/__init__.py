@@ -1,7 +1,25 @@
 """
-pampelmuse.filters
-==================
+__init__.py
+===========
+Copyright 2013-2016 Sebastian Kamann
 
+This file is part of PampelMuse.
+
+PampelMuse is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+any later version.
+
+PampelMuse is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with PampelMuse. If not, see <http://www.gnu.org/licenses/>.
+
+
++++
 Provides
 --------
 dictionary pampelmuse.filters.ALIASES
@@ -18,15 +36,16 @@ Added
 
 Latest SVN Revision
 -------------------
-237, 2015/02/11
+340, 2016/07/29
 """
-__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 237
-
 import logging
 import os
 import numpy as np
 from scipy import interpolate
+
+
+__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
+__revision__ = 340
 
 
 # ALIASES is a dictionary containing for each available filter a list of alternative names

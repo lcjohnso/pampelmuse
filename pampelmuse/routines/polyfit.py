@@ -1,7 +1,25 @@
 """
 polyfit.py
 ==========
+Copyright 2013-2016 Sebastian Kamann
 
+This file is part of PampelMuse.
+
+PampelMuse is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+any later version.
+
+PampelMuse is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with PampelMuse. If not, see <http://www.gnu.org/licenses/>.
+
+
++++
 Provides
 --------
 function pampelmuse.routines.polyfit.polyfit
@@ -19,23 +37,45 @@ pampelmuse.graphics.pampelmuse_gui.
 
 Latest SVN revision
 -------------------
-291, 2015/12/01
+334, 2016/07/26
 """
-__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 291
-
-
 import datetime
 import logging
 import sys
 import numpy as np
+from ..utils.fits import open_prm, save_prm
 # note: PyQt4 modules import below only if interaction enabled
-
-# required PampelMuse-packages
-from pampelmuse.core import Sources
-from pampelmuse.core.coordinates import Transformation
-from pampelmuse.core.psf import Variables
 # note: pampelmuse.graphics.PampelMuseGui imported below only if interaction enabled
+
+
+__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
+__revision__ = 334
+
+
+def add_parser(parser):
+    p = parser.add_parser("POLYFIT", help="""
+    This sub-routine loads the PampelMuse GUI and is designed for a visualization
+    of the results from the PSF fit on the one hand and for an interactive modelling
+    of the PSF variables and source coordinates on the other. The idea of modelling
+    these parameters is that they should vary smoothly with wavelength, so by combi-
+    ning the results from the indiviual layers one can create a model beyond the
+    accuracy of an individual layer. To this aim, polynomials fits of the parameters
+    can be performed. In a subsequent analysis with the sub-routine CUBEFIT, the
+    routine will then use the parameters obtain in the fits and leave them unchanged.""")
+    p.add_argument("reference", type=str, nargs="?", help="""
+    An optional FITS image to be displayed. The idea here is to load the data
+    from which the reference coordinates were extracted. In that case, the image
+    is displayed in the GUI and the locations of the extracted sources are
+    overplotted.""")
+    p.add_argument("-x", "--exclude", type=float, nargs=2, action="append", help="""
+    To exclude a wavelength range from the polynomial fits, provide the min. and max.
+    wavelength of it. The provided wavelengths must be given in the same units as the
+    data. Note that this option can be used multiple times to exclude more than one
+    range.""")
+    p.add_argument("--common", action="store_true",  default=False, help="""
+    If this flag is set, then the fits to the IFS coordinates of the sources are
+    constrained such that all sources have the same slope with wavelength.""")
+    p.set_defaults(func=polyfit)
 
 
 def polyfit(pampelmuse):
@@ -46,52 +86,7 @@ def polyfit(pampelmuse):
     logging.info("Obtaining information on sources in the field...")
     
     # Get source catalogue from PRM-file
-    sources = Sources(data=pampelmuse.hdulist["SOURCES"], instrument=pampelmuse.ifs_data.instrument)
-
-    # Open spectra HDU from PRM-file
-    logging.info("Obtaining source spectra.")
-    try:
-        i = pampelmuse.hdulist.index_of("SPECTRA")
-        try:
-            j = pampelmuse.hdulist.index_of("SIGMASPC")
-            sources.open_spectra_hdu(pampelmuse.hdulist[i], sigma_hdu=pampelmuse.hdulist[j])
-        except KeyError:
-            sources.open_spectra_hdu(pampelmuse.hdulist[i])
-    except KeyError:
-        logging.critical("No spectra (HDU `SPECTRA') have been provided.")
-
-    # get IFS coordinates from PRM-file
-    logging.info("Obtaining information about source coordinates.")
-
-    try:
-        i = pampelmuse.hdulist.index_of("POSITIONS")
-        sources.open_coordinates_hdu(pampelmuse.hdulist[i])
-        try:
-            i = pampelmuse.hdulist.index_of("INPOSITIONS")
-            sources.open_coordinates_hdu(pampelmuse.hdulist[i])
-        except KeyError:
-            pass
-    except KeyError:
-        pass
-
-    # get coordinate transformation
-    try:
-        i = pampelmuse.hdulist.index_of("POSPARS")
-        sources.transformation = Transformation(hdu=pampelmuse.hdulist[i])
-
-    except KeyError:
-        logging.warning("No coordinate transformation (HDU 'POSPARS') detected.")
-
-    sources.info()
-
-    # Initialize PSF properties
-    try:
-        i = pampelmuse.hdulist.index_of("PSFPARS")
-        psf = Variables(hdu=pampelmuse.hdulist[i])
-        psf.info()
-    except KeyError:
-        logging.warning("No information available on PSF that was used (HDU 'PSFPARS').")
-        psf = None
+    sources, psf = open_prm(pampelmuse.filename, ndisp=pampelmuse.ifs_data.wave.size)
 
     # add information about caller routine to PampelMuse configuration
     pampelmuse.polyfit.utc = datetime.datetime.utcnow().strftime("%y-%m-%d %H:%M:%S")
@@ -125,18 +120,16 @@ def polyfit(pampelmuse):
             logging.error("Unknown type of polynomial: {0}".format(polytype))
 
         # add degree of polynomial to GUI
-        if pampelmuse.interact:
-            ui.spectrumFitOrderSpinBox.setValue(pampelmuse.polydeg)
+        ui.spectrumFitOrderSpinBox.setValue(pampelmuse.polydeg)
 
         # check if common slope should be used for the IFS coordinates
-        if pampelmuse.interact:
-            ui.actionForce_common_slope.setChecked(pampelmuse.polyfit.common)
+        ui.actionForce_common_slope.setChecked(pampelmuse.polyfit.common)
 
         # exclude requested wavelength ranges (if any)
         if pampelmuse.polyfit.exclude is not None:
             for wmin, wmax in pampelmuse.polyfit.exclude:
                 ui.modifyMask((wmin, wmax), True)
-                logging.info("Added wavelength range to mask: {0}--{1}".format(wmin, wmax))
+                logging.info("Added wavelength range to spectrumMask: {0}--{1}".format(wmin, wmax))
 
         ui.show()
     
@@ -144,11 +137,13 @@ def polyfit(pampelmuse):
 
     else:  # automatically fit PSF parameters and source positions using the predefined polynomial type and degree
         
-        # prepare mask
+        # prepare spectrumMask
         if pampelmuse.polyfit.exclude is not None:
             logging.info("Masked wavelength ranges: {0}".format(pampelmuse.polyfit.exclude))
             _mask = [(sources.wave >= wmin) & (sources.wave <= wmax) for wmin, wmax in pampelmuse.polyfit.exclude]
             mask = np.any(_mask, axis=0)
+        else:
+            mask = None
 
         # fit PSF parameters
         for i in xrange(psf.npars):
@@ -163,30 +158,5 @@ def polyfit(pampelmuse):
         sources.fitIfsCoordinates(ids=None, order=pampelmuse.polydeg, mask=mask, function=pampelmuse.polytype,
                                   commonSlope=pampelmuse.polyfit.common, instrument=pampelmuse.ifs_data.instrument)
         
-        # save changes to the currently opened file
-        # store PSF (only if it as been fitted)
-        if psf.free.any():
-            pampelmuse.hdulist["PSFPARS"] = psf.make_hdu()  # extension should be there
-        
-        # store IFS coordinates: write "POSITIONS" HDU containing polynomial fits to source positions.
-        # This is only needed when polynomial fits exist for at least one source
-        if len(sources.ifs_coordinates_fit_functions) > 0:
-            try:
-                i = pampelmuse.hdulist.index_of("POSITIONS")
-                pampelmuse.hdulist[i] = sources.make_ifs_coordinates_hdu(fit=True)
-            except KeyError:
-                pampelmuse.hdulist.append(sources.make_ifs_coordinates_hdu(fit=True))
-        
-            # write HDU containing directly fitted (i.e fitted using CUBEFIT) coordinates if they exist
-            if sources.ifs_coordinates_free.any():
-                try:
-                    i = pampelmuse.hdulist.index_of("INPOSITIONS")
-                    pampelmuse.hdulist[i] = sources.make_ifs_coordinates_hdu(fit=False, name="INPOSITIONS")
-                except KeyError:
-                    pampelmuse.hdulist.append(sources.make_ifs_coordinates_hdu(fit=False, name="INPOSITIONS"))
-
-        # update the primary header information
-        pampelmuse.makeHeader(hdu=pampelmuse.hdulist[0])
-    
-        # save the file
-        pampelmuse.hdulist.flush()
+        # save changes to prm file
+        save_prm(sources=sources, psf_attributes=psf, filename=pampelmuse.filename, header=pampelmuse.makeHeader())

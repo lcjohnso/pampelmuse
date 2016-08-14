@@ -1,7 +1,25 @@
 """
 parameters.py
 =============
+Copyright 2013-2016 Sebastian Kamann
 
+This file is part of PampelMuse.
+
+PampelMuse is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+any later version.
+
+PampelMuse is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with PampelMuse. If not, see <http://www.gnu.org/licenses/>.
+
+
++++
 Provides
 --------
 The class pampelmuse.core.parameters.Parameters
@@ -24,18 +42,17 @@ currently not possible to add parameters afterwards.
 
 Latest SVN revision
 -------------------
-281, 2015/11/10
+342, 2016/07/31
 """
-__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 281
-
-# import required python modules
 import logging
 import re
-
 import numpy as np
 from numpy.polynomial import Chebyshev, Legendre, Hermite, Polynomial
 from astropy.io import fits
+
+
+__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
+__revision__ = 342
 
 
 class Parameters(object):
@@ -194,7 +211,7 @@ class Parameters(object):
             parameters, it is assumed that the second axis is the parameters-axis.
         """
         # sanity check: either a list or a numpy array must be provided
-        assert isinstance(value, (list, np.ndarray)), "'data' must be a list or a numpy array, not {1}.".format(
+        assert isinstance(value, (list, np.ndarray)), "'data' must be a list or a numpy array, not {0}.".format(
             re.findall(r"'(.*)'", str(type(value)))[0])
         value = np.atleast_1d(value)
 
@@ -414,6 +431,7 @@ class Parameters(object):
 
             return QtCore.QStringList(self.names)
         except ImportError:
+            QtCore = None
             logging.error("PyQt4 is not available on the system.")
             logging.error("Cannot provide names of PSF parameters as QStrings.")
             return None
@@ -422,7 +440,7 @@ class Parameters(object):
         """
         Fit a parameter using a smooth function. Currently, the smooth function
         can be either a plain polynomial, a broken polynomial, or a Chebyshev
-        polynomial. A mask may be provided to exclude certain data from the fit.
+        polynomial. A spectrumMask may be provided to exclude certain data from the fit.
         
         Parameters
         ----------
@@ -434,7 +452,7 @@ class Parameters(object):
             polynomial.
         mask : ndarray, optional
             If provided, it must be a 1dim. boolean array of the same length as
-            the parameter value array. Each data point where 'mask' is True will
+            the parameter value array. Each data point where 'spectrumMask' is True will
             be excluded from the fit.
         function : str, optional
             The function used in the fitting. May be either 'plain', 'legendre',
@@ -460,12 +478,11 @@ class Parameters(object):
 
         abscissa = np.arange(self.ndisp, dtype=np.float32)
 
-        # create pseudo-mask if None provided
+        # create pseudo-spectrumMask if None provided
         if mask is not None:
             mask |= self.mask[:, i, 0]
         else:
             mask = self.mask[:, i, 0]
-        print mask.sum()
         fit = fitfunction.fit(abscissa[~mask], self._data[~mask, i, 0], order)
 
         self._data[:, i, 1] = fit(abscissa)
@@ -522,7 +539,6 @@ class Parameters(object):
             cards.append(fits.Card(key=key.upper(), value=value))
 
         # return HDU
-        out_hdu = fits.new_table(out_columns, header=fits.Header(cards=cards))
-#         out_hdu.add_checksum()
+        out_hdu = fits.BinTableHDU.from_columns(out_columns, header=fits.Header(cards=cards))
 
         return out_hdu            

@@ -14,7 +14,12 @@ Latest SVN revision
 __author__  = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
 __revision__ = 169
 
-import datetime, logging, os, sys, tempfile
+import datetime
+import logging
+import os
+import sys
+import tempfile
+
 import numpy as np
 from astropy.coordinates import Angle
 from astropy.io import fits
@@ -24,7 +29,7 @@ from pyraf.iraf import images
 from pampelmuse.core import Sources
 from pampelmuse.core.coordinates import Transformation
 from pampelmuse.core.sources import match_on_id
-from pampelmuse.functions.io import read_asciifile
+from pampelmuse.utils.io import read_asciifile
 
 
 

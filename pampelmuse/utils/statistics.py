@@ -1,9 +1,28 @@
 """
 statistics.py
 =============
+Copyright 2013-2016 Sebastian Kamann
 
+This file is part of PampelMuse.
+
+PampelMuse is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+any later version.
+
+PampelMuse is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with PampelMuse. If not, see <http://www.gnu.org/licenses/>.
+
+
++++
 Provides
 --------
+function pampelmuse.functions.statistics.der_snr
 function pampelmuse.functions.statistics.clip_sigma
 
 Purpose
@@ -14,26 +33,26 @@ Currently, the following functions are defined:
 (1) clip_sigma : perform kappa-sigma clipping on an n-dimensional dataset
                  along a given axis and return a masked array where every
                  clipped datapoint is represented by a masked value.
-(2) DER_SNR: calculates the S/N of a 1dim. spectrum using the code presented
+(2) der_snr: calculates the S/N of a 1dim. spectrum using the code presented
              in www.spacetelescope.org/about/further_information/newsletters\
                 /html/newsletter_42.html
 
 To import a function from this module (e.g. clip_sigma), proceed as follows:
->>> from pampelmuse.functions.statistics import clip_sigma
+>>> from pampelmuse.utils.statistics import clip_sigma
 
 Latest SVN revision
 -------------------
-271, 2015/07/22
+334, 2016/07/26
 """
-
-__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 271
-
 import logging
 import numpy as np
 
 
-def DER_SNR(flux):
+__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
+__revision__ = 334
+
+
+def der_snr(flux):
     """
     DESCRIPTION This function computes the signal to noise ratio DER_SNR following the
                 definition set forth by the Spectral Container Working Group of ST-ECF,
@@ -117,7 +136,7 @@ def clip_sigma(data, axis=None, kappa=3.):
     else:
         workdata = np.sort(data, axis=0)
         
-    # view the data as a masked array (no copy!) and mask NaN pixels
+    # view the data as a masked array (no copy!) and spectrumMask NaN pixels
     workdata_ma = np.ma.array(workdata, mask=(workdata!=workdata))
         
     i = 0  # the iteration index

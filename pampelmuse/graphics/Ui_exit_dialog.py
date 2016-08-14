@@ -2,8 +2,7 @@
 
 # Form implementation generated from reading ui file 'exit_dialog.ui'
 #
-# Created: Mon Dec  7 15:39:02 2015
-#      by: PyQt4 UI code generator 4.9.1
+# Created by: PyQt4 UI code generator 4.11.4
 #
 # WARNING! All changes made in this file will be lost!
 
@@ -12,7 +11,16 @@ from PyQt4 import QtCore, QtGui
 try:
     _fromUtf8 = QtCore.QString.fromUtf8
 except AttributeError:
-    _fromUtf8 = lambda s: s
+    def _fromUtf8(s):
+        return s
+
+try:
+    _encoding = QtGui.QApplication.UnicodeUTF8
+    def _translate(context, text, disambig):
+        return QtGui.QApplication.translate(context, text, disambig, _encoding)
+except AttributeError:
+    def _translate(context, text, disambig):
+        return QtGui.QApplication.translate(context, text, disambig)
 
 class Ui_exitUnsavedDialog(object):
     def setupUi(self, exitUnsavedDialog):
@@ -39,6 +47,6 @@ class Ui_exitUnsavedDialog(object):
         QtCore.QMetaObject.connectSlotsByName(exitUnsavedDialog)
 
     def retranslateUi(self, exitUnsavedDialog):
-        exitUnsavedDialog.setWindowTitle(QtGui.QApplication.translate("exitUnsavedDialog", "Leave PampelMuse", None, QtGui.QApplication.UnicodeUTF8))
-        self.label.setText(QtGui.QApplication.translate("exitUnsavedDialog", "Unsaved changes exist! Proceed?", None, QtGui.QApplication.UnicodeUTF8))
+        exitUnsavedDialog.setWindowTitle(_translate("exitUnsavedDialog", "Leave PampelMuse", None))
+        self.label.setText(_translate("exitUnsavedDialog", "Unsaved changes exist! Proceed?", None))
 

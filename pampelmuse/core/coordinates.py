@@ -1,7 +1,25 @@
 """
 coordinates.py
 ==============
+Copyright 2013-2016 Sebastian Kamann
 
+This file is part of PampelMuse.
+
+PampelMuse is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+any later version.
+
+PampelMuse is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with PampelMuse. If not, see <http://www.gnu.org/licenses/>.
+
+
++++
 Provides
 --------
 function pampelmuse.core.coordinates.my_lsq_sigma
@@ -52,21 +70,19 @@ This results in the inverse transformation:
 
 Latest SVN revision
 -------------------
-280, 2015/10/30
+356, 2016/08/10
 """
 import logging
 import re
 import numpy as np
-
-# required PampelMuse modules
 from ..core.parameters import Parameters
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 280
+__revision__ = 356
 
 
-def my_lsq_sigma(A, b, sigma=None):
+def my_lsq_sigma(a, b, sigma=None):
     """
     The routine is a wrapper around the the numpy.linalg.lstsq-routine. It is
     designed as an extension that allows the user to also provide uncertainties
@@ -74,7 +90,7 @@ def my_lsq_sigma(A, b, sigma=None):
 
     Parameters
     ----------
-    A : array_like, shape (M, N)
+    a : array_like, shape (M, N)
         "Coefficient" matrix.
     b : array_like, shape (M,) or (K, M)
         Ordinate or "dependent variable" values. If `b` is two-dimensional,
@@ -91,10 +107,10 @@ def my_lsq_sigma(A, b, sigma=None):
     """
     # implement uncertainties (if provided)
     if sigma is not None:
-        _A = (1. / (sigma[..., np.newaxis] / A))
+        _A = (1. / (sigma[..., np.newaxis] / a))
         _b = b / sigma
     else:
-        _A = A
+        _A = a
         _b = b
     slc = ~np.isnan(_b)
 
@@ -131,23 +147,18 @@ class Transformation(Parameters):
     """
     PARAMETERS = ["A", "B", "C", "D", "x0", "y0"]
 
-    def __init__(self, conformal=False, **kwargs):
+    def __init__(self, **kwargs):
         """
         Initialize an instance of the 'Transformation`-class.
        
         Parameters
         ----------
-        conformal : boolean, optional
-            Flag telling whether the coordinate transformation is conformal,  i.e
-             only used 4 parameters instead of 6.
         kwargs
             Any keyword arguments that are provided are passed on to the call
             of the initialization method of the super-class. They might be used
             to provide initial values to the parameters of the coordinate trans-
             formation.
         """
-        self.conformal = conformal
-
         # if no HDU is provided as a keyword argument, check if the individual parameters are provided, otherwise
         #  initialize them to NaN.
         if "hdu" not in kwargs:
@@ -158,13 +169,21 @@ class Transformation(Parameters):
         # call initialization method of super-class, make sure order is A, B, C, D.
         super(Transformation, self).__init__(order=self.PARAMETERS, **kwargs)
 
-        if self.defined.sum() == 4:  # if only four parameters are defined, the transformation is conformal
-            self.conformal = True
-            if not self.defined[-2:].any():  # in this case, make sure that x0 and y0 are used instead of C and D
-                self._data[:, -2:] = self.data[:, -4:-2]
-                self._data[:, -4:-2] = np.nan
+        # if only four parameters are defined, the transformation is conformal
+        if self.defined.sum() == 4:
+            if not self.defined[-2:].any():
+                # in this case, make sure that x0 and y0 are used instead of C and D
+                self._data[:, -2:] = self._data[:, -4:-2]
                 self.free[-2:] = self.free[-4:-2]
                 self.fitted[-2:] = self.fitted[-4:-2]
+
+                # then copy B to C and A to D
+                self._data[:, 2] = self._data[:, 1]
+                self._data[:, 3] = self._data[:, 0]
+                self.free[2] = self.free[1]
+                self.free[3] = self.free[0]
+                self.fitted[2] = self.fitted[1]
+                self.fitted[3] = self.fitted[0]
 
         # check if all required parameters are available
         i = 0
@@ -174,13 +193,10 @@ class Transformation(Parameters):
             #     assert name in self.names, "Cannot find '{0}' among parameters of coord. transf.".format(name)
             i += 1
 
-    @property
-    def valid(self):
-        return (self.fitted | self.defined).sum() >= 4
-
-    def fit_to_data(self, in_coords, out_coords, ids=None, out_sigma=None):
+    @classmethod
+    def from_coordinates(cls, in_coords, out_coords, ids=None, out_sigma=None, **kwargs):
         """
-        Calculate a new coordinate transformation using the provided input
+        Initialize a new coordinate transformation using the provided input
         (reference) and output (IFS) coordinates in a least squares fit. The
         data may be provided as plain multidimensional numpy arrays or using
         record arrays, containing at least three fields named 'id', 'x', and
@@ -331,31 +347,39 @@ class Transformation(Parameters):
                 outsigma = None
 
         # perform the actual fit and initialize the values of the parameters of the coordinate transformation.
-        self.set_data(self._fit_to_data(indata, outdata, outsigma=outsigma))
+        data, residuals = cls.fit_to_coordinates(indata, outdata, outsigma=outsigma)
 
-        # Only logging from this line to end of method
+        # The main results of the computation ar presented as logging.INFO messages
         logging.info("Determined coord. transformation for {0} image(s).".format(outdata.shape[0]))
 
         logging.info("Best-fit parameters:")
-        for i in xrange(self.npars):
-            name = self.names[i]
-            logging.info("   {0} = {1:8.3f}".format(name, self.data[~self.mask[:, i, 0], i, 0].mean()))
+        kwargs = {}  # The parameter values are stored in a dictionary so they can passed to the __init__ call below
+        for i, parameter in enumerate(cls.PARAMETERS):
+            logging.info("   {0} = {1:8.3f}".format(parameter, np.nanmean(data[:, i])))
+            kwargs[parameter] = data[:, i]
 
         logging.info("Offsets of individual sources:")
         if ids is not None:
             logging.info("       ID     dx     dy")
         else:
             logging.info("   source     dx     dy")
-        offset = (outdata - self.__call__(indata))[~(self.mask[..., 0].any(axis=1))]  # determine offsets
+
         for i in xrange(out_coords.shape[1]):
             if ids is not None:
-                ID = int(ids[i])
+                source_id = int(ids[i])
             else:
-                ID = i
-            logging.info("   {0:6d}  {1:+5.2f}  {2:+5.2f}".format(ID, float(offset[:, i, 0].mean()),
-                                                                  float(offset[:, i, 1].mean())))
+                source_id = i
+            logging.info("   {0:6d}  {1:+5.2f}  {2:+5.2f}".format(source_id, np.nanmean(residuals[:, i, 0]),
+                                                                  np.nanmean(residuals[:, i, 1])))
 
-    def _fit_to_data(self, indata, outdata, outsigma=None):
+        return cls(**kwargs)
+
+    @property
+    def valid(self):
+        return (self.fitted | self.defined).sum() >= 4
+
+    @staticmethod
+    def fit_to_coordinates(indata, outdata, outsigma=None, fixed=None):
         """
         A short-cut for calculating a new coordinate transformation, without
         any checking of the input. The method basically solves the equation
@@ -369,14 +393,19 @@ class Transformation(Parameters):
         Parameters
         ----------
         indata : array_like, shape (N, 2)
-           The input coordinates (u and v) for a sample of N>=2 sources.
+            The input coordinates (u and v) for a sample of N>=2 sources.
         outdata : array_like, shape (N, 2) or (M, N, 2)
-           The output coordinates (x and y) for the same sample of sources
-           as in `indata`. If 'outdata' is 3dimensional, the transformation
-           is determined for the M spectral layers.
+            The output coordinates (x and y) for the same sample of sources
+            as in `indata`. If 'outdata' is 3dimensional, the transformation
+            is determined for the M spectral layers.
         outsigma : array_like, shape (N, 2) or (M, N, 2), optional
-           The uncertainties (if any) associated with the output coordinates.
-           Must be of same size as 'outdata' if provided.
+            The uncertainties (if any) associated with the output coordinates.
+            Must be of same size as 'outdata' if provided.
+        fixed : dict, optional
+            If one or more of the parameters of the coordinate transformation
+            should be fixed to specific values, provide them as a dictionary
+            of 'parameter_name: value' pairs. Note that if outdata is 3D, the
+            values must be specified for each of the M spectral layers.
 
         Returns
         -------
@@ -392,27 +421,18 @@ class Transformation(Parameters):
         # fill matrix using input coordinates, the matrix equation will contain alternating equations for x and y,
         # equations involving output x coordinates in even rows (0,2,...N-2) and involving output y coordinates in
         # odd rows (1,3,...,N-1)
-        if self.conformal:
-            A = np.ones((N, 4), dtype=np.float32)
-            A[slice(0, N, 2), 0] = indata[:, 0]
-            A[slice(1, N, 2), 0] = indata[:, 1]
-            A[slice(0, N, 2), 1] = indata[:, 1]
-            A[slice(1, N, 2), 1] = -indata[:, 0]
-            A[slice(1, N, 2), 2] = 0.
-            A[slice(0, N, 2), 3] = 0.
-        else:
-            A = np.zeros((N, 6), dtype=np.float32)
-            A[slice(0, N, 2), 0] = indata[:, 0]
-            A[slice(0, N, 2), 2] = indata[:, 1]
-            A[slice(0, N, 2), -2] = 1.
-            A[slice(1, N, 2), 1] = -indata[:, 0]
-            A[slice(1, N, 2), 3] = indata[:, 1]
-            A[slice(1, N, 2), -1] = 1.
+        A = np.zeros((N, 6), dtype=np.float32)
+        A[slice(0, N, 2), 0] = indata[:, 0]
+        A[slice(0, N, 2), 2] = indata[:, 1]
+        A[slice(0, N, 2), -2] = 1.
+        A[slice(1, N, 2), 1] = -indata[:, 0]
+        A[slice(1, N, 2), 3] = indata[:, 1]
+        A[slice(1, N, 2), -1] = 1.
 
         # make sure input is available as numpy arrays & join x- & y-data
         outdata = np.atleast_2d(outdata)
-        b = outdata.reshape((-1, outdata.shape[-1] * outdata.shape[-2]))
         # collapse last two axes, add spectral axis at index 0 (if none was provided)
+        b = outdata.reshape((-1, outdata.shape[-1] * outdata.shape[-2]))
 
         if outsigma is not None:
             outsigma = np.atleast_2d(outsigma)
@@ -420,8 +440,25 @@ class Transformation(Parameters):
         else:
             sigma = None
 
+        # handle fixed parameters, if any:
+        # The idea is to multiply each fixed parameter with the corresponding column of A, subtract the results from b,
+        # and exclude the column from the fit
+        use_column = np.ones(A.shape[1], dtype=np.bool)
+        if fixed is not None:
+            for parameter, value in fixed.items():
+                value = np.atleast_1d(value)
+                if value.size != b.shape[0]:
+                    logging.error('Fixed parameter {0} in coord. transf. has invalid shape.'.format(parameter))
+                else:
+                    i = Transformation.PARAMETERS.index(parameter)
+                    b -= value[:, np.newaxis]*A[:, i]
+                    use_column[i] = False
+
+        bestfit = my_lsq_sigma(A[:, use_column], b, sigma=sigma)
+        residuals = b - np.dot(bestfit, A.T)
+
         # call fitting function
-        return my_lsq_sigma(A, b, sigma=sigma)
+        return bestfit, residuals.reshape((-1, n, 2))  # split x- and y-axes in residuals array again
 
     @property
     def zmatrix(self):
@@ -444,9 +481,9 @@ class Transformation(Parameters):
         # create matrix [[A C] [-B D]] for each layer (index 0 is spectral one)
         _f = np.zeros((self.ndisp, 2, 2), dtype=np.float32)
         _f[:, 0, 0] = self.data[:, 0, int(self.fitted[0])]
-        _f[:, 0, 1] = self.data[:, 1, int(self.fitted[1])] if self.conformal else self.data[:, 2, int(self.fitted[2])]
+        _f[:, 0, 1] = self.data[:, 2, int(self.fitted[2])]
         _f[:, 1, 0] = -self.data[:, 1, int(self.fitted[1])]
-        _f[:, 1, 1] = self.data[:, 0, int(self.fitted[0])] if self.conformal else self.data[:, 3, int(self.fitted[3])]
+        _f[:, 1, 1] = self.data[:, 3, int(self.fitted[3])]
 
         # if np.isnan(_f).any():
         #     logging.warning("Coordinate transformation contains interpolated values.")

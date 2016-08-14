@@ -1,9 +1,26 @@
 # -*- coding: utf-8 -*-
-
 """
 exit_dialog.py
 ==============
+Copyright 2013-2016 Sebastian Kamann
 
+This file is part of PampelMuse.
+
+PampelMuse is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+any later version.
+
+PampelMuse is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with PampelMuse. If not, see <http://www.gnu.org/licenses/>.
+
+
++++
 Provides
 --------
 class pampelmuse.graphics.exit_dialog.exitUnsavedDialog
@@ -18,15 +35,16 @@ in pampelmuse.graphics.Ui_exit_dialog.
 
 Latest SVN revision
 -------------------
-103, 2013/07/17
+340, 2016/07/29
 """
-__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 103
-
 from PyQt4.QtGui import QDialog
 from PyQt4.QtCore import pyqtSignature
+from .Ui_exit_dialog import Ui_exitUnsavedDialog
 
-from Ui_exit_dialog import Ui_exitUnsavedDialog
+
+__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
+__revision__ = 340
+
 
 class exitUnsavedDialog(QDialog, Ui_exitUnsavedDialog):
     """
@@ -57,7 +75,6 @@ class exitUnsavedDialog(QDialog, Ui_exitUnsavedDialog):
         self.status = True
         QDialog.close(self)
 
-    
     @pyqtSignature("")
     def on_buttonBox_rejected(self):
         """

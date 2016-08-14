@@ -1,6 +1,23 @@
 """
 sources.py
 ==========
+Copyright 2013-2016 Sebastian Kamann
+
+This file is part of PampelMuse.
+
+PampelMuse is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+any later version.
+
+PampelMuse is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with PampelMuse. If not, see <http://www.gnu.org/licenses/>.
+
 
 Provides
 --------
@@ -21,11 +38,8 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-280, 2015/10/30
+360, 2016/08/12
 """
-__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 280
-
 import collections
 import inspect
 import logging
@@ -33,19 +47,20 @@ import os
 import re
 import time
 import warnings
-
 import numpy as np
 from numpy.polynomial import Chebyshev, Legendre, Hermite, Polynomial
 from astropy.io import fits
+from ..core.coordinates import Transformation
 
 # check if PyQt is available 
 try:
     from PyQt4 import QtCore
 except ImportError:
-    pass
+    QtCore = None
 
-# required PampelMuse-packages
-from pampelmuse.core.coordinates import Transformation
+
+__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
+__revision__ = 360
 
 
 def match_on_id(parent, child):
@@ -207,12 +222,14 @@ class Sources(object):
         self.ifs_coordinates_fit_functions = {}
 
         # place-holders for data arrays
-        self.data = None  # The source fluxes/spectra
-        self.sigma = None  # The uncertainties of the source fluxes/spectra
+        self._wave = None
+        self.data = None  # The spectra of the components and their uncertainties
+        self.data_wave = None  # If available, the wavelength information for the spectrum of each component
         self.ifs_coordinates = None  # The x/y coordinates of the sources on the IFS spaxel array
 
         # place-holders for HDUs containing fluxes or IFS coordinates
-        self.spectra_data_hdu = None
+        self.data_hdu = None
+        self.data_wave_hdu = None
         self.ifs_coordinates_data_hdu = None
         self.ifs_coordinates_fit_hdu = None
         self._tmp_names = []  # a list of temporary FITS files created by an instance.
@@ -540,7 +557,11 @@ class Sources(object):
             # set row for independent ('primary') sources
             self._specrow[self.status > 1] = np.arange((self.status > 1).sum(), dtype=np.int32)
 
-            unresolved_row = self._specrow.max() + 1
+            # if unresolved component exists, make sure its spectrum comes before any sky spectrum
+            if (self.status == 0).any():
+                self._specrow[self.status == 4] += 1
+
+            unresolved_row = self._specrow[self.status == 4].min() - 1
 
             # now deal with sources that are either next to a brighter neighbor(status=1) or included in the unresolved
             # component (status=0)
@@ -668,7 +689,7 @@ class Sources(object):
         """
         Returns
         -------
-        nbackground : int
+        n_background : int
             The number of background components that is included in the
             catalogue."""
         return self.is_background.sum()
@@ -716,8 +737,8 @@ class Sources(object):
         Returns
         -------
         specrow_unresolved : int or None
-            The row of the spectrum of the unresolved component (if any,
-            otherwise returns an empty array)
+            The row(s) of the spectrum/spectra of the unresolved component(s)
+            (if any, otherwise returns an empty array)
         """
         rows = self.specrow[np.flatnonzero(self.is_unresolved)]
         assert (np.unique(rows).size == 1)
@@ -775,18 +796,13 @@ class Sources(object):
     #############################################################################
     #              Methods dealing with the spectra of the sources              #
     #############################################################################
-    def open_spectra_hdu(self, hdu, sigma_hdu=None):
+    def open_spectra_hdu(self, hdu, sigma_hdu=None, wave_hdu=None):
         """
         Open a FITS HDU containing the spectra of the sources. Note that the
-        spectra may be provided in two different flavours
-        (1) old behaviour: spectra and uncertainties are included in different, the
-            shape of each data array is (Sources.ncmp, Sources.ndisp) [python
-            counting]
-        (2) recommended: one HDU for both spectra and uncertainties, the shape of
-            the data array is (Sources.ndisp,Sources.ncmp,2) [python counting]
-        If data following format (1) are provided, the method will translate it to
-        format (2). The HDU is accessible via attribute Sources.spectra_data_hdu
-        afterwards.
+        spectra must be provided in the form of a single HDU containing both
+        spectra and uncertainties, the shape of the data array must be
+        (Sources.ndisp, Sources.ncmp, 2) [python counting]. The HDU is
+        accessible via attribute Sources.data_hdu afterwards.
           
         Parameters
         ----------
@@ -797,6 +813,10 @@ class Sources(object):
         sigma_hdu : astropy.io.fits.PrimaryHDU or astropy.io.fits.ImageHDU instance, optional
             The HDU containing the uncertainties for 2dim. data. The array in
             the HDU must have the same shape as the data.
+        wave_hdu : astropy.io.fits.PrimaryHDU or astropy.io.fits.ImageHDU instance, optional
+            This parameter can be used to provide a separate wavelength array
+            for each spectrum in 'hdu'. If provided, must have same shape as
+            'hdu'.
         """
         # sanity checks on provided keywords, both must be HDUs that can carry images
         assert isinstance(hdu, fits.hdu.image._ImageBaseHDU), "Invalid type '{0}' for argument 'hdu'.".format(
@@ -811,38 +831,9 @@ class Sources(object):
         else:
             logging.info("Reading spectra from unnamed HDU.")
 
-        if hdu.header["NAXIS"] not in [2, 3]:
-            logging.error("Spectra must be provided as 2 or 3dim. array.")
-        assert hdu.header["NAXIS"] in [2, 3], "Expected 2 or 3dim. data but got {0}dim.".format(hdu.header["NAXIS"])
-
-        # handle "old" format: 2dim. data, first axis (python counting) corresponding to different stars, second axis
-        # giving dispersion information create a temporary FITS file containing the data in the new format in the 2nd
-        #  HDU and load this HDU. The file will be deleted once the Sources instance is deleted.
-        if hdu.header["NAXIS"] == 2:
-
-            tmp_data_array = np.zeros((hdu.header["NAXIS1"], hdu.header["NAXIS2"], 2), dtype=np.float32)
-            tmp_data_array[..., 0] = hdu.data.swapaxes(0, 1)
-
-            if sigma_hdu is not None:
-                assert sigma_hdu.data.shape == hdu.data.shape, "Array sizes of spectra and uncertainties differ."
-                tmp_data_array[..., 1] = sigma_hdu.data.swapaxes(0, 1)
-
-            tmp_spectra_hdu = fits.ImageHDU(tmp_data_array, header=hdu.header)
-
-            # update dispersion information (if any)
-            for key in ["CRVAL", "CDELT", "CRPIX", "CTYPE", "CUNIT"]:
-                if "{0}1".format(key) in tmp_spectra_hdu.header:
-                    tmp_spectra_hdu.header["{0}3".format(key)] = hdu.header["{0}1".format(key)]
-                    del tmp_spectra_hdu.header["{0}1".format(key)]
-
-            # write the HDU to a temporary FITS file (fits provides a function to create a tmp-name) and open it again
-            self._tmp_names.append(fits.util._tmp_name("./"))
-            tmp_spectra_hdu.writeto(self._tmp_names[-1])
-
-            # remove temporary array and HDU (tmp-file will be deleted via __del__ method)
-            del tmp_data_array, tmp_spectra_hdu, hdu
-            tmpfile = fits.open(self._tmp_names[-1])
-            hdu = tmpfile[1]
+        if hdu.header["NAXIS"] != 3:
+            logging.error("Spectra must be provided as 3dim. array.")
+        assert hdu.header["NAXIS"] == 3, "Expected 3dim. data but got {0}dim.".format(hdu.header["NAXIS"])
 
         # check if dispersion information is valid
         if self.ndisp == 1:
@@ -854,20 +845,32 @@ class Sources(object):
                    "NAXIS2"] == self.ncmp, "No. of spectra in HDU does not match no. of components in source catalog."
         assert hdu.header["NAXIS1"] == 2, "Data in provided HDU has invalid shape."
 
-        self.spectra_data_hdu = hdu
+        self.data_hdu = hdu
 
-        # update dispersion information within class.
-        for key in ["CRVAL", "CDELT", "CRPIX", "CTYPE", "CUNIT"]:
-            if "{0}3".format(key) in self.spectra_data_hdu.header:
-                setattr(self, key.lower(), self.spectra_data_hdu.header["{0}3".format(key)])
+        # check if separate HDU with wavelength per spectrum was provided
+        if wave_hdu is not None:
+            assert(isinstance(hdu, fits.hdu.image._ImageBaseHDU)), "Invalid type '{0}' for argument 'wave_hdu'.".format(
+                re.findall(r"'(.*)'", str(type(hdu)))[0])
+            assert(wave_hdu.shape == (self.ndisp, self.ncmp)), "'wave_hdu' and 'hdu' must have same shape."
+            self.data_wave_hdu = wave_hdu
+        # otherwise, check if dispersion information can be updated.
+        else:
+            for key in ["CRVAL", "CDELT", "CRPIX", "CTYPE", "CUNIT"]:
+                if "{0}3".format(key) in self.data_hdu.header:
+                    setattr(self, key.lower(), self.data_hdu.header["{0}3".format(key)])
 
-    def load_spectra(self, components=None, layers=None):
+    def load_spectra(self, components=None, layers=None, init_wave=False):
         """
-        Load the spectra and uncertainties for the requested source(s) and layer(s).
-        The method will create an empty array and try to fill it using an available
-        FITS HDU, provided previously via the method Sources.open_spectra_hdu(). If 
-        no such HDU is available, the array will be empty. The shape of the array,
-        available via property Sources.data, will be (Sources.ndisp,Sources.ncmp,2).
+        Load the spectra and uncertainties for the requested source(s) and
+        layer(s). If an HDU with dedicated wavelength data for each component
+        is available, the wavelength data will also be loaded.
+
+        The method will create an empty array and try to fill it using
+        available FITS HDUs, provided previously via the method
+        Sources.open_spectra_hdu(). If no such HDU are available, the array
+        will be empty. The shape of the data array, available via the property
+        Sources.data, will be (Sources.ndisp, Sources.ncmp, 2). The wavelength
+        data (if any) can be accessed via Sources.data_wave
 
         Parameters
         ----------
@@ -879,6 +882,10 @@ class Sources(object):
         layers : integer  optional
             The indices of the layers over which the spectra should be loaded. If
             none are provided, they are loaded for the whole wavelength range.
+        init_wave : boolean, optional
+            Flag indicating if an array containing the wavelength of each component
+            should be initialized. Only used if no wavelength HDU has been loaded
+            via Sources.open_spectra_hdu so far.
         """
         # sanity checks on provided IDs and layers
         if components is not None:
@@ -909,28 +916,56 @@ class Sources(object):
         # initialize array for spectra. The shape of the array is (#<requested layers>, #<requested IDs>, 2)
         # The last axis distinguishes between data or uncertainties.
         self.data = np.zeros((nlayer, components.size, 2), dtype=np.float32)
+        if self.data_wave_hdu is not None or init_wave:
+            self.data_wave = np.zeros((nlayer, components.size), dtype=np.float32)
 
         # fill array using data from Spectrum HDU if one is available
-        if self.spectra_data_hdu is not None:
+        if self.data_hdu is not None:
             if nlayer == self.ndisp and components.size == self.ncmp:
-                self.data[:] = self.spectra_data_hdu.data
+                self.data[:] = self.data_hdu.data
+                if self.data_wave_hdu is not None:
+                    self.data_wave = self.data_wave_hdu.data
             else:
                 for i in xrange(nlayer):
-                    self.data[i] = self.spectra_data_hdu.section[layers[i]][components]
+                    self.data[i] = self.data_hdu.section[layers[i]][components]
+                    if self.data_wave_hdu is not None:
+                        self.data_wave[i] = self.data_wave_hdu.section[layers[i]][components]
 
-    @property
-    def wave(self):
+    def get_wave(self, component=None):
         """
+        Return the wavelength data for a spectrum.
+
+        Parameters
+        ----------
+        component : int, optional
+            The index of the component for which the wavelength information
+            should be returned.
+
         Returns
         -------
         wave : ndarray
             The wavelength array.
         """
-        wave = np.arange(self.ndisp, dtype=np.float64)
-        wave -= (self.crpix - 1)
-        wave *= self.cdelt
-        wave += self.crval
-        return wave
+        if self._wave is not None and self._wave.size != self.ndisp:  # in case dispersion information has changed.
+            self._wave = None
+
+        if self.data_wave is not None and component is None:
+            if self._wave is None:
+                self._wave = np.nanmean(self.data_wave, axis=1)
+        elif self.data_wave is not None and self.spectrum_loaded[component]:
+            # get index of the spectrum in the Sources.data_wave array
+            i = np.cumsum(self.spectrum_loaded)[component] - 1
+            self._wave = self.data_wave[:, i]
+        else:
+            if self._wave is None:
+                self._wave = np.arange(self.ndisp, dtype=np.float64)
+                self._wave -= (self.crpix - 1)
+                self._wave *= self.cdelt
+                self._wave += self.crval
+        return self._wave
+
+    # For compatibility with existing code, we define the wave property where the component index is set to zero.
+    wave = property(get_wave)
 
     def provideComponentNames(self):
         """
@@ -942,7 +977,7 @@ class Sources(object):
         Returns
         -------
         names : QStringList
-           The names of the coomponents
+           The names of the components
         """
         ownSpec = np.in1d(self.status, np.arange(2, 4))
 
@@ -974,10 +1009,13 @@ class Sources(object):
 
         Returns
         -------
-        data : ndarray
-            An array containing the the requested spectrum and its uncertainties.
+        wave : nd_array
+            A 1dim. array containing the wavelength of each pixel of the
+            spectrum.
+        data : nd_array
+            A 1dim. array containing the the requested spectrum.
         """
-        if self.spectrum_loaded is None and self.spectra_data_hdu is None:
+        if self.spectrum_loaded is None and self.data_hdu is None:
             logging.critical("No spectra have been loaded using Sources.load_spectra() or Sources.open_spectra_hdu().")
 
         if name is None and ID is None:
@@ -996,7 +1034,7 @@ class Sources(object):
             self.load_spectra(components=specrow)
 
         i = np.cumsum(self.spectrum_loaded)[specrow] - 1  # index of the spectrum in the Sources.data array
-        return self.data[:, i]
+        return self.get_wave(specrow), self.data[:, i, 0]
 
     #############################################################################
     #            Methods dealing with IFU coordinates of the sources            #
@@ -1218,6 +1256,9 @@ class Sources(object):
             The indices of the layers for which the IFS coordinates should be loaded.
             If none are provided, the coordinates are loaded for the whole wavelength
             range.
+        interpolate : boolean, optional
+            A flag indicating if the positions should be interpolated for layers where
+            there is no information available.
         """
         # for debugging: check where the call was triggered
         t0 = time.time()
@@ -1299,6 +1340,9 @@ class Sources(object):
             src_indices = np.flatnonzero(~processed)
 
             if self.transformation.valid:  # second option: fill in IFS coordinates via coordinate transformation
+                if self.transformation.ndisp != self.ndisp:
+                    logging.warning('Adding dispersion information to coordinate transformation.')
+                    self.transformation.resize(self.ndisp)
                 ifs_coords = self.transformation(ref_coords)
                 if not interpolate or not np.isnan(ifs_coords[layers]).any():
                     self.ifs_coordinates[:, src_indices, :, 0:1] = ifs_coords[layers][..., np.newaxis]
@@ -1345,7 +1389,7 @@ class Sources(object):
         logging.debug("Time required to load IFS coordinates: {0}s".format(t3-t2))
         logging.debug("Time required to load fits to IFS coordinates: {0}s".format(t4-t3))
 
-    def fit_coordinate_transformation(self, index=slice(None)):
+    def fit_coordinate_transformation(self, index=slice(None), **kwargs):
         """
         Calculate/Initialize a new coordinate transformation using the input
         coordinates and the IFS coordinates. For this method to work, the
@@ -1361,19 +1405,17 @@ class Sources(object):
         """
         if self.x is None or self.y is None:
             logging.error("Cannot determine coordinate transformation because no reference coordinates are available.")
-        assert self.x is not None, "Reference coordinates missing."
-        assert self.y is not None, "Reference coordinates missing."
+            return
 
         if self.ifs_coordinates is None:
             logging.error("Cannot determine coordinate transformation: because no IFS coordinates are available.")
-        assert self.ifs_coordinates is not None, "IFS coordinates missing."
+            return
 
         # check if IFS coordinates are available for at least 2 sources.
         if self.ifs_coordinates_loaded.sum() < 2:
             logging.error(
                 "Cannot determine coordinate transformation because <2 sources have IFS coordinates available.")
-        assert self.ifs_coordinates_loaded.sum() >= 2, \
-            "Need at least 2 sources with IFS coordinates to determine transformation."
+            return
 
         # if integer has been provided as keyword 'index', translate it into a slice
         if isinstance(index, (int, np.int)):
@@ -1381,8 +1423,8 @@ class Sources(object):
 
         # carry out fit
         ref_coordinates = np.vstack((self.x, self.y)).T[self.ifs_coordinates_loaded]
-        self.transformation.fit_to_data(ref_coordinates, self.ifs_coordinates[index][..., 0],
-                                        ids=self.ID[self.ifs_coordinates_loaded])
+        self.transformation = Transformation.from_coordinates(ref_coordinates, self.ifs_coordinates[index][..., 0],
+                                                              ids=self.ID[self.ifs_coordinates_loaded], **kwargs)
 
     def providePosIDs(self, minStatus=1):
         """
@@ -1437,7 +1479,7 @@ class Sources(object):
         j = np.cumsum(self.ifs_coordinates_loaded)[i] - 1  # index of the spectrum in the Sources.data array
         return self.ifs_coordinates[:, j]
 
-    def fitIfsCoordinates(self, ids, order, bins=1, mask=None, function="plain", commonSlope=False, statusBar=None,
+    def fitIfsCoordinates(self, ids, order, mask=None, function="plain", commonSlope=False, statusBar=None,
                           instrument=None):
         """
         Method to fit the source positions as a function of wavelength. Two
@@ -1454,12 +1496,8 @@ class Sources(object):
             all point sources, i.e. all sources with Sources.status<4.
         order : int
             The order of the polynomial used to perform the fit
-        bins : int, optional
-            The number of bins in case a step-polynomial is used as fitting
-            function. IMPORTANT: Not used anymore because step polynomials
-            are not used anymore.
         mask : array_like or None, optional
-            An optional bad-pixel mask. If specified, must have as many pixels
+            An optional bad-pixel spectrumMask. If specified, must have as many pixels
             as spectral pixels are available. Bad pixels should be set to
             True, good ones to False.
         function : string, optional
@@ -1474,22 +1512,18 @@ class Sources(object):
             to restrict the selection to sources inside the FoV when determining
             the mean slope of a coordinate with wavelength.
         """
-        if bins != 1:
-            logging.warning("Parameter 'bins' is not used anymore.")
-
         # find the indices of the source(s) to be fitted in the catalogue
         if ids is None:
             indices_to_fit = np.flatnonzero(self.status < 4)
         else:
             indices_to_fit = match_on_id(self.ID, np.atleast_1d(ids))
 
-        # check if IFU coordinates have been loaded, otherwise do so
-        if not self.ifs_coordinates_loaded[indices_to_fit].all() or self.ifs_coordinates.shape[0] < self.ndisp:
-            self.load_ifs_coordinates(ids=self.ID[indices_to_fit])
+        # load IFS coordinates for all sources _WITHOUT_ interpolation
+        self.load_ifs_coordinates(ids=self.ID[indices_to_fit])
 
         if not function.lower() in self.available.keys():
             logging.critical("Unknown fitting function provided: {0}".format(function))
-        fitfunction = self.available[function.lower()]
+        fit_function = self.available[function.lower()]
 
         # create pseudo-mask if None provided
         valid = ~mask if mask is not None else np.ones((self.ndisp,), dtype=np.bool)
@@ -1513,19 +1547,10 @@ class Sources(object):
             meanvalid = valid[:, np.newaxis] & ~np.isnan(meancoord)
 
             # fit mean coordinates with requested order
-            xfit = fitfunction.fit(self.wave[meanvalid[:, 0]], meancoord[meanvalid[:, 0], 0], order)
-            yfit = fitfunction.fit(self.wave[meanvalid[:, 1]], meancoord[meanvalid[:, 1], 1], order)
+            xfit = fit_function.fit(self.wave[meanvalid[:, 0]], meancoord[meanvalid[:, 0], 0], order)
+            yfit = fit_function.fit(self.wave[meanvalid[:, 1]], meancoord[meanvalid[:, 1], 1], order)
 
             order = 0  # all individual coordinates are now "fitted" with zeroth order polynomials
-
-# TODO        _i = self.ifs_coordinates_loaded.cumsum()[indices_to_fit] - 1
-# TODO        slc = np.ix_(mask.nonzero()[0], _i)
-# TODO
-# TODO        t0 = time.time()
-# TODO        xfit = np.polynomial.polynomial.polyfit(self.wave[mask], self.ifs_coordinates[slc][..., 0, 0], order)
-# TODO        yfit = np.polynomial.polynomial.polyfit(self.wave[mask], self.ifs_coordinates[slc][..., 1, 0], order)
-# TODO        t1 = time.time()
-# TODO        print t1-t0, type(xfit), type(yfit)
 
         # loop over selected sources and get their polynomial coordinate fits
         for n, j in enumerate(indices_to_fit):
@@ -1533,9 +1558,10 @@ class Sources(object):
             # get index of source in array of IFS coordinates
             i = self.ifs_coordinates_loaded.cumsum()[j] - 1
 
-            # for each source, get layers where x- and y-coordinate is defined. If it is not defined for any layer
+            # for each source, get layers where x- and y-coordinate are defined. If it is not defined for any layer
             # just use reference coordinate and trigger warning
             valid_i = valid & np.any(~np.isnan(self.ifs_coordinates[:, i, :, 0]), axis=-1)
+
             if commonSlope:
                 valid_i &= meanvalid.all(axis=1)
             if valid_i.sum() > order:
@@ -1550,18 +1576,18 @@ class Sources(object):
                     self.ID[j]))
 
             if commonSlope:
-                xfit_i = xfit + fitfunction.fit(wave, fx_wave - xfit(wave), order, domain=xfit.domain)
-                yfit_i = yfit + fitfunction.fit(wave, fy_wave - yfit(wave), order, domain=yfit.domain)
+                xfit_i = xfit + fit_function.fit(wave, fx_wave - xfit(wave), order, domain=xfit.domain)
+                yfit_i = yfit + fit_function.fit(wave, fy_wave - yfit(wave), order, domain=yfit.domain)
             else:
-                xfit_i = fitfunction.fit(wave, fx_wave, order)
-                yfit_i = fitfunction.fit(wave, fy_wave, order)
+                xfit_i = fit_function.fit(wave, fx_wave, order)
+                yfit_i = fit_function.fit(wave, fy_wave, order)
 
             self.ifs_coordinates_fit_functions[self.ID[j]] = [xfit_i, yfit_i]
 
-            # find index of source in (full) source catalogue
+            # update coordinate information for this source
             self.ifs_coordinates_fitted[j] = True
-            self.ifs_coordinates[:, i, 0, 1] = xfit_i(self.wave)
-            self.ifs_coordinates[:, i, 1, 1] = yfit_i(self.wave)
+            self.ifs_coordinates[:, i, 0, 1] = np.where(valid_i, xfit_i(self.wave), np.nan)
+            self.ifs_coordinates[:, i, 1, 1] = np.where(valid_i, yfit_i(self.wave), np.nan)
 
             logging.debug("Polynomial fit to source #{0} [{1}/{2}]".format(self.ID[j], n, len(indices_to_fit)))
             if statusBar is not None:
@@ -1676,12 +1702,13 @@ class Sources(object):
 
         formats = {"x": "E", "y": "E", "mag": "E", "ra": "D", "dec": "D", "status": "I", "specrow": "I", "primary": "J"}
         for attribute in ["x", "y", "mag", "ra", "dec", "status", "primary", "specrow"]:
-            if getattr(self, "_{0}".format(attribute)) is not None:
-                logging.debug("Adding column '{0}' to table...".format(attribute))
-                outcols.append(fits.Column(name=attribute, format=formats[attribute],
-                                           array=getattr(self, "_{0}".format(attribute))[select]))
+            # if getattr(self, "_{0}".format(attribute)) is not None:
+            logging.debug("Adding column '{0}' to table...".format(attribute))
+            outcols.append(fits.Column(name=attribute, format=formats[attribute],
+                                       array=getattr(self, attribute)[select]))
 
-        return fits.new_table(outcols, header=fits.Header(cards=[fits.Card(key="EXTNAME", value="SOURCES")]))
+        return fits.BinTableHDU.from_columns(
+                outcols, header=fits.Header(cards=[fits.Card(key="EXTNAME", value="SOURCES")]))
 
     def make_spectra_hdu(self, components=None):
         """
@@ -1738,16 +1765,20 @@ class Sources(object):
             # contain the spectra for a subset of the components. So a warning is triggered if an HDU that does
             # not include all spectra will be created.
 
-        outhdu = fits.ImageHDU(self.data, name="SPECTRA")
-        outhdu.header["CRPIX3"] = self.crpix
-        outhdu.header["CRVAL3"] = self.crval
-        outhdu.header["CDELT3"] = self.cdelt
-        if self.ctype is not None:
-            outhdu.header["CTYPE3"] = self.ctype
-        if self.cunit is not None:
-            outhdu.header["CUNIT3"] = self.cunit
+        spectra_hdu = fits.ImageHDU(self.data, name="SPECTRA")
+        if self.data_wave is not None:  # check if dedicated wavelength HDU must be returned
+            wave_hdu = fits.ImageHDU(self.data_wave, name='WAVE')
+        else:  # otherwise, include dispersion information in Fits-Header
+            wave_hdu = None
+            spectra_hdu.header["CRPIX3"] = self.crpix
+            spectra_hdu.header["CRVAL3"] = self.crval
+            spectra_hdu.header["CDELT3"] = self.cdelt
+            if self.ctype is not None:
+                spectra_hdu.header["CTYPE3"] = self.ctype
+            if self.cunit is not None:
+                spectra_hdu.header["CUNIT3"] = self.cunit
 
-        return outhdu
+        return spectra_hdu, wave_hdu
 
     def make_ifs_coordinates_hdu(self, ids=None, fit=False, name="POSITIONS", **kwargs):
         """
@@ -1870,11 +1901,12 @@ class Sources(object):
                 yprm[i, :(yfit.degree() + 1)] = yfit.coef
 
             # prepare the output table
-            outhdu = fits.new_table([fits.Column(name="id", format="J", array=src),
-                                     fits.Column(name="xfct", format="I", array=xfct),
-                                     fits.Column(name="xprm", format="{0}E".format(xprm.shape[1]), array=xprm),
-                                     fits.Column(name="yfct", format="I", array=yfct),
-                                     fits.Column(name="yprm", format="{0}E".format(yprm.shape[1]), array=yprm)])
+            outhdu = fits.BinTableHDU.from_columns(
+                    [fits.Column(name="id", format="J", array=src),
+                     fits.Column(name="xfct", format="I", array=xfct),
+                     fits.Column(name="xprm", format="{0}E".format(xprm.shape[1]), array=xprm),
+                     fits.Column(name="yfct", format="I", array=yfct),
+                     fits.Column(name="yprm", format="{0}E".format(yprm.shape[1]), array=yprm)])
 
             outhdu.header["EXTNAME"] = name
             outhdu.header["hierarch PAMPELMUSE POSITIONS POLY"] = True

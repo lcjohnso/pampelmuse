@@ -7,9 +7,13 @@ simulations are plotted.
 LAST CHANGED: 2013/04/26
 AUTHOR: Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)
 """
-import matplotlib as mpl, matplotlib.pyplot as plt, numpy as np
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import numpy as np
 from scipy import linalg,optimize
-from pampelmuse.core.psf.profiles import Moffat, Gaussian
+
+from pampelmuse.psf.psf import Moffat, Gaussian
+
 plt.rcParams["axes.linewidth"] = 1.5
 
 ####  BASIC SETUP ##############################################################

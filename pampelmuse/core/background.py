@@ -1,7 +1,25 @@
 """
 background.py
 =============
+Copyright 2013-2016 Sebastian Kamann
 
+This file is part of PampelMuse.
+
+PampelMuse is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+any later version.
+
+PampelMuse is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with PampelMuse. If not, see <http://www.gnu.org/licenses/>.
+
+
++++
 Provides
 --------
 class BackgroundGrid
@@ -21,18 +39,18 @@ Revision 221, 2014/12/02
 
 Latest SVN revision
 -------------------
-232, 2015/01/30
+333, 2016/07/25
 """
-__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 232
-
 import logging
-from scipy.spatial import distance
-
 import numpy as np
+from scipy.spatial import distance
+from scipy.sparse import coo_matrix
 
-# Required PampelMuse routines
-from pampelmuse.core.psf import Canvas
+from ..psf import Canvas
+
+
+__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
+__revision__ = 333
 
 
 class BackgroundGrid(Canvas):
@@ -75,7 +93,7 @@ class BackgroundGrid(Canvas):
             "Centroids must be a 2dim. array of shape (N,2)."
 
         # make sure centroids are on a homogeneous grid: calculate distance to nearest neighbour, must be the same for
-        # each gridpoint
+        # each grid point
         if self.centroids.shape[0] > 1:
             distances = distance.cdist(self.centroids, self.centroids)
             distances.sort(axis=0)
@@ -121,16 +139,17 @@ class BackgroundGrid(Canvas):
         """
         # create the grid with the centroids of the background patches
         # first get centroids along x and y
-        _xcentroids = np.arange(0, shape[0], 2 * rscale)
-        _ycentroids = np.arange(0, shape[1], 2 * rscale)
+        xshape, yshape = shape
+        _xcentroids = np.arange(0, xshape, 2 * rscale)
+        _ycentroids = np.arange(0, yshape, 2 * rscale)
         # then make sure that distances to edges of FoV are approximately the same
-        _xcentroids += 0.5 * (shape[0] - 1 - _xcentroids.max())
-        _ycentroids += 0.5 * (shape[1] - 1 - _ycentroids.max())
+        _xcentroids += 0.5 * (xshape - 1 - _xcentroids.max())
+        _ycentroids += 0.5 * (yshape - 1 - _ycentroids.max())
         # combine x and y centroids to array of shape (2, gridsize)
         xcentroids = np.resize(_xcentroids, _xcentroids.size * _ycentroids.size)
         xcentroids.sort()
         ycentroids = np.resize(_ycentroids, _xcentroids.size * _ycentroids.size)
-        cls.set_size(shape)
+
         return cls(np.vstack((xcentroids, ycentroids)).T, **kwargs)
 
     @classmethod
@@ -141,7 +160,7 @@ class BackgroundGrid(Canvas):
         """
         return cls(np.array([[0, 0], ], dtype=np.float32))
 
-    def reset(self, omit=[]):
+    def reset(self, omit=None):
         """
         The method resets the current arrays containing the properties of the
         background profiles/patches and sets them for recalculation.
@@ -152,7 +171,7 @@ class BackgroundGrid(Canvas):
             A list with profile properties that
         """
         for prop in self.background_properties:
-            if prop not in omit:
+            if omit is None or prop not in omit:
                 setattr(self, prop, None)
 
     @property
@@ -175,13 +194,14 @@ class BackgroundGrid(Canvas):
         # get weight of each spaxel in each background patch, returned array has size (gridsize, nspaxel)
         if self._f is None:  # only calculate if not already available
             self._f = np.exp(-0.5 * (self.r / self.rscale) ** self.n)
+            self._f[~self.used] = 0
             self._f /= self._f.sum(axis=0)  # normalize weights
         return self._f
 
     # 'used' is an array that indicates for each background patch which spaxels contribute
     # There are two possibilities that lead to spaxels spaxels being excluded from one or more patches:
     #  a) They are located at distances >'maxrad' to a gridpoint
-    #  b) They are included in a user-provided bad-pixel mask
+    #  b) They are included in a user-provided bad-pixel spectrumMask
     # To make sure that spaxels excluded based on criterion (a) are not included again when the user provides a mask,
     # the setter method is modified.
     def get_used(self):
@@ -190,14 +210,14 @@ class BackgroundGrid(Canvas):
         return self._used
 
     def set_used(self, value):
-        self._used = None  # remove possibly existing mask
+        self._used = None  # remove possibly existing spectrumMask
         try:
             value = np.asarray(value, dtype=np.bool)
         except:
-            logging.critical("Invalid input for background spaxels mask: {0}".format(value))
+            logging.critical("Invalid input for background pixel mask: {0}".format(value))
         if value.size != self.used.shape[-1]:
             logging.critical(
-                "Provided background spaxels mask has invalid size ({0} instead of {1}).".format(value.size,
+                "Provided background spaxels spectrumMask has invalid size ({0} instead of {1}).".format(value.size,
                                                                                                  self.used.shape[-1]))
         self._used = self.used & value  # note call to 'self.used' leads to recalculation of included pixels based
         # on distance wrt. 'maxrad'
@@ -222,6 +242,15 @@ class BackgroundGrid(Canvas):
             and the corresponding fluxes.
         """
         return self.spaxel[self.used[i]], self.f[i, self.used[i]]
+
+    def get_sparse_matrix(self, offset=0):
+
+        i, j = np.nonzero(self.f)
+        values = self.f[(i, j)]
+
+        # IMPORTANT: to be consistent with the matrix of sources, we need to swap i and j because the source matrix
+        # has shape (n_spaxel, n_components)
+        return coo_matrix((values, (j, i + offset)), shape=(self.transform.shape[0], self.gridsize + offset))
 
 
 # following code outdated. - SK 14/12/01
@@ -279,7 +308,7 @@ class BackgroundGrid(Canvas):
 #        self.weights  = self.get_weights(data)
 #        self.weights /= self.weights.sum(axis=0)
 #
-#    def prepare_sparse(self, mask=None):
+#    def prepare_sparse(self, spectrumMask=None):
 #        """
 #        This method prepares a sparse matrix using the weights as values and
 #        the spaxel and patch indices as column and row indices. Note that the
@@ -288,8 +317,8 @@ class BackgroundGrid(Canvas):
 #
 #        Parameters
 #        ----------
-#        mask : nd_array, optional
-#            A mask indicating invalid spaxels/coordinates. Must have a length
+#        spectrumMask : nd_array, optional
+#            A spectrumMask indicating invalid spaxels/coordinates. Must have a length
 #            equal to the number of spaxels for which weights were calculated.
 #            The idea is that a single call to Background.calculate_weights -
 #            which can be quite time-consuming for large arrays - can be
@@ -304,11 +333,11 @@ class BackgroundGrid(Canvas):
 #        """
 #        assert hasattr(self, "weights"), "Need to calculate weights first."
 #
-#        if mask==None:
+#        if spectrumMask==None:
 #            used = np.ones(self.weights.shape[1], dtype=np.bool)
 #        else:
-#            assert len(mask)==self.weights.shape[1], "Invalid mask size."
-#            used = (mask==False)
+#            assert len(spectrumMask)==self.weights.shape[1], "Invalid spectrumMask size."
+#            used = (spectrumMask==False)
 #
 #        coeffs   = []
 #        indices0 = []

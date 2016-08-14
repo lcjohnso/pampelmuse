@@ -1,7 +1,25 @@
 """
 xml_interact.py
 ===============
+Copyright 2013-2016 Sebastian Kamann
 
+This file is part of PampelMuse.
+
+PampelMuse is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+any later version.
+
+PampelMuse is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with PampelMuse. If not, see <http://www.gnu.org/licenses/>.
+
+
++++
 Provides
 --------
 function pampelmuse.config.xml_interact.transform_string
@@ -31,18 +49,18 @@ into another type, such as a float or a list.
 
 Latest SVN revision
 -------------------
-296, 2016/01/13
+340, 2016/07/29
 """
-__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 296
-
-
 import datetime
 import logging
 import re
 import string
 from xml.etree import ElementTree
 from xml.dom.minidom import parseString
+
+
+__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
+__revision__ = 340
 
 
 def transform_string(thestring, dtype, abort_on_exception=True):

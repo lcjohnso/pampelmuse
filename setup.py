@@ -10,6 +10,6 @@ setup(name='PampelMuse',
       packages=['pampelmuse', 'pampelmuse.bin', 'pampelmuse.config', 'pampelmuse.core', 'pampelmuse.core.psf',
                 'pampelmuse.filters', 'pampelmuse.functions', 'pampelmuse.graphics', 'pampelmuse.routines'],
       scripts=['pampelmuse/bin/PampelMuse', 'pampelmuse/bin/access_configuration.py'],
-      package_data={'pampelmuse.config':['data/PMparams.xml', 'data/PMschema.xsd', 'data/PMstyle.xsl'],
-                    'pampelmuse.filters':['data/*']}
+      package_data={'pampelmuse.config': ['data/PMparams.xml', 'data/PMschema.xsd', 'data/PMstyle.xsl'],
+                    'pampelmuse.filters': ['data/*']}
       )

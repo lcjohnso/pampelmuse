@@ -1,7 +1,25 @@
 """
 cubefit.py
 ==========
+Copyright 2013-2016 Sebastian Kamann
 
+This file is part of PampelMuse.
+
+PampelMuse is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+any later version.
+
+PampelMuse is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with PampelMuse. If not, see <http://www.gnu.org/licenses/>.
+
+
++++
 Provides
 --------
 function pampelmuse.routines.cubefit.cubefit
@@ -20,23 +38,31 @@ fit' if the configuration parameter USEQT of PampelMuse is enabled.
 
 Latest SVN revision
 -------------------
-290, 2015/11/18
+334, 2016/07/26
 """
-__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 290
-
 import datetime
 import logging
-import sys
-import numpy as np
-# note that PyQt4 is loaded later and only if requested
+from ..core.fit_cube import FitCube
+from ..utils.fits import open_prm, save_prm
 
-# required PampelMuse-packages
-from pampelmuse.core import Sources
-from pampelmuse.core.coordinates import Transformation
-from pampelmuse.core.psf import Variables
-from pampelmuse.core.fit_array import StarFit
-# note that QStarFit is loaded later and only if requested
+
+__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
+__revision__ = 334
+
+
+def add_parser(parser):
+
+    p = parser.add_parser("CUBEFIT", help="""
+    This sub-routine performs the actual PSF-fitting process, it is the workhorse
+    of PampelMuse and its execution may take several  hours to complete. It expects
+    a useful PRM-file to be available (created e.g using INITFIT). The analysis of
+    the data proceeds in a layer-by-layer manner. In each layer, up to three analyis
+    steps are performed, namely a fit of the fluxes, a fit of the PSF variables, and
+    a fit of the coordinates. The former step  is performed via linear least squares
+    optimization, the latter two steps use a Levenberg-Marquard algorithm. The three
+    steps are iterated until convergence. Once the analysis has completed, the results
+    are written to the PRM-file.""")
+    p.set_defaults(func=cubefit)
 
 
 def cubefit(pampelmuse):
@@ -47,58 +73,7 @@ def cubefit(pampelmuse):
     logging.info("Obtaining information on sources in the field...")
     
     # Source catalogue
-    sources = Sources(data=pampelmuse.hdulist["SOURCES"])
-
-    # Spectra
-    try:
-        i = pampelmuse.hdulist.index_of("SPECTRA")
-        try:
-            j = pampelmuse.hdulist.index_of("SIGMASPC")
-            sources.open_spectra_hdu(pampelmuse.hdulist[i], sigma_hdu=pampelmuse.hdulist[j])
-        except KeyError:
-            sources.open_spectra_hdu(pampelmuse.hdulist[i], sigma_hdu=None)
-    except KeyError:
-        logging.critical("No spectra (HDU 'SPECTRA') have been provided.")
-
-    if sources.ndisp != pampelmuse.ifs_data.ndisp:
-        logging.error("PRM-file and IFS data have incompatible dispersion dimensions.")
-
-    # Positions
-    logging.info("Obtaining information about source coordinates...")
-
-    try:
-        i = pampelmuse.hdulist.index_of("POSITIONS")
-        sources.open_coordinates_hdu(pampelmuse.hdulist[i])
-    except KeyError:
-        pass
-
-    try:
-        i = pampelmuse.hdulist.index_of("POSPARS")
-        sources.transformation = Transformation(hdu=pampelmuse.hdulist[i])
-    except KeyError:
-        logging.warning("No coord. transf. (HDU 'POSPARS') detected.")
-        sources.ifs_coordinates_free[sources.status < 4] = True
-    sources.info()
-
-    # Initializing PSF properties
-    logging.info("Obtaining PSF properties...")
-    try:
-        i = pampelmuse.hdulist.index_of("PSFPARS")
-        psf_attributes = Variables(hdu=pampelmuse.hdulist[i])
-    except KeyError:  # otherwise, assume Gaussian, round with FWHM=3.0pixel
-        logging.warning("No HDU 'PSFPARS' found. Using default PSF.")
-        
-        kwargs = {"profile": pampelmuse.pfsftype}
-        free = []
-        i = 0
-        while hasattr(pampelmuse.psf, "parname{0}".format(i)):
-            kwargs[getattr(pampelmuse.psf, "parname{0}".format(i))] = getattr(pampelmuse.psf, "parvalue{0}".format(i))
-            free.append(getattr(pampelmuse.psf, "freepar{0}".format(i)))
-            i += 1
-        psf_attributes = Variables(**kwargs)
-        psf_attributes.free = np.atleast_1d(free)
-
-    psf_attributes.info()
+    sources, psf_attributes = open_prm(filename=pampelmuse.filename, ndisp=pampelmuse.ifs_data.wave.size)
 
     # Check the range of layers to be fitted 
     try:
@@ -113,56 +88,17 @@ def cubefit(pampelmuse):
     # start fitting process:
     logging.info("Starting fit process...")
 
-    if pampelmuse.useqt:
-        from PyQt4 import QtGui
-        from pampelmuse.core.qfit_array import QStarFit
-        app = QtGui.QApplication(sys.argv)
-        fitter = QStarFit(ifs_data=pampelmuse.ifs_data, sources=sources, psf_attributes=psf_attributes,
-                          maxrad=pampelmuse.psfrad, osradius=2, osfactor=5)
-    else:
-        fitter = StarFit(ifs_data=pampelmuse.ifs_data, sources=sources, psf_attributes=psf_attributes,
-                         maxrad=pampelmuse.psfrad, osradius=2, osfactor=5)
+    fitter = FitCube(ifs_data=pampelmuse.ifs_data, sources=sources, psf_attributes=psf_attributes,
+                     maxrad=pampelmuse.psfrad)
 
-    fitter(layerrange=(start, stop), assmallifu=pampelmuse.smallifu, jumpstart=pampelmuse.jumpstart,
-           ncpu=pampelmuse.cpucount, maxiter=pampelmuse.maxiter, use_sigma=pampelmuse.usesigma,
-           nbin=pampelmuse.layerbin)
+    fitter(layerrange=(start, stop), n_cpu=pampelmuse.cpucount, maxiter=pampelmuse.maxiter,
+           use_variances=pampelmuse.usesigma, n_bin=pampelmuse.layerbin)
 
-    if pampelmuse.useqt:
-        app.exec_()
-        if not fitter.save:
-            sys.exit()
-        
     logging.info("Saving results...")
 
-    # storing spectra
-    pampelmuse.hdulist["SPECTRA"] = sources.make_spectra_hdu()
-
-    # Store IFU coordinates (only if they have been fitted)
-    if (sources.ifs_coordinates_free & ~sources.ifs_coordinates_fitted).any():
-        try:
-            pampelmuse.hdulist["POSITIONS"] = sources.make_ifs_coordinates_hdu()
-        except KeyError:
-            pampelmuse.hdulist.append(sources.make_ifs_coordinates_hdu())
-
-    # store coordinate transformation (only if it has been fitted)
-    elif sources.transformation.contains_free_parameters:
-        try:
-            pampelmuse.hdulist["POSPARS"] = sources.transformation.make_hdu()
-        except KeyError:
-            pampelmuse.hdulist.append(5, sources.transformation.make_hdu())
-
-    # store PSF (only if it as been fitted)
-    if psf_attributes.contains_free_parameters:
-        try:
-            pampelmuse.hdulist["PSFPARS"] = psf_attributes.make_hdu()
-        except KeyError:
-            pampelmuse.hdulist.append(psf_attributes.make_hdu())
-
-    # log status of analysis and create header of Primary HDU
+    # log status of analysis
     pampelmuse.cubefit.utc = datetime.datetime.utcnow().strftime("%y-%m-%d %H:%M:%S")
     pampelmuse.cubefit.revision = __revision__
     pampelmuse.cubefit.status = "SUCCESS"
-    pampelmuse.makeHeader(hdu=pampelmuse.hdulist[0])
-    
-    # Save the file
-    pampelmuse.hdulist.flush()
+
+    save_prm(sources, psf_attributes, filename=pampelmuse.filename, header=pampelmuse.makeHeader())

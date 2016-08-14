@@ -1,7 +1,25 @@
 """
 dynamic_plot_canvas.py
 ======================
+Copyright 2013-2016 Sebastian Kamann
 
+This file is part of PampelMuse.
+
+PampelMuse is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+any later version.
+
+PampelMuse is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with PampelMuse. If not, see <http://www.gnu.org/licenses/>.
+
+
++++
 Provides
 --------
 class pampelmuse.graphics.dynamic_plot_canvas.DynamicPlotCanvas
@@ -20,39 +38,33 @@ The class DynamicPlotCanvas is used by the PampelMuse GUI to show the
 top panel, named 'Spectrum Viewer'.
 
 Latest SVN revision
--------------------
-295, 2016/01/13
+-------------------4
+360, 2016/08/12
 """
-__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 295
-
 import inspect
 import logging
-from PyQt4 import QtCore
-
 import matplotlib.pyplot
+import numpy as np
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from matplotlib.patches import Rectangle
 from matplotlib.transforms import blended_transform_factory
-
-
+from matplotlib.widgets import Cursor, SpanSelector
+from PyQt4 import QtCore
 matplotlib.pyplot.rcParams["axes.linewidth"] = 1.5
+
+
+__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
+__revision__ = 360
 
 
 class DynamicPlotCanvas(FigureCanvasQTAgg):
     """
-    This class can be used to display a matplotlib lineplot and
-    interact with it. The possible types of interaction include
-    event handling and modifications of the data. It currently
-    supports three modes of event handling:
-    normal: by mouse clicks and movements, horizontal ranges can
-            be selected.
-    zoom: One can zoom in and out of the plot using mouse clicks
-          and movements.
-    pan: Move mouse over axes with button pressed to change x- and
-         y-limits while keeping the size of the window.
+    This class can be used to display a matplotlib lineplot and interact with
+    it by selecting or deselecting horizontal ranges. In PampelMuse, this
+    feature is used to create a spectrumMask in wavelength space.
     """
+    background = None
 
     def __init__(self, parent=None, width=9, height=5, dpi=100):
         """
@@ -71,8 +83,9 @@ class DynamicPlotCanvas(FigureCanvasQTAgg):
         """
         # prepare figure canvas
         self.fig = Figure(figsize=(width, height), dpi=dpi)
-        self.axes = self.fig.add_axes((0.15, 0.20, 0.82, 0.76))
         self.canvas = self.fig.canvas
+
+        self.axes = self.fig.add_axes((0.15, 0.20, 0.82, 0.76))
 
         super(DynamicPlotCanvas, self).__init__(self.fig)
         self.setParent(parent)
@@ -80,42 +93,21 @@ class DynamicPlotCanvas(FigureCanvasQTAgg):
         # dictionary to keep track of the data sets that are plotted.
         self.thePlots = {}
 
-        # a vertical line that can later be used to highlight the cursor position on the canvas.
-        self.vLine, = self.axes.plot([0.5, 0.5], [0, 1], ls='--', color='r')
-        self.vLine.set_animated(True)  # make animated for smoother interaction
+        # a vertical line is used to highlight the cursor position on the canvas.
+        self.cursor = Cursor(self.axes, color='r', lw=1.5, ls='--', horizOn=False, vertOn=True, useblit=True)
 
-        # prepare structure to hold a set of rectangles to be overplotted on th data. In PampelMuse, this is used to
-        # display masks.
+        # define two selectors for adding a horizontal range to the rectangles or subtracting it.
+        self.selector = SpanSelector(self.axes, self.on_select, direction='horizontal', useblit=True,
+                                     rectprops=dict(facecolor='red', alpha=0.5), button=1)
+        self.deselector = SpanSelector(self.axes, self.on_deselect, direction='horizontal', useblit=True,
+                                       rectprops=dict(facecolor='0.5', alpha=0.5), button=3)
 
+        # prepare structure to hold the set of rectangles that are overplotted on th data.
         # to achieve axes units (bottom to top = 0 to 1) in  vertical direction and data units (wavelength) in
-        # horizontal direction:
+        # horizontal direction, we define a corresponding transform. Also a list of IDs is initialized to keep
+        # track of the number of available rectangles and their names.
         self.bar_transform = blended_transform_factory(self.axes.transData, self.axes.transAxes)
-        self.bar_gid = []  # will contain the ID of every rectangle
-
-        # the mask selector. It will be spanned by mouse movements over the canvas while the left button is pressed.
-        selector = Rectangle((0., 0.), width=0., height=1., alpha=0.5, fc='r', lw=0, transform=self.bar_transform,
-                             gid="selector")
-        self.axes.add_patch(selector)
-        self.bar_gid.append(selector)
-
-        # The frame used to indicate a zoom into the data.
-        zoomframe = Rectangle((0., 0.), width=0., height=0., fc="None", lw=1.0, ls="solid", ec="0.5",
-                              transform=self.axes.transData, gid="zoomFrame")
-        self.axes.add_patch(zoomframe)
-        self.bar_gid.append(zoomframe.get_gid())
-
-        # Handle events when axes instance is left or entered
-        self.enterAxes = self.fig.canvas.mpl_connect('axes_enter_event', self._uponEntering)
-        self.leaveAxes = self.fig.canvas.mpl_connect('axes_leave_event', self._uponLeaving)
-
-        # The initial data dimensions of the axes instance
-        self.fullXRange = (0, 1)
-        self.fullYRange = (0, 1)
-
-        # start in normal mode (zoom and pan switched off)
-        self.zoom = False
-        self.pan = False
-        self.inEvent = False  # will be True if selection, pan or zoom is going on
+        self.bar_gid = ['selector', 'deselector']  # will contain the ID of every rectangle
 
         self.draw()
 
@@ -135,19 +127,10 @@ class DynamicPlotCanvas(FigureCanvasQTAgg):
         # for debugging: check where the call was triggered
         curframe = inspect.currentframe()
         calframe = inspect.getouterframes(curframe, 2)
-        logging.debug(
-            "call to draw() triggered by: {0} in {1}[@{2}]".format(calframe[1][3], calframe[1][1], calframe[1][2]))
+        logging.debug("call to draw() triggered by: {0} in {1}[@{2}]".format(
+            calframe[1][3], calframe[1][1], calframe[1][2]))
 
-        # show animated part - needs to be called because draw() only plots static parts
-        if self.vLine.get_animated():
-            self.axes.draw_artist(self.vLine)
-
-            # and blit just the redrawn (e.g. animated) area
-            # self.figure.canvas.blit(self.axes.bbox)
-            # for some reason I do not understand, uncommenting the above line causes the plot to not update the labels
-            # and ticks of the axes until the GUI is out of focus...
-
-    def addData(self, name, xData, yData, **kwargs):
+    def addData(self, name, x_data, y_data, **kwargs):
         """
         Add a new data set to the axes.
         
@@ -155,9 +138,9 @@ class DynamicPlotCanvas(FigureCanvasQTAgg):
         ----------
         name : string
             Each plot must bbe given a name that is used to identify it.
-        xData : array_like
+        x_data : array_like
             The data along the x-axis.
-        yData : array_like
+        y_data : array_like
             The data along the y-axis. Must of course have the same length
             as 'xData'.
         kwargs
@@ -165,7 +148,7 @@ class DynamicPlotCanvas(FigureCanvasQTAgg):
             command that is used to initialize the data plot.
         """
         # plot the data using matplotlib
-        self.thePlots[name] = self.axes.plot(xData, yData, **kwargs)[0]
+        self.thePlots[name] = self.axes.plot(x_data, y_data, **kwargs)[0]
 
         # set minor ticks on x- and y-axis on
         self.axes.minorticks_on()
@@ -190,7 +173,7 @@ class DynamicPlotCanvas(FigureCanvasQTAgg):
         width : float
             The width of the rectangle in data units
         height : float, optional
-            The height of the rectangle in realtive units, i.e height=1
+            The height of the rectangle in relative units, i.e height=1
             means from bottom to top.
         kwargs
             Any keyword argument is passed on to the matplotlib.patches.Rectangle
@@ -202,6 +185,7 @@ class DynamicPlotCanvas(FigureCanvasQTAgg):
             kwargs["gid"] = "rect{0}".format(len(self.axes.patches))
 
         # check if rectangle is a new one or an update to an existing one using the identifier.
+
         if kwargs["gid"] in self.bar_gid:  # update existing rectangle
             i = self.bar_gid.index(kwargs["gid"])
             self.axes.patches[i].set_xy(xy)
@@ -228,7 +212,7 @@ class DynamicPlotCanvas(FigureCanvasQTAgg):
         except IndexError:  # otherwise complain
             logging.error("No rectangle instance has gid '{0}'.".format(gid))
 
-    def updateData(self, name, xData=None, yData=None, xLabel=None, yLabel=None, updateYRange=True):
+    def updateData(self, name, x_data=None, y_data=None, x_label=None, y_label=None, update_y_range=True):
         """
         Update an existing data plot.
         
@@ -236,22 +220,22 @@ class DynamicPlotCanvas(FigureCanvasQTAgg):
         ----------
         name : string
             The identifier of the data set to be updated.
-        xData : array_like, optional
+        x_data : array_like, optional
             The new data along the x-axis. Note that it can have a different size
             than the current data.
-        yData : array_like, optional
+        y_data : array_like, optional
             The new data along the y-axis. Must of course have the same length
             as the new 'xData'.
-        xLabel : string, optional
+        x_label : string, optional
             The new label for the x-axis.
-        yLabel : string, optional
+        y_label : string, optional
             The new label for the y-axis.
-        updateYRange : bool, optional
+        update_y_range : bool, optional
             If this flag is set, the axes limits will be adjusted so that all the
             new data is shown.
         """
         # return if no new data is provided
-        if xData is None and yData is None:
+        if x_data is None and y_data is None:
             return
 
         # check if plot to be updated exists
@@ -259,31 +243,42 @@ class DynamicPlotCanvas(FigureCanvasQTAgg):
             logging.error("Cannot update plot '{0}': unknown identifier.".format(name))
 
         # update data
-        if xData is not None:
-            self.thePlots[name].set_xdata(xData)
-        if yData is not None:
-            self.thePlots[name].set_ydata(yData)
-
-        # reset vertical line used to highlight cursor position
-        self.vLine.set_data([], [])
+        if x_data is not None:
+            self.thePlots[name].set_xdata(x_data)
+        if y_data is not None:
+            self.thePlots[name].set_ydata(y_data)
 
         for i in xrange(len(self.axes.patches)):
             self.axes.patches[i].set_height(0)
 
         # update axes limits if requested
-        if updateYRange:
-            self.axes.axes.relim()
-            self.axes.autoscale(tight=False)
+        if update_y_range:
+            xlim = (np.inf, -np.inf)
+            ylim = (np.inf, -np.inf)
+            for plot in self.thePlots.values():
+                if len(plot.get_xdata()) == 0:
+                    continue
+                xdata = plot.get_xdata()
+                xlim = (min(xlim[0], np.nanmin(xdata)), max(xlim[1], np.nanmax(xdata)))
+                ydata = plot.get_ydata()
+                ylim = (min(ylim[0], np.nanmin(ydata)), max(ylim[1], np.nanmax(ydata)))
+            if xlim[0] == xlim[1]:
+                xlim = (xlim[0] - 0.1, xlim[0] + 0.1)
+            self.axes.set_xlim(xlim)
+            if ylim[0] == ylim[1]:
+                ylim = (ylim[0] - 0.1, ylim[0] + 0.1)
+            self.axes.set_ylim(ylim)
 
-            self.fullXRange = self.axes.get_xlim()
-            self.fullYRange = self.axes.get_ylim()
+            # somehow this does not work:
+            # self.axes.axes.relim()  # widget.Cursor instance seems to corrupt auto-scaling of axes
+            # self.axes.autoscale()
 
         # update labels if requested
-        if xLabel is not None:
-            self.axes.set_xlabel(xLabel, fontsize=20)
+        if x_label is not None:
+            self.axes.set_xlabel(x_label, fontsize=20)
 
-        if yLabel is not None:
-            self.axes.set_ylabel(yLabel, fontsize=20)
+        if y_label is not None:
+            self.axes.set_ylabel(y_label, fontsize=20)
 
         # modify height of rectangles.
         for i in xrange(len(self.axes.patches)):
@@ -291,241 +286,52 @@ class DynamicPlotCanvas(FigureCanvasQTAgg):
 
         self.draw()  # update canvas.
 
-    def _uponEntering(self, event):
+    def on_select(self, x_click, x_release):
         """
-        Handle event when the axes instance is entered by mouse.
-        
+        This method is the callback function for the selection of an
+        x-range. It finds the minimum and maximum x-values of the selection
+        and emits a signal indicating that an x-range has been selected.
+
         Parameters
         ----------
-        event : a matplotlib.backend_bases.LocationEvent instance
-            The event that triggered the method call.
+        x_click : float
+            The x-value were the selection was started.
+        x_release : float
+            The x-axis were the selection was completed.
+
+        Returns
+        -------
+        Nothing is returned but a QtCore.SIGNAL is emitted that contains the
+        min. and max. x-values of the selection and a flag indicating that
+        the selection was positive.
+
         """
+        x_min = min(x_click, x_release)
+        x_max = max(x_click, x_release)
+        logging.info('Selected range: {0:.1f} - {1:.1f}'.format(x_min, x_max))
+        self.emit(QtCore.SIGNAL("rangeSelected"), *[(x_min, x_max), True])
 
-        if event.inaxes != self.axes:
-            return  # do noting if wrong axes were entered
-
-        try:  # disconnect handlers that might still be active
-            self.fig.canvas.mpl_disconnect(self.Init)
-            self.fig.canvas.mpl_disconnect(self.Motion)
-        except:
-            pass
-
-        # initialize handlers for mouse movement & click unless a zoom or pan event is still active
-        if not self.inEvent:
-            self.Init = self.fig.canvas.mpl_connect('button_press_event', self._grabCoordsInit)
-            self.Motion = self.fig.canvas.mpl_connect('motion_notify_event', self._motionNotify)
-
-    def _uponLeaving(self, event):
+    def on_deselect(self, x_click, x_release):
         """
-        Handle event when the axes instance is left by mouse.
-        
+        This method is the callback function for the deselection of an
+        x-range. It finds the minimum and maximum x-values of the deselection
+        and emits a signal indicating that an x-range has been deselected.
+
         Parameters
         ----------
-        event : a matplotlib.backend_bases.LocationEvent instance
-            The event that triggered the method call.
+        x_click : float
+            The x-value were the deselection was started.
+        x_release : float
+            The x-axis were the deselection was completed.
+
+        Returns
+        -------
+        Nothing is returned but a QtCore.SIGNAL is emitted that contains the
+        min. and max. x-values of the deselection and a flag indicating that
+        the selection was negative.
+
         """
-
-        # reset cursor indicator
-        self.vLine.set_data([], [])
-        self.axes.draw_artist(self.vLine)
-
-        if event.inaxes != self.axes:
-            return
-
-        # disconnect handlers for mouse movement and mouse clicks
-        self.fig.canvas.mpl_disconnect(self.Init)
-        self.fig.canvas.mpl_disconnect(self.Motion)
-
-    def _grabCoordsInit(self, event):
-        """
-        Handle event when a mouse button is pressed over the axis
-        instance.
-        What precisely the method does depends on the active mode.
-        In any case, the routine will keep track opf the x- & y-
-        coordinates where the event took place.
-        
-        Parameters
-        ----------
-        event : a matplotlib.backend_bases.MouseEvent instance
-            The event that triggered the method call.
-        """
-        # change status to make sure no second event is triggered
-        self.inEvent = True
-
-        #  Only one such event is allowed.
-        self.figure.canvas.mpl_disconnect(self.Init)
-
-        # disable normal motion event
-        self.figure.canvas.mpl_disconnect(self.Motion)
-
-        self.button = event.button
-        self.xInit = event.xdata
-        self.yInit = event.ydata
-
-        # In zoom mode, behaviour depends on clicked mouse button:
-        #  * right mouse button causes recovery of original view.
-        #  * left mouse button: animate zoom rectangle and set its origin to the current mouse location
-        if self.zoom:
-            if event.button == 3:
-                self.axes.set_xlim(self.fullXRange)
-                self.axes.set_ylim(self.fullYRange)
-                self.axes.patches[1].set_width(0)
-                self.axes.patches[1].set_height(0)
-                self.draw()
-                self.inEvent = False  # event ends immediately
-                return
-            self.axes.patches[1].set_animated(True)
-            self.axes.patches[1].set_xy((self.xInit, self.yInit))
-        elif self.pan:  # for panning, we need current axis limits
-            self.panWindowX = self.axes.get_xlim()
-            self.panWindowY = self.axes.get_ylim()
-        else:  # in normal mode, set start coordinates for 'selector' rectangle and animate zoom rectangle
-            self.axes.patches[0].set_animated(True)
-            self.axes.patches[0].set_xy((self.xInit, 0))
-
-        # initialize actions for mouse movement with button pressed and release of button
-        self.MotionKey = self.fig.canvas.mpl_connect('motion_notify_event', self._motionNotifyKeyPressed)
-        self.Final = self.fig.canvas.mpl_connect('button_release_event', self._grabCoordsFinal)
-
-    def _grabCoordsFinal(self, event):
-        """
-        Handle event when a mouse button is released. This event implies
-        that a selection (a zoom window, a masked range or a pan) is completed.
-        So we reset the status of the axis to be prepared for the start of the
-        next selection. In zoom mode, the axis limits are updated to the selected
-        window.
-        
-        Parameters
-        ----------
-        event : a matplotlib.backend_bases.MouseEvent instance 
-            The event that triggered the method call.
-        """
-        # check if the same button was released that triggered the initialization call to '_grabCoordsInit'
-        if event.button != self.button:  return
-
-        # disconnect handlers for button release and movement with mouse button pressed.
-        self.fig.canvas.mpl_disconnect(self.Final)
-        self.fig.canvas.mpl_disconnect(self.MotionKey)
-
-        # get coordinates where event took place and edges of selected rectangle.
-        if event.inaxes == self.axes:
-            self.xFinal = event.xdata
-            self.yFinal = event.ydata
-
-        xmin, xmax = sorted([self.xInit, self.xFinal])
-        ymin, ymax = sorted([self.yInit, self.yFinal])
-
-        if self.zoom:  # if zoom, change limits to selected window
-            if xmin == xmax or ymin == ymax:
-                logging.error("Area selection must be 2dimensional.")
-            else:
-                self.axes.set_xlim(xmin, xmax)
-                self.axes.set_ylim(ymin, ymax)
-                self.draw()
-
-            # recover initial state of zoom window
-            self.axes.patches[1].set_width(0)
-            self.axes.patches[1].set_height(0)
-
-            # turn off animation of zoom rectangle
-            self.axes.patches[1].set_animated(False)
-
-        elif not self.pan:  # if normal mode was one, trigger signal about a newly selected range
-            self.emit(QtCore.SIGNAL("rangeSelected"), *[(xmin, xmax), event.button == 1])
-
-            # recover initial state of selection rectangle
-            self.axes.patches[0].set_width(0)
-
-            # turn off animation of zoom rectangle
-            self.axes.patches[0].set_animated(False)
-
-        # initialize handler for next selection event
-        self.Init = self.fig.canvas.mpl_connect('button_press_event', self._grabCoordsInit)
-
-        # intialize handler for normal motions again
-        self.Motion = self.fig.canvas.mpl_connect('motion_notify_event', self._motionNotify)
-
-        # no event taking place anymore
-        self.inEvent = False
-
-    def _motionNotify(self, event):
-        """
-        Handle event when mouse is moved over the axis without
-        a button pressed. The position of the vertical line is
-        updated to keep track of the mouse position.
-        
-        Parameters
-        ----------
-        event : a matplotlib.backend_bases.MouseEvent instance
-            The event that triggered the method call.
-        """
-
-        if self.zoom or self.pan:
-            return
-        if event.inaxes != self.axes:
-            return
-
-        self.vLine.set_data([event.xdata, event.xdata], self.axes.get_ylim())
-
-        # restore the background region
-        self.figure.canvas.restore_region(self.background)
-
-        # redraw just the current rectangle
-        self.axes.draw_artist(self.vLine)
-
-        # blit just the redrawn area
-        self.figure.canvas.blit(self.axes.bbox)
-
-    def _motionNotifyKeyPressed(self, event):
-        """
-        Handle event when mouse is moved over the axis with
-        a button pressed. The behavior depends on the selected
-        mode. In normal mode, a rectangle indicates the selected
-        range along the x-axis. In zoom mode, a rectangle is
-        spanned indicating the selected window. And in pan mode,
-        the x- and y-limits of the plots are updated while the
-        mouse moves.
-        
-        Parameters
-        ----------
-        event : a matplotlib.backend_bases.MouseEvent instance
-            The event that triggered the method call.
-        """
-
-        if event.inaxes != self.axes:
-            return
-        if self.thePlots == {}:
-            return
-
-        # in case the button is released outside the axes, we use the coordinates of the last motion event inside the
-        # axis
-        self.xFinal = event.xdata
-        self.yFinal = event.ydata
-
-        if self.pan:  # change x- and y-limits
-            dx = (self.xInit - self.xFinal) / 2.
-            dy = (self.yInit - self.yFinal) / 2.
-            self.axes.set_xlim(self.panWindowX[0] + dx, self.panWindowX[1] + dx)
-            self.axes.set_ylim(self.panWindowY[0] + dy, self.panWindowY[1] + dy)
-
-            # in panning mode, we need to redraw complete canvas (slow!)
-            self.draw()
-
-        else:  # in other modes, we only redraw animated elements (fast!)
-            if self.zoom:  # span up zoom window
-                self.axes.patches[1].set_width(self.xFinal - self.xInit)
-                self.axes.patches[1].set_height(self.yFinal - self.yInit)
-            else:  # modify width of 'selector' rectangle
-                self.axes.patches[0].set_width(self.xFinal - self.xInit)
-
-            # restore the background region
-            self.figure.canvas.restore_region(self.background)
-
-            # redraw just the current rectangle
-            if self.zoom:
-                self.axes.draw_artist(self.axes.patches[1])
-            else:
-                self.axes.draw_artist(self.axes.patches[0])
-
-            # blit just the redrawn area
-            self.figure.canvas.blit(self.axes.bbox)
+        x_min = min(x_click, x_release)
+        x_max = max(x_click, x_release)
+        logging.info('Deselected range: {0:.1f} - {1:.1f}'.format(x_min, x_max))
+        self.emit(QtCore.SIGNAL("rangeSelected"), *[(x_min, x_max), False])

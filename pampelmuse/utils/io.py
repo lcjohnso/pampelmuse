@@ -1,7 +1,25 @@
 """
 io.py
 =====
+Copyright 2013-2016 Sebastian Kamann
 
+This file is part of PampelMuse.
+
+PampelMuse is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+any later version.
+
+PampelMuse is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with PampelMuse. If not, see <http://www.gnu.org/licenses/>.
+
+
++++
 Provides
 --------
 pampelmuse.functions.io.read_asciifile
@@ -20,17 +38,17 @@ from pampelmuse.core.io import read_asciifile
 
 Latest SVN revision
 -------------------
-279, 2015/08/21
+334, 2016/07/26
 """
-__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 279
-
-
 import logging
 import re
 
 
-def read_asciifile(filename, usenames=None, usecols=None, optional="", aliases={}):
+__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
+__revision__ = 334
+
+
+def read_asciifile(filename, usenames=None, usecols=None, optional="", aliases=None):
     """
     Reads an ascii file and stores its data in a dictionary. The input
     must be a plain ascii file containing the data in well separated
@@ -75,6 +93,8 @@ def read_asciifile(filename, usenames=None, usecols=None, optional="", aliases={
 
     indices = {}
     output = {}
+    if aliases is None:
+        aliases = {}
 
     re_header = re.compile(r"([a-zA-Z_]\w*)")  # regular expression matching the header line (if any); currently each
     # name must start with a letter and may only include alpha-numeric characters

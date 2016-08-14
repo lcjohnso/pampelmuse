@@ -6,9 +6,15 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>875</width>
-    <height>808</height>
+    <width>950</width>
+    <height>914</height>
    </rect>
+  </property>
+  <property name="minimumSize">
+   <size>
+    <width>950</width>
+    <height>900</height>
+   </size>
   </property>
   <property name="windowTitle">
    <string>PampelMuse</string>
@@ -19,8 +25,8 @@
      <rect>
       <x>0</x>
       <y>0</y>
-      <width>873</width>
-      <height>742</height>
+      <width>951</width>
+      <height>831</height>
      </rect>
     </property>
     <layout class="QVBoxLayout" name="centralVBox">
@@ -37,6 +43,12 @@
         <layout class="QHBoxLayout" name="spectrumHeaderHBox">
          <item>
           <widget class="QLabel" name="spectrumHeaderLabel">
+           <property name="minimumSize">
+            <size>
+             <width>0</width>
+             <height>40</height>
+            </size>
+           </property>
            <property name="font">
             <font>
              <weight>75</weight>
@@ -45,38 +57,7 @@
             </font>
            </property>
            <property name="text">
-            <string>Spectrum Viewer</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QToolButton" name="spectrumZoom">
-           <property name="enabled">
-            <bool>true</bool>
-           </property>
-           <property name="text">
-            <string>...</string>
-           </property>
-           <property name="icon">
-            <iconset resource="pampelmuse_gui.qrc">
-             <normaloff>:/icons/icons/zoom.png</normaloff>:/icons/icons/zoom.png</iconset>
-           </property>
-           <property name="checkable">
-            <bool>true</bool>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QToolButton" name="spectrumPan">
-           <property name="text">
-            <string>...</string>
-           </property>
-           <property name="icon">
-            <iconset resource="pampelmuse_gui.qrc">
-             <normaloff>:/icons/icons/pan.png</normaloff>:/icons/icons/pan.png</iconset>
-           </property>
-           <property name="checkable">
-            <bool>true</bool>
+            <string>Spectrum View</string>
            </property>
           </widget>
          </item>
@@ -84,6 +65,12 @@
        </item>
        <item>
         <widget class="QWidget" name="spectrumWidget" native="true">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Maximum" vsizetype="Maximum">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
          <property name="minimumSize">
           <size>
            <width>600</width>
@@ -148,7 +135,7 @@
             <string>...</string>
            </property>
            <property name="icon">
-            <iconset resource="pampelmuse_gui.qrc">
+            <iconset resource="../../../../trunk/pampelmuse/graphics/pampelmuse_gui.qrc">
              <normaloff>:/icons/icons/go.png</normaloff>:/icons/icons/go.png</iconset>
            </property>
           </widget>
@@ -230,7 +217,7 @@
             <string>...</string>
            </property>
            <property name="icon">
-            <iconset resource="pampelmuse_gui.qrc">
+            <iconset resource="../../../../trunk/pampelmuse/graphics/pampelmuse_gui.qrc">
              <normaloff>:/icons/icons/go.png</normaloff>:/icons/icons/go.png</iconset>
            </property>
           </widget>
@@ -254,6 +241,12 @@
           <layout class="QHBoxLayout" name="refHeaderHBox">
            <item>
             <widget class="QLabel" name="refHeaderLabel">
+             <property name="minimumSize">
+              <size>
+               <width>0</width>
+               <height>40</height>
+              </size>
+             </property>
              <property name="font">
               <font>
                <weight>75</weight>
@@ -266,76 +259,14 @@
              </property>
             </widget>
            </item>
-           <item>
-            <widget class="QToolButton" name="refBack">
-             <property name="toolTip">
-              <string>Go to last view</string>
-             </property>
-             <property name="text">
-              <string>...</string>
-             </property>
-             <property name="icon">
-              <iconset resource="pampelmuse_gui.qrc">
-               <normaloff>:/icons/icons/back.png</normaloff>:/icons/icons/back.png</iconset>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QToolButton" name="refForth">
-             <property name="toolTip">
-              <string>Go to next view</string>
-             </property>
-             <property name="text">
-              <string>...</string>
-             </property>
-             <property name="icon">
-              <iconset resource="pampelmuse_gui.qrc">
-               <normaloff>:/icons/icons/forth.png</normaloff>:/icons/icons/forth.png</iconset>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QToolButton" name="refZoom">
-             <property name="toolTip">
-              <string>Enter/leave zoom mode</string>
-             </property>
-             <property name="text">
-              <string>...</string>
-             </property>
-             <property name="icon">
-              <iconset resource="pampelmuse_gui.qrc">
-               <normaloff>:/icons/icons/zoom.png</normaloff>:/icons/icons/zoom.png</iconset>
-             </property>
-             <property name="checkable">
-              <bool>true</bool>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QToolButton" name="refPan">
-             <property name="toolTip">
-              <string>Enter/leave pan mode</string>
-             </property>
-             <property name="text">
-              <string>...</string>
-             </property>
-             <property name="icon">
-              <iconset resource="pampelmuse_gui.qrc">
-               <normaloff>:/icons/icons/pan.png</normaloff>:/icons/icons/pan.png</iconset>
-             </property>
-             <property name="checkable">
-              <bool>true</bool>
-             </property>
-            </widget>
-           </item>
           </layout>
          </item>
          <item>
           <widget class="QWidget" name="refViewWidget" native="true">
            <property name="minimumSize">
             <size>
-             <width>250</width>
-             <height>250</height>
+             <width>300</width>
+             <height>300</height>
             </size>
            </property>
           </widget>
@@ -544,6 +475,12 @@
           <layout class="QHBoxLayout" name="ifuHeadHBox">
            <item>
             <widget class="QLabel" name="ifuHeadLabel">
+             <property name="minimumSize">
+              <size>
+               <width>0</width>
+               <height>40</height>
+              </size>
+             </property>
              <property name="font">
               <font>
                <weight>75</weight>
@@ -556,80 +493,41 @@
              </property>
             </widget>
            </item>
+          </layout>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="ifuWidgetHBox">
            <item>
-            <widget class="QToolButton" name="ifuBack">
-             <property name="text">
-              <string>...</string>
-             </property>
-             <property name="icon">
-              <iconset resource="pampelmuse_gui.qrc">
-               <normaloff>:/icons/icons/back.png</normaloff>:/icons/icons/back.png</iconset>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QToolButton" name="ifuForth">
-             <property name="text">
-              <string>...</string>
-             </property>
-             <property name="icon">
-              <iconset resource="pampelmuse_gui.qrc">
-               <normaloff>:/icons/icons/forth.png</normaloff>:/icons/icons/forth.png</iconset>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QToolButton" name="ifuZoom">
-             <property name="text">
-              <string>...</string>
-             </property>
-             <property name="icon">
-              <iconset resource="pampelmuse_gui.qrc">
-               <normaloff>:/icons/icons/zoom.png</normaloff>:/icons/icons/zoom.png</iconset>
-             </property>
-             <property name="checkable">
-              <bool>true</bool>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QToolButton" name="ifuPan">
-             <property name="text">
-              <string>...</string>
-             </property>
-             <property name="icon">
-              <iconset resource="pampelmuse_gui.qrc">
-               <normaloff>:/icons/icons/pan.png</normaloff>:/icons/icons/pan.png</iconset>
-             </property>
-             <property name="checkable">
-              <bool>true</bool>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QSpinBox" name="ifuLayerSelectSpinBox">
+            <widget class="QWidget" name="ifuViewWidget" native="true">
              <property name="sizePolicy">
-              <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
+              <sizepolicy hsizetype="Maximum" vsizetype="Maximum">
                <horstretch>0</horstretch>
                <verstretch>0</verstretch>
               </sizepolicy>
              </property>
-             <property name="maximum">
-              <number>9999</number>
+             <property name="minimumSize">
+              <size>
+               <width>300</width>
+               <height>300</height>
+              </size>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="Line" name="line_4">
+             <property name="orientation">
+              <enum>Qt::Vertical</enum>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QSlider" name="ifuLayerSelectSlider">
+             <property name="orientation">
+              <enum>Qt::Vertical</enum>
              </property>
             </widget>
            </item>
           </layout>
-         </item>
-         <item>
-          <widget class="QWidget" name="ifuViewWidget" native="true">
-           <property name="minimumSize">
-            <size>
-             <width>250</width>
-             <height>250</height>
-            </size>
-           </property>
-          </widget>
          </item>
          <item>
           <layout class="QHBoxLayout" name="ifuCutsHBox">
@@ -716,22 +614,34 @@
             <widget class="QLineEdit" name="ifuMaxCutLineEdit"/>
            </item>
            <item>
-            <widget class="Line" name="ifuLayerLine">
+            <widget class="Line" name="line_3">
              <property name="orientation">
               <enum>Qt::Vertical</enum>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QSpinBox" name="ifuLayerSelectSpinBox">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="maximumSize">
+              <size>
+               <width>130</width>
+               <height>40</height>
+              </size>
+             </property>
+             <property name="maximum">
+              <number>9999</number>
              </property>
             </widget>
            </item>
           </layout>
          </item>
         </layout>
-       </item>
-       <item>
-        <widget class="QSlider" name="ifuLayerSelectSlider">
-         <property name="orientation">
-          <enum>Qt::Vertical</enum>
-         </property>
-        </widget>
        </item>
       </layout>
      </item>
@@ -743,8 +653,8 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>875</width>
-     <height>30</height>
+     <width>950</width>
+     <height>23</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -809,7 +719,7 @@
     <bool>false</bool>
    </property>
    <property name="icon">
-    <iconset resource="pampelmuse_gui.qrc">
+    <iconset resource="../../../../trunk/pampelmuse/graphics/pampelmuse_gui.qrc">
      <normaloff>:/icons/icons/save.png</normaloff>:/icons/icons/save.png</iconset>
    </property>
    <property name="text">
@@ -821,7 +731,7 @@
   </action>
   <action name="actionQuit">
    <property name="icon">
-    <iconset resource="pampelmuse_gui.qrc">
+    <iconset resource="../../../../trunk/pampelmuse/graphics/pampelmuse_gui.qrc">
      <normaloff>:/icons/icons/exit.png</normaloff>:/icons/icons/exit.png</iconset>
    </property>
    <property name="text">
@@ -869,7 +779,7 @@
     <bool>false</bool>
    </property>
    <property name="icon">
-    <iconset resource="pampelmuse_gui.qrc">
+    <iconset resource="../../../../trunk/pampelmuse/graphics/pampelmuse_gui.qrc">
      <normaloff>:/icons/icons/save_as.png</normaloff>:/icons/icons/save_as.png</iconset>
    </property>
    <property name="text">
@@ -917,7 +827,7 @@
   </action>
  </widget>
  <resources>
-  <include location="pampelmuse_gui.qrc"/>
+  <include location="../../../../trunk/pampelmuse/graphics/pampelmuse_gui.qrc"/>
  </resources>
  <connections/>
 </ui>
