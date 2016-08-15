@@ -32,7 +32,7 @@ parameters.
 
 Latest SVN revision
 -------------------
-340, 2016/07/29
+365, 2016/08/15
 """
 import argparse
 import os
@@ -42,7 +42,7 @@ from pampelmuse.config import ModifyConfig, transform_string
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 340
+__revision__ = 365
 
 
 # get path to XML data containing configuration
@@ -130,7 +130,7 @@ if __name__ == "__main__":
 
     elif args.method == 'R':
         query_result = modifier.get_parameter(args.name)
-        print "{0:10} {1:15}  {2}".format(args.name.upper(), query_result[0], query_result[1])
+        print("{0:10} {1:15}  {2}".format(args.name.upper(), query_result[0], query_result[1]))
 
     if args.method in ["A", "U"]:
         shutil.copyfile(os.path.join(__configpath__, "PMparams.xml"),  os.path.join(__configpath__, "PMparams.xml.sav~"))

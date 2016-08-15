@@ -34,7 +34,7 @@ edge of the field o view.
 
 Latest SVN revision
 -------------------
-334, 2016/07/26
+365, 2016/08/15
 """
 import logging
 from scipy.spatial import ConvexHull
@@ -43,7 +43,8 @@ import numpy as np
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 334
+__revision__ = 365
+
 
 def pnt2line(pnt, start, end):
     """

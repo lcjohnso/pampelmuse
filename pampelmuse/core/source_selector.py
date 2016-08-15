@@ -33,7 +33,7 @@ Added
 
 Latest SVN revision
 -------------------
-361, 2016/08/14
+365, 2016/08/15
 """
 import logging
 import sys
@@ -45,15 +45,14 @@ from .background import BackgroundGrid
 from .sources import Sources
 from ..instruments import Instrument, Muse, MusePixtable
 from ..filters import ALIASES
-from ..psf.profiles import *
-from ..psf.variables import Variables
+from ..psf import *
 from ..utils.io import read_asciifile
 from ..utils.image import find_offset
 from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)'
-__revision__ = 361
+__revision__ = 365
 
 
 logger = logging.getLogger(__name__)
@@ -624,7 +623,7 @@ class SourceSelector(object):
             has been loaded.
         """
         from PyQt4 import QtGui
-        from ..graphics import PampelMuseGui
+        from ..graphics.pampelmuse_gui import PampelMuseGui
 
         logger.info("Preparing GUI for source identification...")
 

@@ -40,20 +40,18 @@ Added
 
 Latest SVN revision
 -------------------
-334 # 2016/07/26
+365 # 2016/08/15
 """
 import datetime
 import logging
 import os
-
 import numpy as np
 from astropy.io import fits
-
 from pampelmuse.utils.statistics import der_snr
 from ..utils.fits import open_prm
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 334
+__revision__ = 365
 
 
 def add_parser(parser):
