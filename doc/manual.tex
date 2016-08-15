@@ -12,7 +12,7 @@
 
 \bibpunct{(}{)}{;}{a}{,}{,}
 
-\title{PampelMuse}
+\title{PampelMuse, version 0.90}
 \author{Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)}
 \date{\today}
 
@@ -44,20 +44,16 @@
 
 \pampelmuse is written in \textit{python}. Currently version 2.7 of \textit{python} must be available on the system (because earlier versions lack the \texttt{argparse} module that is required). Support for \textit{python\,3} is planned for future revisions. In addition, several \textit{python} packages are required to run \pampelmuse:
 \begin{itemize}
- \item \textit{numpy}\footnote{\url{http://www.numpy.org/}}, tested for version 1.6.1
- \item \textit{scipy}\footnote{\url{http://scipy.org/}}, tested for versions $\geq$0.9, a version $\geq$0.10 is recommended because a faster algorithm for sparse matrix inversion was introduced in v0.10
- \item \textit{astropy}\footnote{\url{http://www.astropy.org/}}, tested for version 0.2.5
+ \item \textit{numpy}\footnote{\url{http://www.numpy.org/}}, tested for version 1.11.1
+ \item \textit{scipy}\footnote{\url{http://scipy.org/}}, tested for version 0.17, $\geq$0.10 required.
+ \item \textit{astropy}\footnote{\url{http://www.astropy.org/}}, tested for version 1.2.1, $\geq0.3$ required.
+  \item \textit{matplotlib}\footnote{\url{http://matplotlib.org/}}, tested for version 1.5.1.
 \end{itemize}
-Note that the versions of the packages listed above are just a recommendation. The code may also run with earlier versions. In addition to these packages, it is highly recommended that the following packages are available on the system:
+Note that the versions of the packages listed above are just a recommendation. The code may also run with earlier versions. In addition to these packages, it is highly recommended that the following package is available on the system:
 \begin{itemize}
- \item \textit{matplotlib}\footnote{\url{http://matplotlib.org/}}, tested for version 1.1.1
  \item \textit{PyQt4}\footnote{\url{http://www.riverbankcomputing.co.uk/software/pyqt/intro}}
 \end{itemize}
-These packages are required in order to work with the graphical user interface (GUI) that is provided with \pampelmuse. When starting \pampelmuse the availability of \textit{matplotlib} and \textit{PyQt4} is checked. If the packages are not available, the interactive mode of will be disabled. Finally, the packages listed below are not required to run the core packages of \pampelmuse, but some auxiliary routines depend on them:
-\begin{itemize}
- \item \textit{astLib}\footnote{\url{http://astlib.sourceforge.net/}}, tested for version 0.7.0
- \item \textit{pyraf}\footnote{\url{http://www.stsci.edu/institute/software_hardware/pyraf}}
-\end{itemize}
+\textit{PyQt4} is required in order to work with the graphical user interface (GUI) that is provided with \pampelmuse. When starting \pampelmuse the availability of \textit{PyQt4} is checked. If the package is not available, the interactive mode of will be disabled.
 
 \subsection{Download and Installation}
 
@@ -67,7 +63,7 @@ There are currently two possibilities to obtain \pampelmuse that will be describ
 \label{sec:install:tarball}
 
 A zipped version of the code is available at \url{http://path.to/pampelmuse.tar.gz}. After the download is completed, change to the folder containing the tarball and execute the following commands
-\shellcmd{tar -xvzf PampelMuse-0.17.1.tar.gz}
+\shellcmd{tar -xvzf PampelMuse-0.90.0.tar.gz}
 \shellcmd{cd PampelMuse-0.17.1/}
 \shellcmd{python setup.py install} \\
 This will install \pampelmuse to your default \textit{python} path. Note that the last step usually requires root privileges. If you do not have them, you can define a custom path using the \texttt{-{}-prefix} or \texttt{-{}-home} arguments. For example, the following command will install \pampelmuse to folders \texttt{\$HOME/lib/python} and \texttt{\$HOME/bin}:
@@ -87,16 +83,17 @@ If no error message is returned, you have installed \pampelmuse successfully!
 \subsubsection{Using the SVN repository}
 The maintenance of \pampelmuse is handled via an SVN repository located at \url{http://svn.astro.physik.uni-goettingen.de/pampelmuse}. The advantage of using the repository is that it allows you to always use the most recent version of the code. However, the disadvantage is that when updating the code I sometimes commit revisions that are not fully operational or have freshly introduced bugs. So when updating to a new revision, be sure to check the most recent log entries.
 
-To install from the SVN repository, first cd into the folder were you want to install the code (like \texttt{\~{}/tools/pampelmuse}) and check out the trunk of the repository:
-\shellcmd{svn co http://svn.astro.physik.uni-goettingen.de/pampelmuse/trunk} \\
+To install from the SVN repository, first cd into the folder were you want to install the code (like \texttt{\~{}/tools/}) and check out the trunk of the repository:
+\shellcmd{cd \~{}/tools/}
+\shellcmd{svn co http://svn.astro.physik.uni-goettingen.de/pampelmuse/trunk pampelmuse} \\
 This should download the most recent version of \pampelmuse. In order to use the code afterwards, the following modifications should be added to your shell configuration. For a bash shell, use
-\shellcmd{export pampelmuse\_path=<path to PampelMuse>/trunk \#\# folder were SVN checkout was performed}
+\shellcmd{export pampelmuse\_path=<path to PampelMuse>/ \#\# \~{}/tools/pampelmuse in the example above}
 \shellcmd{export PYTHONPATH=\$PYTHONPATH:\$pampelmuse\_path}
-\shellcmd{export PATH=\$PATH:\$pampelmuse\_path/pampelmuse/bin}\\
+\shellcmd{export PATH=\$PATH:\$pampelmuse\_path/bin}\\
 and for a c shell use
-\shellcmd{setenv pampelmuse\_path <path to PampelMuse>/trunk \#\# folder were SVN checkout was performed}
+\shellcmd{setenv pampelmuse\_path <path to PampelMuse>/ \#\# \~{}/tools/pampelmuse in the example above}
 \shellcmd{setenv PYTHONPATH \$PYTHONPATH:\$pampelmuse\_path}
-\shellcmd{setenv PATH \$PATH:\$pampelmuse\_path/pampelmuse/bin}\\
+\shellcmd{setenv PATH \$PATH:\$pampelmuse\_path/bin}\\
 Note that the SVN repository also contains the setup script. So you can also execute
 \shellcmd{python setup.py install} \\
 and proceed in analogy to Sect.~\ref{sec:install:tarball}. The downside of this approach is that you will have to reinstall \pampelmuse everytime you check out a new version from the repository.
@@ -155,39 +152,40 @@ In general, \pampelmuse is designed to correctly handle IFS data regardless of w
  \item KMOS \citep{2004SPIE.5492.1179S}
 \end{itemize}
 
-The routine will try to figure out which instrument the data is coming from by searching for the standard header keyword \texttt{INSTRUME}. If that is not present, the following configuration parameter may be used to provide an instrument identifier
+The routine will try to figure out which instrument the data is coming from by searching for the standard header keyword \texttt{INSTRUME}. For some instruments (like PMAS) this keyword is not set. In such cases, if you want to make use of the instrument-specific features of \pampelmuse (see Sect.~\ref{sec:data:preparation}), you should update the FITS header of your data accordingly.
 
-\pmparameter{IFU}{string}{pmas}{The name of the IFU which has observed the data. Note that this parameter is only used if the code does not find any instrument information in the header of the FITS data. otherwise, preference will be given to the header information.}
+% \pmparameter{IFU}{string}{pmas}{The name of the IFU which has observed the data. Note that this parameter is only used if the code does not find any instrument information in the header of the FITS data. otherwise, preference will be given to the header information.}
 
 If you have data from another instrument that is not properly handled by \pampelmuse, let me know. On the other hand, if the data is handled correctly, that would be very helpful for me to know as well.
 
 \subsection{Preparing the data}
+\label{sec:data:preparation}
 First note that \pampelmuse is \emph{not} a data reduction pipeline. All analysis steps assume that the IFS data has been properly reduced and that all the instrumental artefacts have been removed.
-In general, the IFS data can come in two flavours:
+In general, the IFS data can come in different formats depending on which instrument was used in the observations:
 \begin{enumerate}
  \item As a three-dimensional data cube with two spatial axes (\texttt{NAXIS1} and \texttt{NAXIS2}) and a spectral axis (\texttt{NAXIS3}). This format can always be used, even if the data were obtained with an instrument that is unknown to \pampelmuse.
  \item As a two-dimensional ``image'' with one spatial and one spectral axis. The advantage of this format is that it can also be used with instruments that have a ireegular (i.e. non-rectangular) spatial sampling. However, for this format to work \pampelmuse must know how to arrange to different spaxels in the field of view. Currently this format is only supported for PMAS and ARGUS data.
+ \item \textbf{New in version 0.90}: MUSE data may also be provided in the form of a pixtable as it is produced by the pipeline recipe \texttt{muse\_scipost} when the option \texttt{-{}-save individual} is being used.\footnote{For details, check the MUSE pipeline manual available at the ESO homepage: \url{https://www.eso.org/sci/software/pipelines/muse/}.} The analysis of MUSE pixtables with \pampelmuse requires the data to be sorted by increasing wavelength. This can be achieved by running the dedicated \texttt{PTSORT} routine before starting the analysis.
 \end{enumerate}
 
-Besides the actual data, \pampelmuse also requires an estimate of the uncertainties or the variances for the analysis. Optionally, a bad pixel mask can be used. Data, uncertainties, and mask can either be provided as different extensions of a single FITS file or as three individual FITS files. In the former case, the routine will use the extension names to identify what is stored in which extension, see Table~\ref{tab:extensions}. In the latter case, the individual filenames should have the same prefix and be suffixed \texttt{.dat.fits} (the data), \texttt{.err.fits} (the uncertainties), and \texttt{.msk.fits} (the bad pixel mask).
+Besides the actual data, \pampelmuse also requires an estimate of the variances for the analysis. Optionally, a bad pixel mask can be used. Data, variances, and mask can either be provided as different extensions of a single FITS file or as three individual FITS files. In the former case, the routine will use the extension names to identify what is stored in which extension, see Table~\ref{tab:extensions}. In the latter case, the individual filenames should have the same prefix and be suffixed \texttt{.dat.fits} (the data), \texttt{.err.fits} (the variances), and \texttt{.msk.fits} (the bad pixel mask).
 
 \begin{table}
  \centering\begin{tabular}{l c l}
   Type & required? & \texttt{EXTNAME} \\ \hline
   Data & y         & \texttt{DATA} \\
-  Uncertainties & (y) & \texttt{ERROR}, \texttt{SIGMA} \\
-  Variances & (y) & \texttt{STAT} \\
+  Variances & y & \texttt{STAT}, \texttt{ERROR}, \texttt{SIGMA}\\
   Bad pixel mask & n & \texttt{MASK} \\
  \end{tabular}
- \caption{Extension names used to identify the input required for the analysis in a combined FITS file. Note that either uncertainties or variances must be provided.}
+ \caption{Extension names used to identify the input required for the analysis in a combined FITS file.}
  \label{tab:extensions}
 \end{table}
 
 If provided, the bad pixel mask should be zero for valid pixels and one for pixels that should be excluded. Instead of providing a dedicated mask, one can also set the invalid pixels to NaN and \pampelmuse will ignore them in the analysis.
 
-Although not required, it is highly advantageous if the header of the FITS file containing the IFS data contains some basic WCS information, i.e. at least the keywords \texttt{RA}, \texttt{DEC}, and the matrix \texttt{CDi\_j}. \pampelmuse will use this information to determine the spaxel scale and the approximate location of the field of view on the sky. If no WCS information is available, the keyword \texttt{PIXSCALE} should be used to provide the spaxel scale.
+Although not required, it is highly advantageous if the header of the FITS file containing the IFS data contains some basic WCS information, i.e. at least the keywords \texttt{RA}, \texttt{DEC}, and the matrix \texttt{CDi\_j}. \pampelmuse will use this information to determine the spaxel scale and the approximate location of the field of view on the sky. % If no WCS information is available, the keyword \texttt{PIXSCALE} should be used to provide the spaxel scale.
 
-\pmparameter{PIXSCALE}{float}{1.0}{The scale of the spaxels in arcseconds. Note that this parameter is only used if the code cannot infer the spaxel size from the (WCS) information provided in the FITS header of the IFS data.}
+% \pmparameter{PIXSCALE}{float}{1.0}{The scale of the spaxels in arcseconds. Note that this parameter is only used if the code cannot infer the spaxel size from the (WCS) information provided in the FITS header of the IFS data.}
 
 \pampelmuse also offers the possibility to analyse only a part of the datacube or to bin the data in spectral direction to speed up the analysis. Two parameters, \texttt{LAYERRNG} and \texttt{LAYERBIN} can be used to achieve this.
 \pmparameter{LAYERRNG}{tuple}{($0$, $-1$)}{The range of layers of the IFS data that should be analysed. The default corresponds to the full cube.}

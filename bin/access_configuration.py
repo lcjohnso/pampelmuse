@@ -47,7 +47,7 @@ __revision__ = 365
 
 # get path to XML data containing configuration
 __currentdir__ = os.path.dirname(__file__)
-__configpath__ = os.path.join(__currentdir__, os.pardir, "config", "data")
+__configpath__ = os.path.join(__currentdir__, os.pardir, "pampelmuse", "config", "data")
 
 
 class MergeComment(argparse.Action):
