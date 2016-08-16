@@ -38,7 +38,7 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-360, 2016/08/12
+366, 2016/08/16
 """
 import collections
 import inspect
@@ -51,6 +51,7 @@ import numpy as np
 from numpy.polynomial import Chebyshev, Legendre, Hermite, Polynomial
 from astropy.io import fits
 from ..core.coordinates import Transformation
+from ..filters import  get_filter
 
 # check if PyQt is available 
 try:
@@ -60,7 +61,7 @@ except ImportError:
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 360
+__revision__ = 366
 
 
 def match_on_id(parent, child):
@@ -966,6 +967,60 @@ class Sources(object):
 
     # For compatibility with existing code, we define the wave property where the component index is set to zero.
     wave = property(get_wave)
+
+    def get_magnitude(self, component, passband=None):
+        """
+        This method calculates a magnitude for a given spectrum in a given
+        filter.
+
+        The method assumes that the fluxes are provided in erg/s/cm2/Angstrom.
+        If that is not the case, the user has to perform the correction for
+        the resulting magnitude offset manually. The returned magnitude will
+        be in the AB system.
+
+        Parameters
+        ----------
+        component : int
+            The index of the component for which the magnitude should be
+            determined.
+        passband : basestring
+            The name of the passband in which the magnitude should be
+            calculated.
+
+        Returns
+        -------
+        mag : float
+            The calculated magnitude in the AB system under the assumption
+            that the spectrum has units of erg/s/cm2/Angstrom.
+        """
+        if not self.spectrum_loaded[component]:
+            self.load_spectra(components=component)
+
+        # index of component in spectrum data array
+        i = np.cumsum(self.spectrum_loaded)[component] - 1
+
+        # wavelength must be calculated in Angstrom
+        if self.cunit == 'm':
+            factor = 1e10
+        elif self.cunit == 'nm':
+            factor = 10
+        else:
+            factor = 1
+        wave = self.get_wave(component=component)*factor
+
+        # if no passband is provided calculate magnitudes on white light image
+        if not passband:
+            throughput = np.ones(self.ndisp, dtype='<f4')
+        else:
+            throughput_curve = get_filter(passband)
+            throughput = throughput_curve(wave)
+
+        # it is assumed that the spectra are in units of erg/s/cm^2/Angstrom
+        # if that is not the case, the user has to do the conversion itself
+        # returned are AB magnitudes, for the calculation of AB magnitudes from fluxes per Angstrom, see
+        # https://en.wikipedia.org/wiki/AB_magnitude#Expression_in_terms_of_f.CE.BB
+        integrated_flux = np.sum(throughput*self.data[:, i, 0]*(wave**2))/throughput.sum()
+        return -2.5*np.log10(3.34e4*integrated_flux) + 8.9
 
     def provideComponentNames(self):
         """
