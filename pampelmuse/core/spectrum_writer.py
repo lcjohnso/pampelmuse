@@ -21,7 +21,9 @@ along with PampelMuse. If not, see <http://www.gnu.org/licenses/>.
 
 +++
 Purpose
-
+-------
+This module implements the class SpectrumWriter that is used to store the
+spectra extracted by PampelMuse as individual FITS files.
 
 Added
 -----
@@ -50,6 +52,12 @@ logger = logging.getLogger(__name__)
 
 
 class SpectrumWriter(object):
+    """
+    This class is designed to read the spectra extracted by PampelMuse for the
+    individual components from the prm-file and write them to individual FITS
+    files. If requested, spectrum files will also contain small FITS images
+    showing the regions around the extracted sources.
+    """
 
     HEADER_KEYS = ["OBJECT", "TELESCOP", "INSTRUME", "DATE-OBS", "MJD-OBS", "JUL-DATE",
                    "EXPTIME", "RA", "DEC", "EPOCH"]
@@ -58,14 +66,23 @@ class SpectrumWriter(object):
 
     def __init__(self, sources, ifs_data, psf_attributes=None, start=0, stop=-1):
         """
+        Initialize a new instance of the SpectrumWriter source.
 
         Parameters
         ----------
-        sources
-        ifs_data
-        psf_attributes
-        start
-        stop
+        sources : an instance of pampelmuse.core.Sources
+            This parameter must be used to provide all necessary information
+            about the the sources that were extracted.
+        ifs_data : an instance of pampelmuse.instruments.Instrument
+            This parameter must be used to provide all necessary information
+            about the IFS data.
+        psf_attributes : an instance of pampelmuse.psf.Variables, optional
+            This parameter can be used to provide additional information about
+            the PSF that was used during the extraction.
+        start : int, optional
+            The first layer of the IFS data that is included in the spectra.
+        stop : int, optional
+            The last layer of the IFS data that is included in the spectra.
         """
         assert isinstance(sources, Sources)
         self.sources = sources
@@ -127,18 +144,22 @@ class SpectrumWriter(object):
             mean_fwhm = psf_attributes.data[~psf_attributes.mask[:, i, 0], i, 0].mean()
             self.header["hierarch PAMPELMUSE SEEING"] = (mean_fwhm, "Fitted PSF FWHM in spaxels")
 
+        self.xy = None
+
     def add_header_key(self, key, value, comment=None):
         """
+        This method is designed to provide additional keywords that should be
+        stored in the headers of the output spectra.
 
         Parameters
         ----------
-        key
-        value
-        comment
-
-        Returns
-        -------
-
+        key : basestring
+            The name of the new key. Note that keywords longer than eight
+            digits must use the HIERARCH scheme.
+        value : int, float, basestring
+            The value of the new parameter.
+        comment : basestring, optional
+            An optional comment to be stored for the new key.
         """
         if comment is not None:
             self.header[key.upper()] = (value, comment)
@@ -147,18 +168,30 @@ class SpectrumWriter(object):
 
     def __call__(self, prefix, folder='spectra', filter_names=None, poststamps=False, radius=10):
         """
+        This method performs the storing of the individual spectra to disk.
 
         Parameters
         ----------
-        prefix
-        folder
-        filter_names
-        poststamps
-        radius
-
-        Returns
-        -------
-
+        prefix : basestring
+            A common prefix used to create the names of the individual FITS
+            files.
+        folder : basestring, optional
+            The folder in which the spectra should be stored. If it does not
+            exist, it will be created.
+        filter_names : basestring or list, optional
+            One or more filter names for which magnitudes should be estimated
+            from the spectra. If the 'poststamp' flag is being set, then the
+            images will be created for each filter as well.
+            NOTE: PampelMuse only stores a few bandpasses internally. See the
+            manual for how additional filters can be provided.
+        poststamps : bool
+            If this flag is set, the routine will store one or more small
+            images as additional extensions in each spectrum FITS file. The
+            images will show the area around the locations where the spectra
+            were extracted. Unless the option 'filter_names' is used, white
+            light images will be stored.
+        radius : int, optional
+            The radius around the sources covered by the poststamp images.
         """
         if not os.path.exists(folder):
             logging.info("Creating folder '{0}' to store spectra...".format(folder))
@@ -183,6 +216,10 @@ class SpectrumWriter(object):
         # load spectra for all components
         self.sources.load_spectra()
 
+        # load IFS coordinates for all sources, get mean coordinates along spectral axis.
+        self.sources.load_ifs_coordinates()
+        self.xy = np.nanmean(self.sources.ifs_coordinates[..., 0], axis=0)
+
         # loop over all components, i.e. all spectra
         for i in range(self.sources.ncmp):
             # get index of the primary (brightest) component contributing to the spectrum
@@ -193,8 +230,8 @@ class SpectrumWriter(object):
 
             # sanity check: sources with status 1 (=near brighter source) or -1 (=not used) should have no spectrum
             if self.sources.status[j] in [1, -1]:
-                logger.error("Found spectrum for source #{0} with status {1}".format(
-                    self.sources.ID[j], self.sources.status[j]))
+                logger.error("Found spectrum for source #{0} with status {1}".format(self.sources.ID[j],
+                                                                                     self.sources.status[j]))
                 continue
 
             flag = 0
@@ -204,24 +241,22 @@ class SpectrumWriter(object):
             #  4 - The mean flux of the spectrum is <0
             #  8 - The centroid of the star is outside the field of view
 
-            # load spectrum for current component into memory
+            # create primary HDU with spectrum
             primary_hdu = fits.PrimaryHDU(self.sources.data[self.start:self.stop, i, 0], header=self.header)
 
-            sigma_hdu = fits.ImageHDU(self.sources.data[self.start:self.stop, i, 1])
-            sigma_hdu.header['EXTNAME'] = 'SIGMA'
-
-            # copy dispersion information
+            # create image HDU with uncertainties, copy dispersion information
+            sigma_hdu = fits.ImageHDU(self.sources.data[self.start:self.stop, i, 1], name='SIGMA')
             for key in ['CRPIX1', 'CRVAL1', 'CDELT1', 'CTYPE1', 'CUNIT1', 'WSTART', 'WSTEP', 'WAVE']:
                 if key in self.header:
                     sigma_hdu.header[key] = self.header[key]
 
+            # check if dedicated wavelength array exists, if so, create new image HDU for it
             if self.sources.data_wave is not None:
-                wave_hdu = fits.ImageHDU(self.sources.data_wave[self.start:self.stop, i])
-                wave_hdu.header['EXTNAME'] = 'WAVE'
+                wave_hdu = fits.ImageHDU(self.sources.data_wave[self.start:self.stop, i], name='WAVE')
             else:
                 wave_hdu = None
 
-            if self.sources.status[j] in [2, 3]:
+            if self.sources.status[j] in [2, 3]:  # spectrum belongs to a resolved source.
 
                 source_id = self.sources.ID[j]
                 logger.info("Processing source #{0} [{1}/{2}]".format(source_id, i+1, self.sources.ncmp))
@@ -257,10 +292,9 @@ class SpectrumWriter(object):
                     primary_hdu.header["HIERARCH SPECTRUM MULTISTAR"] = (False, cmt)
                     primary_hdu.header["OBJNAME"] = "{0} {1} {2}".format(prefix.upper(), self.ifs_data.name, source_id)
 
-                # load IFS coordinates for the star and check if it is inside the field of view; omit NaN values
-                self.sources.load_ifs_coordinates(ids=source_id)
-                xy_coord = self.sources.ifs_coordinates[:, 0, :, 0]
-                xy_j = np.mean(xy_coord[(~np.isnan(xy_coord)).all(axis=1)], axis=0)
+                # get IFS coordinates for the star and check if it is inside the field of view
+                k = np.cumsum(self.sources.ifs_coordinates_loaded[:j])
+                xy_j = self.xy[k]
 
                 # add x- and y-position of PSF centroid in cube
                 primary_hdu.header["HIERARCH SPECTRUM XCUBE"] = (xy_j[0], "[spaxel] x-position in cube")
@@ -275,10 +309,14 @@ class SpectrumWriter(object):
                 primary_hdu.header["HIERARCH SPECTRUM EDGEDIST"] = (edge_distance, "[spaxel] Distance to FOV edge")
 
                 # create poststamps if requested
+                if len(images) > 0:
+                    image_header = self._header_with_nearby_sources(x_c=xy_j[0], y_c=xy_j[1], radius=radius)
+                else:
+                    image_header = None
                 for filter_name, image in images.items():
                     poststamp_image = SpectrumWriter._extract_poststamp(x_c=xy_j[0], y_c=xy_j[1], image=image,
                                                                         radius=radius)
-                    image_hdus.append(fits.ImageHDU(poststamp_image, name=filter_name.upper()))
+                    image_hdus.append(fits.ImageHDU(poststamp_image, name=filter_name.upper(), header=image_header))
 
             elif self.sources.status[j] == 4:
                 # for sky component, add x- and y-position of patch centroid in cube
@@ -340,17 +378,33 @@ class SpectrumWriter(object):
     @staticmethod
     def _extract_poststamp(image, x_c, y_c, radius=10):
         """
+        This internal method is used to extract a subimage of given radius
+        around a pixel position in a larger image.
+
+        The subimage that is returned will always have the same size, namely
+        2x the radius plus one pixel along each size. If the provided pixel
+        position is near the edge of the input image, the area not covered
+        by the input image will be filled with zeros in the returned image.
 
         Parameters
         ----------
-        image
-        x_c
-        y_c
-        radius
+        image : nd_array
+            The image from which the subimage should be extracted.
+        x_c : float
+            The centroid of the subimage along the x-axis. Note that the
+            x-axis is the second axis in numpy notation.
+        y_c : float
+            The centroid of the subimage along the y-axis. Note that the
+            y-axis is the first axis in numpy notation.
+        radius : int
+            The radius extracted around the centroid. The image that is
+            returned will have a size of (2x radius + 1, 2x radius +1)
 
         Returns
         -------
-
+        subimage : nd_array
+            The extracted image. Note that images not covered by the input
+            image (if any) will be filled with zeros.
         """
         x_c = int(round(x_c))
         y_c = int(round(y_c))
@@ -364,3 +418,43 @@ class SpectrumWriter(object):
             y_c - dy[0]:y_c + dy[1], x_c - dx[0]:x_c + dx[1]]
 
         return outdata
+
+    def _header_with_nearby_sources(self, x_c, y_c, radius):
+        """
+        Internal image used to create a FITS header containing information
+        about the sources found around a pixel position in the IFS data.
+
+        Parameters
+        ----------
+        x_c : float
+            The centroid of the selection along the x-axis.
+        y_c : float
+            The centroid of the selection along the y-axis.
+        radius : int
+            The radius of the selection around the centroid.
+
+        Returns
+        -------
+        header : a astropy.io.fits.Header instance
+            The header containing the positions, IDs, and magnitudes (if
+            available) of the sources in the footprint.
+        """
+        if not self.xy:
+            return
+
+        nearby = (abs(self.xy[:, 0] - x_c) < radius) & (abs(self.xy[:, 1] - y_c) < radius)
+
+        image_header = fits.Header()
+        n = 1
+        for i, j in enumerate(np.flatnonzero(self.sources.ifs_coordinates_loaded)):
+            if not nearby[i]:
+                continue
+            image_header['HIERARCH NEARBY STAR{0:03d} ID'.format(n)] = self.sources.ID[j]
+            image_header['HIERARCH NEARBY STAR{0:03d} STATUS'.format(n)] = self.sources.status[j]
+            if np.isfinite(self.sources.mag[j]):
+                image_header['HIERARCH NEARBY STAR{0:03d} MAG'.format(n)] = self.sources.mag[j]
+            image_header['HIERARCH NEARBY STAR{0:03d} X'.format(n)] = self.xy[nearby, 0][i] + radius - x_c
+            image_header['HIERARCH NEARBY STAR{0:03d} X'.format(n)] = self.xy[nearby, 1][i] + radius - y_c
+            n += 1
+
+        return image_header
