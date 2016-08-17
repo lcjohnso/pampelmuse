@@ -38,7 +38,7 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-366, 2016/08/16
+371, 2016/08/17
 """
 import collections
 import inspect
@@ -61,7 +61,7 @@ except ImportError:
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 366
+__revision__ = 371
 
 
 def match_on_id(parent, child):
@@ -1019,8 +1019,13 @@ class Sources(object):
         # if that is not the case, the user has to do the conversion itself
         # returned are AB magnitudes, for the calculation of AB magnitudes from fluxes per Angstrom, see
         # https://en.wikipedia.org/wiki/AB_magnitude#Expression_in_terms_of_f.CE.BB
-        integrated_flux = np.sum(throughput*self.data[:, i, 0]*(wave**2))/throughput.sum()
-        return -2.5*np.log10(3.34e4*integrated_flux) + 8.9
+        integrated_flux = np.nansum(throughput*self.data[:, i, 0]*(wave**2))/throughput.sum()
+        if integrated_flux <= 0:
+            logging.warning('Cannot determined magnitude for source #{0} with negative flux.'.format(
+                self.ID[self.indexmap[component][0]]))
+            return np.nan
+        else:
+            return -2.5*np.log10(3.34e4*integrated_flux) + 8.9
 
     def provideComponentNames(self):
         """

@@ -28,7 +28,7 @@ defines generic methods that are inherited by all its subclasses.
 
 Latest SVN revision
 -------------------
-360, 2016/08/12
+371, 2016/08/17
 """
 import logging
 import matplotlib
@@ -42,7 +42,7 @@ from ..utils.distance import dist2path, point_in_poly
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 360
+__revision__ = 371
 
 
 class Instrument(object):
@@ -69,8 +69,6 @@ class Instrument(object):
     _scale = None  # The spaxel scale of the IFS on the sky, given in arcseconds^-1
     _shape = (np.nan, np.nan)  # The shape of the spaxel array
 
-    _transform = None  # will contain the transformation from spaxels to x & y
-    _edge = None  # will contain the indices of the spaxels that define the edge of the field of view.
     _edgepath = None  # will be a matplotlib.path around the edge of the FoV
 
     # define very basic WCS instance
@@ -107,8 +105,8 @@ class Instrument(object):
         """
         super(Instrument, self).__init__(**kwargs)
 
-        self.transform = transform
-        self.edge = edge
+        self._transform = transform
+        self._edge = edge
 
         # Handle bad spaxels (e.g., dead fibers)
         if bad is None:
@@ -815,7 +813,7 @@ class Instrument(object):
         data, var = self.get_layer(i=imin, **kwargs)
         # if variances are not used, give each valid pixel a value of one.
         if var is None:
-            var = np.isfinite(data).astype(np.float32)
+            var = np.where(np.isfinite(data), 1., np.nan)
         var /= weights[0]
 
         data /= var
@@ -829,7 +827,7 @@ class Instrument(object):
 
             newdata, newvar = self.get_layer(i=i, **kwargs)[:2]
             if newvar is None:
-                newvar = np.isfinite(newdata).astype(np.float32)
+                newvar = np.where(np.isfinite(newdata), 1., np.nan)
             newvar /= weights[i - imin]
 
             data = np.nansum([data, newdata/newvar], axis=0)

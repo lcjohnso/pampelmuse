@@ -32,7 +32,7 @@ The provided functions facilitate working with FITS data.
 
 Latest SVN revision
 -------------------
-346, 2016/08/02
+371, 2016/08/17
 """
 import os
 import logging
@@ -46,7 +46,7 @@ from ..psf import Variables
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 346
+__revision__ = 371
 
 
 def open_ifs_data(prefix, **kwargs):
@@ -110,7 +110,7 @@ def open_ifs_data(prefix, **kwargs):
             instrument.search_configuration(hdu)
             break
 
-    if isinstance(instrument, GenericIFS):
+    if isinstance(instrument, GenericIFS) and not isinstance(instrument, Muse):
         logging.warning('Could not determine instrument used to obtain IFS data.')
         logging.warning('IFS data must be provided as a 3dim. cube.')
 

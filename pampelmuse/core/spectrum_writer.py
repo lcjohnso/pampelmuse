@@ -31,7 +31,7 @@ Added
 
 Latest SVN revision
 -------------------
-369, 2016/08/17
+371, 2016/08/17
 """
 import datetime
 import logging
@@ -45,7 +45,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)'
-__revision__ = 369
+__revision__ = 371
 
 
 logger = logging.getLogger(__name__)
@@ -100,7 +100,7 @@ class SpectrumWriter(object):
         self.header = fits.Header()
 
         # add dispersion information to header
-        if self.sources.data_wave is None:
+        if self.sources.data_wave_hdu is None:
             self.header["CRPIX1"] = self.sources.crpix - start
             self.header["CRVAL1"] = self.sources.crval
             self.header["CDELT1"] = self.sources.cdelt
