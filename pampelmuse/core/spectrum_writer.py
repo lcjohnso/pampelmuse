@@ -211,7 +211,7 @@ class SpectrumWriter(object):
             else:
                 for name in filter_names:
                     logger.info('Creating {0}-band from IFS data...'.format(name))
-                    images[name] = self.ifs_data.integrate_over_filtercurve(name, nbin=100, return_grid=True)[0][0]
+                    images[name] = self.ifs_data.integrate_over_filtercurve(name, nbin=10, return_grid=True)[0][0]
 
         # load spectra for all components
         self.sources.load_spectra()
