@@ -31,7 +31,7 @@ Added
 
 Latest SVN revision
 -------------------
-366, 2016/08/16
+369, 2016/08/17
 """
 import datetime
 import logging
@@ -45,7 +45,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)'
-__revision__ = 366
+__revision__ = 369
 
 
 logger = logging.getLogger(__name__)
@@ -293,7 +293,7 @@ class SpectrumWriter(object):
                     primary_hdu.header["OBJNAME"] = "{0} {1} {2}".format(prefix.upper(), self.ifs_data.name, source_id)
 
                 # get IFS coordinates for the star and check if it is inside the field of view
-                k = np.cumsum(self.sources.ifs_coordinates_loaded[:j])
+                k = np.sum(self.sources.ifs_coordinates_loaded[:j])
                 xy_j = self.xy[k]
 
                 # add x- and y-position of PSF centroid in cube
@@ -439,7 +439,7 @@ class SpectrumWriter(object):
             The header containing the positions, IDs, and magnitudes (if
             available) of the sources in the footprint.
         """
-        if not self.xy:
+        if self.xy is None:
             return
 
         nearby = (abs(self.xy[:, 0] - x_c) < radius) & (abs(self.xy[:, 1] - y_c) < radius)
@@ -453,8 +453,8 @@ class SpectrumWriter(object):
             image_header['HIERARCH NEARBY STAR{0:03d} STATUS'.format(n)] = self.sources.status[j]
             if np.isfinite(self.sources.mag[j]):
                 image_header['HIERARCH NEARBY STAR{0:03d} MAG'.format(n)] = self.sources.mag[j]
-            image_header['HIERARCH NEARBY STAR{0:03d} X'.format(n)] = self.xy[nearby, 0][i] + radius - x_c
-            image_header['HIERARCH NEARBY STAR{0:03d} X'.format(n)] = self.xy[nearby, 1][i] + radius - y_c
+            image_header['HIERARCH NEARBY STAR{0:03d} X'.format(n)] = self.xy[i, 0] + radius - x_c
+            image_header['HIERARCH NEARBY STAR{0:03d} Y'.format(n)] = self.xy[i, 1] + radius - y_c
             n += 1
 
         return image_header
