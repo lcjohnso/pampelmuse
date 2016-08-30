@@ -29,7 +29,7 @@ i.e. NAXIS3 in FITS counting) being the spectral axis.
 
 Latest SVN revision
 -------------------
-360, 2016/08/12
+372, 2016/08/30
 """
 import logging
 import numpy as np
@@ -38,7 +38,7 @@ from .instrument import Instrument
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 360
+__revision__ = 372
 
 
 class GenericIFS(Instrument):
@@ -236,4 +236,4 @@ class GenericIFS(Instrument):
         slice : a slice object
             The slice that returns the layer if applied to the data.
         """
-        return i
+        return i, self.transform[:, 0].astype('<i4'), self.transform[:, 1].astype('<i4')

@@ -38,7 +38,7 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-371, 2016/08/17
+372, 2016/08/30
 """
 import collections
 import inspect
@@ -61,7 +61,7 @@ except ImportError:
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 371
+__revision__ = 372
 
 
 def match_on_id(parent, child):
@@ -1383,8 +1383,8 @@ class Sources(object):
                 self.ifs_coordinates[:, processed, :, 0:1] = ifs_coords[layers][..., np.newaxis]
             else:
                 logging.warning("IFS coordinates include interpolated values.")
-                for i in np.nonzero(processed)[0]:
-                    for j in xrange(2):
+                for i in np.flatnonzero(processed):
+                    for j in range(2):
                         valid = ~np.isnan(ifs_coords[:, i, j])
                         if valid.any():
                             self.ifs_coordinates[:, i, j, 0] = np.interp(layers, np.flatnonzero(valid),
