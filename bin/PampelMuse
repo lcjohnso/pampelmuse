@@ -82,7 +82,7 @@ from pampelmuse.utils.fits import open_ifs_data
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
 __version__ = "0.90.3.0"
-__revision__ = 373
+__revision__ = 374
 
 
 logger = logging.getLogger(__name__)

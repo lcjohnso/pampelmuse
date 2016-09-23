@@ -38,7 +38,7 @@ fit' if the configuration parameter USEQT of PampelMuse is enabled.
 
 Latest SVN revision
 -------------------
-334, 2016/07/26
+374, 2016/09/23
 """
 import datetime
 import logging
@@ -47,7 +47,7 @@ from ..utils.fits import open_prm, save_prm
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 334
+__revision__ = 374
 
 
 def add_parser(parser):
@@ -91,7 +91,7 @@ def cubefit(pampelmuse):
     fitter = FitCube(ifs_data=pampelmuse.ifs_data, sources=sources, psf_attributes=psf_attributes,
                      maxrad=pampelmuse.psfrad)
 
-    fitter(layerrange=(start, stop), n_cpu=pampelmuse.cpucount, maxiter=pampelmuse.maxiter,
+    fitter(layer_range=(start, stop), n_cpu=pampelmuse.cpucount, maxiter=pampelmuse.maxiter,
            use_variances=pampelmuse.usesigma, n_bin=pampelmuse.layerbin)
 
     logging.info("Saving results...")

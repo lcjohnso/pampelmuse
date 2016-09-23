@@ -32,7 +32,7 @@ extraction for a data cube.
 
 Latest SVN revision
 -------------------
-349, 2016/08/05
+374, 2016/09/23
 """
 import logging
 import time
@@ -43,7 +43,7 @@ from .background import BackgroundGrid
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 349
+__revision__ = 374
 
 
 logger = logging.getLogger(__name__)
@@ -325,7 +325,7 @@ class FitCube(object):
         else:
             self.background = None
 
-    def __call__(self, layer_range=(0, -1), n_track=10, n_cpu=1, maxiter=20, use_variances=True, n_bin=1, **kwargs):
+    def __call__(self, layer_range=(0, -1), n_track=10, n_cpu=1, maxiter=20, use_variances=True, n_bin=1):
         """
         Execute the fitting process. For each layer of the provided
         data cube, the following steps are performed:
