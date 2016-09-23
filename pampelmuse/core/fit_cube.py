@@ -23,7 +23,6 @@ along with PampelMuse. If not, see <http://www.gnu.org/licenses/>.
 Provides
 --------
 class pampelmuse.core.fit_cube.FitCube
-function pampelmuse.core.fit_array.printoptions
 
 Purpose
 -------
@@ -32,7 +31,7 @@ extraction for a data cube.
 
 Latest SVN revision
 -------------------
-374, 2016/09/23
+375, 2016/09/23
 """
 import logging
 import time
@@ -43,7 +42,7 @@ from .background import BackgroundGrid
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 374
+__revision__ = 375
 
 
 logger = logging.getLogger(__name__)
@@ -527,7 +526,7 @@ class FitCube(object):
 
             # The first two layers are fitted sequentially in order to obtain useful initial guesses for the
             # following ones. Otherwise a parallel fit is triggered every n_cpu's layer
-            if i in [0, 1] or np.mod(i - 1, n_cpu) == 0:
+            if i in [0, 1] or np.mod(i - 1, n_cpu) == 0 or jj == layers_to_analyse[-1]:
                 if n_cpu > 1:  # and i > 1:
                     # pool = Pool(n_cpu, initializer=init_worker, initargs=initargs)
                     _results = pool.map_async(parallel_fit_layer, fit_input)

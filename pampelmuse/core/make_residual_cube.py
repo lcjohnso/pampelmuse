@@ -32,7 +32,7 @@ Added
 rev. 343, 2016/08/01
 
 Latest SVN revision
-373, 2016/09/23
+375, 2016/09/23
 """
 import logging
 from multiprocessing import cpu_count, Pool
@@ -42,7 +42,7 @@ from .fit_layer import FitLayer
 
 
 __author__ = 'Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)'
-__revision__ = 373
+__revision__ = 375
 
 
 logger = logging.getLogger(__name__)
@@ -312,7 +312,7 @@ class MakeResidualsCube(FitCube):
                 fit_input[-1]['background'] = None
 
             # A parallel processing is triggered every n_cpu's layer
-            if np.mod(i + 1, n_cpu) == 0:
+            if np.mod(i + 1, n_cpu) == 0 or jj == layers_to_analyse[-1]:
                 if n_cpu > 1:
                     # pool = Pool(n_cpu, initializer=init_worker, initargs=initargs)
                     _results = pool.map_async(parallel_process_layers, fit_input)
