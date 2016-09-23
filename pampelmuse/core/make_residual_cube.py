@@ -32,7 +32,7 @@ Added
 rev. 343, 2016/08/01
 
 Latest SVN revision
-349, 2016/08/05
+373, 2016/09/23
 """
 import logging
 from multiprocessing import cpu_count, Pool
@@ -42,7 +42,7 @@ from .fit_layer import FitLayer
 
 
 __author__ = 'Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)'
-__revision__ = 349
+__revision__ = 373
 
 
 logger = logging.getLogger(__name__)
@@ -199,6 +199,10 @@ class MakeResidualsCube(FitCube):
         -------
         residuals
         """
+        if kwargs:
+            logger.error('Invalid keyword argument(s) provided: {0}'.format(kwargs))
+            raise IOError('Cannot handle keyword argument(s): {0}'.format(kwargs))
+
         # check which layers should be analysed
         start, stop = layer_range
         if start < 0:

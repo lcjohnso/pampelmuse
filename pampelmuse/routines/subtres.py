@@ -33,7 +33,7 @@ if PampelMuse is started with the 'SUBTRES' option.
 
 Latest SVN revision
 -------------------
-343, 2016/08/01
+373, 2016/09/23
 """
 import datetime
 import logging
@@ -44,7 +44,7 @@ from ..utils.fits import open_prm
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 343
+__revision__ = 373
 
 
 def add_parser(parser):
@@ -89,7 +89,7 @@ def subtres(pampelmuse):
     fitter = MakeResidualsCube(ifs_data=pampelmuse.ifs_data, sources=sources, psf_attributes=psf_attributes,
                                maxrad=pampelmuse.psfrad)
 
-    residuals = fitter(layerrange=(start, stop), n_cpu=pampelmuse.cpucount, subtract_background=pampelmuse.subsky)
+    residuals = fitter(layer_range=(start, stop), n_cpu=pampelmuse.cpucount, subtract_background=pampelmuse.subsky)
 
     logging.info("Saving results...")
 
