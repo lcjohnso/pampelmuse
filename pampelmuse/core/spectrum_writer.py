@@ -31,7 +31,7 @@ Added
 
 Latest SVN revision
 -------------------
-371, 2016/08/17
+376, 2016/10/10
 """
 import datetime
 import logging
@@ -45,7 +45,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)'
-__revision__ = 371
+__revision__ = 376
 
 
 logger = logging.getLogger(__name__)
@@ -332,7 +332,7 @@ class SpectrumWriter(object):
             else:
                 logger.error("S/N estimation returned NaN - Spectrum of source #{0} corrupted.".format(source_id))
 
-            if np.mean(self.sources.data[:, 0, 0]) < 0:
+            if np.mean(self.sources.data[self.start:self.stop, i, 0]) < 0:
                 flag += 4
 
             # calculate magnitude(s) from spectrum if requested
