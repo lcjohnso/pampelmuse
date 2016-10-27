@@ -359,6 +359,8 @@ class SpectrumWriter(object):
             else:
                 name = "id{0:09d}".format(source_id)
                 primary_hdu.header["HIERARCH SPECTRUM TYPE"] = "star"
+                primary_hdu.header["OBJNAME"] = "{0} {1} {2}".format(prefix.upper(), self.ifs_data.name,
+                                                                     abs(self.sources.ID[j]))
 
             outfile_prefix = "{0}{1}{2}f{3:03d}".format(prefix, name, self.date_string, int(flag))
 
