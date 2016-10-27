@@ -101,7 +101,7 @@ def get_filter(name):
             filterfile = os.path.join(__currentdir__, "data", name.upper())
 
     if filterfile is None:
-        logging.critical("Cannot find transmission curve for passband {0}".format(name.upper))
+        logging.critical("Cannot find transmission curve for passband {0}".format(name.upper()))
         raise IOError("Missing transmission curve for passband {0}".format(name.upper()))
     
     # open filter curve
