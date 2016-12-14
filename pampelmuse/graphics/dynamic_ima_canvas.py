@@ -35,7 +35,7 @@ pampelmuse.core.cube
 
 Latest SVN revision
 -------------------
-377, 2016/12/14
+380, 2016/12/14
 """
 import logging
 import numpy as np
@@ -48,7 +48,7 @@ from ..utils.fits import open_ifs_data
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 377
+__revision__ = 380
 
 
 class DynamicImaCanvas(FigureCanvasQTAgg):
@@ -379,7 +379,6 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
         if isinstance(self.data_plot, collections.Collection):
             self.data_plot.remove()
 
-        print(kwargs)
         self.data_plot = self.axes.scatter(self.x, self.y, **kwargs)
 
         # change axes limits to show all the data

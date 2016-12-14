@@ -33,7 +33,7 @@ Added
 
 Latest SVN revision
 -------------------
-377, 2016/12/14
+380, 2016/12/14
 """
 import logging
 import sys
@@ -52,7 +52,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)'
-__revision__ = 377
+__revision__ = 380
 
 
 logger = logging.getLogger(__name__)
@@ -628,15 +628,6 @@ class SourceSelector(object):
         mag = self.sources.mag[np.argsort(self.sources.mag[:-self.sources.nbackground])[n_stars]]
 
         identifier = PampelMuseGui(sources=self.sources, ifsData=self.ifs_data, refImage=self.identification_image)
-        identifier.maxMagSpinBox.setValue(mag)
-
-        # account for offset between reference image and true coordinates
-        offsets = identifier.refPlot.data_plot.get_offsets()
-        offsets[:, 0] -= self.sources.x.min()
-        offsets[:, 1] -= self.sources.y.min()
-        identifier.refPlot.data_plot.set_offsets(offsets)
-
-        identifier.refPlot.draw()
 
         if self.use_wcs:  # overplot positions of sources on IFS as determined via cross-correlation
             identifier.addFovToReference(self.ccxoff - self.sources.x.min() + self.ifs_data.shape[1]//2,
@@ -649,6 +640,11 @@ class SourceSelector(object):
                 self.ifs_data.infov(np.vstack((self.sources.x - self.ccxoff, self.sources.y - self.ccyoff)).T))
             identifier.ifsPlot.addData(self.sources.x[select] - self.ccxoff, self.sources.y[select] - self.ccyoff,
                                        s=sizes[select], marker="o", edgecolor="g", facecolor="None")
+
+        # account for offset between reference image and true coordinates
+        (dx, dy) = (self.sources.x.min(), self.sources.y.min())
+        identifier.refOffsets = np.vstack((self.sources.x - dx, self.sources.y - dy))
+        identifier.maxMagSpinBox.setValue(mag)
 
         identifier.show()
         app.exec_()

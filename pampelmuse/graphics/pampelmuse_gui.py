@@ -37,7 +37,7 @@ defines the methods that are called by Ui_PampelMuseGui.
 
 Latest SVN revision
 -------------------
-377, 2016/12/14
+380, 2016/12/14
 """
 import logging
 import os
@@ -62,7 +62,7 @@ from ..utils.fits import save_prm
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 377
+__revision__ = 380
 
 
 class ToolbarWithoutMessage(NavigationToolbar):
@@ -1428,17 +1428,15 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             self.refPlot.draw()
 
         else:
-            # if sources also overplotted on IFS data, copy them
-            if self.refOffsets is not None:
-                self.refPlot.addData(self.refOffsets[0][self.sources.plotted],
-                                     self.refOffsets[1][self.sources.plotted],
-                                     ids=self.ifsPlot.ids, edgecolors=self.ifsPlot.dataPlot.get_edgecolors(),
-                                     facecolors=self.ifsPlot.dataPlot.get_facecolors(),
-                                     s=self.ifsPlot.dataPlot.get_sizes(), picker=self.ifsPlot.dataPlot.get_picker(),
-                                     update_axes_limits=False)
-
-            # otherwise, select sources based on current magnitude limits.
+            # if sources also overplotted on IFS data, copy properties from there
+            kwargs = {'picker': 5}
+            if self.ifsPlot.data_plot:
+                kwargs['edgecolors'] = self.ifsPlot.data_plot.get_edgecolors()
+                kwargs['facecolors'] = self.ifsPlot.data_plot.get_facecolors()
+                kwargs['s'] = self.ifsPlot.data_plot.get_sizes()
             else:
+                kwargs['edgecolor'] = 'r'
+                kwargs['facecolor'] = None
                 if self.sources.mag is not None:
                     # determine size of datapoints representing the sources (as for the IFU plot, the magnitudes from
                     # the source catalogue are used for this purpose if available)
@@ -1447,15 +1445,20 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
                     sizes[sizes <= 1] = 0
                 else:
                     sizes = 10*np.ones(self.sources.nsrc, dtype=np.float32)
+                kwargs['s'] = sizes
 
-                # add the data to the plot.
-                logging.debug('Updating plot ...')
+            logging.debug('Updating plot ...')
+            # if dedicated pixel coordinates for reference image available, use them, otherwise reference coordinates
+            # from Sources class
+            if self.refOffsets is not None:
+                self.refPlot.addData(self.refOffsets[0][self.sources.plotted], self.refOffsets[1][self.sources.plotted],
+                                     ids=self.sources.ID[self.sources.plotted], update_axes_limits=False, **kwargs)
+            else:
                 self.refPlot.addData(self.sources.x[self.sources.plotted], self.sources.y[self.sources.plotted],
-                                     ids=self.sources.ID[self.sources.plotted], s=sizes, marker="o", edgecolor="r",
-                                     facecolor="None", picker=5, update_axes_limits=False)
+                                     ids=self.sources.ID[self.sources.plotted], update_axes_limits=False, **kwargs)
 
-                # recover sources previously identified on IFS data (if INITFIT is being used)
-                self.updateMarkHistPlot()
+            # recover sources previously identified on IFS data (if INITFIT is being used)
+            self.updateMarkHistPlot()
 
     def plot_sources_on_ifs(self, update_sources=False):
         """
