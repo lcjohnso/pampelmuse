@@ -33,7 +33,7 @@ Added
 
 Latest SVN revision
 -------------------
-365, 2016/08/15
+377, 2016/12/14
 """
 import logging
 import sys
@@ -52,7 +52,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)'
-__revision__ = 365
+__revision__ = 377
 
 
 logger = logging.getLogger(__name__)
@@ -258,8 +258,9 @@ class SourceSelector(object):
                 logger.critical("Cannot find input source coordinates.")
                 raise IOError("Either x & y or RA & Dec must be provided with photometry.")
 
-        # Perform sanity checks on provided source list:
+        # Perform sanity checks on provided source list (exclude sources with magnitudes NaN or >99):
         self.valid = ~np.isnan(np.asarray(self.cfp_results[passband.lower()], dtype=np.float32))
+        self.valid &= (np.asarray(self.cfp_results[passband.lower()], dtype=np.float32) < 99.)
         if not self.valid.all():
             logger.warning("Ignoring {0} source(s) with undefined magnitudes.".format((~self.valid).sum()))
         if len(np.unique(self.cfp_results["id"])) < len(self.cfp_results["id"]):
@@ -346,7 +347,6 @@ class SourceSelector(object):
         copy the dispersion information from the IFs data to the new instance.
         Afterwards, the instance can be accessed as SourceSelector().sources.
         """
-
         self.sources = Sources(ids=np.asarray(self.cfp_results["id"], dtype=np.int32)[self.valid])
         self.sources.x = np.asarray(self.cfp_results["x"], dtype=np.float32)[self.valid]
         self.sources.y = np.asarray(self.cfp_results["y"], dtype=np.float32)[self.valid]
@@ -420,29 +420,29 @@ class SourceSelector(object):
 
         self.psf_attributes.info()
 
-    def create_mock_image(self, reslim, n_cpu=1):
+    def create_mock_image(self, n_stars=500, n_cpu=1):
         """
         Method to create a mock image from the catalogue of sources.
 
         This method creates a two dimensional image using the coordinates and
         magnitudes for the available sources and the current PSF model. The
         dimensions of the image are chosen so that all available sources are
-        included. For large catalogs, the parameter 'reslim' should be used
-        to only include a subset of bright stars in the image. After creation,
-        the image is available as SourceSelector().identification_image.
+        included. For large catalogs, the parameter 'n_stars' makes sure that
+        the computation times stay moderate by only adding the subset of the
+        brightest stars to the image. After creation, the image is available
+        as SourceSelector().identification_image.
 
         The image creation is parallelized and it uses the function
         image_from_psf defined in this method.
 
         Parameters
         ----------
-        reslim : float
-            The maximum magnitude of a source that is still included in the
-            image. Sources fainter than this value are ignored.
+        n_stars : int, optional
+            The maximum number of sources that is included in the image. The
+            selection of sources is based on magnitudes (bright to faint).
         n_cpu : int, optional
             The number of CPUs used to prepare the image.
         """
-
         logger.info("Creating mock image from photometry catalogue...")
 
         if self.sources is None:
@@ -453,17 +453,8 @@ class SourceSelector(object):
             logger.warning('Need to initialize PSF first.')
             self.prepare_psf()
 
-        # make sure that at least some sources are resolved according to the 'reslim' parameter.
-        # If not, raise a ConfigurationError
-        if not (self.sources.mag[~self.sources.is_background] < reslim).any():
-            logger.critical("All sources near FoV fainter than resolution limit (reslim={0}).".format(reslim))
-            return None
-
         shape = (int(self.sources.y.max() - self.sources.y.min()),
                  int(self.sources.x.max() - self.sources.x.min()))
-
-        # to get reasonable count rates in mock image, adjust zeropoint unless provided
-        zeropoint = reslim + 7.5 if self.zeropoint is None else self.zeropoint
 
         # initialize single PSF instance per CPU
         logger.info("   adding sources, working on {0} CPUs...".format(n_cpu))
@@ -473,9 +464,13 @@ class SourceSelector(object):
         psf_parameters = dict(
                 (name, self.psf_attributes.data[:, i, 0]) for i, name in enumerate(self.psf_attributes.names))
 
-        # only add sources that are likely resolved
-        include = np.flatnonzero(self.sources.mag[:-self.sources.nbackground] < reslim)
+        # select n_stars brightest sources - note that the selection has no effect on argsort because
+        # the background components are at the end of the array
+        include = np.argsort(self.sources.mag[:-self.sources.nbackground])[:n_stars]
         to_cpu = np.arange(include.size) % n_cpu
+
+        # to get reasonable count rates in mock image, adjust zeropoint unless known
+        zeropoint = self.sources.mag[include[-1]] + 7.5 if self.zeropoint is None else self.zeropoint
 
         args = []
         for n in range(n_cpu):
@@ -574,7 +569,7 @@ class SourceSelector(object):
 
         if self.identification_image is None:
             logger.warning('Need to create identification image for cross-correlation first.')
-            self.create_mock_image(reslim=np.median(self.sources.mag))
+            self.create_mock_image()
 
         if self.data_image is None:
             logger.warning('Need to create image from IFS data for cross-correlation first.')
@@ -601,26 +596,26 @@ class SourceSelector(object):
         elif self.position_fit == 1:
             self.sources.transformation.free[-2:] = True
 
-    def identify_footprint(self, reslim=20.):
+    def identify_footprint(self, n_stars=100):
         """
         This method allows for a interactive determination of the location of
         the IFS data relative to the source catalog.
 
         This method will open the IFS data and the mock image created from the
         source catalogue in the PampelMuse GUI. Then the locations of the
-        individual sources will be overplotted on the mock image. If the cross-
-        correlation via SourceSelector().cross_correlate_images() has been run
-        successfully before, the method will also overplot the likely location
-        of the IFS data on the mock image and the initial guesses of the
-        sources on the IFS data. Note that this method requires PyQt4 to be
-        installed on the system.
+        individual sources will be overplotted on the mock image. If the
+        cross-correlation via SourceSelector().cross_correlate_images() has
+        been run successfully before, the method will also overplot the likely
+        location of the IFS data on the mock image and the initial guesses of
+        the sources on the IFS data. Note that this method requires PyQt4 to
+        be installed on the system.
 
         Parameters
         ----------
-        reslim : float, optional
-            The magnitude cut for sources that are overplotted on the mock image.
-            Note that it will be possible to adjust this parameter once the GUI
-            has been loaded.
+        n_stars : int, optional
+            The number of stars that are initially over-plotted on the mock
+            image. Note that it will be possible to adjust this number once
+            the GUI has been loaded.
         """
         from PyQt4 import QtGui
         from ..graphics.pampelmuse_gui import PampelMuseGui
@@ -629,8 +624,11 @@ class SourceSelector(object):
 
         app = QtGui.QApplication(sys.argv)
 
+        # get magnitude of n_stars'th brightest star
+        mag = self.sources.mag[np.argsort(self.sources.mag[:-self.sources.nbackground])[n_stars]]
+
         identifier = PampelMuseGui(sources=self.sources, ifsData=self.ifs_data, refImage=self.identification_image)
-        identifier.maxMagSpinBox.setValue(reslim)
+        identifier.maxMagSpinBox.setValue(mag)
 
         # account for offset between reference image and true coordinates
         offsets = identifier.refPlot.data_plot.get_offsets()
@@ -644,10 +642,10 @@ class SourceSelector(object):
             identifier.addFovToReference(self.ccxoff - self.sources.x.min() + self.ifs_data.shape[1]//2,
                                          self.ccyoff - self.sources.y.min() + self.ifs_data.shape[0]//2)
 
-            sizes = 10.*(10**(-0.2*(self.sources.mag - reslim - 1.)))
+            sizes = 10.*(10**(-0.2*(self.sources.mag - mag - 1.)))
             sizes[sizes <= 1] = 0
             select = (self.sources.status < 4) & (
-                self.sources.mag <= reslim) & (
+                self.sources.mag <= mag) & (
                 self.ifs_data.infov(np.vstack((self.sources.x - self.ccxoff, self.sources.y - self.ccyoff)).T))
             identifier.ifsPlot.addData(self.sources.x[select] - self.ccxoff, self.sources.y[select] - self.ccyoff,
                                        s=sizes[select], marker="o", edgecolor="g", facecolor="None")

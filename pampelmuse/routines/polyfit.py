@@ -37,7 +37,7 @@ pampelmuse.graphics.pampelmuse_gui.
 
 Latest SVN revision
 -------------------
-334, 2016/07/26
+377, 2016/12/14
 """
 import datetime
 import logging
@@ -49,7 +49,7 @@ from ..utils.fits import open_prm, save_prm
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 334
+__revision__ = 377
 
 
 def add_parser(parser):
@@ -110,7 +110,7 @@ def polyfit(pampelmuse):
         ui.loadPsfParameters(psf)  # add information about PSF parameters
     
         # for type of polynomial, need to make first letter uppercase for identification in GUI
-        polytype = pampelmuse.polytype[0].upper()+pampelmuse.polytype[1:]
+        polytype = pampelmuse.polytype[0].upper() + pampelmuse.polytype[1:]
         
         # check if type of polynomial is valid
         index = ui.spectrumFitTypeComboBox.findText(polytype)  # find index of requested polynomial if it exists
@@ -156,7 +156,7 @@ def polyfit(pampelmuse):
         logging.info("Polynomial fit (function={0}, order={1}) to source coordinates...".format(
             pampelmuse.polytype, pampelmuse.polydeg))
         sources.fitIfsCoordinates(ids=None, order=pampelmuse.polydeg, mask=mask, function=pampelmuse.polytype,
-                                  commonSlope=pampelmuse.polyfit.common, instrument=pampelmuse.ifs_data.instrument)
+                                  commonSlope=pampelmuse.polyfit.common, instrument=pampelmuse.ifs_data)
         
         # save changes to prm file
         save_prm(sources=sources, psf_attributes=psf, filename=pampelmuse.filename, header=pampelmuse.makeHeader())

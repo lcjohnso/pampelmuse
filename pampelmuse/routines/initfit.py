@@ -55,7 +55,7 @@ catalogue and is called by the function 'initfit'.
 
 Latest SVN Revision
 -------------------
-357, 2016/08/10
+377, 2016/12/14
 """
 import datetime
 import logging
@@ -123,6 +123,8 @@ def initfit(pampelmuse):
         xy = np.dstack((selector.cfp_results['x'], selector.cfp_results['y'])).astype('<f4')
         distance_to_edge = selector.ifs_data.distance_to_edge(xy[0])
         selector.valid &= (distance_to_edge > -ccmaxoff)
+        logger.info('Excluded sources with large distances to IFS footprint, {0} sources remain.'.format(
+            selector.valid.sum()))
     else:
         ccmaxoff = None
 
@@ -141,7 +143,7 @@ def initfit(pampelmuse):
     selector.prepare_psf(profile=pampelmuse.psf.profile, parameters=psf_parameters)
 
     # Create mock image from photometry catalog
-    selector.create_mock_image(reslim=pampelmuse.reslim, n_cpu=pampelmuse.cpucount)
+    selector.create_mock_image(n_cpu=pampelmuse.cpucount)
 
     # Create image from IFS data in provided passband
     selector.create_image_from_ifs()
@@ -153,7 +155,7 @@ def initfit(pampelmuse):
 
     # load GUI for visual check/identification
     if pampelmuse.interact:
-        selector.identify_footprint(reslim=pampelmuse.reslim)
+        selector.identify_footprint()
 
     # Perform photometric calibration (unless provided) and S/N estimation:
     selector.calibrate_photometry(n_cpu=pampelmuse.cpucount, update_zeropoint=pampelmuse.updaterl)

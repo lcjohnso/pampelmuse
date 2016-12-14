@@ -37,8 +37,7 @@ defines the methods that are called by Ui_PampelMuseGui.
 
 Latest SVN revision
 -------------------
-360, 2016/08/12
-
+377, 2016/12/14
 """
 import logging
 import os
@@ -63,7 +62,7 @@ from ..utils.fits import save_prm
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 360
+__revision__ = 377
 
 
 class ToolbarWithoutMessage(NavigationToolbar):
@@ -430,6 +429,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             mode = "grab"
         if mode != self.ifsInteractMode:
             self.emit(SIGNAL("IfsInteractModeChanged"), mode)
+            logging.debug('Interaction mode for IFS view set to "{0}".'.format(mode))
 
         if not self.refLoaded or self.sources is None:
             mode = None
@@ -437,6 +437,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             mode = 'pick'
         if mode != self.refInteractMode:
             self.emit(SIGNAL("refInteractModeChanged"), mode)
+            logging.debug('Interaction mode for reference view set to "{0}".'.format(mode))
 
     def openFile(self, filename):
         """
@@ -568,11 +569,13 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             self.refPlot.addImage(filename, cmap=plt.cm.Blues, interpolation="nearest")
     
         # add instance just created to GUI
+        logging.debug('Adding reference image view to GUI ...')
         refFrame = QHBoxLayout(self.refViewWidget)
         refFrame.addWidget(self.refPlot)
         refFrame.setAlignment(Qt.AlignCenter)
 
         # add navigation toolbar
+        logging.debug('Adding navigation toolbar to reference view ...')
         self.refToolbar = ToolbarWithoutMessage(self.refPlot, self)
         self.refHeaderHBox.insertWidget(1, self.refToolbar)
 
@@ -583,9 +586,8 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         # default cut level is 100%
         self.refCutsComboBox.setCurrentIndex(0)
 
-        self.dataLoaded()
-
         logging.debug("Successfully loaded reference image into GUI.")
+        self.dataLoaded()
 
     def addFovToReference(self, dx, dy, angle=0, scaling=1.):
         """
@@ -722,6 +724,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             # check if pixel coordinates of sources on reference image can be derived
             if self.refOffsets is None and self.refPlot.wcs is not None:
                 if self.sources.ra is not None and self.sources.dec is not None:
+                    logging.debug('(Re)calculating pixel coordinates for sources on reference image.')
                     self.refOffsets = self.refPlot.wcs.wcs_world2pix(self.sources.ra, self.sources.dec, 0)
 
             self.plot_sources_on_ref()
@@ -1416,6 +1419,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
 
         :return: None
         """
+        logging.debug('Overplotting sources on reference image ...')
         if self.refPlot.data_plot is not None:
             self.refPlot.data_plot.remove()
             self.refPlot.data_plot = None
@@ -1438,12 +1442,14 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
                 if self.sources.mag is not None:
                     # determine size of datapoints representing the sources (as for the IFU plot, the magnitudes from
                     # the source catalogue are used for this purpose if available)
+                    logging.debug('Calculating sizes of source symbols ...')
                     sizes = 2.*(10**(-0.2*(self.sources.mag[self.sources.plotted] - self.sources.mag.max())))
                     sizes[sizes <= 1] = 0
                 else:
                     sizes = 10*np.ones(self.sources.nsrc, dtype=np.float32)
 
                 # add the data to the plot.
+                logging.debug('Updating plot ...')
                 self.refPlot.addData(self.sources.x[self.sources.plotted], self.sources.y[self.sources.plotted],
                                      ids=self.sources.ID[self.sources.plotted], s=sizes, marker="o", edgecolor="r",
                                      facecolor="None", picker=5, update_axes_limits=False)

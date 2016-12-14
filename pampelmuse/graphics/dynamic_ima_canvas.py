@@ -35,7 +35,7 @@ pampelmuse.core.cube
 
 Latest SVN revision
 -------------------
-346, 2016/08/02
+377, 2016/12/14
 """
 import logging
 import numpy as np
@@ -48,7 +48,7 @@ from ..utils.fits import open_ifs_data
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 346
+__revision__ = 377
 
 
 class DynamicImaCanvas(FigureCanvasQTAgg):
@@ -146,6 +146,8 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
             self.image_plot.set_data(image)
 
         self.image = image
+        logging.debug('Size of image to be loaded: {0}x{1} pixels'.format(
+            self.image.shape[1], self.image.shape[0]))
 
         self.changeCuts()  # adapt cuts to the new data
 
@@ -161,6 +163,7 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
             self.wcs = wcs
 
         self.draw()  # update canvas view
+        logging.debug('Loading of new image completed.')
 
     def loadCube(self, input, wcs=None, **kwargs):
         """
@@ -370,11 +373,13 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
         self.y = np.asarray(y)
 
         assert(self.x.shape == self.y.shape), "x- and y-coords must have same shape."
+        logging.debug('Overplotting {0} data points on image ...'.format(self.x.shape[0]))
 
         # if previously data have been added, that is removed
         if isinstance(self.data_plot, collections.Collection):
             self.data_plot.remove()
 
+        print(kwargs)
         self.data_plot = self.axes.scatter(self.x, self.y, **kwargs)
 
         # change axes limits to show all the data
