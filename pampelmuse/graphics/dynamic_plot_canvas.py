@@ -39,7 +39,7 @@ top panel, named 'Spectrum Viewer'.
 
 Latest SVN revision
 -------------------4
-360, 2016/08/12
+382, 2016/01/11
 """
 import inspect
 import logging
@@ -55,7 +55,7 @@ matplotlib.pyplot.rcParams["axes.linewidth"] = 1.5
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 360
+__revision__ = 382
 
 
 class DynamicPlotCanvas(FigureCanvasQTAgg):
@@ -98,9 +98,9 @@ class DynamicPlotCanvas(FigureCanvasQTAgg):
 
         # define two selectors for adding a horizontal range to the rectangles or subtracting it.
         self.selector = SpanSelector(self.axes, self.on_select, direction='horizontal', useblit=True,
-                                     rectprops=dict(facecolor='red', alpha=0.5), button=1)
+                                     rectprops=dict(facecolor='red', alpha=0.5))  # , button=1)
         self.deselector = SpanSelector(self.axes, self.on_deselect, direction='horizontal', useblit=True,
-                                       rectprops=dict(facecolor='0.5', alpha=0.5), button=3)
+                                       rectprops=dict(facecolor='0.5', alpha=0.5))  # , button=3)
 
         # prepare structure to hold the set of rectangles that are overplotted on th data.
         # to achieve axes units (bottom to top = 0 to 1) in  vertical direction and data units (wavelength) in

@@ -33,7 +33,7 @@ Added
 
 Latest SVN revision
 -------------------
-381, 2017/01/11
+382, 2017/01/11
 """
 import logging
 import sys
@@ -52,7 +52,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)'
-__revision__ = 381
+__revision__ = 382
 
 
 logger = logging.getLogger(__name__)
@@ -625,7 +625,7 @@ class SourceSelector(object):
         app = QtGui.QApplication(sys.argv)
 
         # get magnitude of n_stars'th brightest star
-        n_stars = min(n_stars, self.sources.nsrc - self.sources.nbackground)
+        n_stars = min(n_stars, self.sources.nsrc - self.sources.nbackground - 1)
         mag = self.sources.mag[np.argsort(self.sources.mag[:-self.sources.nbackground])[n_stars]]
 
         identifier = PampelMuseGui(sources=self.sources, ifsData=self.ifs_data, refImage=self.identification_image)
