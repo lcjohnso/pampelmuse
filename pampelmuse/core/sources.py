@@ -38,7 +38,7 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-372, 2016/08/30
+383, 2017/01/12
 """
 import collections
 import inspect
@@ -61,7 +61,7 @@ except ImportError:
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 372
+__revision__ = 383
 
 
 def match_on_id(parent, child):
@@ -860,6 +860,9 @@ class Sources(object):
                 if "{0}3".format(key) in self.data_hdu.header:
                     setattr(self, key.lower(), self.data_hdu.header["{0}3".format(key)])
 
+        # create boolean array that keeps track of which sources have spectra loaded
+        self.spectrum_loaded = np.zeros((self.ncmp, ), dtype=np.bool)
+
     def load_spectra(self, components=None, layers=None, init_wave=False):
         """
         Load the spectra and uncertainties for the requested source(s) and
@@ -910,9 +913,8 @@ class Sources(object):
             layers = np.arange(self.ndisp)
             nlayer = self.ndisp
 
-        # create boolean array that keeps track of which sources have spectra loaded
-        self.spectrum_loaded = np.zeros((self.ncmp, ), dtype=np.bool)
-        self.spectrum_loaded[components] = True
+        # keep track of loaded spectra
+        self.spectrum_loaded = np.in1d(np.arange(self.ncmp, dtype=np.int32), components)
 
         # initialize array for spectra. The shape of the array is (#<requested layers>, #<requested IDs>, 2)
         # The last axis distinguishes between data or uncertainties.
@@ -944,7 +946,7 @@ class Sources(object):
 
         Returns
         -------
-        wave : ndarray
+        wave : nd_array
             The wavelength array.
         """
         if self._wave is not None and self._wave.size != self.ndisp:  # in case dispersion information has changed.
@@ -970,8 +972,8 @@ class Sources(object):
 
     def get_magnitude(self, component, passband=None):
         """
-        This method calculates a magnitude for a given spectrum in a given
-        filter.
+        This method calculates the magnitudes for one or more spectra in a
+        given filter.
 
         The method assumes that the fluxes are provided in erg/s/cm2/Angstrom.
         If that is not the case, the user has to perform the correction for
@@ -980,23 +982,23 @@ class Sources(object):
 
         Parameters
         ----------
-        component : int
-            The index of the component for which the magnitude should be
-            determined.
-        passband : basestring
+        component : int or iterable
+            The index/indices of the component(s) for which the magnitude(s)
+            should be determined.
+        passband : str
             The name of the passband in which the magnitude should be
             calculated.
 
         Returns
         -------
-        mag : float
-            The calculated magnitude in the AB system under the assumption
+        mag : float or nd_array
+            The calculated magnitude(s) in the AB system under the assumption
             that the spectrum has units of erg/s/cm2/Angstrom.
         """
-        if not self.spectrum_loaded[component]:
+        if not self.spectrum_loaded[component].all():
             self.load_spectra(components=component)
 
-        # index of component in spectrum data array
+        # index/indices of component(s) in spectrum data array
         i = np.cumsum(self.spectrum_loaded)[component] - 1
 
         # wavelength must be calculated in Angstrom
@@ -1019,13 +1021,11 @@ class Sources(object):
         # if that is not the case, the user has to do the conversion itself
         # returned are AB magnitudes, for the calculation of AB magnitudes from fluxes per Angstrom, see
         # https://en.wikipedia.org/wiki/AB_magnitude#Expression_in_terms_of_f.CE.BB
-        integrated_flux = np.nansum(throughput*self.data[:, i, 0]*(wave**2))/throughput.sum()
-        if integrated_flux <= 0:
-            logging.warning('Cannot determined magnitude for source #{0} with negative flux.'.format(
-                self.ID[self.indexmap[component][0]]))
-            return np.nan
-        else:
-            return -2.5*np.log10(3.34e4*integrated_flux) + 8.9
+        integrated_flux = np.nansum(throughput*self.data[:, i, 0].T*(wave.T**2), axis=-1)/throughput.sum()
+        if (integrated_flux <= 0).any():
+            logging.warning('Cannot determined magnitude for {0} source(s) with negative flux.'.format(
+                (integrated_flux <= 0).sum()))
+        return -2.5*np.log10(3.34e4*integrated_flux) + 8.9
 
     def provideComponentNames(self):
         """

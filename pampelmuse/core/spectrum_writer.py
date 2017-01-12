@@ -31,12 +31,13 @@ Added
 
 Latest SVN revision
 -------------------
-376, 2016/10/10
+383, 2017/01/12
 """
 import datetime
 import logging
 import os
 import numpy as np
+from scipy.stats import mstats, sigmaclip
 from astropy.io import fits
 from .sources import Sources
 from ..instruments import Instrument
@@ -45,7 +46,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)'
-__revision__ = 376
+__revision__ = 383
 
 
 logger = logging.getLogger(__name__)
@@ -145,6 +146,64 @@ class SpectrumWriter(object):
             self.header["hierarch PAMPELMUSE SEEING"] = (mean_fwhm, "Fitted PSF FWHM in spaxels")
 
         self.xy = None
+        self.dmag = None
+        self.contaminated = None
+
+    def identify_contaminated(self, passband, kappa=2.5):
+        """
+        This method identifies stars for which the magnitude derived from the
+        spectrum deviates significantly from the input magnitude.
+
+        The method first determines a magnitude in the provided passband from
+        each (stellar) spectrum which is then compared to the input magnitude
+        of the brightest star contributing to the spectrum. Outliers are
+        identified afterwards by performing a kappa-sigma-clipping on the
+        scatter between input and recovered magnitudes as a function of input
+        magnitude.
+
+        Parameters
+        ----------
+        passband : str
+            The name of the filter in which the magnitudes are derived from
+            the spectra. Ideally the same filter used in the source selection
+            process.
+        kappa : float, optional
+            The efficiency of the kappa-sigma-clipping.
+
+        Returns
+        -------
+        dmag : nd_array
+            The deviations between input and recovered magnitudes of all
+            sources. Offsets for non-stellar and nearby sources are set to
+            NaN. Also stored as property SpectrumWriter.dmag.
+        contaminated : nd_array
+            Flag indicating if a source has been flagged as contaminated.
+            Non-stellar and nearby sources are set to False. Also stored as
+            property SpectrumWriter.contaminated.
+        """
+        # intially set all offsets to NaN
+        self.dmag = np.zeros(self.sources.nsrc, dtype=np.float32)
+        self.dmag[:] = np.nan
+
+        # load spectra for all sources, determine magnitudes, write offsets to dmag array
+        self.sources.load_spectra()
+        has_spectrum = np.in1d(self.sources.status, [2, 3])
+        components = self.sources.specrow[has_spectrum]
+        self.dmag[has_spectrum] = self.sources.get_magnitude(
+            component=components, passband=passband) - self.sources.mag[has_spectrum]
+
+        # perform kappa-sigma-clipping in 10 (input) magnitude bins
+        bin_edges = mstats.mquantiles(self.sources.mag[np.isfinite(self.dmag)], np.arange(0, 1.0, 0.1))
+        bin_numbers = np.digitize(self.sources.mag, bin_edges)
+
+        # loop over bins, find outliers
+        self.contaminated = np.zeros(self.sources.nsrc, dtype=np.bool)
+        for i in np.unique(bin_numbers):
+            slc = np.isfinite(self.dmag) & (bin_numbers == i)
+            _, min_clip, max_clip = sigmaclip(self.dmag[slc], kappa, kappa)
+            self.contaminated[slc] = (self.dmag[slc] < min_clip) | (self.dmag[slc] > max_clip)
+
+        return self.dmag, self.contaminated
 
     def add_header_key(self, key, value, comment=None):
         """
@@ -182,8 +241,8 @@ class SpectrumWriter(object):
             One or more filter names for which magnitudes should be estimated
             from the spectra. If the 'poststamp' flag is being set, then the
             images will be created for each filter as well.
-            NOTE: PampelMuse only stores a few bandpasses internally. See the
-            manual for how additional filters can be provided.
+            NOTE: PampelMuse only stores a few filter curves internally. See
+            the manual for how additional filters can be provided.
         poststamps : bool
             If this flag is set, the routine will store one or more small
             images as additional extensions in each spectrum FITS file. The
@@ -240,6 +299,7 @@ class SpectrumWriter(object):
             #  2 - The estimated S/N of the spectrum is <10
             #  4 - The mean flux of the spectrum is <0
             #  8 - The centroid of the star is outside the field of view
+            # 16 - The spectrum may be contaminated (recovered magnitude deviates from input magnitude)
 
             # create primary HDU with spectrum
             primary_hdu = fits.PrimaryHDU(self.sources.data[self.start:self.stop, i, 0], header=self.header)
@@ -308,7 +368,7 @@ class SpectrumWriter(object):
                 edge_distance = self.ifs_data.distance_to_edge([xy_j])[0]
                 primary_hdu.header["HIERARCH SPECTRUM EDGEDIST"] = (edge_distance, "[spaxel] Distance to FOV edge")
 
-                # create poststamps if requested
+                # create poststamp image(s) if requested
                 if len(images) > 0:
                     image_header = self._header_with_nearby_sources(x_c=xy_j[0], y_c=xy_j[1], radius=radius)
                 else:
@@ -344,6 +404,12 @@ class SpectrumWriter(object):
                 else:
                     logger.error('{0}-magnitude calculation for source #{1} returned NaN.'.format(
                         filter_name, source_id))
+            if self.dmag is not None and np.isfinite(self.dmag[j]):
+                primary_hdu.header['HIERARCH SPECTRUM DMAG'] = (self.dmag[j], 'Magnitude difference to input.')
+                if self.contaminated is not None and np.isfinite(self.dmag[j]):
+                    primary_hdu.header['HIERARCH SPECTRUM CONTAMINATED'] = self.contaminated[j]
+                    if self.contaminated[j]:
+                        flag += 16
 
             primary_hdu.header["HIERARCH SPECTRUM QLTFLAG"] = (flag, "Quality flag of source")
 

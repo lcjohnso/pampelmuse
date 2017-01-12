@@ -40,7 +40,7 @@ Added
 
 Latest SVN revision
 -------------------
-366 # 2016/08/16
+383 # 2017/01/12
 """
 import logging
 from ..core.spectrum_writer import SpectrumWriter
@@ -48,7 +48,7 @@ from ..utils.fits import open_prm
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 366
+__revision__ = 383
 
 
 def add_parser(parser):
@@ -85,6 +85,9 @@ def getspectra(pampelmuse):
 
     # prepare instance for writing spectra to disk
     writer = SpectrumWriter(sources=sources, ifs_data=pampelmuse.ifs_data, psf_attributes=psf_attributes)
+
+    # identify possibly contaminated spectra (note that this may also flag variable stars)
+    _, _ = writer.identify_contaminated(passband=pampelmuse.passband)
 
     # add relevant PampelMuse keywords to the FITS header
     for key in ["version", "revision", "filename", "utc", "passband"]:
