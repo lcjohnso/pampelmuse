@@ -31,13 +31,13 @@ Added
 
 Latest SVN revision
 -------------------
-383, 2017/01/12
+384, 2017/01/17
 """
 import datetime
 import logging
 import os
 import numpy as np
-from scipy.stats import mstats, sigmaclip
+from scipy.stats import mstats
 from astropy.io import fits
 from .sources import Sources
 from ..instruments import Instrument
@@ -46,7 +46,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)'
-__revision__ = 383
+__revision__ = 384
 
 
 logger = logging.getLogger(__name__)
@@ -147,19 +147,27 @@ class SpectrumWriter(object):
 
         self.xy = None
         self.dmag = None
-        self.contaminated = None
+        self.cleanness = None
 
-    def identify_contaminated(self, passband, kappa=2.5):
+    def identify_contaminated(self, passband, alpha=2., beta=2.):
         """
         This method identifies stars for which the magnitude derived from the
         spectrum deviates significantly from the input magnitude.
 
         The method first determines a magnitude in the provided passband from
         each (stellar) spectrum which is then compared to the input magnitude
-        of the brightest star contributing to the spectrum. Outliers are
-        identified afterwards by performing a kappa-sigma-clipping on the
-        scatter between input and recovered magnitudes as a function of input
-        magnitude.
+        of the brightest star contributing to the spectrum. Each magnitude
+        difference is compared to the distribution of differences of stars
+        with similar brightness and the star is assigned a cleanness based on
+        its location with respect to this distribution.
+        The cleanness is determined using the following formula.
+
+            c = 1. / (1. + ((DM / (alpha*STD)))^beta),
+
+        where DM is the magnitude difference, STD is the standard deviation
+        of DM derived from stars with similar brightness (after reducing the
+        scaling the weight of each star with its cleanness parameter), and
+        alpha and beta are user-defined parameters.
 
         Parameters
         ----------
@@ -167,8 +175,14 @@ class SpectrumWriter(object):
             The name of the filter in which the magnitudes are derived from
             the spectra. Ideally the same filter used in the source selection
             process.
-        kappa : float, optional
-            The efficiency of the kappa-sigma-clipping.
+        alpha : float, optional
+            First parameter influencing the cleanness of a star. A star with a
+            magnitude difference of alpha times the standard deviation of the
+            comparison stars will have a cleanness value of 0.5
+        beta : float, optional
+            Second parameter influencing the cleanness of a star. Basically
+             controls the steepness of the decline of the value around alpha
+             times the standard deviation of the comparison stars.
 
         Returns
         -------
@@ -176,10 +190,11 @@ class SpectrumWriter(object):
             The deviations between input and recovered magnitudes of all
             sources. Offsets for non-stellar and nearby sources are set to
             NaN. Also stored as property SpectrumWriter.dmag.
-        contaminated : nd_array
-            Flag indicating if a source has been flagged as contaminated.
-            Non-stellar and nearby sources are set to False. Also stored as
-            property SpectrumWriter.contaminated.
+        cleanness : nd_array
+            The cleanness value of the spectra is contaminated, based on the
+            statistical comparison with stars of similar magnitude. Note that
+            non-stellar and nearby sources are assigned a cleanness value of
+            unity. Also stored as property SpectrumWriter.cleanness.
         """
         # intially set all offsets to NaN
         self.dmag = np.zeros(self.sources.nsrc, dtype=np.float32)
@@ -197,13 +212,20 @@ class SpectrumWriter(object):
         bin_numbers = np.digitize(self.sources.mag, bin_edges)
 
         # loop over bins, find outliers
-        self.contaminated = np.zeros(self.sources.nsrc, dtype=np.bool)
+        self.cleanness = np.ones(self.sources.nsrc, dtype=np.float32)
         for i in np.unique(bin_numbers):
             slc = np.isfinite(self.dmag) & (bin_numbers == i)
-            _, min_clip, max_clip = sigmaclip(self.dmag[slc], kappa, kappa)
-            self.contaminated[slc] = (self.dmag[slc] < min_clip) | (self.dmag[slc] > max_clip)
+            if slc.sum() < 3:
+                continue
 
-        return self.dmag, self.contaminated
+            sigma = np.inf
+            while True:
+                if np.std(self.dmag[slc]*self.cleanness[slc])/sigma >= 0.99:
+                    break
+                sigma = np.std(self.dmag[slc]*self.cleanness[slc])
+                self.cleanness[slc] = 1./(1. + ((self.dmag[slc] - np.median(self.dmag[slc]))/(alpha*sigma))**beta)
+
+        return self.dmag, self.cleanness
 
     def add_header_key(self, key, value, comment=None):
         """
@@ -404,12 +426,12 @@ class SpectrumWriter(object):
                 else:
                     logger.error('{0}-magnitude calculation for source #{1} returned NaN.'.format(
                         filter_name, source_id))
+            if self.cleanness is not None and np.isfinite(self.dmag[j]):
+                primary_hdu.header['HIERARCH SPECTRUM MAG ACCURACY'] = self.cleanness[j]
+                # if self.cleanness[j] < ?:
+                #     flag += 8
             if self.dmag is not None and np.isfinite(self.dmag[j]):
                 primary_hdu.header['HIERARCH SPECTRUM DMAG'] = (self.dmag[j], 'Magnitude difference to input.')
-                if self.contaminated is not None and np.isfinite(self.dmag[j]):
-                    primary_hdu.header['HIERARCH SPECTRUM CONTAMINATED'] = self.contaminated[j]
-                    if self.contaminated[j]:
-                        flag += 16
 
             primary_hdu.header["HIERARCH SPECTRUM QLTFLAG"] = (flag, "Quality flag of source")
 
