@@ -31,7 +31,7 @@ Added
 
 Latest SVN revision
 -------------------
-384, 2017/01/17
+385, 2017/01/18
 """
 import datetime
 import logging
@@ -46,7 +46,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)'
-__revision__ = 384
+__revision__ = 385
 
 
 logger = logging.getLogger(__name__)
@@ -247,7 +247,8 @@ class SpectrumWriter(object):
         else:
             self.header[key.upper()] = value
 
-    def __call__(self, prefix, folder='spectra', filter_names=None, poststamps=False, radius=10):
+    def __call__(self, prefix, folder='spectra', filter_names=None, poststamps=False, radius=10,
+                 add_flag_to_filename=True):
         """
         This method performs the storing of the individual spectra to disk.
 
@@ -265,7 +266,7 @@ class SpectrumWriter(object):
             images will be created for each filter as well.
             NOTE: PampelMuse only stores a few filter curves internally. See
             the manual for how additional filters can be provided.
-        poststamps : bool
+        poststamps : bool, optional
             If this flag is set, the routine will store one or more small
             images as additional extensions in each spectrum FITS file. The
             images will show the area around the locations where the spectra
@@ -273,6 +274,9 @@ class SpectrumWriter(object):
             light images will be stored.
         radius : int, optional
             The radius around the sources covered by the poststamp images.
+        add_flag_to_filename : bool, optional
+            Flag indicating if the quality flag assigned to a spectrum should
+            also be included in the name used to store its FITS-file.
         """
         if not os.path.exists(folder):
             logging.info("Creating folder '{0}' to store spectra...".format(folder))
@@ -426,12 +430,12 @@ class SpectrumWriter(object):
                 else:
                     logger.error('{0}-magnitude calculation for source #{1} returned NaN.'.format(
                         filter_name, source_id))
+            if self.dmag is not None and np.isfinite(self.dmag[j]):
+                primary_hdu.header['HIERARCH SPECTRUM MAG DELTA'] = (self.dmag[j], 'Magnitude difference to input.')
             if self.cleanness is not None and np.isfinite(self.dmag[j]):
                 primary_hdu.header['HIERARCH SPECTRUM MAG ACCURACY'] = self.cleanness[j]
                 # if self.cleanness[j] < ?:
                 #     flag += 8
-            if self.dmag is not None and np.isfinite(self.dmag[j]):
-                primary_hdu.header['HIERARCH SPECTRUM DMAG'] = (self.dmag[j], 'Magnitude difference to input.')
 
             primary_hdu.header["HIERARCH SPECTRUM QLTFLAG"] = (flag, "Quality flag of source")
 
@@ -450,7 +454,9 @@ class SpectrumWriter(object):
                 primary_hdu.header["OBJNAME"] = "{0} {1} {2}".format(prefix.upper(), self.ifs_data.name,
                                                                      abs(self.sources.ID[j]))
 
-            outfile_prefix = "{0}{1}{2}f{3:03d}".format(prefix, name, self.date_string, int(flag))
+            outfile_prefix = "{0}{1}{2}".format(prefix, name, self.date_string)
+            if add_flag_to_filename:
+                outfile_prefix += "f{0:03d}".format(flag)
 
             utc = datetime.datetime.utcnow().strftime("%y-%m-%d %H:%M:%S")
             primary_hdu.header["DATE-GEN"] = (utc, "UTC this file was generated.")

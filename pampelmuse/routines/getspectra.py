@@ -40,7 +40,7 @@ Added
 
 Latest SVN revision
 -------------------
-383 # 2017/01/12
+385 # 2017/01/18
 """
 import logging
 from ..core.spectrum_writer import SpectrumWriter
@@ -48,7 +48,7 @@ from ..utils.fits import open_prm
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 383
+__revision__ = 385
 
 
 def add_parser(parser):
@@ -67,6 +67,9 @@ def add_parser(parser):
     Set this flag to store an image showing the region of the IFS data from
     which it was extracted. Note that a separate FITS-image is stored for
     each filter provided via --passbands.""")
+    p.add_argument("--skipflag", action='store_true', default=False, help="""
+    If this flag is used, the quality flags assigned to the individual spectra
+    are not included in the names used to store the FITS-files.""")
     p.set_defaults(func=getspectra)
 
 
@@ -101,4 +104,5 @@ def getspectra(pampelmuse):
 
     # perform spectrum writing
     writer(prefix=pampelmuse.getspectra.specprefix, folder=pampelmuse.getspectra.folder,
-           filter_names=pampelmuse.getspectra.passbands, poststamps=pampelmuse.getspectra.poststamps)
+           filter_names=pampelmuse.getspectra.passbands, poststamps=pampelmuse.getspectra.poststamps,
+           add_flag_to_filename=not pampelmuse.getspectra.skipflag)
