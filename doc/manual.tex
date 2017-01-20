@@ -44,9 +44,9 @@
 
 \pampelmuse is written in \textit{python}. Currently version 2.7 of \textit{python} must be available on the system (because earlier versions lack the \texttt{argparse} module that is required). Support for \textit{python\,3} is planned for future revisions. In addition, several \textit{python} packages are required to run \pampelmuse:
 \begin{itemize}
- \item \textit{numpy}\footnote{\url{http://www.numpy.org/}}, tested for version 1.11.1
- \item \textit{scipy}\footnote{\url{http://scipy.org/}}, tested for version 0.17, $\geq$0.10 required.
- \item \textit{astropy}\footnote{\url{http://www.astropy.org/}}, tested for version 1.2.1, $\geq0.3$ required.
+ \item \textit{numpy}\footnote{\url{http://www.numpy.org/}}, tested for version 1.10.4
+ \item \textit{scipy}\footnote{\url{http://scipy.org/}}, tested for version 0.16.1, $\geq$0.13 required.
+ \item \textit{astropy}\footnote{\url{http://www.astropy.org/}}, tested for version 1.1.1, $\geq0.3$ required.
   \item \textit{matplotlib}\footnote{\url{http://matplotlib.org/}}, tested for version 1.5.1.
 \end{itemize}
 Note that the versions of the packages listed above are just a recommendation. The code may also run with earlier versions. In addition to these packages, it is highly recommended that the following package is available on the system:
@@ -108,8 +108,8 @@ should return no error message.
 
 \subsection{Default configuration}
 
-The behaviour of \pampelmuse can be modified using a number of configuration parameters. The default configuration that is shipped with the code is contained in an XML-file that is stored under \texttt{\$pampelmuse\_path/config/PMparams.xml}. To view this file, open it with any web browser, e.g. via
-\shellcmd{firefox \$pampelmuse\_path/config/PMparams.xml}\,.
+The behaviour of \pampelmuse can be modified using a number of configuration parameters. The default configuration that is shipped with the code is contained in an XML-file that is stored under \texttt{\$pampelmuse\_path/pampelmuse/config/data/PMparams.xml}. To view this file, open it with any web browser, e.g. via
+\shellcmd{firefox \$pampelmuse\_path/pampelmuse/config/data/PMparams.xml}\,.
 
 In the following sections, the individual parameters of the configuration will be gradually introduced when discussing the part of \pampelmuse that they influence. Note that each parameter is introduced via the statement
 %
@@ -183,9 +183,7 @@ Besides the actual data, \pampelmuse also requires an estimate of the variances 
 
 If provided, the bad pixel mask should be zero for valid pixels and one for pixels that should be excluded. Instead of providing a dedicated mask, one can also set the invalid pixels to NaN and \pampelmuse will ignore them in the analysis.
 
-Although not required, it is highly advantageous if the header of the FITS file containing the IFS data contains some basic WCS information, i.e. at least the keywords \texttt{RA}, \texttt{DEC}, and the matrix \texttt{CDi\_j}. \pampelmuse will use this information to determine the spaxel scale and the approximate location of the field of view on the sky. % If no WCS information is available, the keyword \texttt{PIXSCALE} should be used to provide the spaxel scale.
-
-% \pmparameter{PIXSCALE}{float}{1.0}{The scale of the spaxels in arcseconds. Note that this parameter is only used if the code cannot infer the spaxel size from the (WCS) information provided in the FITS header of the IFS data.}
+Although not required, it is highly advantageous if the header of the FITS file containing the IFS data contains some basic WCS information, i.e. at least the keywords \texttt{RA}, \texttt{DEC}, and the matrix \texttt{CDi\_j}. \pampelmuse will use this information to determine the spaxel scale and the approximate location of the field of view on the sky.
 
 \pampelmuse also offers the possibility to analyse only a part of the datacube or to bin the data in spectral direction to speed up the analysis. Two parameters, \texttt{LAYERRNG} and \texttt{LAYERBIN} can be used to achieve this.
 \pmparameter{LAYERRNG}{tuple}{($0$, $-1$)}{The range of layers of the IFS data that should be analysed. The default corresponds to the full cube.}
@@ -460,8 +458,8 @@ In order to be able to mask out wavelength ranges also when running POLYFIT in n
 \end{figure}
 
 \subsection{GETSPECTRA - obtaining the results}
-Once the analysis is complete, you probably want to have the spectra in some other format than the PRM-file. To facilitate this, \pampelmuse has a routine GETSPECTRA, called with the following sequence
-\shellcmd{PampelMuse <config> <IFS data prefix> GETSPECTRA <spectra prefix>}\,.
+Once the analysis is complete, you probably want to have the spectra in some other format than the PRM-file. To facilitate this, \pampelmuse has a routine GETSPECTRA, called with the following sequence.
+\shellcmd{PampelMuse <config> <IFS data prefix> GETSPECTRA <spectra prefix>}\,.\\
 The routine will store all the extracted spectra in individual FITS files that contain the spectrum in the primary extension and an estimate of the uncertainties in an image HDU named \texttt{SIGMA}. The header of each file will contain the correct dispersion information, general information about the star and the spectrum as well as a number of hierarch keywords copied from the PRM-file.
 Note that this routine is called with the mandatory argument \texttt{<spectra prefix>} which is a string  (typically the name of the observed cluster, galaxy, ...) that is used as a common prefix to all FITS files that are written. Additionally, the routine may be called with the \texttt{--folder} option to provide a folder in which all spectra should be stored.
 
@@ -488,6 +486,8 @@ If the uncertainties should not be used, the code tries to estimate them from th
  \label{fig:muse_spectra_wiggles}
 \end{figure}
 
+\section{Acknowledgements}
+Tim-Oliver Husser, Benjamin Giesers, Bruno Dias, Anja Feldmaier, ...
 
 \newcommand*\aap{A\&A}
 \newcommand*\pasp{PASP}
