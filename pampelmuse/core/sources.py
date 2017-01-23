@@ -51,7 +51,7 @@ import numpy as np
 from numpy.polynomial import Chebyshev, Legendre, Hermite, Polynomial
 from astropy.io import fits
 from ..core.coordinates import Transformation
-from ..filters import  get_filter
+from ..filters import get_filter
 
 # check if PyQt is available 
 try:
@@ -1000,6 +1000,7 @@ class Sources(object):
 
         # index/indices of component(s) in spectrum data array
         i = np.cumsum(self.spectrum_loaded)[component] - 1
+        logging.debug('Index of component {0} in loaded data: {1}'.format(component, i))
 
         # wavelength must be calculated in Angstrom
         if self.cunit == 'm':

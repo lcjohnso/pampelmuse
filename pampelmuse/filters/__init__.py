@@ -36,7 +36,7 @@ Added
 
 Latest SVN Revision
 -------------------
-382, 2017/01/11
+387, 2017/01/23
 """
 import logging
 import os
@@ -45,7 +45,7 @@ from scipy import interpolate
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 382
+__revision__ = 387
 
 
 # ALIASES is a dictionary containing for each available filter a list of alternative names
@@ -107,6 +107,7 @@ def get_filter(name):
     # open filter curve
     filtercurve = np.genfromtxt(filterfile, usecols=(0, 1), dtype=[("wl", np.float32), ("tp", np.float32)])
 
-    # return the filter curve as a scipy.interpolate.UnivariateSpline instance
+    # return the filter curve as a scipy.interpolate.InterpolatedUnivariateSpline instance
     # use option ext=1 so that values outside valid range are set to zero.
-    return interpolate.UnivariateSpline(filtercurve["wl"], filtercurve["tp"], k=3, s=0)   # , ext=1)
+    return interpolate.InterpolatedUnivariateSpline(filtercurve["wl"], filtercurve["tp"], k=3, ext=1)
+
