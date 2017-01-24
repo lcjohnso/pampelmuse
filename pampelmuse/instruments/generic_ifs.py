@@ -29,7 +29,7 @@ i.e. NAXIS3 in FITS counting) being the spectral axis.
 
 Latest SVN revision
 -------------------
-372, 2016/08/30
+388, 2017/01/24
 """
 import logging
 import numpy as np
@@ -38,7 +38,7 @@ from .instrument import Instrument
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 372
+__revision__ = 388
 
 
 class GenericIFS(Instrument):
@@ -163,7 +163,7 @@ class GenericIFS(Instrument):
         elif i < -self.nspaxel or i >= self.nspaxel:
             logging.error("Spaxel index must be <{0} but is {1}.".format(self.nspaxel, i))
             return None
-        j, k = self._transform[i]
+        j, k = self._transform[i].astype('<i4')
 
         mask = self.maskhdu.data[:, j, k] if self.maskhdu is not None else np.zeros(self.wave.shape, dtype=np.bool)
 

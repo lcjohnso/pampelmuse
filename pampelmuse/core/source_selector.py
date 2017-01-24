@@ -33,7 +33,7 @@ Added
 
 Latest SVN revision
 -------------------
-382, 2017/01/11
+388, 2017/01/24
 """
 import logging
 import sys
@@ -52,7 +52,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)'
-__revision__ = 382
+__revision__ = 388
 
 
 logger = logging.getLogger(__name__)
@@ -651,7 +651,8 @@ class SourceSelector(object):
         app.exec_()
 
         identified = identifier.identifiedSources
-        if len(identified) >= 2:
+        if len(identified) >= 4:
+            # TODO: reduce number of required sources to 2 if only offsets should be determined
             # determine coordinate transformation using identified sources, when providing the IFS coordinates for the
             # sources that were identified, they need to be provided in the right order (the sources were not
             # necessarily identified in the same order they appear in the catalogue)
@@ -666,7 +667,7 @@ class SourceSelector(object):
                 self.sources.transformation.free[-2:] = True
 
         elif not self.sources.transformation.valid:
-            logger.error("At least 2 sources must be identified.")
+            logger.error("At least 4 sources must be identified.")
 
     def calibrate_photometry(self, n_cpu=1, update_zeropoint=True):
         """

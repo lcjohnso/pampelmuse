@@ -37,7 +37,7 @@ defines the methods that are called by Ui_PampelMuseGui.
 
 Latest SVN revision
 -------------------
-380, 2016/12/14
+388, 2017/01/24
 """
 import logging
 import os
@@ -62,7 +62,7 @@ from ..utils.fits import save_prm
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 380
+__revision__ = 388
 
 
 class ToolbarWithoutMessage(NavigationToolbar):
@@ -1198,6 +1198,10 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         # if the GUI is used to identify sources in the IFU data, add the event to the selection
         if self.currentRefID is not None:
             self.identifiedSources[self.currentRefID] = [x, y, 0., 0.]
+            j = np.flatnonzero(self.sources.ID == self.currentRefID)[0]
+            logging.info(
+                'Identified source #{0} (x_ref={1:.1f}, y_ref={2:.1f}) at (x_ifs={3:.1f}, y_ifs={4:.1f})'.format(
+                    self.currentRefID, self.sources.x[j], self.sources.y[j], x, y))
             self.updateMarkHistPlot()
 
         self.ifsPlot.draw()
@@ -1353,6 +1357,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
 
                 if self.ifsInteractMode == "grab":
                     self.updateMarkHistPlot()
+                logging.info('Unselected source #{0}.'.format(current_id))
 
     def updateMarkHistPlot(self):
         """

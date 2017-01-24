@@ -70,7 +70,7 @@ This results in the inverse transformation:
 
 Latest SVN revision
 -------------------
-356, 2016/08/10
+388, 2017/01/24
 """
 import logging
 import re
@@ -79,7 +79,7 @@ from ..core.parameters import Parameters
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 356
+__revision__ = 388
 
 
 def my_lsq_sigma(a, b, sigma=None):
@@ -412,11 +412,20 @@ class Transformation(Parameters):
         The results of the least squares fit. Consult the documentation of
         my_lsq_sigma for more information on the output.
 
+        Raises
+        ------
+        IOError - if N <= number of requested parameters
         """
+        if fixed is None:
+            fixed = {}
+
         # n is the number of provided sources, N=2n is the number of columns of the matrix A
         # (each source contributes two rows)
         n = indata.shape[0]
         N = 2 * n
+        if N <= (6 - len(fixed)):
+            logging.error('Number of coordinates must be greater than number of parameters.')
+            raise IOError('size of indata must be >{0} but is {1}'.format(indata.size, N-len(fixed)))
 
         # fill matrix using input coordinates, the matrix equation will contain alternating equations for x and y,
         # equations involving output x coordinates in even rows (0,2,...N-2) and involving output y coordinates in
