@@ -47,14 +47,14 @@ PSF variable) changes its value.
 
 Latest SVN revision
 -------------------
-356, 2016/08/10
+389, 2017/01/24
 """
 import logging
 import numpy as np
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 356
+__revision__ = 389
 
 
 class Canvas(object):
@@ -107,8 +107,8 @@ class Canvas(object):
         assert len(shape) == 2, 'Parameter "shape" must be a tuple of length 2.'
 
         n_pixel = np.prod(shape)
-        transform = np.vstack((np.arange(n_pixel, dtype=np.int32) // shape[1],
-                               np.mod(np.arange(n_pixel, dtype=np.int32), shape[1]))).T
+        transform = np.vstack((np.arange(n_pixel, dtype=np.float32) // shape[1],
+                               np.mod(np.arange(n_pixel, dtype=np.float32), shape[1]))).T
         return cls(transform=transform, **kwargs)
 
     @property
