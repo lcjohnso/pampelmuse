@@ -28,7 +28,7 @@ defines generic methods that are inherited by all its subclasses.
 
 Latest SVN revision
 -------------------
-371, 2016/08/17
+390, 2017/01/25
 """
 import logging
 import matplotlib
@@ -42,7 +42,7 @@ from ..utils.distance import dist2path, point_in_poly
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 371
+__revision__ = 390
 
 
 class Instrument(object):
@@ -617,8 +617,10 @@ class Instrument(object):
         if self.is_valid(hdu):
             self.datahdu = hdu
             self.nvoxel = np.prod(self.datahdu.shape)
+            logging.info('Loaded IFS data from HDU <{0}> of file {1}'.format(
+                self.datahdu.name, self.datahdu.fileinfo()['file'].name))
         else:
-            logging.error('Data HDU [{0}] of file {1} has invalid format.'.format(
+            logging.error('Data HDU <{0}> of file {1} has invalid format.'.format(
                     hdu.name, hdu.fileinfo()['file'].name))
 
     def _set_varhdu(self, hdu):
@@ -636,8 +638,10 @@ class Instrument(object):
         """
         if self.datahdu is not None and self.is_valid(hdu):  # HDU containing data must be loaded first
             self.varhdu = hdu
+            logging.info('Loaded variances from HDU <{0}> of file {1}'.format(
+                self.varhdu.name, self.varhdu.fileinfo()['file'].name))
         else:
-            logging.error('Variance HDU [{0}] of file {1} has invalid format.'.format(
+            logging.error('Variance HDU <{0}> of file {1} has invalid format.'.format(
                     hdu.name, hdu.fileinfo()['file'].name))
 
     def _set_maskhdu(self, hdu):
@@ -656,8 +660,10 @@ class Instrument(object):
         """
         if self.datahdu is not None and self.is_valid(hdu):  # HDU containing data must be loaded first
             self.maskhdu = hdu
+            logging.info('Loaded bad-pixel mask from HDU <{0}> of file {1}'.format(
+                self.maskhdu.name, self.maskhdu.fileinfo()['file'].name))
         else:
-            logging.error('Mask HDU [{0}] of file {1} has invalid format.'.format(
+            logging.error('Mask HDU <{0}> of file {1} has invalid format.'.format(
                     hdu.name, hdu.fileinfo()['file'].name))
 
     def _set_residualshdu(self, hdu):
@@ -676,8 +682,10 @@ class Instrument(object):
         """
         if self.datahdu is not None and self.is_valid(hdu):  # HDU containing data must be loaded first
             self.residualshdu = hdu
+            logging.info('Loaded residuals from HDU <{0}> of file {1}'.format(
+                self.residualshdu.name, self.residualshdu.fileinfo()['file'].name))
         else:
-            logging.error('Residuals HDU [{0}] of file {1} has invalid format.'.format(
+            logging.error('Residuals HDU <{0}> of file {1} has invalid format.'.format(
                     hdu.name, hdu.fileinfo()['file'].name))
 
     def open(self, filename, extno=0, isvar=False, ismask=False, isresiduals=False, **kwargs):
