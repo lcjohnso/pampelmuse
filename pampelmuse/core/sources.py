@@ -38,7 +38,7 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-392, 2017/01/27
+394, 2017/01/27
 """
 import collections
 import inspect
@@ -61,7 +61,7 @@ except ImportError:
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 392
+__revision__ = 394
 
 
 def match_on_id(parent, child):
@@ -1036,18 +1036,19 @@ class Sources(object):
         # handle various cases:
         # case 1) one component requested: data[:, i, 0] has shape (k,), wave has shape (k,)
         if not hasattr(component, '__iter__'):
-            integrated_flux = np.nansum(throughput*self.data[:, i, 0]*(wave**2))/throughput.sum()
-            if integrated_flux < 0:
+            integrated_flux = np.nansum(throughput*self.data[:, i, 0]*(wave**2))/np.nansum(throughput)
+            if integrated_flux <= 0:
                 logging.warning('Cannot determined magnitude for component #{0} with negative flux.'.format(component))
                 return np.nan
         # case 2) N components requested
         else:
             # case 2a) common wavelength data: data[:, i, 0] has shape (k, N), wave has shape (k,)
             if wave.ndim == 1:
-                integrated_flux = np.nansum(throughput*self.data[:, i, 0].T*(wave**2), axis=-1)/throughput.sum()
+                integrated_flux = np.nansum(throughput*self.data[:, i, 0].T*(wave**2), axis=-1)/np.nansum(throughput)
             # case 2b) wavelength data per spectrum:  data[:, i, 0] has shape (k, N), wave has shape (k, N)
             else:
-                integrated_flux = np.nansum(throughput*self.data[:, i, 0]*(wave**2), axis=0)/throughput.sum()
+                integrated_flux = np.nansum(throughput*self.data[:, i, 0]*(wave**2), axis=0)/np.nansum(
+                    throughput, axis=0)
             if (integrated_flux <= 0).any():
                 logging.warning('Cannot determined magnitude for {0} source(s) with negative flux.'.format(
                     (integrated_flux <= 0).sum()))
