@@ -38,7 +38,7 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-383, 2017/01/12
+391, 2017/01/27
 """
 import collections
 import inspect
@@ -955,7 +955,7 @@ class Sources(object):
         if self.data_wave is not None and component is None:
             if self._wave is None:
                 self._wave = np.nanmean(self.data_wave, axis=1)
-        elif self.data_wave is not None and self.spectrum_loaded[component]:
+        elif self.data_wave is not None and self.spectrum_loaded[component].all():
             # get index of the spectrum in the Sources.data_wave array
             i = np.cumsum(self.spectrum_loaded)[component] - 1
             self._wave = self.data_wave[:, i]
