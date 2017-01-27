@@ -30,7 +30,7 @@ muse_scipost recipe.
 
 Latest SVN revision
 -------------------
-392, 2017/01/27
+393, 2017/01/27
 """
 import logging
 import warnings
@@ -44,7 +44,7 @@ from .generic_ifs import GenericIFS
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 392
+__revision__ = 393
 
 
 class Muse(GenericIFS):
@@ -300,6 +300,10 @@ class MusePixtable(Instrument):
         # per pixel while MusePixtable.wave contains one value per layer
         logging.info('Reading wavelength array ...')
         self.rawwave = pt['lambda'].data[:, 0]
+        logging.info('... done.')
+
+        # check if wavelength array is strictly increasing
+        logging.info('Checking consistency of pixtable ...')
         if (np.diff(self.rawwave) >= 0).all():
             self.issorted = True
         else:
@@ -308,6 +312,7 @@ class MusePixtable(Instrument):
             logging.error('Currently support exists only for sorted pixtables.')
             logging.error('To sort this pixtable, you may run "PampelMuse PTSORT {0}".'.format(filename))
             raise IOError('Pixtable data not sorted by wavelength.')
+        logging.info('... done.')
 
         # fill other HDU instances with data
         self._set_datahdu(pt['data'])
