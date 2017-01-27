@@ -30,7 +30,7 @@ muse_scipost recipe.
 
 Latest SVN revision
 -------------------
-339, 2016/07/29
+392, 2017/01/27
 """
 import logging
 import warnings
@@ -44,7 +44,7 @@ from .generic_ifs import GenericIFS
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 339
+__revision__ = 392
 
 
 class Muse(GenericIFS):
@@ -220,6 +220,8 @@ class MusePixtable(Instrument):
                     hdu.name, hdu.fileinfo()['file'].name))
         else:
             self.xhdu = hdu
+            logging.info('Loaded x-coordinates from HDU <{0}> of file {1}'.format(
+                self.xhdu.name, self.xhdu.fileinfo()['file'].name))
 
     def _set_yhdu(self, hdu):
         """
@@ -242,6 +244,8 @@ class MusePixtable(Instrument):
                     hdu.name, hdu.fileinfo()['file'].name))
         else:
             self.yhdu = hdu
+            logging.info('Loaded y-coordinates from HDU <{0}> of file {1}'.format(
+                self.yhdu.name, self.yhdu.fileinfo()['file'].name))
 
     def open(self, filename, isresiduals=False, **kwargs):
         """
@@ -294,6 +298,7 @@ class MusePixtable(Instrument):
 
         # Note that for the MUSE pixtables two wavelength ranges are defined; MusePixtable.rawwave contains one value
         # per pixel while MusePixtable.wave contains one value per layer
+        logging.info('Reading wavelength array ...')
         self.rawwave = pt['lambda'].data[:, 0]
         if (np.diff(self.rawwave) >= 0).all():
             self.issorted = True

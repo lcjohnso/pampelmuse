@@ -38,7 +38,7 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-391, 2017/01/27
+392, 2017/01/27
 """
 import collections
 import inspect
@@ -61,7 +61,7 @@ except ImportError:
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 383
+__revision__ = 392
 
 
 def match_on_id(parent, child):
@@ -936,32 +936,42 @@ class Sources(object):
 
     def get_wave(self, component=None):
         """
-        Return the wavelength data for a spectrum.
+        Returns the wavelength data for one or more spectra.
+
+        The return value depends on which components are requested and whether
+        all spectra have the same dispersion information.
 
         Parameters
         ----------
-        component : int, optional
-            The index of the component for which the wavelength information
-            should be returned.
+        component : int or array_like with shape (N,), optional
+            The index(es) of the component(s) for which the wavelength
+            information should be returned. Default is to return a single
+            array (approximately) valid for all spectra.
 
         Returns
         -------
-        wave : nd_array
-            The wavelength array.
+        wave : nd_array, shape (k,) or (k, N)
+            The wavelength array. Note that if component is None or a global
+            wavelength scale is valid for all spectra, the return value
+            will be 1dim., otherwise 2dim.
         """
-        if self._wave is not None and self._wave.size != self.ndisp:  # in case dispersion information has changed.
+        # in case dispersion information has changed, existing wavelength data must be reset.
+        if self._wave is not None and self._wave.size != self.ndisp:
             self._wave = None
 
+        # case 1) wavelength available for each spectrum but average requested
         if self.data_wave is not None and component is None:
             if self._wave is None:
-                self._wave = np.nanmean(self.data_wave, axis=1)
+                self._wave = np.nanmean(self.data_wave, axis=1)  # shape (k,)
+        # case 2) wavelength available for each spectrum and individual component(s) requested
         elif self.data_wave is not None and self.spectrum_loaded[component].all():
             # get index of the spectrum in the Sources.data_wave array
             i = np.cumsum(self.spectrum_loaded)[component] - 1
-            self._wave = self.data_wave[:, i]
+            self._wave = self.data_wave[:, i]  # shape (k, N)
+        # case 3) global wavelength for all spectra
         else:
             if self._wave is None:
-                self._wave = np.arange(self.ndisp, dtype=np.float64)
+                self._wave = np.arange(self.ndisp, dtype=np.float64)  # shape (k,)
                 self._wave -= (self.crpix - 1)
                 self._wave *= self.cdelt
                 self._wave += self.crval
@@ -982,7 +992,7 @@ class Sources(object):
 
         Parameters
         ----------
-        component : int or iterable
+        component : int or array_like, shape (N,)
             The index/indices of the component(s) for which the magnitude(s)
             should be determined.
         passband : str
@@ -991,7 +1001,7 @@ class Sources(object):
 
         Returns
         -------
-        mag : float or nd_array
+        mag : float or nd_array, shape (N,)
             The calculated magnitude(s) in the AB system under the assumption
             that the spectrum has units of erg/s/cm2/Angstrom.
         """
@@ -1022,10 +1032,25 @@ class Sources(object):
         # if that is not the case, the user has to do the conversion itself
         # returned are AB magnitudes, for the calculation of AB magnitudes from fluxes per Angstrom, see
         # https://en.wikipedia.org/wiki/AB_magnitude#Expression_in_terms_of_f.CE.BB
-        integrated_flux = np.nansum(throughput*self.data[:, i, 0].T*(wave.T**2), axis=-1)/throughput.sum()
-        if (integrated_flux <= 0).any():
-            logging.warning('Cannot determined magnitude for {0} source(s) with negative flux.'.format(
-                (integrated_flux <= 0).sum()))
+
+        # handle various cases:
+        # case 1) one component requested: data[:, i, 0] has shape (k,), wave has shape (k,)
+        if not hasattr(component, '__iter__'):
+            integrated_flux = np.nansum(throughput*self.data[:, i, 0]*(wave**2))/throughput.sum()
+            if integrated_flux < 0:
+                logging.warning('Cannot determined magnitude for component #{0} with negative flux.'.format(component))
+                return np.nan
+        # case 2) N components requested
+        else:
+            # case 2a) common wavelength data: data[:, i, 0] has shape (k, N), wave has shape (k,)
+            if wave.ndim == 1:
+                integrated_flux = np.nansum(throughput*self.data[:, i, 0].T*(wave**2), axis=-1)/throughput.sum()
+            # case 2b) wavelength data per spectrum:  data[:, i, 0] has shape (k, N), wave has shape (k, N)
+            else:
+                integrated_flux = np.nansum(throughput*self.data[:, i, 0]*(wave**2), axis=0)/throughput.sum()
+            if (integrated_flux <= 0).any():
+                logging.warning('Cannot determined magnitude for {0} source(s) with negative flux.'.format(
+                    (integrated_flux <= 0).sum()))
         return -2.5*np.log10(3.34e4*integrated_flux) + 8.9
 
     def provideComponentNames(self):

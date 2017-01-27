@@ -32,7 +32,7 @@ The provided functions facilitate working with FITS data.
 
 Latest SVN revision
 -------------------
-381, 2017/01/11
+392, 2017/01/27
 """
 import os
 import logging
@@ -46,7 +46,7 @@ from ..psf import Variables
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 381
+__revision__ = 392
 
 
 def open_ifs_data(prefix, **kwargs):
@@ -95,10 +95,10 @@ def open_ifs_data(prefix, **kwargs):
                 logging.warning('PampelMuse was not tested on "{0}"-data.'.format(hdu.header['INSTRUME']))
             elif hdu.header['INSTRUME'] == 'MUSE':  # check if pixtable was provided
                 if 'ESO PRO CATG' in hdu.header and hdu.header['ESO PRO CATG'] == 'PIXTABLE_REDUCED':
-                    logging.info('IFS data is a MUSE pixtable.')
+                    logging.info('IFS data identified as a MUSE pixtable.')
                     instrument = MusePixtable(**kwargs)
                 else:
-                    logging.info('IFS data is a MUSE data cube.')
+                    logging.info('IFS data identified as a MUSE data cube.')
                     instrument = Muse(**kwargs)
             elif hdu.header['INSTRUME'] == 'GIRAFFE':
                 try:
@@ -116,6 +116,7 @@ def open_ifs_data(prefix, **kwargs):
     # for later usage, store primary header
     instrument.primary_header = fitsdata[0].header
 
+    logging.info('Loading data ...')
     # assumption is that data is stored in first HDU that contains data
     for i, hdu in enumerate(fitsdata):
         if hdu.header['NAXIS'] > 0:
