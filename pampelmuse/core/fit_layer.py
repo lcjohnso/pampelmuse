@@ -57,7 +57,7 @@ parameters are not fitted.
 
 Latest SVN revision
 -------------------
-360, 2016/08/12
+395, 2017/01/29
 """
 import contextlib
 import logging
@@ -70,7 +70,7 @@ from ..core.coordinates import Transformation
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 360
+__revision__ = 395
 
 
 logger = logging.getLogger(__name__)
@@ -507,13 +507,17 @@ class FitLayer(object):
                             if parameter not in position_parameters_to_fit:
                                 fixed[parameter] = getattr(self.psf_instances[0], parameter)
                         valid = np.isfinite(results[:, -2:]).all(axis=1)
-                        bestfit = FitLayer._update_coordinate_transformation(
-                            self.xy[sources[valid]], results[valid, -2:], fixed=fixed)
-                        for i, parameter in enumerate(Transformation.PARAMETERS):
-                            if parameter in position_parameters_to_fit:
-                                [setattr(psf, parameter, bestfit[0][i]) for psf in self.psf_instances]
-                                logger.info('Updated position parameter {0} to {1:.2f}'.format(
-                                    parameter, bestfit[0][i]))
+                        try:
+                            bestfit = FitLayer._update_coordinate_transformation(
+                                    self.xy[sources[valid]], results[valid, -2:], fixed=fixed)
+                        except IOError:
+                            logging.error('Fit of coordinate transformation failed.')
+                        else:
+                            for i, parameter in enumerate(Transformation.PARAMETERS):
+                                if parameter in position_parameters_to_fit:
+                                    [setattr(psf, parameter, bestfit[0][i]) for psf in self.psf_instances]
+                                    logger.info('Updated position parameter {0} to {1:.2f}'.format(
+                                            parameter, bestfit[0][i]))
                 else:
                     position_results, psf_results = self.fit_psf_all_sources(
                         psf_parameters=psf_parameters_to_fit, position_parameters=position_parameters_to_fit)
@@ -1159,16 +1163,21 @@ class FitLayer(object):
         -------
         bestfit : nd_array
             The results of the least squares fit.
-        """
 
+        Raises
+        ------
+        IOError
+            If provided data does not allow to fit the coordinate
+            transformation.
+        """
         xy_reference = np.asarray(xy_reference)
         xy_true = np.asarray(xy_true)
         if xy_reference.shape != xy_true.shape or xy_reference.shape[1] != 2:
             logger.error('Cannot fit coordinate transformation. Arrays have incompatible shapes.')
-            return None
+            raise IOError('Incompatible shapes og input arrays: {0} and {1}'.format(xy_reference.shape, xy_true.shape))
         if xy_reference.shape[0] < 4:
             logger.error('Cannot fit coordinate transformation. Less than 4 sources provided.')
-            return None
+            raise IOError('Len of first axis of input arrays must be >=4 but is {0}'.format(xy_true.shape[0]))
 
         bestfit, residuals = Transformation.fit_to_coordinates(xy_reference, xy_true, fixed=fixed)
         return bestfit
