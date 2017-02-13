@@ -32,7 +32,7 @@ The provided functions facilitate working with FITS data.
 
 Latest SVN revision
 -------------------
-392, 2017/01/27
+396, 2017/02/13
 """
 import os
 import logging
@@ -46,7 +46,7 @@ from ..psf import Variables
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 392
+__revision__ = 396
 
 
 def open_ifs_data(prefix, **kwargs):
@@ -137,9 +137,11 @@ def open_ifs_data(prefix, **kwargs):
     elif os.path.exists("{0}.var.fits".format(prefix)):
         instrument.open("{0}.var.fits".format(prefix), extno=0, isvar=True, **kwargs)
     else:
-        for hduname in ['STAT', 'ERROR', 'SIGMA']:
+        for hduname in ['STAT', 'ERROR', 'SIGMA', 'VARIANCE']:
             if hduname in fitsdata:
                 instrument.open(datafile, extno=fitsdata.index_of(hduname), isvar=True, **kwargs)
+            elif hduname.lower() in fitsdata:
+                instrument.open(datafile, extno=fitsdata.index_of(hduname.lower()), isvar=True, **kwargs)
     if instrument.varhdu is None:
         logging.error('Did not find variances for IFS data.')
 

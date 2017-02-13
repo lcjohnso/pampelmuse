@@ -62,27 +62,28 @@ the data into memory yet but just checks whether the file(s) are valid.
 
 Latest SVN revision
 -------------------
-395, 2017/01/29
+396, 2017/02/13
 """
-import os
-import sys
 import argparse
 import importlib
 import logging
+import os
 import pkgutil
 import re
+import sys
+
 import numpy as np
 from astropy.io import fits
+
 import pampelmuse.routines
-from pampelmuse.routines import initfit, ptsort, singlesrc
 from pampelmuse.config import Namespace, PampelMuseConfig
 from pampelmuse.psf import Variables
+from pampelmuse.routines import initfit, ptsort, singlesrc
 from pampelmuse.utils.fits import open_ifs_data
 
-
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.90.13.0"
-__revision__ = 395
+__version__ = "0.92.0.0"
+__revision__ = 396
 
 
 logger = logging.getLogger(__name__)

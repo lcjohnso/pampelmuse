@@ -466,7 +466,10 @@ class Instrument(object):
             if self.nlayer is None or self.wcs.naxis < 3:
                 return None
             self._wave = np.arange(self.nlayer, dtype=np.float64)
-            self._wave *= self.wcs.wcs.cd[2, 2]
+            if self.wcs.wcs.has_cd():
+                self._wave *= self.wcs.wcs.cd[2, 2]
+            else:
+                self.wave *= self.wcs.wcs.cdelt[2]
             self._wave += self.wcs.wcs.crval[2]
             if self.wcs.wcs.ctype[2] == 'um' or self.wcs.wcs.ctype[2] == 'um':
                 self._wave *= 1e4
@@ -956,4 +959,7 @@ class Instrument(object):
         """
         # see if WCS coordinates of pointing can be derived from header
         if 'RA' in hdu.header and 'DEC' in hdu.header and (self.wcs.wcs.crval[:2] == 0).all():
-            self.wcs.wcs.crval[:2] = [hdu.header['RA'], hdu.header['DEC']]
+            try:  # note that currently only floats can be used
+                self.wcs.wcs.crval[:2] = [hdu.header['RA'], hdu.header['DEC']]
+            except ValueError:
+                pass

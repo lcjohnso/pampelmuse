@@ -33,7 +33,7 @@ Added
 
 Latest SVN revision
 -------------------
-388, 2017/01/24
+396, 2017/02/13
 """
 import logging
 import sys
@@ -52,7 +52,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)'
-__revision__ = 388
+__revision__ = 396
 
 
 logger = logging.getLogger(__name__)
@@ -295,9 +295,11 @@ class SourceSelector(object):
             return False
         elif (self.ifs_data.wcs.wcs.crval[:2] == 0).any():
             return False
-        elif np.linalg.det(self.ifs_data.wcs.wcs.cd[:2, :2]) == 1.0:
-            return False
-        return True
+        else:
+            try:
+                return np.linalg.det(self.ifs_data.wcs.wcs.cd[:2, :2]) != 1.0
+            except AttributeError:
+                return (self.ifs_data.wcs.wcs.cdelt[:2] != 0).all()
 
     def background_setup(self, skysize=-1):
         """
@@ -361,7 +363,10 @@ class SourceSelector(object):
             if self.ifs_data.wcs.naxis > 2:
                 self.sources.crval = self.ifs_data.wcs.wcs.crval[2]
                 self.sources.crpix = self.ifs_data.wcs.wcs.crpix[2]
-                self.sources.cdelt = self.ifs_data.wcs.wcs.cd[2, 2]
+                if self.ifs_data.wcs.wcs.has_cd():
+                    self.sources.cdelt = self.ifs_data.wcs.wcs.cd[2, 2]
+                else:
+                    self.sources.cdelt = self.ifs_data.wcs.wcs.cdelt[2]
                 self.sources.ctype = self.ifs_data.wcs.wcs.ctype[2]
                 self.sources.cunit = self.ifs_data.wcs.wcs.cunit[2].name
             else:
