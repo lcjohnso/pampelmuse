@@ -33,7 +33,7 @@ Added
 
 Latest SVN revision
 -------------------
-396, 2017/02/13
+397, 2017/02/24
 """
 import logging
 import sys
@@ -52,7 +52,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)'
-__revision__ = 396
+__revision__ = 397
 
 
 logger = logging.getLogger(__name__)
@@ -471,7 +471,7 @@ class SourceSelector(object):
 
         # select n_stars brightest sources - note that the selection has no effect on argsort because
         # the background components are at the end of the array
-        include = np.argsort(self.sources.mag[:-self.sources.nbackground])[:n_stars]
+        include = np.argsort(self.sources.mag[:self.sources.nsrc - self.sources.nbackground])[:n_stars]
         to_cpu = np.arange(include.size) % n_cpu
 
         # to get reasonable count rates in mock image, adjust zeropoint unless known
@@ -631,7 +631,7 @@ class SourceSelector(object):
 
         # get magnitude of n_stars'th brightest star
         n_stars = min(n_stars, self.sources.nsrc - self.sources.nbackground - 1)
-        mag = self.sources.mag[np.argsort(self.sources.mag[:-self.sources.nbackground])[n_stars]]
+        mag = self.sources.mag[np.argsort(self.sources.mag[:self.sources.nsrc - self.sources.nbackground])[n_stars]]
 
         identifier = PampelMuseGui(sources=self.sources, ifsData=self.ifs_data, refImage=self.identification_image)
 

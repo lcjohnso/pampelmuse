@@ -38,7 +38,7 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-394, 2017/01/27
+397, 2017/02/24
 """
 import collections
 import inspect
@@ -559,10 +559,12 @@ class Sources(object):
             self._specrow[self.status > 1] = np.arange((self.status > 1).sum(), dtype=np.int32)
 
             # if unresolved component exists, make sure its spectrum comes before any sky spectrum
-            if (self.status == 0).any():
-                self._specrow[self.status == 4] += 1
-
-            unresolved_row = self._specrow[self.status == 4].min() - 1
+            if self.nbackground > 0:
+                if (self.status == 0).any():
+                    self._specrow[self.status == 4] += 1
+                unresolved_row = self._specrow[self.status == 4].min() - 1
+            else:
+                unresolved_row = self._specrow.max() + 1
 
             # now deal with sources that are either next to a brighter neighbor(status=1) or included in the unresolved
             # component (status=0)
