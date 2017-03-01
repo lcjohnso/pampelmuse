@@ -32,7 +32,7 @@ Added
 rev. 343, 2016/08/01
 
 Latest SVN revision
-375, 2016/09/23
+399, 2017/03/01
 """
 import logging
 from multiprocessing import cpu_count, Pool
@@ -42,7 +42,7 @@ from .fit_layer import FitLayer
 
 
 __author__ = 'Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)'
-__revision__ = 375
+__revision__ = 399
 
 
 logger = logging.getLogger(__name__)
@@ -282,9 +282,9 @@ class MakeResidualsCube(FitCube):
 
             # update fluxes
             fluxes = self.read_fluxes(jj)
-            fit_input[-1]['fluxes'] = fluxes[:-self.sources.nbackground]
+            fit_input[-1]['fluxes'] = fluxes[:self.sources.nsrc - self.sources.nbackground]
             if subtract_background:
-                fit_input[-1]['background_fluxes'] = fluxes[-self.sources.nbackground:]
+                fit_input[-1]['background_fluxes'] = fluxes[self.sources.nsrc - self.sources.nbackground:]
             else:
                 fit_input[-1]['background_fluxes'] = None
 

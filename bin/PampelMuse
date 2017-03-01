@@ -82,8 +82,8 @@ from pampelmuse.routines import initfit, ptsort, singlesrc
 from pampelmuse.utils.fits import open_ifs_data
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.92.2.0"
-__revision__ = 398
+__version__ = "0.92.3.0"
+__revision__ = 399
 
 
 logger = logging.getLogger(__name__)
