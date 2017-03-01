@@ -57,7 +57,7 @@ parameters are not fitted.
 
 Latest SVN revision
 -------------------
-395, 2017/01/29
+398, 2017/03/01
 """
 import contextlib
 import logging
@@ -70,7 +70,7 @@ from ..core.coordinates import Transformation
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 395
+__revision__ = 398
 
 
 logger = logging.getLogger(__name__)
@@ -545,9 +545,12 @@ class FitLayer(object):
         all_fluxes = np.hstack((self.fluxes, self.background_fluxes))
 
         # estimate uncertainties that are returned with the data
-        uncertainties = 1. / (np.sqrt(self.source_matrix.multiply(self.source_matrix).sum(axis=0)).getA1())
-        if not included_components.all():
-            uncertainties = np.insert(uncertainties, np.flatnonzero(~included_components), np.nan)
+        # note that fit_weights ~ 1/variances
+        inverse_variances = self.source_matrix.multiply(self.source_matrix).T.dot(self.fit_weights)
+        # fill missing components with NaN
+        inverse_variances = np.insert(inverse_variances, np.flatnonzero(~included_components), np.nan)
+        # invert
+        uncertainties = 1./inverse_variances
 
         # collect data that is returned as fit result
         if psf_parameters_to_fit is not None:
