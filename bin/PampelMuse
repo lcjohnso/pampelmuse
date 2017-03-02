@@ -62,7 +62,7 @@ the data into memory yet but just checks whether the file(s) are valid.
 
 Latest SVN revision
 -------------------
-398, 2017/03/01
+400, 2017/03/02
 """
 import argparse
 import importlib
@@ -83,7 +83,7 @@ from pampelmuse.utils.fits import open_ifs_data
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
 __version__ = "0.92.3.0"
-__revision__ = 399
+__revision__ = 400
 
 
 logger = logging.getLogger(__name__)

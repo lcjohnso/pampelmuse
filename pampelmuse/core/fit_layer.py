@@ -57,7 +57,7 @@ parameters are not fitted.
 
 Latest SVN revision
 -------------------
-398, 2017/03/01
+400, 2017/03/02
 """
 import contextlib
 import logging
@@ -70,7 +70,7 @@ from ..core.coordinates import Transformation
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 398
+__revision__ = 400
 
 
 logger = logging.getLogger(__name__)
@@ -549,8 +549,8 @@ class FitLayer(object):
         inverse_variances = self.source_matrix.multiply(self.source_matrix).T.dot(self.fit_weights)
         # fill missing components with NaN
         inverse_variances = np.insert(inverse_variances, np.flatnonzero(~included_components), np.nan)
-        # invert
-        uncertainties = 1./inverse_variances
+        # invert and take square root to get uncertainties
+        uncertainties = 1./np.sqrt(inverse_variances)
 
         # collect data that is returned as fit result
         if psf_parameters_to_fit is not None:
