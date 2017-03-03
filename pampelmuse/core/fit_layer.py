@@ -57,7 +57,7 @@ parameters are not fitted.
 
 Latest SVN revision
 -------------------
-400, 2017/03/02
+401, 2017/03/03
 """
 import contextlib
 import logging
@@ -70,7 +70,7 @@ from ..core.coordinates import Transformation
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 400
+__revision__ = 401
 
 
 logger = logging.getLogger(__name__)
@@ -239,11 +239,13 @@ class FitLayer(object):
 
         self.magnitudes = np.asarray(magnitudes) if magnitudes is not None else np.zeros(self.n_sources, dtype='<f4')
         if self.magnitudes.size != self.n_sources:
-            logger.error('Number of provided magnitudes does not match number of sources.')
+            logger.error('Number of provided magnitudes ({0}) does not match number of sources ({1}).'.format(
+                self.magnitudes.size, self.n_sources))
 
         self.components = components if components is not None else np.arange(self.n_sources, dtype='<i4')
         if self.components.size != self.n_sources:
-                logger.error('No. of entries in components data does not match number of sources.')
+                logger.error('No. of entries in components data ({0}) does not match number of sources ({1}).'.format(
+                    self.components.size, self.n_sources))
         self.n_components = self.components.max() + 1
         self.last_component_is_unresolved = last_component_is_unresolved
 
@@ -674,7 +676,6 @@ class FitLayer(object):
         # result will be a list with length equal to the number of sources, each entry is again a list containing three
         # entries: the spaxels on which the PSF is defined, the corresponding fluxes, and the integrated flux
         results = []
-
         for i, psf in enumerate(self.psf_instances):
             if self.last_component_is_unresolved and not update_unresolved:
                 if self.components[i] == self.n_components - 1:
@@ -701,7 +702,7 @@ class FitLayer(object):
 
         # check if any row does not contribute at all
         empty_components = ordered_components[totflux <= 0]
-        if len(empty_components) > (1 - update_unresolved):
+        if len(empty_components) > 0:
             logger.warning("Encountered component(s) that contribute zero flux: {0}".format(empty_components))
 
         # Fill the matrix: the indices and intensities of all PSF instances are combined and serve as row indices (i0)
@@ -712,10 +713,11 @@ class FitLayer(object):
         i1 = np.zeros(i0.shape, dtype=np.int32)
         jstart = 0
         for i in range(len(results)):
-            if self.components[i] in empty_components:
+            if components[i] in empty_components:
+                assert(len(results[i][0]) == 0), results[i]
                 continue
             jend = jstart + len(results[i][0])
-            i1[jstart:jend] = self.components[i]
+            i1[jstart:jend] = components[i]
             jstart = jend
 
         f = np.hstack((r[1] for r in results))  # the fluxes

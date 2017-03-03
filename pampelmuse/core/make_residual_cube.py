@@ -32,7 +32,7 @@ Added
 rev. 343, 2016/08/01
 
 Latest SVN revision
-399, 2017/03/01
+401, 2017/03/03
 """
 import logging
 from multiprocessing import cpu_count, Pool
@@ -42,7 +42,7 @@ from .fit_layer import FitLayer
 
 
 __author__ = 'Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)'
-__revision__ = 399
+__revision__ = 401
 
 
 logger = logging.getLogger(__name__)
@@ -171,7 +171,8 @@ class MakeResidualsCube(FitCube):
         logging.info('Creating array to store residuals...')
         self.residuals = np.zeros(self.ifs_data.datahdu.shape, dtype=np.float32)
 
-    def __call__(self, layer_range=(0, -1), n_cpu=1, subtract_background=False, **kwargs):
+    def __call__(self, layer_range=(0, -1), n_cpu=1, subtract_background=False,
+                 include=None, exclude=None, **kwargs):
         """
         Creates the fit residuals for a full data cube. For each layer of the
         provided cube, the following steps are performed:
@@ -194,6 +195,12 @@ class MakeResidualsCube(FitCube):
         subtract_background : boolean, optional
             A flag indicating if the background component should also be
             subtracted from the data.
+        include : array_like, optional
+            In case only a subset of the resolved sources should be
+            subtracted, their IDs should be provided here.
+        exclude : array_like, optional
+            In case some resolved sources should not be subtracted, their IDs
+            should be provided here.
 
         Returns
         -------
@@ -202,6 +209,25 @@ class MakeResidualsCube(FitCube):
         if kwargs:
             logger.error('Invalid keyword argument(s) provided: {0}'.format(kwargs))
             raise IOError('Cannot handle keyword argument(s): {0}'.format(kwargs))
+
+        # either include of exclude can be provided, not both
+        if include is not None and exclude is not None:
+            raise IOError('Either parameter "include" or "exclude" may be set, not both.')
+
+        # check if any sources should be included/excluded, define boolean array of included (resolved) sources
+        elif include is not None:
+            logging.info('Only subtracting the following source(s): {0}'.format(', '.join(map(str, include))))
+            selected = np.in1d(self.sources.ID[~self.sources.is_background], include)
+        elif exclude is not None:
+            logging.info('Not subtracting the following source(s): {0}'.format(', '.join(map(str, exclude))))
+            selected = np.in1d(self.sources.ID[~self.sources.is_background], exclude, invert=True)
+        else:
+            selected = np.ones(self.magnitudes.size, dtype=np.bool)
+
+        # also get indices in the spectra array of the components that are included (in ascending order!)
+        # plus
+        # the new (consecutive) assignment of sources to components
+        selected_fluxes, selected_components = np.unique(self.components[selected], return_inverse=True)
 
         # check which layers should be analysed
         start, stop = layer_range
@@ -250,8 +276,8 @@ class MakeResidualsCube(FitCube):
 
         # Set global values for processing to individual layers:
         initargs = (self.psf_attributes.profile,
-                    self.magnitudes,
-                    self.components,
+                    self.magnitudes[selected],
+                    selected_components,
                     self.maxrad,
                     self.osfactor,
                     self.osradius
@@ -282,7 +308,7 @@ class MakeResidualsCube(FitCube):
 
             # update fluxes
             fluxes = self.read_fluxes(jj)
-            fit_input[-1]['fluxes'] = fluxes[:self.sources.nsrc - self.sources.nbackground]
+            fit_input[-1]['fluxes'] = fluxes[:self.sources.nsrc - self.sources.nbackground][selected_fluxes]
             if subtract_background:
                 fit_input[-1]['background_fluxes'] = fluxes[self.sources.nsrc - self.sources.nbackground:]
             else:
@@ -298,11 +324,11 @@ class MakeResidualsCube(FitCube):
 
             # update direct coordinates if required
             if self.sources.ifs_coordinates_fitted.any() or self.sources.ifs_coordinates_free.any():
-                fit_input[-1]['xy'] = self.read_ifs_coordinates(jj)
+                fit_input[-1]['xy'] = self.read_ifs_coordinates(jj)[selected]
                 fit_input[-1]['position_parameters'] = None
             else:
                 fit_input[-1]['xy'] = np.dstack((self.sources.x[~self.sources.is_background],
-                                                 self.sources.y[~self.sources.is_background]))[0]
+                                                 self.sources.y[~self.sources.is_background]))[0][selected]
 
             if self.background is not None and subtract_background:
                 self.background.transform = self.ifs_data.transform

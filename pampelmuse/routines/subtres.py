@@ -33,7 +33,7 @@ if PampelMuse is started with the 'SUBTRES' option.
 
 Latest SVN revision
 -------------------
-373, 2016/09/23
+401, 2017/03/03
 """
 import datetime
 import logging
@@ -44,7 +44,7 @@ from ..utils.fits import open_prm
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 373
+__revision__ = 401
 
 
 def add_parser(parser):
@@ -53,6 +53,11 @@ def add_parser(parser):
     from the IFS data. A PRM-file containing the results from a successful analysis
     with CUBEFIt should be available. The resulting data is stored as a Fit-file under
     <prefix>.res.fits.""")
+    stars = p.add_mutually_exclusive_group()
+    stars.add_argument('-x', '--exclude', type=int, nargs='+', help="""
+    Provide the IDs of one or more stars that should be excluded from the subtraction.""")
+    stars.add_argument('-i', '--include', type=int, nargs='+', help="""
+    In case only certain stars should be subtracted, provide their IDs here.""")
     p.set_defaults(func=subtres)
 
 
@@ -89,7 +94,8 @@ def subtres(pampelmuse):
     fitter = MakeResidualsCube(ifs_data=pampelmuse.ifs_data, sources=sources, psf_attributes=psf_attributes,
                                maxrad=pampelmuse.psfrad)
 
-    residuals = fitter(layer_range=(start, stop), n_cpu=pampelmuse.cpucount, subtract_background=pampelmuse.subsky)
+    residuals = fitter(layer_range=(start, stop), n_cpu=pampelmuse.cpucount, subtract_background=pampelmuse.subsky,
+                       include=pampelmuse.subtres.include, exclude=pampelmuse.subtres.exclude)
 
     logging.info("Saving results...")
 
