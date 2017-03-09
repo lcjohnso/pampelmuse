@@ -31,7 +31,7 @@ Added
 
 Latest SVN revision
 -------------------
-385, 2017/01/18
+402, 2017/03/09
 """
 import datetime
 import logging
@@ -46,7 +46,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)'
-__revision__ = 385
+__revision__ = 402
 
 
 logger = logging.getLogger(__name__)
@@ -502,14 +502,19 @@ class SpectrumWriter(object):
             The extracted image. Note that images not covered by the input
             image (if any) will be filled with zeros.
         """
+        # get central pixel
         x_c = int(round(x_c))
         y_c = int(round(y_c))
 
+        # prepare output array & fill with NaNs
         outdata = np.zeros((2*radius+1, 2*radius + 1), dtype=image.dtype)
+        outdata[:] = np.nan
 
+        # determine minimum and maximum pixels for which data is available (for sources near edge of FoV)
         dx = (min(radius, x_c), min(radius + 1, image.shape[1] - x_c))
         dy = (min(radius, y_c), min(radius + 1, image.shape[0] - y_c))
 
+        # fill output array where possible
         outdata[radius - dy[0]:radius + dy[1], radius - dx[0]:radius + dx[1]] = image[
             y_c - dy[0]:y_c + dy[1], x_c - dx[0]:x_c + dx[1]]
 
@@ -549,8 +554,8 @@ class SpectrumWriter(object):
             image_header['HIERARCH NEARBY STAR{0:03d} STATUS'.format(n)] = self.sources.status[j]
             if np.isfinite(self.sources.mag[j]):
                 image_header['HIERARCH NEARBY STAR{0:03d} MAG'.format(n)] = self.sources.mag[j]
-            image_header['HIERARCH NEARBY STAR{0:03d} X'.format(n)] = self.xy[i, 0] + radius - x_c
-            image_header['HIERARCH NEARBY STAR{0:03d} Y'.format(n)] = self.xy[i, 1] + radius - y_c
+            image_header['HIERARCH NEARBY STAR{0:03d} X'.format(n)] = self.xy[i, 0] + radius - int(round(x_c))
+            image_header['HIERARCH NEARBY STAR{0:03d} Y'.format(n)] = self.xy[i, 1] + radius - int(round(y_c))
             n += 1
 
         return image_header
