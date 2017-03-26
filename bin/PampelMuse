@@ -42,13 +42,9 @@ has two options to modify the default configuration from the xml-file before
 passing it to the subroutines:
 
 (i) via the command line:
-PampelMuse can be called with either of the two options '--fromline' and
-'--fromfile'. In the former case, the parameters to be updated should be
-provided as comma-separated <key>=<value> pairs in the command line after
-'--fromline'. In the latter case, '--fromfile' should be followed by the
-name of a plain ascii file that contains the <key>=<value> pairs, one per
-row. An overview of the parameters that PampelMuse uses can be found in the
-manual.
+When PampelMuse is called, the user can provide a configuration file in a
+format that is understood by the ConfigParser package of python. An overview
+of the parameters that PampelMuse uses can be found in the manual.
 
 (ii) via the header of the primary HDU of the PampelMuse PRM-file
 If a PRM file exists, the routine will check the header for entries HIERARCH
@@ -62,24 +58,20 @@ the data into memory yet but just checks whether the file(s) are valid.
 
 Latest SVN revision
 -------------------
-402, 2017/03/09
+403, 2017/03/25
 """
 import argparse
+import configparser
 import importlib
 import logging
 import os
 import pkgutil
-import re
 import sys
-
-import numpy as np
 from astropy.io import fits
 
 import pampelmuse.routines
-from pampelmuse.config import Namespace, PampelMuseConfig
-from pampelmuse.psf import Variables
+from pampelmuse.config import changeable
 from pampelmuse.routines import initfit, ptsort, singlesrc
-from pampelmuse.utils.fits import open_ifs_data
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
 __version__ = "0.94.0.1"
@@ -87,48 +79,6 @@ __revision__ = 402
 
 
 logger = logging.getLogger(__name__)
-
-
-# Two small classes are defined that read the configuration provided by the
-# user either from the command-line or from a plain ascii-file and add it as
-# a dictionary to the namespace that is created by argparse (NOTE that this
-# is not the PampelMuse namespace that is defined below)
-# (i) class to read configuration from command line, provided as parameter
-#     'action' to the argparse argument '--fromline'
-class GetValuesFromLine(argparse.Action):
-    """
-    Short routine to write 'name=value'-pairs appended to the '--fromline'
-    option into a dictionary.
-    """
-    def __call__(self, parser, namespace, values, option_string=None):
-        outdict = {}
-        for _val in values[0].split(','):
-            val = re.sub(r'\s', '', _val)  # remove whitespace characters
-            if len(val.split("=")) != 2:
-                raise IOError("Bad parameter definition in line: {0}".format(val))
-            name, value = val.split("=")
-            outdict[name.upper()] = value
-        setattr(namespace, self.dest, outdict)
-
-
-# (ii) class to read configuration from an ascii file, provided as parameter
-#      'action' to the argparse argument '--fromfile'
-class GetValuesFromFile(argparse.Action):
-    """
-    Short routine to extract 'name=value'-pairs from an ASCII-file provided
-    using the '--fromfile' option and add them to a dictionary
-    """
-    def __call__(self, parser, namespace, values, option_string=None):
-        outdict = {}
-        for _line in values:
-            if not len(_line) == 1:  # empty lines have len=1
-                if not _line[0] == "#":
-                    line = re.sub(r'\s', '', _line)  # remove whitespace characters
-                    if not len(line.split("=")) == 2:
-                        raise IOError("Invalid line in file '{0}': '{1}'".format(values.name, line))
-                    name, value = line.split("=")
-                    outdict[name.upper()] = value
-        setattr(namespace, self.dest, outdict)
 
 
 if __name__ == "__main__":
@@ -159,7 +109,7 @@ if __name__ == "__main__":
 
     # Initialize main argument parser for PampelMuse
     parser = argparse.ArgumentParser(prog="PampelMuse", description="""
-    PampelMuse is a routine to extract stellar spectra from IFS data vi PSF
+    PampelMuse is a routine to extract stellar spectra from IFS data via PSF
     fitting techniques. It is designed for the analysis of IFS observations
     of crowded stellar fields. As the name suggests, it was originally intended
     to serve as an analysis tool for the Muse spectrograph. Yet, PampelMuse is
@@ -168,39 +118,11 @@ if __name__ == "__main__":
     spaxels of the IFS should be square. The analysis of the data is performed in
     different stages that are carried out by the  various sub-routines provided
     below.""")
-    parser.add_argument("prefix", type=str, help="""
-    The prefix common to all FITS-files required by PampelMuse. The naming of the
-    files should be according to one of the following schemes:\n
-
-    (1) Data, uncertainties, and spectrumMask are included in a single FITS file. In that
-    case, a file named PREFIX.fits should be available, containing at least an
-    HDU named DATA and one named either ERROR (uncertainties) or STAT (variances).
-    The spectrumMask may be included in an additional HDU named MASK.
-
-    (2) Different FITS files are used for data, uncertainties and spectrumMask. In that
-    case, the following files should be present:
-    (i)   PREFIX.dat.fits - the IFS data
-    (ii)  PREFIX.err.fits - the uncertainties of the IFS data
-    (iii) PREFIX.msk.fits - optional! - a bad-pixel spectrumMask
-
-    All routines except for INITFIT also require the PampelMuse PRM file, named
-    PREFIX.prm.fits. This file is created by the routine INITFIT.""")
-
-    # Note: 'fromfile' and 'fromline' share the same dest 'parameter'. However,
-    #       since they are in a 'mutually exclusive group' and their 'default'
-    #       is set to argparse.SUPPRESS, at most one of them will contribute to
-    #       the namespace.
-    group = parser.add_mutually_exclusive_group(required=False)
-    group.add_argument("--fromfile", type=argparse.FileType('r'), action=GetValuesFromFile, dest="parameter",
-                       default=argparse.SUPPRESS, help="""
-    Update configuration using the parameters provided in an ASCII-file: One
-    parameter per line, name and value separated by '=', lines starting with '#'
-    are ignored""")
-    group.add_argument("--fromline", type=str, nargs=1, action=GetValuesFromLine, dest="parameter",
-                       default=argparse.SUPPRESS, help="""
-    Update configuration using the parameters provided in the command line,
-    following '--fromline'-string. Again, name and value must be separated
-    by '=' (no whitespace!). Individual parameters  must be comma-separated.""")
+    parser.add_argument("config", type=str, help="""
+    Update configuration using the provided configuration. It must be in a format
+    that can be understood by the ConfigParser module of python. In any case, it
+    must contain the section [general] with the keyword 'prefix', providing the
+    filename minus the extension of the data to be analysed.""")
 
     subparsers = parser.add_subparsers(help='Available routines')
 
@@ -224,92 +146,78 @@ if __name__ == "__main__":
     # parse arguments into preliminary namespace
     args = parser.parse_args()
 
-    # A Namespace is created to store the configuration of PampelMuse. The parameters
-    # included in the namespace will be added as hierarch keywords to the header of
-    # the primary HDU of the PampelMuse PRM file. As an example, the Namespace parameter
-    # pampelmuse.initfit.version corresponds to HIERARCH PAMPELMUSE INITFIT VERSION
-    pampelmuse = PampelMuseConfig()
-    pampelmuse.version = __version__
-    pampelmuse.revision = __revision__
+    # read default configuration
+    # get path to file containing configuration
+    __currentdir__ = os.path.dirname(__file__)
+    __configpath__ = os.path.join(__currentdir__, os.pardir, "pampelmuse", "config", "data")
 
-    # add name of PRM file to configuration
-    pampelmuse.prefix = args.prefix
-    pampelmuse.filename = "{0}.prm.fits".format(args.prefix)
+    # initialize & read default configuration
+    config = configparser.ConfigParser()
+    config.read_file(open(os.path.join(__configpath__, 'pampelmuse.ini')))
 
-    # initialize (sub)namespace for subroutine that will be called and add command-line arguments to this subspace.
-    ns = Namespace()
-    for key, value in args.__dict__.iteritems():
-        if key not in ["func", "parameter", "prefix"]:
-            setattr(ns, key, value)
-    setattr(pampelmuse, args.func.__name__, ns)
+    # open user configuration - allow providing keys without values for specifying saturated stars
+    user_config = configparser.ConfigParser(allow_no_value=True)
+    user_config.read_file(open(args.config))
+    # make sure user_config contains information about IFS data
+    if 'general' not in user_config.sections() and 'prefix' not in user_config['general'].keys():
+        logging.critical('User configuration file does not contain prefix of IFS data.')
+        exit(1)
 
-    # initialize the configuration of PampelMuse
-    # i) read default configuration that is saved in an XML-file that is shipped with PampelMuse
-    # To check the default configuration, open the XML file using any web browser, e.g.
-    # >>> firefox $pampelmuse_path/pampelmuse/config/data/PMparams.xml
-
-    # ii) if prm file exists, update the configuration using the primary header hierarch keys. Note that these keywords
-    # can be either directly connected to PampelMuse (e.g. HIERARCH PAMPELMUSE IFU) or to one of its subroutines
-    # (e.g. HIERARCH PAMPELMUSE INITFIT VERSION). In the latter case, the key will be added to the namespace of the
-    # corresponding subroutine.
+    # if prm file exists, update the configuration using the primary header hierarch keys. The naming scheme of the
+    # keys is PAMPELMUSE <section> <key>. The code checks for each configuration parameter, if the corresponding
+    # header key exists and if its value differs from the default value
     if args.func not in [initfit, singlesrc, ptsort]:
-        pampelmuse.readHeader(fits.getheader(pampelmuse.filename))
+        # get primary header
+        header = fits.getheader('{0}.prm.fits'.format(user_config['general'].get('prefix')))
+
+        # loop over sections
+        for section in config.sections():
+            # loop over keys in section
+            for key, value in section.items():
+                header_key = 'pampelmuse {0} {1}'.format(section.name, key)
+                # check if key exists and differs from default value
+                if header_key in header and header[header_key] != value:
+                    # update
+                    config[section][key] = header[header_key]
 
     # iii) update configuration using command line input. Note that during the analysis, i.e. when calling a routine
     # different from INITFIT or SINGLESRC, only a subset of the parameters can be changed. For example, it makes no
     # sense to change the RESLIM parameter after selecting the sources.
-    if hasattr(args, "parameter"):
-        only_changeable = (args.func not in [initfit, singlesrc])  # check if only subset of parameters can be updated
-        for key, value in args.parameter.iteritems():
-            success = pampelmuse.update_parameter(key, value, only_changeable=only_changeable)
-            if success == 2:
-                logger.error("Invalid entry in user configuration: '{0}={1}".format(key, value))
-                raise IOError("Error encountered while updating configuration.")
 
-    # iv) The PSF is handled specially - to facilitate its usage afterwards, a dedicated namespace is created in which
-    # all the information is stored
-    if args.func in [initfit, singlesrc]:
-        pampelmuse.psf = Namespace()
-    
-        # check if requested profile exists in pampelmuse.core.psf.variables.Variables
-        try:
-            parnames = Variables.PROFILES[pampelmuse.psftype]
-        except KeyError:
-            logger.critical("Unknown PSF type: '{0}'".format(pampelmuse.psftype))
-        pampelmuse.psf.profile = pampelmuse.psftype
-
-        # translate parameter PSFFIT from PampelMuse configuration into boolean array indicating which variables of the
-        # PSF are fitted.
-        freepar = np.zeros(len(parnames), dtype=np.bool)
-        for i in xrange(freepar.size, 0, -1):
-            if pampelmuse.psffit >= 2**i:
-                freepar[i-1] = True
-                pampelmuse.psffit -= 2**i
-
-        # create dedicated (sub)namespace for the PSF containing three attributes per variable:
-        # parname  - the name of the variable
-        # parvalue - the (initial) value of the variable
-        # freepar  - whether or not the variable is a free fit parameter
-        for name in parnames:
-            i = parnames.index(name)
-            setattr(pampelmuse.psf, "parname{0}".format(i), name)
-            setattr(pampelmuse.psf, "parvalue{0}".format(i), pampelmuse.psfpars[i])
-            setattr(pampelmuse.psf, "freepar{0}".format(i), bool(freepar[i]))
-
-    if args.func == initfit and pampelmuse.initfit.sourcelist is None:
-        pampelmuse.initfit.sourcelist = pampelmuse.catalog
-
-    delattr(pampelmuse, "psffit")
-    delattr(pampelmuse, "psfpars")
+    # loop over sections and keys
+    for section in user_config.sections():
+        #  check if section is valid
+        if section not in config.sections():
+            logging.error('Unknown section [{0}] in user-configuration file.'.format(section))
+        else:
+            for key, value in section.items():
+                # check if key is valid
+                if key not in config[section]:
+                    logging.error('Unknown parameter {0} in section [{1}] of user-configuration file.'.format(
+                        section, key))
+                # check if new value different from existing one
+                elif value != config[section][key]:
+                    # check if value can be updated
+                    if key in changeable or args.func in [initfit, singlesrc, ptsort]:
+                        logging.info('Updating parameter {0}.{1} to {2}'.format(section, key, value))
+                    else:
+                        logging.error('Cannot update parameter {0}.{1} during analysis.'.format(section, key))
 
     # set up logging level and format; therefore complete logger configuration needs to be reset
     # see http://stackoverflow.com/questions/12158048/changing-loggings-basicconfig-which-is-already-set
     LOGLEVELS = {0: logging.CRITICAL, 1: logging.ERROR, 2: logging.WARNING, 3: logging.INFO, 4: logging.DEBUG}
     for handler in logging.root.handlers:
         logging.root.removeHandler(handler)
-    logging.basicConfig(level=LOGLEVELS[pampelmuse.verbose],
+    logging.basicConfig(level=LOGLEVELS[config['general'].getint('verbose', fallback=2)],
                         format="%(asctime)s[%(levelname)-8s]: %(message)s",  # - %(pathname)s[%(lineno)s]",
                         datefmt='%m/%d/%Y %H:%M:%S')
+
+    # Used as a test: an additional logger that gives the file and line where a warning message was triggered
+    # if config['general'].getint('verbose', fallback=2) == 4:
+    #     ch = logging.StreamHandler()
+    #     ch.setLevel(logging.WARNING)
+    #     ch.setFormatter(logging.Formatter("%(pathname)s [%(lineno)-4s]: %(message)s"))
+    #     logging.getLogger().addHandler(ch)
 
     # check whether dependencies for graphical backends are fulfilled
     graphics = True
@@ -327,30 +235,11 @@ if __name__ == "__main__":
         matplotlib = None
         graphics = False
     if not graphics:
-        if pampelmuse.interact:
+        if config['general'].getboolean('interact'):
             logger.error("Cannot use PampelMuse GUI. Interaction mode set to False.")
-            pampelmuse.interact = False
+            config['general']['interact'] = False
         else:
             logger.warning("Cannot use PampelMuse GUI.")
 
-    # Used as a test: an additional logger that gives the file and line where a warning message was triggered
-    # if pampelmuse.verbose==4:
-    #     ch = logging.StreamHandler()
-    #     ch.setLevel(logging.WARNING)
-    #     ch.setFormatter(logging.Formatter("%(pathname)s [%(lineno)-4s]: %(message)s"))
-    #     logging.getLogger().addHandler(ch)
-
-    if args.func != ptsort:
-        # open IFS data
-        pampelmuse.ifs_data = open_ifs_data(args.prefix)
-
-        # set range of layers to be analyzed properly (in case negative values were provided)
-        # access start/stop information - get positive layer numbers for first and last layer that should be analysed
-        if pampelmuse.start < 0 and pampelmuse.ifs_data.nlayer is not None:
-            pampelmuse.start = pampelmuse.ifs_data.nlayer + pampelmuse.start
-        if pampelmuse.stop < 0 and pampelmuse.ifs_data.nlayer is not None:
-            pampelmuse.stop = pampelmuse.ifs_data.nlayer + pampelmuse.stop
-        logger.info("Layer range used in analysis: {0}--{1}".format(pampelmuse.start, pampelmuse.stop))
-
     # execute the function connected to the requested (sub)routine
-    args.func(pampelmuse)
+    args.func(config=config)

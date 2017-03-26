@@ -176,10 +176,10 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         self.psf = None
 
         # check if valid instance of Sources provided
-        if sources is not None:
+        if sources:
             self.loadSources(sources)
         # open prm-file if provided
-        if fitsFile is not None:
+        if fitsFile:
             self.openFile(fitsFile)
 
         # connect data selection process to masking method
@@ -190,11 +190,11 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         self.connect(self, SIGNAL('refInteractModeChanged'), self.changeRefInteractMode)
 
         # load cube into GUI if one is provided
-        if ifsData is not None:
+        if ifsData:
             self.openIfs(ifsData)
         
         # load reference image into GUI if one is provided 
-        if refImage is not None:
+        if refImage:
             self.openReference(refImage, **kwargs)
         
         self.statusBar.showMessage("Ready", 5000)

@@ -22,6 +22,7 @@ along with PampelMuse. If not, see <http://www.gnu.org/licenses/>.
 +++
 Provides
 --------
+function pampelmuse.routines.polyfit.add_parser
 function pampelmuse.routines.polyfit.polyfit
 
 Purpose
@@ -30,20 +31,19 @@ The module implements the function 'polyfit' that is called if PampelMuse is
 called with the POLYFIT option. The function is designed to inspect the fit
 results of PampelMuse. It can also be used to perform polynomial fits to the
 IFS coordinates of the sources or the variables of the PSF. To this aim, it
-uses the PampelMuse GUI. As the GUI is designer using Qt, the function can
-only be executed if PyQt4 is available on the system.
-NOTE that the GUI itself is not defined here but implemented via the module
-pampelmuse.graphics.pampelmuse_gui.
+uses the PampelMuse GUI. As the GUI is written in PyQt, the function can only
+be run in interactive mode if PyQt4 is available on the system. Otherwise, the
+routine will automatically fit the coordinates and PSF parameters.
 
 Latest SVN revision
 -------------------
-377, 2016/12/14
+404, 2017/03/26
 """
 import datetime
 import logging
 import sys
 import numpy as np
-from ..utils.fits import open_prm, save_prm
+from ..utils.fits import make_header_from_config, open_ifs_data, open_prm, save_prm
 # note: PyQt4 modules import below only if interaction enabled
 # note: pampelmuse.graphics.PampelMuseGui imported below only if interaction enabled
 
@@ -58,59 +58,76 @@ def add_parser(parser):
     of the results from the PSF fit on the one hand and for an interactive modelling
     of the PSF variables and source coordinates on the other. The idea of modelling
     these parameters is that they should vary smoothly with wavelength, so by combi-
-    ning the results from the indiviual layers one can create a model beyond the
+    ning the results from the individual layers one can create a model beyond the
     accuracy of an individual layer. To this aim, polynomials fits of the parameters
     can be performed. In a subsequent analysis with the sub-routine CUBEFIT, the
     routine will then use the parameters obtain in the fits and leave them unchanged.""")
-    p.add_argument("reference", type=str, nargs="?", help="""
-    An optional FITS image to be displayed. The idea here is to load the data
-    from which the reference coordinates were extracted. In that case, the image
-    is displayed in the GUI and the locations of the extracted sources are
-    overplotted.""")
     p.add_argument("-x", "--exclude", type=float, nargs=2, action="append", help="""
     To exclude a wavelength range from the polynomial fits, provide the min. and max.
     wavelength of it. The provided wavelengths must be given in the same units as the
     data. Note that this option can be used multiple times to exclude more than one
     range.""")
-    p.add_argument("--common", action="store_true",  default=False, help="""
-    If this flag is set, then the fits to the IFS coordinates of the sources are
-    constrained such that all sources have the same slope with wavelength.""")
     p.set_defaults(func=polyfit)
 
 
-def polyfit(pampelmuse):
+def polyfit(config):
+    """
+    This function performs the initialisation stage of the fit. It is called
+    when the INITFIT routine of PampelMuse is called.
+
+    Parameters
+    ----------
+    config : instance of ConfigParser
+        The configuration of PampelMuse.
+    """
 
     logging.info("Executing requested routine POLYFIT [Revision {0:d}].".format(__revision__))
 
     # Collect information about sources/create Sources-instance
     logging.info("Obtaining information on sources in the field...")
-    
-    # Get source catalogue from PRM-file
-    sources, psf = open_prm(pampelmuse.filename, ndisp=pampelmuse.ifs_data.wave.size)
 
-    # add information about caller routine to PampelMuse configuration
-    pampelmuse.polyfit.utc = datetime.datetime.utcnow().strftime("%y-%m-%d %H:%M:%S")
-    pampelmuse.polyfit.revision = __revision__
-    
+    # get prefix of IFS data - note that the calling routine makes sure that the entry exists in the configuration
+    prefix = config.get('general', 'prefix')
+
+    # open IFS data
+    ifs_data = open_ifs_data(prefix=prefix)
+
+    # Get source catalogue from PRM-file
+    sources, psf = open_prm('{0}.prm.fits'.format(prefix), ndisp=ifs_data.wave.size)
+
+    # add information about caller routine to configuration for adding them to FITS-header
+    config['polyfit']['utc'] = datetime.datetime.utcnow().strftime("%y-%m-%d %H:%M:%S")
+    config['polyfit']['revision'] = __revision__
+
+    # for type of polynomial, need to make first letter uppercase for identification in GUI
+    polytype = config.get('polyfit', 'polytype', fallback='Plain')
+    polytype = polytype[0].upper() + polytype[1:]
+
+    # get degree of polynomial
+    polydeg = config.getint('polyfit', 'polydeg', fallback=0)
+
+    # if common slope used for all coordinates along one axis
+    common = config.getboolean('polyfit', 'common', fallback=False)
+
     # Prepare GUI if interactive mode enabled
-    if pampelmuse.interact:
-        
+    if config.getboolean('general', 'interact', fallback=False):
+
+        # load modules required to display GUI
         from PyQt4 import QtGui
         from pampelmuse.graphics import PampelMuseGui
-        
+
+        # initialize GUI
         app = QtGui.QApplication(sys.argv)
-        
-        ui = PampelMuseGui(sources=sources, ifsData=pampelmuse.ifs_data, refImage=pampelmuse.polyfit.reference,
-                           namespace=pampelmuse)
-        ui.outfileName = pampelmuse.filename
+        ui = PampelMuseGui(sources=sources, ifsData=ifs_data,
+                           refImage=config.get('polyfit', 'reference', fallback=''))
+
+        # for saving results, provide name of PRM-file
+        ui.outfileName = '{0}.prm.fits'.format(prefix)
         
         ui.loadSpectra()  # add information about spectra
         ui.loadPositions()  # add information about IFS coordinates
         ui.loadCoordTrans()  # add information about coordinate transformation
         ui.loadPsfParameters(psf)  # add information about PSF parameters
-    
-        # for type of polynomial, need to make first letter uppercase for identification in GUI
-        polytype = pampelmuse.polytype[0].upper() + pampelmuse.polytype[1:]
         
         # check if type of polynomial is valid
         index = ui.spectrumFitTypeComboBox.findText(polytype)  # find index of requested polynomial if it exists
@@ -120,10 +137,10 @@ def polyfit(pampelmuse):
             logging.error("Unknown type of polynomial: {0}".format(polytype))
 
         # add degree of polynomial to GUI
-        ui.spectrumFitOrderSpinBox.setValue(pampelmuse.polydeg)
+        ui.spectrumFitOrderSpinBox.setValue(polydeg)
 
         # check if common slope should be used for the IFS coordinates
-        ui.actionForce_common_slope.setChecked(pampelmuse.polyfit.common)
+        ui.actionForce_common_slope.setChecked(common)
 
         # exclude requested wavelength ranges (if any)
         if pampelmuse.polyfit.exclude is not None:
@@ -146,17 +163,20 @@ def polyfit(pampelmuse):
             mask = None
 
         # fit PSF parameters
-        for i in xrange(psf.npars):
+        for i in range(psf.npars):
             if psf.free[i]:
                 logging.info("Polynomial fit (function={0}, order={1}) to PSF parameter {2}...".format(
-                    pampelmuse.polytype, pampelmuse.polydeg, psf.names[i]))
-                psf.polynomial_fit(name=psf.names[i], order=pampelmuse.polydeg, mask=mask, function=pampelmuse.polytype)
+                    polytype, polydeg, psf.names[i]))
+                psf.polynomial_fit(name=psf.names[i], order=polydeg, mask=mask, function=polytype)
         
         # fit IFS coordinates
         logging.info("Polynomial fit (function={0}, order={1}) to source coordinates...".format(
-            pampelmuse.polytype, pampelmuse.polydeg))
-        sources.fitIfsCoordinates(ids=None, order=pampelmuse.polydeg, mask=mask, function=pampelmuse.polytype,
-                                  commonSlope=pampelmuse.polyfit.common, instrument=pampelmuse.ifs_data)
-        
+            polytype, polydeg))
+        sources.fitIfsCoordinates(ids=None, order=polydeg, mask=mask, function=polytype, commonSlope=common,
+                                  instrument=ifs_data)
+
+        # create header containing configuration
+        header = make_header_from_config(config=config)
+
         # save changes to prm file
-        save_prm(sources=sources, psf_attributes=psf, filename=pampelmuse.filename, header=pampelmuse.makeHeader())
+        save_prm(sources=sources, psf_attributes=psf, filename='{0}.prm.fits'.format(prefix), header=header)

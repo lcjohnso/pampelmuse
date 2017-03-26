@@ -208,7 +208,7 @@ class SourceSelector(object):
         """
         logger.info('Starting source selection based on {0}-magnitudes.'.format(passband.upper()))
         self.passband = passband
-        self.zeropoint = zeropoint
+        self.zeropoint = zeropoint if zeropoint < 99 else None
 
         assert isinstance(ifs_data, Instrument), 'Parameter "ifs_data" muse be instance of an Instrument-class.'
         self.ifs_data = ifs_data

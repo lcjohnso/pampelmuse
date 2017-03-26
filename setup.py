@@ -10,8 +10,8 @@ setup(
     package_dir={},
     packages=['pampelmuse', 'pampelmuse.config', 'pampelmuse.core', 'pampelmuse.filters', 'pampelmuse.graphics',
               'pampelmuse.instruments', 'pampelmuse.psf', 'pampelmuse.routines', 'pampelmuse.utils'],
-    scripts=['bin/PampelMuse', 'bin/access_configuration.py'],
-    package_data={'pampelmuse.config': ['data/PMparams.xml', 'data/PMschema.xsd', 'data/PMstyle.xsl'],
-                  'pampelmuse.filters': ['data/*']},
-    requires=['numpy', 'scipy', 'astropy', 'matplotlib']
+    scripts=['bin/PampelMuse', ],
+    package_data={'pampelmuse.config': ['data/pampelmuse.ini', ],
+                  'pampelmuse.filters': ['data/*', ]},
+    requires=['numpy', 'scipy', 'astropy', 'matplotlib', 'pandas']
 )

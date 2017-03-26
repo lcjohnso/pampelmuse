@@ -246,6 +246,41 @@ def open_prm(filename, ndisp=-1):
     return sources, psf_attributes
 
 
+def make_header_from_config(config, **kwargs):
+    """
+    Create a FITS header from the current configuration of PampelMuse.
+
+    Parameters
+    ----------
+    config : instance of ConfigParser
+        The configuration of PampelMuse
+    kwargs : optional
+        The additional keyword arguments can be used to pass any keywords that
+        are not included in the configuration but should be written to the
+        FITS header nevertheless
+
+    Returns
+    -------
+    header : fits.Header instance
+        The header including the configuration of PampelMuse
+    """
+    # prepare empty header
+    header = fits.Header()
+
+    # loop over configuration
+    # the structure of the keywords is HIERARCH PAMPELMUSE <SECTION> <KEYWORD>
+    for section in config.sections():
+        for key, value in section.items():
+            header['HIERARCH PAMPELMUSE {0} {1}'.format(section, key)] = value
+
+    # add additional keywords (if any)
+    for key, value in kwargs:
+        header['HIERARCH PAMPELMUSE {0}'.format(key)] = value
+
+    # return header
+    return header
+
+
 def save_prm(sources, psf_attributes, filename, header=None):
     """
     This function saves the current status of an analysis to a PampelMuse
