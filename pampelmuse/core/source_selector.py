@@ -33,7 +33,7 @@ Added
 
 Latest SVN revision
 -------------------
-403, 2017/03/28
+406, 2017/03/28
 """
 import logging
 import sys
@@ -52,7 +52,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)'
-__revision__ = 403
+__revision__ = 406
 
 
 logger = logging.getLogger(__name__)
