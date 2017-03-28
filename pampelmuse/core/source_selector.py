@@ -33,7 +33,7 @@ Added
 
 Latest SVN revision
 -------------------
-397, 2017/02/24
+403, 2017/03/28
 """
 import logging
 import sys
@@ -52,7 +52,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)'
-__revision__ = 397
+__revision__ = 403
 
 
 logger = logging.getLogger(__name__)
@@ -542,7 +542,12 @@ class SourceSelector(object):
         self.data_image[mask] = 0
 
         if self.data_image.sum() <= 0:
-            logger.error("Flux sum in {0}-image is negative.".format(self.passband))
+            self.data_image -= np.median(self.data_image)
+            if self.data_image.sum() > 0:
+                logger.warning('Flux sum in {0}-image was negative. Subtracted (negative) median flux.'.format(
+                    self.passband))
+            else:
+                logger.error("Flux sum in {0}-image is negative.".format(self.passband))
 
     def cross_correlate_images(self, ccmaxoff=None, init_guess=None):
         """
