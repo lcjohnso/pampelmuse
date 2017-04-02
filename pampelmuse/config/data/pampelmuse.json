@@ -1,0 +1,75 @@
+{
+  "global": {
+    "prefix": null,
+    "verbose": 3,
+    "interact": true,
+    "cpucount": 1,
+    "smallifu": false
+  },
+  "layers": {
+    "first": 0,
+    "last": -1,
+    "binning": 1
+  },
+  "catalog": {
+    "name": null,
+    "saturated":  null,
+    "passband": "F814W"
+  },
+  "psf": {
+    "profile": "moffat",
+    "beta": 2.5,
+    "fwhm": 3.0,
+    "ellipticity": 0.0,
+    "theta": 0.0,
+    "fit": 6,
+    "radius": 15
+  },
+  "sky": {
+    "use": true,
+    "binsize": -1,
+    "subtract": false
+  },
+  "unresolved": {
+    "use": false,
+    "binsize": 2,
+    "subtract": false
+  },
+  "polynom": {
+    "type": "plain",
+    "degree": 0,
+    "mask": null,
+    "common":  false
+  },
+  "initfit": {
+    "zeromag": null,
+    "ccmaxoff": -1,
+    "aperrad": 3,
+    "apernois": 0.1,
+    "confdens": 0.4,
+    "snrcut": 3.0,
+    "binrad": 0.3,
+    "posfit": 2
+  },
+  "cubefit": {
+    "usesigma": true,
+    "iterations": 5
+  },
+  "ptsort": {
+    "outfilename": null
+  },
+  "polyfit": {
+    "reference":  null
+  },
+  "subtres": {
+    "include": null,
+    "exclude": null
+  },
+  "getspectra": {
+    "prefix": null,
+    "folder":  "spectra",
+    "passbands": null,
+    "poststamps": false,
+    "skipfllag": false
+  }
+}

@@ -1,7 +1,7 @@
 """
 subtres.py
 ==========
-Copyright 2013-2016 Sebastian Kamann
+Copyright 2013-2017 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -22,6 +22,7 @@ along with PampelMuse. If not, see <http://www.gnu.org/licenses/>.
 +++
 Provides
 --------
+function pampelmuse.routines.subtres.add_parser
 function pampelmuse.routines.subtres.subtres
 
 Purpose
@@ -33,18 +34,18 @@ if PampelMuse is started with the 'SUBTRES' option.
 
 Latest SVN revision
 -------------------
-401, 2017/03/03
+407, 2017/04/02
 """
 import datetime
 import logging
 import os
 from astropy.io import fits
 from ..core.make_residual_cube import MakeResidualsCube
-from ..utils.fits import open_prm
+from ..utils.fits import open_prm, open_ifs_data
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 401
+__revision__ = 407
 
 
 def add_parser(parser):
@@ -53,65 +54,81 @@ def add_parser(parser):
     from the IFS data. A PRM-file containing the results from a successful analysis
     with CUBEFIt should be available. The resulting data is stored as a Fit-file under
     <prefix>.res.fits.""")
-    stars = p.add_mutually_exclusive_group()
-    stars.add_argument('-x', '--exclude', type=int, nargs='+', help="""
-    Provide the IDs of one or more stars that should be excluded from the subtraction.""")
-    stars.add_argument('-i', '--include', type=int, nargs='+', help="""
-    In case only certain stars should be subtracted, provide their IDs here.""")
     p.set_defaults(func=subtres)
 
 
-def subtres(pampelmuse):
+def subtres(config):
+    """
+    This function creates a residuals cube from the results of the previous
+    analysis. It is called when PampelMuse is called with the SUBTRES option.
 
+    Parameters
+    ----------
+    config : dict
+        Dictionary containing the configuration of PampelMuse.
+    """
     logging.info("Executing requested routine SUBTRES [Revision {0:d}].".format(__revision__))
 
-    # Check if PRM-file contains results of successful fit
-    if hasattr(pampelmuse, "cubefit") and hasattr(pampelmuse.cubefit, "status"):
-        fitstatus = pampelmuse.cubefit.status
-    else:
-        fitstatus = "Unknown"
+    # Collect information about sources/create Sources-instance
+    logging.info("Obtaining information on sources in the field...")
 
+    # get prefix of IFS data - note that the calling routine makes sure that the entry exists in the configuration
+    prefix = config['global']['prefix']
+
+    # open IFS data
+    ifs_data = open_ifs_data(prefix=prefix)
+
+    # Check if PRM-file contains results of successful fit
+    fitstatus = config['cubefit'].get('status', default='Unknown')
     if fitstatus not in ["SUCCESS", "Unknown"]:
         logging.error("PRM-file does not contain results of successful fit.")
 
     # Collect information about sources/create Sources-instance
     logging.info("Obtaining information on sources in the field...")
-    sources, psf_attributes = open_prm(pampelmuse.filename, ndisp=pampelmuse.ifs_data.wave.size)
+    sources, psf_attributes = open_prm('{0}.prm.fits'.format(prefix), ndisp=ifs_data.wave.size)
 
-    # Check the range of layers to be fitted
-    try:
-        start = pampelmuse.start
-    except AttributeError:
-        start = 0
-    try:
-        stop = pampelmuse.stop
-    except AttributeError:
-        stop = pampelmuse.ifs_data.ndisp-1
+    # adjust numbers of first and last layer to be analysed
+    first_layer = config['layers'].get('first', default=0)
+    if first_layer < 0:
+        first_layer = ifs_data.nlayer - first_layer
+    last_layer = config['layers'].get('last', default=-1)
+    if last_layer < 0:
+        last_layer = ifs_data.nlayer - last_layer + 1
 
-    # start fitting process:
-    logging.info("Starting fit process...")
+    # check if only a subset of sources should be subtracted or some sources should NOT be subtracted
+    exclude = config['subtres'].get('exclude', default=None)
+    include = config['subtres'].get('include', default=None)
+    if include is not None and exclude is not None:
+        logging.error('Only subtres.include or subtres.exclude may be specified.')
+        return
 
-    fitter = MakeResidualsCube(ifs_data=pampelmuse.ifs_data, sources=sources, psf_attributes=psf_attributes,
-                               maxrad=pampelmuse.psfrad)
+    # start subtraction process:
+    logging.info("Starting source subtraction...")
 
-    residuals = fitter(layer_range=(start, stop), n_cpu=pampelmuse.cpucount, subtract_background=pampelmuse.subsky,
-                       include=pampelmuse.subtres.include, exclude=pampelmuse.subtres.exclude)
+    fitter = MakeResidualsCube(ifs_data=ifs_data, sources=sources, psf_attributes=psf_attributes,
+                               maxrad=config['psf'].get('radius', default=15))
+
+    residuals = fitter(layer_range=(first_layer, last_layer),
+                       n_cpu=config['global'].get('cpucount', default=1),
+                       subtract_background=config['sky'].get('subtract', default=False),
+                       include=include, exclude=exclude)
 
     logging.info("Saving results...")
 
-    pampelmuse.subtres.revision = __revision__
-    pampelmuse.subtres.utc = datetime.datetime.utcnow().strftime("%y-%m-%d %H:%M:%S")
+    config['subtres']['revision'] = __revision__
+    config['subtres']['utc'] = datetime.datetime.utcnow().strftime("%y-%m-%d %H:%M:%S")
 
     # create HDU for output
     logging.info("Creating HDU from processed data...")
 
-    out_hdu = fits.PrimaryHDU(residuals, header=pampelmuse.ifs_data.wcs.to_header())
+    # write WCS to header of residuals cube
+    out_hdu = fits.PrimaryHDU(residuals, header=ifs_data.wcs.to_header())
 
     # delete any existing residuals file
-    logging.info("Writing results to file {0}.res.fits...".format(pampelmuse.prefix))
-    if os.path.exists("{0}.res.fits".format(pampelmuse.prefix)):
-        os.remove("{0}.res.fits".format(pampelmuse.prefix))
+    logging.info("Writing results to file {0}.res.fits...".format(prefix))
+    if os.path.exists("{0}.res.fits".format(prefix)):
+        os.remove("{0}.res.fits".format(prefix))
         logging.warning("Existing residual cube has been overwritten.")
 
-    out_hdu.writeto("{0}.res.fits".format(pampelmuse.prefix))
+    out_hdu.writeto("{0}.res.fits".format(prefix))
 

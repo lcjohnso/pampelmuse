@@ -36,7 +36,7 @@ which performs the actual analysis.
 
 Latest SVN revision
 -------------------
-404, 2017/03/26
+407, 2017/04/02
 """
 import datetime
 import logging
@@ -45,7 +45,7 @@ from ..utils.fits import make_header_from_config, open_ifs_data, open_prm, save_
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 404
+__revision__ = 407
 
 
 def add_parser(parser):
@@ -70,8 +70,8 @@ def cubefit(config):
 
     Parameters
     ----------
-    config : instance of ConfigParser
-        The configuration of PampelMuse.
+    config : dict
+        Dictionary containing the configuration of PampelMuse.
     """
 
     logging.info("Executing requested routine CUBEFIT [Revision {0:d}].".format(__revision__))
@@ -86,10 +86,10 @@ def cubefit(config):
     ifs_data = open_ifs_data(prefix=prefix)
 
     # adjust numbers of first and last layer to be analysed
-    first_layer = config.getint('layers', 'start', fallback=0)
+    first_layer = config['layers'].get('first', default=0)
     if first_layer < 0:
         first_layer = ifs_data.nlayer - first_layer
-    last_layer = config.getint('layers', 'stop', fallback=0)
+    last_layer = config['layers'].get('last', default=-1)
     if last_layer < 0:
         last_layer = ifs_data.nlayer - last_layer + 1
 
@@ -100,13 +100,13 @@ def cubefit(config):
     logging.info("Starting fit process...")
 
     fitter = FitCube(ifs_data=ifs_data, sources=sources, psf_attributes=psf_attributes,
-                     maxrad=config.getfloat('psf', 'psfrad', fallback=15))
+                     maxrad=config['psf'].get('radius', default=15))
 
     fitter(layer_range=(first_layer, last_layer),
-           n_cpu=config.getint('general', 'cpucount', fallback=1),
-           maxiter=config.getint('cubefit', 'maxiter', fallback=5),
-           use_variances=config.getboolean('cubefit', 'usesigma', fallback=True),
-           n_bin=config.getint('layers', 'layerbin', fallback=1))
+           n_cpu=config['global'].get('cpucount', default=1),
+           maxiter=config['cubefit'].get('iterations', default=5),
+           use_variances=config['cubefit'].get('usesigma', default=True),
+           n_bin=config['layers'].get('binning', default=1))
 
     logging.info("Saving results...")
 

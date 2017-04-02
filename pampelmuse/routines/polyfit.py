@@ -1,7 +1,7 @@
 """
 polyfit.py
 ==========
-Copyright 2013-2016 Sebastian Kamann
+Copyright 2013-2017 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -37,7 +37,7 @@ routine will automatically fit the coordinates and PSF parameters.
 
 Latest SVN revision
 -------------------
-404, 2017/03/26
+407, 2017/04/02
 """
 import datetime
 import logging
@@ -49,7 +49,7 @@ from ..utils.fits import make_header_from_config, open_ifs_data, open_prm, save_
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 377
+__revision__ = 407
 
 
 def add_parser(parser):
@@ -77,8 +77,8 @@ def polyfit(config):
 
     Parameters
     ----------
-    config : instance of ConfigParser
-        The configuration of PampelMuse.
+    config : dict
+        Dictionary containing the configuration of PampelMuse.
     """
 
     logging.info("Executing requested routine POLYFIT [Revision {0:d}].".format(__revision__))
@@ -87,7 +87,7 @@ def polyfit(config):
     logging.info("Obtaining information on sources in the field...")
 
     # get prefix of IFS data - note that the calling routine makes sure that the entry exists in the configuration
-    prefix = config.get('general', 'prefix')
+    prefix = config['global']['prefix']
 
     # open IFS data
     ifs_data = open_ifs_data(prefix=prefix)
@@ -96,21 +96,31 @@ def polyfit(config):
     sources, psf = open_prm('{0}.prm.fits'.format(prefix), ndisp=ifs_data.wave.size)
 
     # add information about caller routine to configuration for adding them to FITS-header
+    if 'polyfit' not in config.keys():
+        config['polyfit'] = {}
     config['polyfit']['utc'] = datetime.datetime.utcnow().strftime("%y-%m-%d %H:%M:%S")
     config['polyfit']['revision'] = __revision__
 
     # for type of polynomial, need to make first letter uppercase for identification in GUI
-    polytype = config.get('polyfit', 'polytype', fallback='Plain')
+    polytype = config['polynom'].get('type', default='plain')
     polytype = polytype[0].upper() + polytype[1:]
 
     # get degree of polynomial
-    polydeg = config.getint('polyfit', 'polydeg', fallback=0)
+    polydeg = config['polynom'].get('degree', default=0)
 
     # if common slope used for all coordinates along one axis
-    common = config.getboolean('polyfit', 'common', fallback=False)
+    common = config['polynom'].get('common', default=False)
+
+    # prepare mask to exclude requested wavelength ranges (if any)
+    mask = config['polynom'].get('mask', None)
+    # mask must be iterable and have even length
+    if mask is not None:
+        if not hasattr(mask, '__iter__') or not np.mod(len(mask), 2):
+            logging.error('Provided mask has invalid shape.')
+            mask = None
 
     # Prepare GUI if interactive mode enabled
-    if config.getboolean('general', 'interact', fallback=False):
+    if config['global'].get('interact', default=False):
 
         # load modules required to display GUI
         from PyQt4 import QtGui
@@ -119,7 +129,7 @@ def polyfit(config):
         # initialize GUI
         app = QtGui.QApplication(sys.argv)
         ui = PampelMuseGui(sources=sources, ifsData=ifs_data,
-                           refImage=config.get('polyfit', 'reference', fallback=''))
+                           refImage=config['polyfit'].get('reference', default=None))
 
         # for saving results, provide name of PRM-file
         ui.outfileName = '{0}.prm.fits'.format(prefix)
@@ -142,12 +152,12 @@ def polyfit(config):
         # check if common slope should be used for the IFS coordinates
         ui.actionForce_common_slope.setChecked(common)
 
-        # exclude requested wavelength ranges (if any)
-        if pampelmuse.polyfit.exclude is not None:
-            for wmin, wmax in pampelmuse.polyfit.exclude:
-                ui.modifyMask((wmin, wmax), True)
-                logging.info("Added wavelength range to spectrumMask: {0}--{1}".format(wmin, wmax))
-
+        # apply mask (if any)
+        if mask is not None:
+            # loop over areas to mask, assume odd/even list entries contain start/end of masked range
+            for i in range(0, len(mask), 2):
+                ui.modifyMask((mask[i], mask[i+1]), True)
+                logging.info("Added wavelength range to spectrumMask: {0}--{1}".format(mask[i], mask[i+1]))
         ui.show()
     
         sys.exit(app.exec_())
@@ -155,9 +165,9 @@ def polyfit(config):
     else:  # automatically fit PSF parameters and source positions using the predefined polynomial type and degree
         
         # prepare spectrumMask
-        if pampelmuse.polyfit.exclude is not None:
-            logging.info("Masked wavelength ranges: {0}".format(pampelmuse.polyfit.exclude))
-            _mask = [(sources.wave >= wmin) & (sources.wave <= wmax) for wmin, wmax in pampelmuse.polyfit.exclude]
+        if mask is not None:
+            logging.info("Masked wavelength ranges: {0}".format([mask[i:i+2] for i in range(0, len(mask), 2)]))
+            _mask = [(sources.wave >= mask[i]) & (sources.wave <= mask[i+1]) for i in range(0, len(mask), 2)]
             mask = np.any(_mask, axis=0)
         else:
             mask = None

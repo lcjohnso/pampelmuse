@@ -11,7 +11,7 @@ setup(
     packages=['pampelmuse', 'pampelmuse.config', 'pampelmuse.core', 'pampelmuse.filters', 'pampelmuse.graphics',
               'pampelmuse.instruments', 'pampelmuse.psf', 'pampelmuse.routines', 'pampelmuse.utils'],
     scripts=['bin/PampelMuse', ],
-    package_data={'pampelmuse.config': ['data/pampelmuse.ini', ],
+    package_data={'pampelmuse.config': ['data/pampelmuse.json', ],
                   'pampelmuse.filters': ['data/*', ]},
     requires=['numpy', 'scipy', 'astropy', 'matplotlib', 'pandas']
 )

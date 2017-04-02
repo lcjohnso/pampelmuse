@@ -50,7 +50,7 @@ are saved in the PRM file that is written to disk.
 
 Latest SVN Revision
 -------------------
-404, 2017/03/26
+407, 2017/04/02
 """
 import datetime
 import logging
@@ -61,7 +61,7 @@ from ..utils.fits import open_ifs_data, make_header_from_config, save_prm
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 404
+__revision__ = 407
 
 
 logger = logging.getLogger(__name__)
@@ -100,35 +100,35 @@ def initfit(config):
 
     Parameters
     ----------
-    config : instance of ConfigParser
-        The configuration of PampelMuse.
+    config : dict
+        A dictionary containing the configuration of PampelMuse.
     """
     logger.info("Executing requested routine INITFIT [Revision {0:d}].".format(__revision__))
 
     # Check if version for small or large FoV should be used
-    smallifu = config['general'].getboolean('smallifu', fallback=True)
+    smallifu = config['global']['smallifu']
     logger.info("Using version designed for {0} IFUs.".format("small" if smallifu else "large"))
 
     # get prefix of IFS data - note that the calling routine makes sure that the entry exists in the configuration
-    prefix = config.get('general', 'prefix')
+    prefix = config['global']['prefix']
 
     # open IFS data
     ifs_data = open_ifs_data(prefix=prefix)
 
     # adjust numbers of first and last layer to be analysed
-    first_layer = config.getint('layers', 'start', fallback=0)
+    first_layer = config['layers'].get('first', default=0)
     if first_layer < 0:
         first_layer = ifs_data.nlayer - first_layer
-    last_layer = config.getint('layers', 'stop', fallback=0)
+    last_layer = config['layers'].get('last', default=-1)
     if last_layer < 0:
         last_layer = ifs_data.nlayer - last_layer + 1
 
     # Initialize instance of SourceSelector class
-    selector = SourceSelector(photometry_file=config.get('initfit', 'catalog'),
+    selector = SourceSelector(photometry_file=config['catalog']['name'],
                               ifs_data=ifs_data,
-                              passband=config.get('initfit', 'passband', fallback='f814w'),
-                              zeropoint=config.getfloat('initfit', 'zeromag', fallback=99.9),
-                              position_fit=config.getint('positions', 'posfit', fallback=2))
+                              passband=config['catalog'].get('passband', default='f814w'),
+                              zeropoint=config['initfit'].get('zeromag'),
+                              position_fit=config['initfit'].get('posfit', default=2))
 
     # if it is possible to match IFS data and catalogue via WCS, remove all
     # sources from catalogue that have a distance to the field of view which
@@ -136,7 +136,7 @@ def initfit(config):
     # parameter CCMAXOFF
     if selector.use_wcs:
         # default value is 0.5x length of major IFS data axis
-        ccmaxoff = config.get('initfit', 'ccmaxoff', fallback=-1)
+        ccmaxoff = config['initfit'].get('ccmaxoff', default=-1)
         if ccmaxoff < 0:
             ccmaxoff = 0.5*max(selector.ifs_data.shape)
         xy = np.dstack((selector.cfp_results['x'], selector.cfp_results['y'])).astype('<f4')
@@ -148,25 +148,25 @@ def initfit(config):
         ccmaxoff = None
 
     # If requested, add background component(s) to source catalogue
-    if config.getboolean('sky', 'globsky', fallback=True):
-        selector.background_setup(skysize=config.getint('sky', 'skysize', fallback=-1))
+    if config['sky'].get('use', fallback=True):
+        selector.background_setup(skysize=config['sky'].get('binsize', default=-1))
 
     # Initialize PSF to be used
     # check if valid profile was provided
-    profile = config.get('psf', 'profile', fallback='moffat')
+    profile = config['psf'].get('profile', default='moffat')
     if profile not in Variables.PROFILES.keys():
         logger.error('Unknown PSF profile: {0}'.format(profile))
         logger.error('Supported PSF profiles: {0}'. format(', '.join(Variables.PROFILES.keys())))
 
     # get information about free parameters
-    psffit = config.getint('psf', 'psffit', fallback=0)
+    psffit = config['psf'].get('fit', default=6)
 
     # get initial values for PSF parameters
     psf_parameters = []
     # loop over parameters for chosen profile, get values and see if the are free or fixed
     for parameter in Variables.PROFILES[profile][::-1]:
         i = Variables.PROFILES[profile].index(parameter)
-        value = config.getfloat('psf', parameter)
+        value = config['psf'].get(parameter)
         if psffit >= 2**i:
             free = True
             psffit -= 2**i
@@ -176,7 +176,7 @@ def initfit(config):
     selector.prepare_psf(profile=profile, parameters=psf_parameters)
 
     # Create mock image from photometry catalog
-    n_cpu = config.getint('general', 'cpucount', fallback=1)
+    n_cpu = config['global'].get('cpucount', default=1)
     selector.create_mock_image(n_cpu=n_cpu)
 
     # Create image from IFS data in provided passband
@@ -188,40 +188,37 @@ def initfit(config):
         selector.cross_correlate_images(ccmaxoff=ccmaxoff)
 
     # load GUI for visual check/identification
-    if config.getboolean('general', 'interact', fallback=False):
+    if config['global'].get('interact', default=False):
         selector.identify_footprint()
 
     # Perform photometric calibration and S/N estimation:
     selector.calibrate_photometry(n_cpu=n_cpu, update_zeropoint=True)
 
     selector.select(reslim=None,
-                    sncut=config.getfloat('initfit', 'snrcut', fallback=3),
-                    confusion_density=config.getfloat('initfit', 'confdens', fallback=0.4),
-                    binrad=config.getfloat('initfit', 'binrad', fallback=0.3),
-                    use_unres=config.getboolean('unresolved', 'useunres', fallback=False),
-                    unres_range=config.getboolean('unresolved', 'unresbin', fallback=2))
+                    sncut=config['initfit'].get('snrcut', default=3),
+                    confusion_density=config['initfit'].get('confdens', default=0.4),
+                    binrad=config['initfit'].get('binrad', default=0.3),
+                    use_unres=config['unresolved'].get('use', default=False),
+                    unres_range=config['unresolved'].get('binsize', default=2))
 
     if not smallifu:
         # find suitable PSF stars
 
         # check if saturated stars exist that should be excluded from PSF search
-        if config.has_section('saturated'):
-            saturated = [int(key) for key in config['saturated'].keys()]
-        else:
-            saturated = None
+        saturated = config['catalog'].get('saturated', default=None)
 
         # maximum allowed magnitude of PSF star is 3mag brighter than faintest resolved star
         max_mag = selector.sources.mag[selector.sources.status == 2].max() - 3.
 
         selector.search_psf_stars(saturated=saturated,
                                   max_mag=max_mag,
-                                  psf_radius=config.getfloat('psf', 'psfrad', fallback=15),
-                                  aperture_noise=config.getfloat('initfit', 'apernois', fallback=0.1))
+                                  psf_radius=config['psf'].get('radius', default=15),
+                                  aperture_noise=config['initfit'].get('apernois', default=0.1))
 
         # perform aperture spectrophotometry for PSF stars
         selector.run_aperture_photometry(start=first_layer, stop=last_layer, n_cpu=n_cpu,
-                                         radius=config.getfloat('initfit', 'aperrad', fallback=3),
-                                         n_bin=config.getint('layer', 'layerbin', fallback=1))
+                                         radius=config['initfit'].get('aperrad', default=3),
+                                         n_bin=config['layers'].get('binning', default=1))
     else:
         selector.sources.ndisp = selector.ifs_data.nlayer
 

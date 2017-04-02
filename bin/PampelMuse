@@ -2,7 +2,7 @@
 """
 PampelMuse
 ==========
-Copyright 2013-2016 Sebastian Kamann
+Copyright 2013-2017 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -58,11 +58,11 @@ the data into memory yet but just checks whether the file(s) are valid.
 
 Latest SVN revision
 -------------------
-403, 2017/03/25
+407, 2017/04/02
 """
 import argparse
-import configparser
 import importlib
+import json
 import logging
 import os
 import pkgutil
@@ -75,7 +75,7 @@ from pampelmuse.routines import initfit, ptsort, singlesrc
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
 __version__ = "0.94.0.1"
-__revision__ = 402
+__revision__ = 407
 
 
 logger = logging.getLogger(__name__)
@@ -119,9 +119,8 @@ if __name__ == "__main__":
     different stages that are carried out by the  various sub-routines provided
     below.""")
     parser.add_argument("config", type=str, help="""
-    Update configuration using the provided configuration. It must be in a format
-    that can be understood by the ConfigParser module of python. In any case, it
-    must contain the section [general] with the keyword 'prefix', providing the
+    Update configuration using the provided configuration. It must be in JSON-
+    format. In any case, the parameter 'prefix' must be defined, providing the
     filename minus the extension of the data to be analysed.""")
 
     subparsers = parser.add_subparsers(help='Available routines')
@@ -152,14 +151,15 @@ if __name__ == "__main__":
     __configpath__ = os.path.join(__currentdir__, os.pardir, "pampelmuse", "config", "data")
 
     # initialize & read default configuration
-    config = configparser.ConfigParser()
-    config.read_file(open(os.path.join(__configpath__, 'pampelmuse.ini')))
+    with open(os.path.join(__configpath__, 'pampelmuse.json')) as f:
+        config = json.load(f)
 
-    # open user configuration - allow providing keys without values for specifying saturated stars
-    user_config = configparser.ConfigParser(allow_no_value=True)
-    user_config.read_file(open(args.config))
+    # open user configuration
+    with open(args.config) as user:
+        user_config = json.load(user)
+
     # make sure user_config contains information about IFS data
-    if 'general' not in user_config.sections() and 'prefix' not in user_config['general'].keys():
+    if 'global' not in user_config.keys() or 'prefix' not in user_config['global'].keys():
         logging.critical('User configuration file does not contain prefix of IFS data.')
         exit(1)
 
@@ -168,40 +168,40 @@ if __name__ == "__main__":
     # header key exists and if its value differs from the default value
     if args.func not in [initfit, singlesrc, ptsort]:
         # get primary header
-        header = fits.getheader('{0}.prm.fits'.format(user_config['general'].get('prefix')))
+        header = fits.getheader('{0}.prm.fits'.format(user_config['prefix']))
 
-        # loop over sections
-        for section in config.sections():
-            # loop over keys in section
-            for key, value in section.items():
-                header_key = 'pampelmuse {0} {1}'.format(section.name, key)
+        # loop over configuration sections
+        for key, section in config.items():
+            # if loop over keys in section
+            for sub_key, value in section.items():
+                header_key = 'pampelmuse {0} {1}'.format(key, sub_key)
                 # check if key exists and differs from default value
                 if header_key in header and header[header_key] != value:
                     # update
-                    config[section][key] = header[header_key]
+                    config[key][sub_key] = header[value]
 
-    # iii) update configuration using command line input. Note that during the analysis, i.e. when calling a routine
+    # update configuration using command line input. Note that during the analysis, i.e. when calling a routine
     # different from INITFIT or SINGLESRC, only a subset of the parameters can be changed. For example, it makes no
     # sense to change the RESLIM parameter after selecting the sources.
 
     # loop over sections and keys
-    for section in user_config.sections():
+    for key, section in user_config.items():
         #  check if section is valid
-        if section not in config.sections():
-            logging.error('Unknown section [{0}] in user-configuration file.'.format(section))
+        if key not in config.keys():
+            logging.error('Unknown key "{0}" in user-configuration file.'.format(key))
         else:
-            for key, value in section.items():
+            for sub_key, value in section.items():
                 # check if key is valid
-                if key not in config[section]:
-                    logging.error('Unknown parameter {0} in section [{1}] of user-configuration file.'.format(
-                        section, key))
+                if sub_key not in config[key]:
+                    logging.error('Unknown parameter {0}.{1} in user-configuration file.'.format(key, sub_key))
                 # check if new value different from existing one
-                elif value != config[section][key]:
+                elif value != config[key][sub_key]:
                     # check if value can be updated
                     if key in changeable or args.func in [initfit, singlesrc, ptsort]:
-                        logging.info('Updating parameter {0}.{1} to {2}'.format(section, key, value))
+                        logging.info('Updating parameter {0}.{1} to {2}'.format(key, sub_key, value))
+                        config[key][sub_key] = value
                     else:
-                        logging.error('Cannot update parameter {0}.{1} during analysis.'.format(section, key))
+                        logging.error('Cannot update parameter {0}.{1} during analysis.'.format(key, sub_key))
 
     # set up logging level and format; therefore complete logger configuration needs to be reset
     # see http://stackoverflow.com/questions/12158048/changing-loggings-basicconfig-which-is-already-set

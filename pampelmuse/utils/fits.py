@@ -252,8 +252,8 @@ def make_header_from_config(config, **kwargs):
 
     Parameters
     ----------
-    config : instance of ConfigParser
-        The configuration of PampelMuse
+    config : dict
+        Dictionary containing the configuration of PampelMuse
     kwargs : optional
         The additional keyword arguments can be used to pass any keywords that
         are not included in the configuration but should be written to the
@@ -269,9 +269,9 @@ def make_header_from_config(config, **kwargs):
 
     # loop over configuration
     # the structure of the keywords is HIERARCH PAMPELMUSE <SECTION> <KEYWORD>
-    for section in config.sections():
-        for key, value in section.items():
-            header['HIERARCH PAMPELMUSE {0} {1}'.format(section, key)] = value
+    for key, item in config.items():
+        for sub_key, value in item.items():
+            header['HIERARCH PAMPELMUSE {0} {1}'.format(key, sub_key)] = value
 
     # add additional keywords (if any)
     for key, value in kwargs:

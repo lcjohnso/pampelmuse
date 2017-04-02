@@ -32,7 +32,7 @@ rev. 334, 2016/07/26
 
 Latest SVN revision
 -------------------
-404, 2017/03/26
+407, 2017/04/02
 """
 import logging
 import numpy as np
@@ -40,7 +40,7 @@ from astropy.io import fits
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 404
+__revision__ = 407
 
 
 logger = logging.getLogger(__name__)
@@ -65,13 +65,13 @@ def ptsort(config):
 
     Parameters
     ----------
-    config : instance of ConfigParser
-        The configuration of PampelMuse.
+    config : dict
+        Dictionary containing the configuration of PampelMuse.
     """
     logger.info("Executing requested routine PTSORT [Revision {0:d}].".format(__revision__))
 
     # get prefix of IFS data - note that the calling routine makes sure that the entry exists in the configuration
-    prefix = config.get('general', 'prefix')
+    prefix = config['global']['prefix']
 
     logger.info('Opening input pixtable {0}.fits ...'.format(prefix))
     pt = fits.open("{0}.fits".format(prefix), memmap=False)
@@ -85,7 +85,7 @@ def ptsort(config):
             pt[i].header['EXTNAME'] if 'EXTNAME' in pt[i].header else i))
         pt[i].data = pt[i].data[indices, :]
 
-    outfilename = config.get('ptsort', 'outfilename', fallback='{0}_sorted.fits'.format(prefix))
+    outfilename = config['ptsort'].get('outfilename', default='{0}_sorted.fits'.format(prefix))
     logger.info('Saving converted pixtable as {0} ...'.format(outfilename))
 
     pt.writeto(outfilename, clobber=True)
