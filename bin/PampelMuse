@@ -58,7 +58,7 @@ the data into memory yet but just checks whether the file(s) are valid.
 
 Latest SVN revision
 -------------------
-407, 2017/04/02
+408, 2017/04/03
 """
 import argparse
 import importlib
@@ -72,10 +72,12 @@ from astropy.io import fits
 import pampelmuse.routines
 from pampelmuse.config import changeable
 from pampelmuse.routines import initfit, ptsort, singlesrc
+from pampelmuse.utils.fits import read_config_from_header
+
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
 __version__ = "0.94.0.1"
-__revision__ = 407
+__revision__ = 408
 
 
 logger = logging.getLogger(__name__)
@@ -170,15 +172,17 @@ if __name__ == "__main__":
         # get primary header
         header = fits.getheader('{0}.prm.fits'.format(user_config['prefix']))
 
+        # read configuration from header
+        existing_config = read_config_from_header(header)
+
         # loop over configuration sections
-        for key, section in config.items():
+        for section, items in existing_config.items():
             # if loop over keys in section
-            for sub_key, value in section.items():
-                header_key = 'pampelmuse {0} {1}'.format(key, sub_key)
+            for key, value in items.items():
                 # check if key exists and differs from default value
-                if header_key in header and header[header_key] != value:
+                if section in config.keys() and key in config[section].keys() and config[section][key] != value:
                     # update
-                    config[key][sub_key] = header[value]
+                    config[section][key] = value
 
     # update configuration using command line input. Note that during the analysis, i.e. when calling a routine
     # different from INITFIT or SINGLESRC, only a subset of the parameters can be changed. For example, it makes no
@@ -208,7 +212,7 @@ if __name__ == "__main__":
     LOGLEVELS = {0: logging.CRITICAL, 1: logging.ERROR, 2: logging.WARNING, 3: logging.INFO, 4: logging.DEBUG}
     for handler in logging.root.handlers:
         logging.root.removeHandler(handler)
-    logging.basicConfig(level=LOGLEVELS[config['general'].getint('verbose', fallback=2)],
+    logging.basicConfig(level=LOGLEVELS[config['global']['verbose']],
                         format="%(asctime)s[%(levelname)-8s]: %(message)s",  # - %(pathname)s[%(lineno)s]",
                         datefmt='%m/%d/%Y %H:%M:%S')
 
@@ -235,9 +239,9 @@ if __name__ == "__main__":
         matplotlib = None
         graphics = False
     if not graphics:
-        if config['general'].getboolean('interact'):
+        if config['global']['interact']:
             logger.error("Cannot use PampelMuse GUI. Interaction mode set to False.")
-            config['general']['interact'] = False
+            config['global']['interact'] = False
         else:
             logger.warning("Cannot use PampelMuse GUI.")
 

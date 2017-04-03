@@ -2,7 +2,7 @@
 source_selector.py
 ==================
 
-Copyright 2013-2016 Sebastian Kamann
+Copyright 2013-2017 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -33,26 +33,25 @@ Added
 
 Latest SVN revision
 -------------------
-397, 2017/02/24
+408, 2017/04/03
 """
 import logging
 import sys
 from multiprocessing import cpu_count, Pool
 import numpy as np
+import pandas as pd
 from scipy import spatial
 from .aperture import AperPhoto
 from .background import BackgroundGrid
 from .sources import Sources
 from ..instruments import Instrument, Muse, MusePixtable
-from ..filters import ALIASES
 from ..psf import *
-from ..utils.io import read_asciifile
 from ..utils.image import find_offset
 from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)'
-__revision__ = 397
+__revision__ = 408
 
 
 logger = logging.getLogger(__name__)
@@ -196,7 +195,7 @@ class SourceSelector(object):
             should be performed.
         zeropoint : float, optional
             An initial guess for the photometric zeropoint of the IFS data in
-            the choosen passband.
+            the chosen passband.
         position_fit : int, optional
             A flag indicating how the source positions on the IFS data should
             be determined. Can be one of:
@@ -208,7 +207,7 @@ class SourceSelector(object):
         """
         logger.info('Starting source selection based on {0}-magnitudes.'.format(passband.upper()))
         self.passband = passband
-        self.zeropoint = zeropoint if zeropoint < 99 else None
+        self.zeropoint = zeropoint
 
         assert isinstance(ifs_data, Instrument), 'Parameter "ifs_data" muse be instance of an Instrument-class.'
         self.ifs_data = ifs_data
@@ -217,26 +216,21 @@ class SourceSelector(object):
         # get results from crowded-field photometry, initialize sources
         logger.info('Reading photometry results from file "{0}".'.format(photometry_file))
 
-        # Note that the routine will first check if the first (uncommented) line in the file is a header line from
-        # which it can infer the column content. Only if that fails, it will use the association in 'usecols' and
-        # 'usenames' the 'aliases' provide for each valid passband a list of other possible names the column may have
-        self.cfp_results = read_asciifile(photometry_file, usecols=(0, 1, 2, 3, 4, 5),
-                                          usenames="id,x,y,{0},ra,dec".format(self.passband),
-                                          optional="x,y,ra,dec", aliases=ALIASES)
-
-        # make sure IDs are available
-        if "id" not in self.cfp_results.keys():
+        # open reference catalog. It should be in plain csv-format. the source IDs are used as index
+        try:
+            self.cfp_results = pd.read_csv(photometry_file, index_col='id')
+        except ValueError:
             logger.critical("Did not find IDs in photometry file.")
             raise IOError("Source IDs must be provided with photometry")
 
         # make sure magnitudes are available
-        if self.passband.lower() not in self.cfp_results.keys():
+        if self.passband.lower() not in self.cfp_results.columns:
             logger.critical("Did not find magnitudes in photometry file.")
             raise IOError("Source magnitudes must be provided with photometry.")
 
         # make sure either RA & Dec or x & y are available; if both are available, RA & Dec are preferred over x & y
         if self.use_wcs:
-            if "ra" not in self.cfp_results.keys() or "dec" not in self.cfp_results.keys():
+            if "ra" not in self.cfp_results.columns or "dec" not in self.cfp_results.columns:
                 self.use_wcs = False
 
         if self.use_wcs:
@@ -254,17 +248,20 @@ class SourceSelector(object):
             self.cfp_results["y"] = y.tolist()
 
         else:
-            if "x" not in self.cfp_results.keys() or "y" not in self.cfp_results.keys():
+            if "x" not in self.cfp_results.columns or "y" not in self.cfp_results.columns:
                 logger.critical("Cannot find input source coordinates.")
                 raise IOError("Either x & y or RA & Dec must be provided with photometry.")
 
         # Perform sanity checks on provided source list (exclude sources with magnitudes NaN or >99):
-        self.valid = ~np.isnan(np.asarray(self.cfp_results[passband.lower()], dtype=np.float32))
-        self.valid &= (np.asarray(self.cfp_results[passband.lower()], dtype=np.float32) < 99.)
-        if not self.valid.all():
-            logger.warning("Ignoring {0} source(s) with undefined magnitudes.".format((~self.valid).sum()))
-        if len(np.unique(self.cfp_results["id"])) < len(self.cfp_results["id"]):
-            logger.error("Catalog contains duplicated IDs.")
+        self.cfp_results['valid'] = np.isfinite(self.cfp_results[passband.lower()])
+        self.cfp_results.loc[self.cfp_results[passband.lower()] >= 99, 'valid'] = False
+        if not self.cfp_results['valid'].all():
+            logger.warning("Ignoring {0} source(s) with undefined magnitudes.".format(
+                (~self.cfp_results['valid']).sum()))
+
+        # check for duplicate indices (= source IDs)
+        if self.cfp_results.index.duplicated().any():
+            logger.error('Catalog contains duplicate source IDs.')
 
         self.position_fit = position_fit
         self.sources = None
@@ -325,20 +322,28 @@ class SourceSelector(object):
             background = BackgroundGrid.constant()
         else:
             background = BackgroundGrid.from_shape(shape=self.ifs_data.shape, rscale=skysize/2.)
-        for i, [y, x] in enumerate(background.centroids):
+
+        # prepare data frame for background data
+        n_centroids = len(background.centroids)
+        index = pd.Index(np.arange(-1, -n_centroids-1, -1))  # sky components have negative index
+        background_data = pd.DataFrame({'x': pd.Series(np.zeros(n_centroids, dtype=np.float32), index=index),
+                                        'y': pd.Series(np.zeros(n_centroids, dtype=np.float32), index=index),
+                                        'valid': pd.Series(np.ones(n_centroids, dtype=np.bool), index=index)})
+
+        # loop over background components, fill data frame
+        current_index = -1
+        for [y, x] in background.centroids:
             # ignore sky components outside FoV
             if self.ifs_data.distance_to_edge([[x, y]])[0] < -skysize and skysize > 0:
                 continue
-            self.valid = np.r_[self.valid, True]
-            self.cfp_results["id"].append(str(-i-1))
-            self.cfp_results["x"].append(str(x))
-            self.cfp_results["y"].append(str(y))
-            self.cfp_results[self.passband.lower()].append("0")
-            if "ra" in self.cfp_results.keys():
-                self.cfp_results["ra"].append("0")
-            if "dec" in self.cfp_results.keys():
-                self.cfp_results["dec"].append("0")
-        return len(background.centroids)
+
+            background_data.at[current_index, "x"] = x
+            background_data.at[current_index, "y"] = y
+            current_index -= 1
+
+        self.cfp_results = self.cfp_results.append(background_data, verify_integrity=True)
+
+        return n_centroids
 
     def make_sources_instance(self):
         """
@@ -391,7 +396,7 @@ class SourceSelector(object):
             The name of the analytical profile used to model the PSF.
             Currently 'moffat' (default), 'gauss', and 'double_gauss' are
             supported.
-        parameters : list, optional
+        parameters : iterable, optional
             The values of the parameters of the chosen profile, provided as a
             list that contains one dictionary per parameter. Each dictionary
             should contain three keys:
@@ -630,8 +635,8 @@ class SourceSelector(object):
         app = QtGui.QApplication(sys.argv)
 
         # get magnitude of n_stars'th brightest star
-        n_stars = min(n_stars, self.sources.nsrc - self.sources.nbackground - 1)
-        mag = self.sources.mag[np.argsort(self.sources.mag[:self.sources.nsrc - self.sources.nbackground])[n_stars]]
+        n_stars = min(n_stars, self.sources.n_sources - self.sources.n_background - 1)
+        mag = self.sources.mag[np.argsort(self.sources.mag[:self.sources.n_sources - self.sources.n_background])[n_stars]]
 
         identifier = PampelMuseGui(sources=self.sources, ifsData=self.ifs_data, refImage=self.identification_image)
 
@@ -716,7 +721,7 @@ class SourceSelector(object):
             psf_parameters[name] = self.sources.transformation.data[:, i, 0]
 
         # Assign sources to CPUs
-        to_cpu = np.arange(self.sources.nsrc) % n_cpu
+        to_cpu = np.arange(self.sources.n_sources) % n_cpu
         to_cpu[self.sources.ID < 0] = n_cpu + 1
         args = []
         for n in range(n_cpu):
@@ -831,15 +836,15 @@ class SourceSelector(object):
         # load IFS coordinates for all stars, average over spectral axis (if any), and bring into correct order
         # (including background components)
         self.sources.load_ifs_coordinates()
-        ifs_coordinates = np.zeros((self.sources.nsrc, 2), dtype='<f4')
+        ifs_coordinates = np.zeros((self.sources.n_sources, 2), dtype='<f4')
         ifs_coordinates[self.sources.ifs_coordinates_loaded] = np.nanmean(self.sources.ifs_coordinates[..., 0], axis=0)
 
         # arrays to keep track of the status of each source and the ID of the brightest source in its component
         # (that is identical to the source ID unless a brighter source is so close that the two cannot be separated
         # and are fitted as a single component)
-        status = -np.ones((self.sources.nsrc,), dtype=np.int16)
+        status = -np.ones((self.sources.n_sources,), dtype=np.int16)
         status[self.sources.ID < 0] = 4  # handle background components
-        primary = np.zeros((self.sources.nsrc,), dtype=np.int32)
+        primary = np.zeros((self.sources.n_sources,), dtype=np.int32)
         primary[self.sources.ID < 0] = self.sources.ID[self.sources.ID < 0]  # handle background components
 
         # for larger fields of view, such as the MUSE WFM, the stellar density can be very different across its extent.
@@ -1016,7 +1021,7 @@ class SourceSelector(object):
         # load IFS coordinates for all stars, average over spectral axis (if any), and bring into correct order
         # (including background components)
         self.sources.load_ifs_coordinates()
-        ifs_coordinates = np.zeros((self.sources.nsrc, 2), dtype='<f4')
+        ifs_coordinates = np.zeros((self.sources.n_sources, 2), dtype='<f4')
         ifs_coordinates[self.sources.ifs_coordinates_loaded] = np.nanmean(self.sources.ifs_coordinates[..., 0], axis=0)
 
         # loop over magnitude-sorted list of indices of the sources the instance of the Sources-class

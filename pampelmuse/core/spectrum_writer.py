@@ -197,7 +197,7 @@ class SpectrumWriter(object):
             unity. Also stored as property SpectrumWriter.cleanness.
         """
         # intially set all offsets to NaN
-        self.dmag = np.zeros(self.sources.nsrc, dtype=np.float32)
+        self.dmag = np.zeros(self.sources.n_sources, dtype=np.float32)
         self.dmag[:] = np.nan
 
         # load spectra for all sources, determine magnitudes, write offsets to dmag array
@@ -212,7 +212,7 @@ class SpectrumWriter(object):
         bin_numbers = np.digitize(self.sources.mag, bin_edges)
 
         # loop over bins, find outliers
-        self.cleanness = np.ones(self.sources.nsrc, dtype=np.float32)
+        self.cleanness = np.ones(self.sources.n_sources, dtype=np.float32)
         for i in np.unique(bin_numbers):
             slc = np.isfinite(self.dmag) & (bin_numbers == i)
             if slc.sum() < 3:
@@ -306,7 +306,7 @@ class SpectrumWriter(object):
         self.xy = np.nanmean(self.sources.ifs_coordinates[..., 0], axis=0)
 
         # loop over all components, i.e. all spectra
-        for i in range(self.sources.ncmp):
+        for i in range(self.sources.n_components):
             # get index of the primary (brightest) component contributing to the spectrum
             j = self.sources.indexmap[i][0]
 
@@ -345,7 +345,7 @@ class SpectrumWriter(object):
             if self.sources.status[j] in [2, 3]:  # spectrum belongs to a resolved source.
 
                 source_id = self.sources.ID[j]
-                logger.info("Processing source #{0} [{1}/{2}]".format(source_id, i+1, self.sources.ncmp))
+                logger.info("Processing source #{0} [{1}/{2}]".format(source_id, i + 1, self.sources.n_components))
 
                 primary_hdu.header["HIERARCH STAR ID"] = source_id
 
@@ -469,7 +469,7 @@ class SpectrumWriter(object):
             outfile.writeto(os.path.join(folder, "{0}.fits".format(outfile_prefix)), clobber=True)
 
             logger.info("Wrote spectrum '{0}' [{1}/{2}]".format(os.path.join(folder, "{0}.fits".format(outfile_prefix)),
-                                                                i+1, self.sources.ncmp))
+                                                                i + 1, self.sources.n_components))
 
     @staticmethod
     def _extract_poststamp(image, x_c, y_c, radius=10):

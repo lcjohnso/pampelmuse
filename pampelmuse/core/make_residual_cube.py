@@ -308,9 +308,9 @@ class MakeResidualsCube(FitCube):
 
             # update fluxes
             fluxes = self.read_fluxes(jj)
-            fit_input[-1]['fluxes'] = fluxes[:self.sources.nsrc - self.sources.nbackground][selected_fluxes]
+            fit_input[-1]['fluxes'] = fluxes[:self.sources.n_sources - self.sources.n_background][selected_fluxes]
             if subtract_background:
-                fit_input[-1]['background_fluxes'] = fluxes[self.sources.nsrc - self.sources.nbackground:]
+                fit_input[-1]['background_fluxes'] = fluxes[self.sources.n_sources - self.sources.n_background:]
             else:
                 fit_input[-1]['background_fluxes'] = None
 
@@ -333,7 +333,7 @@ class MakeResidualsCube(FitCube):
             if self.background is not None and subtract_background:
                 self.background.transform = self.ifs_data.transform
                 fit_input[-1]['background'] = self.background.get_sparse_matrix(
-                    offset=self.sources.ncmp - self.sources.nbackground)
+                    offset=self.sources.n_components - self.sources.n_background)
             else:
                 fit_input[-1]['background'] = None
 

@@ -270,10 +270,10 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         if isinstance(data, Sources):
             self.sources = data
         else:
-            self.sources = Sources(data=data)
+            self.sources = Sources(catalog=data)
 
         # add new property indicating if a star is currently plotted
-        self.sources.plotted = np.zeros(self.sources.nsrc, dtype=np.bool)
+        self.sources.plotted = np.zeros(self.sources.n_sources, dtype=np.bool)
 
         self.actionSaveAs.setEnabled(True)
 
@@ -669,7 +669,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
                 # b) Other resolved sources (status==2) will be displayed as black circles
                 # c) sources close to a brighter source (status==1) will be displayed as grey circles.
                 if self.edgeColors is None:
-                    self.edgeColors = np.ones(self.sources.nsrc, dtype="|S7")
+                    self.edgeColors = np.ones(self.sources.n_sources, dtype="|S7")
                     self.edgeColors[self.sources.status == 3] = "#00FF00"
                     self.edgeColors[self.sources.status == 2] = "0.0"
                     self.edgeColors[self.sources.status == 1] = "0.5"
@@ -1449,7 +1449,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
                     sizes = 2.*(10**(-0.2*(self.sources.mag[self.sources.plotted] - self.sources.mag.max())))
                     sizes[sizes <= 1] = 0
                 else:
-                    sizes = 10*np.ones(self.sources.nsrc, dtype=np.float32)
+                    sizes = 10*np.ones(self.sources.n_sources, dtype=np.float32)
                 kwargs['s'] = sizes
 
             logging.debug('Updating plot ...')

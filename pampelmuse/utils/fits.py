@@ -32,7 +32,7 @@ The provided functions facilitate working with FITS data.
 
 Latest SVN revision
 -------------------
-396, 2017/02/13
+408, 2017/04/03
 """
 import os
 import logging
@@ -46,7 +46,7 @@ from ..psf import Variables
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 396
+__revision__ = 408
 
 
 def open_ifs_data(prefix, **kwargs):
@@ -191,7 +191,7 @@ def open_prm(filename, ndisp=-1):
     logging.info("Obtaining information on sources in the field...")
 
     # Source catalogue
-    sources = Sources(data=hdulist["SOURCES"])
+    sources = Sources(catalog=hdulist["SOURCES"])
 
     # Spectra
     try:
@@ -244,41 +244,6 @@ def open_prm(filename, ndisp=-1):
     psf_attributes.info()
 
     return sources, psf_attributes
-
-
-def make_header_from_config(config, **kwargs):
-    """
-    Create a FITS header from the current configuration of PampelMuse.
-
-    Parameters
-    ----------
-    config : dict
-        Dictionary containing the configuration of PampelMuse
-    kwargs : optional
-        The additional keyword arguments can be used to pass any keywords that
-        are not included in the configuration but should be written to the
-        FITS header nevertheless
-
-    Returns
-    -------
-    header : fits.Header instance
-        The header including the configuration of PampelMuse
-    """
-    # prepare empty header
-    header = fits.Header()
-
-    # loop over configuration
-    # the structure of the keywords is HIERARCH PAMPELMUSE <SECTION> <KEYWORD>
-    for key, item in config.items():
-        for sub_key, value in item.items():
-            header['HIERARCH PAMPELMUSE {0} {1}'.format(key, sub_key)] = value
-
-    # add additional keywords (if any)
-    for key, value in kwargs:
-        header['HIERARCH PAMPELMUSE {0}'.format(key)] = value
-
-    # return header
-    return header
 
 
 def save_prm(sources, psf_attributes, filename, header=None):
@@ -338,3 +303,95 @@ def save_prm(sources, psf_attributes, filename, header=None):
         os.remove(filename)
 
     hdulist.writeto(filename, clobber=True)
+
+
+def read_config_from_header(header):
+    """
+    Read an existing configuration of PampelMuse from a FITS header
+    
+    Parameters
+    ----------
+    header : fits.Header
+        The header instance containing the configuration.
+
+    Returns
+    -------
+    config : dict
+        The configuration fetched from the header.
+    """
+    # prepare dictionary
+    config = {}
+
+    # loop over header keys:
+    for header_key, value in header.items():
+        # each valid configuration key is structured as 'HIERARCH PAMPELMUSE <SECTION> <KEY> [<NO>] = <VALUE>'
+        keywords = header_key.split()
+        if keywords[0] == 'PAMPELMUSE' and len(keywords) >= 3:
+            if len(keywords) == 3:
+                section, key = keywords[1:]
+                part = None
+            else:
+                section, key, part = keywords[1:]
+
+            # add section to dictionary if it does not exist
+            if section not in config.keys():
+                config[section] = {}
+
+            # add value=key pair to section
+            # empty strings are converted to None
+            if value == '':
+                config[section][key] = None
+            elif part is None:
+                config[section][key] = value
+            # if length of header key is 4, it is part of a list of values [e.g. catalog.saturated or polynom.mask]
+            elif int(part) == 1:
+                config[section][key] = [value, ]
+            # use insert to make sure values are in order
+            else:
+                try:
+                    config[section][key].insert(int(part) - 1, value)
+                except ValueError:
+                    raise IOError('Header contains invalid configuration: {0}'.format(header_key))
+
+    # return
+    return config
+
+
+def make_header_from_config(config, **kwargs):
+    """
+    Create a FITS header from the current configuration of PampelMuse.
+
+    Parameters
+    ----------
+    config : dict
+        Dictionary containing the configuration of PampelMuse
+    kwargs : optional
+        The additional keyword arguments can be used to pass any keywords that
+        are not included in the configuration but should be written to the
+        FITS header nevertheless
+
+    Returns
+    -------
+    header : fits.Header instance
+        The header including the configuration of PampelMuse
+    """
+    # prepare empty header
+    header = fits.Header()
+
+    # loop over configuration
+    # the structure of the keywords is HIERARCH PAMPELMUSE <SECTION> <KEYWORD>
+    for key, item in config.items():
+        for sub_key, value in item.items():
+            # parameters 'mask' and 'saturated' can be lists and need to be handled separately:
+            if hasattr(value, '__iter__'):
+                for i, value_i in enumerate(value, start=1):
+                    header['HIERARCH PAMPELMUSE {0} {1} {2}'.format(key, sub_key, i)] = value_i
+            else:
+                header['HIERARCH PAMPELMUSE {0} {1}'.format(key, sub_key)] = value
+
+    # add additional keywords (if any)
+    for key, value in kwargs:
+        header['HIERARCH PAMPELMUSE {0}'.format(key)] = value
+
+    # return header
+    return header

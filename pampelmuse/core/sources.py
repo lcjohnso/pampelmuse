@@ -1,7 +1,7 @@
 """
 sources.py
 ==========
-Copyright 2013-2016 Sebastian Kamann
+Copyright 2013-2017 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -38,7 +38,7 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-397, 2017/02/24
+408, 2017/04/03
 """
 import collections
 import inspect
@@ -48,6 +48,7 @@ import re
 import time
 import warnings
 import numpy as np
+import pandas as pd
 from numpy.polynomial import Chebyshev, Legendre, Hermite, Polynomial
 from astropy.io import fits
 from ..core.coordinates import Transformation
@@ -61,7 +62,10 @@ except ImportError:
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 394
+__revision__ = 408
+
+
+logger = logging.getLogger(__name__)
 
 
 def match_on_id(parent, child):
@@ -119,87 +123,48 @@ class Sources(object):
     # for writing to/reading from FITS files, each polynomial is assigned an index
     polyident = collections.OrderedDict(zip(available.keys(), np.arange(len(available))))
 
-    def __init__(self, data=None, **kwargs):
+    def __init__(self, catalog):
         """
         Initialize a new instance of the `Sources`-class.
 
         Parameters
         ----------
-        data : an astropy.io.fits BinTable-HDU instance or a structured array,
-               optional
+        catalog : a pandas.DataFrame
             The source catalog that should be used to initialize the instance.
-            It must contain at least a field named 'id', all other fields are
-            optional and the corresponding properties might be defined later.
-            If 'data' is not provided, than 'ids' must be provided as a keyword
-            argument.
-        kwargs
-            Additional properties of the source catalogue that are not included
-            in 'data' can be provided as keyword arguments. Note that if no data
-            are provided, at least one keyword argument 'ids' must be provided
-            to initialize the IDs of the sources. Also note that if properties
-            that are also available in 'data' are provided as keyword arguments,
-            these supersede the values in 'data'.
+            It is assumed that the index is equal to the source IDs. Other
+            columns are optional and the corresponding properties might be
+            defined later.
         """
         warnings.simplefilter("always", DeprecationWarning)  # By default this type of warning is ignored
 
         # open the data
-        if isinstance(data, fits.hdu.table.BinTableHDU):
-            if "EXTNAME" in data.header:
-                logging.info("Initializing catalogue of sources via HDU '{0}'...".format(data.header["EXTNAME"]))
-            else:
-                logging.info("Initializing catalogue of sources via provided HDU...")
-            data = np.array(data.data, dtype=data.data.dtype)
-            # if a FITS Table was provided, extract information and store as rec-array
-        else:
-            logging.info("Initializing catalogue of sources via provided data...")
+        self.catalog = catalog
 
-        # check that Source IDs are provided and initialize property Sources.ID
-        if data is not None:
-            try:
-                self.ID = data[["id"]].view(data["id"].dtype).reshape(-1, )
-            except ValueError:
-                logging.critical("No field 'id' found in provided data.")
-        elif "ids" in kwargs.keys():
-            self.ID = np.asarray(kwargs["ids"])
-        if self.ID is None:
-            logging.critical("Source IDs must be provided upon initialization.")
-        logging.info("Catalogue contains {0} sources".format(self.nsrc))
+        # check that source IDs are unique
+        if self.ids.duplicated().any():
+            logger.critical('Provided source catalog contains {0} duplicated IDs.'.format(self.ids.duplicated().sum()))
+            return
 
-        assert len(np.unique(self.ID)) == len(self.ID), "Source IDs must be unique."
+        # check if other columns are available - if not, add them and fill with NaN
+        for column in ['x', 'y', 'ra', 'dec', 'mag']:
+            if column not in self.catalog.columns:
+                dtype = np.float64 if column in ['ra', 'dec'] else np.float32
+                self.catalog[column] = pd.Series(np.zeros(self.catalog.shape[1], dtype=dtype),
+                                                 index=self.catalog.index)
+                self.catalog[column] = np.nan
 
-        # other properties are optional may be provided later. If they are not provided, arrays containing NaN entries
-        # are initialized. Note that the properties below can be accessed in two ways:
-        # a) with an underscore: direct access, no sanity checks performed
-        # b) without underscore: check whether data used to update property is valid.
+        # if available, get status of each source in analysis
+        if 'status' not in self.catalog.columns:
+            self.catalog['status'] = pd.Series(np.zeros((self.n_sources,), dtype=np.int16), index=self.catalog.index)
+            self.catalog.at[self.ids < 0, 'status'] = 4  # assume IDs<0 are used for background components
 
-        # Properties that can be set by the user:
-        self._x = np.array(self.nsrc * [np.nan], dtype=np.float32)  # input (or reference) x coordinates
-        self._y = np.array(self.nsrc * [np.nan], dtype=np.float32)  # input (or reference) y coordinates
-        self._ra = np.array(self.nsrc * [np.nan], dtype=np.float64)  # right ascension
-        self._dec = np.array(self.nsrc * [np.nan], dtype=np.float64)  # declination
-        self._mag = np.array(self.nsrc * [np.nan], dtype=np.float32)  # broadband magnitudes
+        # if available, get primary source of each component, otherwise assume each source has its own component
+        if 'primary' not in self.catalog.columns:
+            self.catalog['primary'] = self.ids
 
-        self._status = np.zeros((self.nsrc, ), dtype=np.int16)  # the status of each source in the analysis
-        self._status[self.ID < 0] = 4  # assume IDs<0 are used for background components
-
-        self._primary = np.copy(self.ID)  # the primary source of each source
-
-        self._specrow = None  # row in the array of spectra that contains the spectrum of a source
-        # NOTE that the array is calculated internally upon first request (i.e. call to its getter method unless it is
-        # provided upon initialization
-        self._indexmap = None  # a dictionary mapping each value in Sources.specrow to the indices of the source IDs
-        # that contribute to it. This attribute is determined internally when the first call to its getter method is
-        # made.
         self._weights = None  # a 1dim. array of length Sources.nsrc containing the relative contribution of each
         # source to its component. This attribute is determined internally when the first call to its getter method is
         # made.
-
-        # check if some of the above properties are provided with the input (data or keyword arguments)
-        for name in ["x", "y", "mag", "ra", "dec", "status", "primary", "specrow"]:
-            if name in kwargs.keys():
-                getattr(self, "set_{0}".format(name))(kwargs[name])
-            elif data is not None and name in data.dtype.names:
-                getattr(self, "set_{0}".format(name))(data[[name]].view(data.dtype[name]).reshape(-1, ))
 
         # initialize coordinate transformation
         self.transformation = Transformation()
@@ -210,13 +175,13 @@ class Sources(object):
         self.spectrum_loaded = None
 
         # (b) a boolean array indicating if IFU coordinates have been loaded for a source
-        self.ifs_coordinates_loaded = np.zeros((self.nsrc,), dtype=np.bool)
+        self.ifs_coordinates_loaded = np.zeros((self.n_sources,), dtype=np.bool)
 
         # (c) a boolean array indicating if a polynomial fit has been performed to the IFU coordinates of a source
-        self.ifs_coordinates_fitted = np.zeros((self.nsrc,), dtype=np.bool)
+        self.ifs_coordinates_fitted = np.zeros((self.n_sources,), dtype=np.bool)
 
         # (d) a boolean array indicating if the IFU coordinates of a source are a free fit parameter
-        self.ifs_coordinates_free = np.zeros((self.nsrc,), dtype=np.bool)
+        self.ifs_coordinates_free = np.zeros((self.n_sources,), dtype=np.bool)
 
         # (e) a dictionary of ID:<function> pairs that will contain callable functions that return the polynomial fits
         #  to the positions of a source, obtained using Sources.fitIfsCoordinates()
@@ -251,193 +216,227 @@ class Sources(object):
         for filename in self._tmp_names:
             os.remove(filename)
 
-    ############################################################
-    # Definitions of the various properties,                   #
-    # and the methods to create & access them                  #
-    ############################################################
     @property
-    def nsrc(self):
+    def n_sources(self):
         """
         Returns
         -------
-        nsrc : int
+        n_sources : int
             The total number of sources in the catalogue (incl. background
             components). 
         """
-        return self.ID.size
+        return self.catalog.shape[0]
+
+    @property
+    def ids(self):
+        """
+        Returns
+        -------
+        ids : pandas.Index
+            The IDs of the sources in the catalog.
+        """
+        return self.catalog.index
+
+    def _check_consistency(self, value):
+        """
+        Checks the consistency of updated source properties before they are
+        written to the source catalog.
+        
+        Parameters
+        ----------
+        value : array-like
+            The updated values of a source property
+
+        Returns
+        -------
+        value : pandas.Series
+            The input value as a pandas Series with correct indices
+
+        Raises
+        ------
+        IOError
+            If value cannot be broadcast to an array.
+        ValueError
+            If value has an incorrect shape.
+        """
+        if not isinstance(value, (list, np.ndarray)):
+            raise IOError('Expected array-like variable, got {0}'.format(type(value)))
+        if not len(value) == self.n_sources:
+            raise ValueError('Array-size does not match number of sources in catalog.')
+        return pd.Series(value, index=self.catalog.index)
 
     # Reference x-coordinates
-    def set_x(self, value):
+    @property
+    def x(self):
         """
-        The setter method for the Sources.x-property, containing the coordinate of
-        each source along the x-axis of the reference system.
+        Returns
+        -------
+        x : pandas.Series
+            A 1dim. of length Sources.n_sources containing the coordinate of
+            each source along the x-axis of the reference system.
+        """
+        return self.catalog['x']
+
+    @x.setter
+    def x(self, value):
+        """
+        The setter method for the Sources.x-property, containing the
+        coordinate of each source along the x-axis of the reference system.
 
         Parameters
         ----------
         value : array_like
-            The x-coordinates. Must be a 1dim. list of length Sources.nsrc.
+            The x-coordinates. Must be a 1dim. list of length
+            Sources.n_sources.
         """
-        assert isinstance(value, (list, np.ndarray)), "Attribute Sources.x must be array-like, not {0}.".format(
-            re.findall(r"'(.*)'", str(type(value)))[0])
-        value = np.asarray(value)
-        if not value.size == self.nsrc and value.ndim == 1:
-            logging.error("Cannot set attribute Sources.x, data have invalid shape.")
+        try:
+            value = self._check_consistency(value)
+        except (IOError, ValueError) as msg:
+            logger.error('Cannot update values for source property "x": {0}'.format(msg))
         else:
-            self._x[:] = value
-
-    def get_x(self):
-        """
-        The getter method of the Sources.x-property.
-
-        Returns
-        -------
-        x : nd_array
-            A 1dim. of length Sources.nsrc containing the coordinate of each source
-            along the x-axis of the reference system.
-        """
-        return self._x
-
-    x = property(get_x, set_x, None, "The source coordinates along the x-axis of the reference system.")
+            self.catalog['x'] = value
 
     # Reference y-coordinates
-    def set_y(self, value):
+    @property
+    def y(self):
         """
-        The setter method for the Sources.y-property, containing the coordinate of
-        each source along the y-axis of the reference system.
+        Returns
+        -------
+        y : pandas.Series
+            A 1dim. of length Sources.n_sources containing the coordinate of
+            each source along the y-axis of the reference system.
+        """
+        return self.catalog['y']
+
+    @y.setter
+    def y(self, value):
+        """
+        The setter method for the Sources.y-property, containing the
+        coordinate of each source along the x-axis of the reference system.
 
         Parameters
         ----------
         value : array_like
-            The y-coordinates. Must be a 1dim. list of length Sources.nsrc.
+            The y-coordinates. Must be a 1dim. list of length
+            Sources.n_sources.
         """
-        assert isinstance(value, (list, np.ndarray)), "Attribute Sources.y must be array-like, not {0}.".format(
-            re.findall(r"'(.*)'", str(type(value)))[0])
-        value = np.asarray(value)
-        if not value.size == self.nsrc and value.ndim == 1:
-            logging.error("Cannot set attribute Sources.y, data have invalid shape.")
+        try:
+            value = self._check_consistency(value)
+        except (IOError, ValueError) as msg:
+            logger.error('Cannot update values for source property "y": {0}'.format(msg))
         else:
-            self._y[:] = value
-
-    def get_y(self):
-        """
-        The getter method of the Sources.y-property.
-
-        Returns
-        -------
-        y : nd_array
-            A 1dim. of length Sources.src containing the coordinate of each source
-            along the y-axis of the reference system.
-        """
-        return self._y
-
-    y = property(get_y, set_y, None, "The source coordinates along the y-axis of the reference system.")
+            self.catalog['y'] = value
 
     # Broadband magnitudes
-    def set_mag(self, value):
+    @property
+    def mag(self):
         """
-        The setter method for the Sources.mag-property, containing the magnitude of
-        each source in some reference filter.
+        Returns
+        -------
+        mag : pandas.Series
+            A 1dim. of length Sources.n_sources containing the magnitude of
+            each source in the catalog.
+        """
+        return self.catalog['mag']
+
+    @mag.setter
+    def mag(self, value):
+        """
+        The setter method for the Sources.mag-property, containing the
+        magnitude of each source in the catalog.
 
         Parameters
         ----------
         value : array_like
-            The magnitudes. Must be a 1dim. list of length Sources.nsrc.
+            The magnitudes. Must be a 1dim. list of length Sources.n_sources.
         """
-        assert isinstance(value, (list, np.ndarray)), "Attribute Sources.mag must be array-like, not {0}.".format(
-            re.findall(r"'(.*)'", str(type(value)))[0])
-        value = np.asarray(value)
-        if not value.size == self.nsrc and value.ndim == 1:
-            logging.error("Cannot set attribute Sources.mag, data have invalid shape.")
+        try:
+            value = self._check_consistency(value)
+        except (IOError, ValueError) as msg:
+            logger.error('Cannot update values for source property "mag": {0}'.format(msg))
         else:
-            self._mag[:] = value
-            self._weights = None  # the attribute Sources.weights must be reset because it depends on Sources.specrow
-
-    def get_mag(self):
-        """
-        The getter method of the Sources.mag-property.
-
-        Returns
-        -------
-        mag : nd_array
-            A 1dim. of length Sources.nsrc containing the magnitude of each source
-            in the reference filter.
-        """
-        return self._mag
-
-    mag = property(get_mag, set_mag, None, "The broadband magnitudes of the sources.")
+            self.catalog['mag'] = value
 
     # WCS coordinates: RA
-    def set_ra(self, value):
+    @property
+    def ra(self):
         """
-        The setter method for the Sources.ra-property, containing the right ascension
-        of each source in decimal degrees.
+        Returns
+        -------
+        ra : pandas.Series
+            A 1dim. of length Sources.n_sources containing the coordinate of
+            each source along the RA-axis.
+        """
+        return self.catalog['ra']
+
+    @ra.setter
+    def ra(self, value):
+        """
+        The setter method for the Sources.ra-property, containing the
+        coordinate of each source along the RA-axis.
 
         Parameters
         ----------
         value : array_like
-            The RA-coordinates. Must be a 1dim. list of length Sources.nsrc.
+            The RA-coordinates. Must be a 1dim. list of length
+            Sources.n_sources.
         """
-        assert isinstance(value, (list, np.ndarray)), "Attribute Sources.ra must be array-like, not {0}.".format(
-            re.findall(r"'(.*)'", str(type(value)))[0])
-        value = np.asarray(value)
-        if not value.size == self.nsrc and value.ndim == 1:
-            logging.error("Cannot set attribute Sources.ra, data have invalid shape.")
+        try:
+            value = self._check_consistency(value)
+        except (IOError, ValueError) as msg:
+            logger.error('Cannot update values for source property "ra": {0}'.format(msg))
         else:
-            self._ra[:] = value
-
-    def get_ra(self):
-        """
-        The getter method of the Sources.ra-property.
-
-        Returns
-        -------
-        ra : nd_array
-            A 1dim. of length Sources.nsrc containing the right ascension of each
-            source in decimal degrees.
-        """
-        return self._ra
-
-    ra = property(get_ra, set_ra, None, "The right ascension of each source in decimal degrees.")
+            self.catalog['ra'] = value
 
     # WCS coordinates: Dec
-    def set_dec(self, value):
+    @property
+    def dec(self):
         """
-        The setter method for the Sources.dec-property, containing the declination
-        of each source in decimal degrees.
+        Returns
+        -------
+        dec : pandas.Series
+            A 1dim. of length Sources.n_sources containing the coordinate of
+            each source along the Dec-axis.
+        """
+        return self.catalog['dec']
+
+    @dec.setter
+    def dec(self, value):
+        """
+        The setter method for the Sources.Dec-property, containing the
+        coordinate of each source along the Dec-axis.
 
         Parameters
         ----------
         value : array_like
-            The Dec-coordinates. Must be a 1dim. list of length Sources.nsrc.
+            The Dec-coordinates. Must be a 1dim. list of length
+            Sources.n_sources.
         """
-        assert isinstance(value, (list, np.ndarray)), "Attribute Sources.dec must be array-like, not {0}.".format(
-            re.findall(r"'(.*)'", str(type(value)))[0])
-        value = np.asarray(value)
-        if not value.size == self.nsrc and value.ndim == 1:
-            logging.error("Cannot set attribute Sources.dec, data have invalid shape.")
+        try:
+            value = self._check_consistency(value)
+        except (IOError, ValueError) as msg:
+            logger.error('Cannot update values for source property "ra": {0}'.format(msg))
         else:
-            self._dec[:] = value
-
-    def get_dec(self):
-        """
-        The getter method of the Sources.dec-property.
-
-        Returns
-        -------
-        x : nd_array
-            A 1dim. of length Sources.nsrc containing the declination of each source
-            in decimal degrees.
-        """
-        return self._dec
-
-    dec = property(get_dec, set_dec, None, "The declination of each source in decimal degrees.")
+            self.catalog['ra'] = value
 
     # The status of the sources during the fit
-    def set_status(self, value):
+    @property
+    def status(self):
         """
-        The setter method for the Sources.status-property, containing the status of
-        each source during the fit. The classification scheme for the status of a
-        sources is as follows.
+        Returns
+        -------
+        status : pandas.Series
+            A 1dim. of length Sources.n_sources containing the status of each
+            source in the catalog.
+        """
+        return self.catalog['status']
+
+    @status.setter
+    def status(self, value):
+        """
+        The setter method for the Sources.status-property, containing the
+        status of each source during the fit. The classification scheme for
+        the status of a source is as follows.
             [-1] - source is not used
             [ 0] - source contributes to unresolved component
             [ 1] - source is fitted together with a brighter neighbor.
@@ -448,153 +447,118 @@ class Sources(object):
         Parameters
         ----------
         value : array_like
-            A 1dim. list of length Sources.nsrc.
+            A 1dim. list of length Sources.n_sources.
         """
-        assert isinstance(value, (list, np.ndarray)), "Attribute Sources.status must be array-like, not {0}.".format(
-            re.findall(r"'(.*)'", str(type(value)))[0])
-        value = np.asarray(value)
-        if not value.size == self.nsrc and value.ndim == 1:
-            logging.error("Cannot set attribute Sources.status, data have invalid shape.")
+        try:
+            value = self._check_consistency(value)
+        except (IOError, ValueError) as msg:
+            logger.error('Cannot update values for source property "status": {0}'.format(msg))
         else:
-            # if Sources.status is (re)set after attribute Sources.specrow has been set internally, the latter is not
-            # valid anymore.
-            if self._specrow is not None:
-                logging.warning("Setting attribute Sources.status will render attribute Sources.specrow invalid.")
-            self._status[:] = value
-
-    def get_status(self):
-        """
-        The getter method of the Sources.status-property.
-
-        Returns
-        -------
-        status : nd_array
-            A 1dim. of length Sources.nsrc containing the status of each source
-            in the fit.
-        """
-        return self._status
-
-    status = property(get_status, set_status, None, "The status of every source during the fitting process.")
+            self.catalog['status'] = value
+            if 'specrow' in self.catalog.columns:
+                # if Sources.status is (re)set after attribute Sources.specrow has been set internally,
+                # the latter is not valid anymore.
+                logger.warning("Setting attribute Sources.status will render attribute Sources.specrow invalid.")
+                del self.catalog['specrow']
 
     # The primary source in each component
-    def set_primary(self, value):
+    @property
+    def primary(self):
         """
-        The setter method for the Sources.primary-property, containing the index
-        of the primary source for each entry in the source catalogue. This index
-        is identical to the index of the source itself for sources with status>1.
-
-        Parameters
-        ----------
-        value : array_like
-            The indices of the primary sources. Must be a 1dim. list of
-            integers of length Sources.nsrc.
-        """
-        assert isinstance(value, (list, np.ndarray)), "Attribute Sources.primary must be array-like, not {0}.".format(
-            re.findall(r"'(.*)'", str(type(value)))[0])
-        value = np.asarray(value, dtype=np.int32)
-        if not value.size == self.nsrc and value.ndim == 1:
-            logging.error("Cannot set attribute Sources.primary, data have invalid shape.")
-        else:
-            # if Sources.primary is (re)set after attribute Sources.specrow has been set internally,
-            # the latter is not valid anymore.
-            if self._specrow is not None:
-                logging.warning("Setting attribute Sources.primary will render attribute Sources.specrow invalid.")
-            self._primary[:] = value
-
-    def get_primary(self):
-        """
-        The getter method of the Sources.primary-property.
-
         Returns
         -------
-        primary : array_like
-            A 1dim. array of integers and of length Sources.nsrc containing the
-            index of the primary source of each entry in the source catalogue.
+        status : pandas.Series
+            A 1dim. of length Sources.n_sources containing the ID/index of the
+            primary source for each source in the catalog.
         """
-        return self._primary
+        return self.catalog['primary']
 
-    primary = property(get_primary, set_primary, None, "The primary source of each available source.")
-
-    # The data row containing the spectrum of a source.
-    def set_specrow(self, value):
+    @primary.setter
+    def primary(self, value):
         """
-        The setter method for the Sources.specrow-property, containing the
-        index of the row that contains the spectrum of a source.
+        The setter method for the Sources.primary-property, containing the
+        index/ID of the primary source for each entry in the source catalog.
+        This index is identical to the index of the source itself for sources
+        with status > 1.
 
         Parameters
         ----------
         value : array_like
-            The indices of the rows containing the spectra. Must be a 1dim.
-            array of integers of length Sources.nsrc.
+            The indices/IDs of the primary sources. Must be a 1dim. list of
+            integers of length Sources.n_sources.
         """
-        assert isinstance(value, (list, np.ndarray)), "Attribute Sources.specrow must be array-like, not {0}.".format(
-            re.findall(r"'(.*)'", str(type(value)))[0])
-        value = np.asarray(value, dtype=np.int32)
-        if not value.size == self.nsrc and value.ndim == 1:
-            logging.error("Cannot set attribute Sources.specrow, data have invalid shape.")
+        try:
+            value = self._check_consistency(value)
+        except (IOError, ValueError) as msg:
+            logger.error('Cannot update values for source property "status": {0}'.format(msg))
         else:
-            self._specrow = value
-            # the attributes Sources.indexmap and sources.weights must be reset because they depend on Sources.specrow
-            self._indexmap = None
-            self._weights = None
+            self.catalog['status'] = value
+            # if Sources.primary is (re)set after attribute Sources.specrow has been set internally,
+            # the latter is not valid anymore.
+            if 'specrow' in self.catalog.columns:
+                logger.warning("Setting attribute Sources.primary will render attribute Sources.specrow invalid.")
+                del self.catalog['specrow']
 
-    def get_specrow(self):
+    @property
+    def specrow(self):
         """
         The getter method of the Sources.specrow-property.
 
         Returns
         -------
-        specrow : nd_array
-            A 1dim. of integers and of length Sources.nsrc that contains, for each
-            source in the scene with status>=0, the index of the row that contains
-            the spectrum in the Sources.data array. Unless the property has been
-            set before using its setter method, the indices are automatically
-            assigned, using the information from the attributes Source.primary and
-            Sources.status.
+        specrow : pandas.Series
+            A series of integers and of length Sources.n_sources that
+            contains, for each source in the catalog with status>=0, the
+            index/ID of the row that contains the spectrum in the data frame
+            Sources.spectra. Unless they were defined previously, the indices
+            are automatically assigned using the information from the
+            attributes Source.primary and Sources.status.
         """
-        if self._specrow is None:
-            self._specrow = np.zeros(self.nsrc, dtype=np.int32)
+        if 'specrow' not in self.catalog.columns:
+
+            # get status for each source
+            status = self.catalog['status']
+
+            # prepare column
+            specrow = pd.Series(np.zeros(self.n_sources, dtype=np.int32), index=self.catalog.index)
 
             # set row for independent ('primary') sources
-            self._specrow[self.status > 1] = np.arange((self.status > 1).sum(), dtype=np.int32)
+            specrow[status > 1] = np.arange((status > 1).sum())
 
             # if unresolved component exists, make sure its spectrum comes before any sky spectrum
-            if self.nbackground > 0:
-                if (self.status == 0).any():
-                    self._specrow[self.status == 4] += 1
-                unresolved_row = self._specrow[self.status == 4].min() - 1
+            if self.n_background > 0:
+                if (status == 0).any():
+                    specrow[status == 4] += 1
+                unresolved_row = specrow[status == 4].min() - 1
             else:
-                unresolved_row = self._specrow.max() + 1
+                unresolved_row = specrow.max() + 1
 
             # now deal with sources that are either next to a brighter neighbor(status=1) or included in the unresolved
             # component (status=0)
-            for i in xrange(self.nsrc):
-                if self.status[i] == 1:
-                    # find spectrum of primary component; the following loop is necessary because the initially assigned
-                    # primary component might have become the secondary component of another source.
+            for i in self.ids:
+                if status[i] == 1:
+                    # find spectrum of primary component; the following loop is necessary because the initially
+                    # assigned primary component might have become the secondary component of another source.
                     secondary = []
                     j = i
-                    while self.primary[j] != self.ID[j]:  # continue until current source is primary
+                    while self.catalog.at[j, 'primary'] != self.ids[j]:  # continue until current source is primary
 
                         # exclude source if primary source has status = -1.
-                        if not (self.ID == self.primary[j]).any():
-                            logging.error("No 'primary' counterpart for source #{0}".format(self.ID[i]))
-                            logging.error("Source #{0} excluded".format(self.ID[i]))
+                        if self.catalog.at[j, 'primary'] not in self.ids:
+                            logging.error("No 'primary' counterpart for source #{0}".format(self.ids[i]))
+                            logging.error("Source #{0} excluded".format(self.ids[i]))
                             self.status[i] = -1
                             break
                         secondary.append(j)
 
-                        # get index of primary source in Sources.ID array
-                        j = np.where(self.ID == self.primary[j])[0][0]
+                    specrow[secondary] = specrow[j]
+                elif status[i] == 0:
+                    specrow[i] = unresolved_row
 
-                    self._specrow[secondary] = self._specrow[j]
-                elif self.status[i] == 0:
-                    self._specrow[i] = unresolved_row
+            # set column in sources catalog
+            self.catalog['specrow'] = specrow
 
-        return self._specrow
-
-    specrow = property(get_specrow, set_specrow, None,
-                       "The column of the data array containing the spectrum of a source.")
+        return self.catalog['specrow']
 
     # The mapping from a spectrum to the indices of contributing sources in the catalogue.
     @property
@@ -606,11 +570,8 @@ class Sources(object):
             The mapping from the Sources.specrow (keys) to the index/indices (values)
             of the corresponding source IDs in the catalogue.
         """
-        if self._indexmap is None:
-            self._indexmap = {}
-            for i in xrange(self.ncmp):
-                self._indexmap[i] = np.where(self.specrow == i)[0]
-        return self._indexmap
+        grouped = self.specrow.groupby(self.specrow)
+        return grouped.groups
 
     # The magnitude weights of the individual contributions to a spectrum
     @property
@@ -618,96 +579,47 @@ class Sources(object):
         """
         Returns
         -------
-        weights: nd_array
-            A 1dim. array of the same length as the whole source list containing
+        weights: pandas.Series
+            A series of the same length as the whole source list containing
             the magnitude weight of each source in its component. The magnitude
             weight is defined as 10**(-0.4*df), where df is the fraction of
             flux the source contributes to the component.
         """
-        if self._weights is None:
-            self._weights = np.zeros((self.nsrc,), dtype=np.float64)
-            if self.status.min() <= 1:  # if some sources have status<2, attribute Sources.mag is required.
-                if (self.mag != self.mag).any():
-                    logging.error("No magnitudes (attribute Sources.mag) are available.")
-                    logging.error(
-                        "Cannot determine source contributions to individual components (attribute Sources.weights).")
-                else:
-                    for i in xrange(self.nsrc):  # calculate magnitude weighted contributions per component
-                        same_specrow = (self.specrow == self.specrow[i])
-                        self._weights[i] = self._mag[i] + 2.5 * np.log10((10 ** (-0.4 * self._mag[same_specrow])).sum())
-        return self._weights
+        # group sources by index/ID of primary source
+        grouped = self.catalog[['mag', 'primary']].groupby('primary')
+
+        # calculate total fluxes in each group and broadcast to full catalog
+        component_fluxes = grouped['mag'].transform(lambda x: np.sum(10**(-0.4*x)))
+
+        # get flux ratio between each source and its component
+        flux_weights = 10**(-0.4*self.catalog['mag'])/component_fluxes
+
+        return 10**(-0.4*flux_weights)
 
     # The number of independent components in the fit.
     @property
-    def ncmp(self):
+    def n_components(self):
         """
         Returns
         -------
-        ncmp : int
+        n_components : int
             The number of components (i.e. independent spectra) in the
             catalogue.
         """
         return self.specrow.max() + 1
 
-    # Return a boolean array of len(nsrc) that is true if the source is resolved. 
+    # Return a boolean array of len(n_sources) that is true if the source is resolved.
     @property
     def is_resolved(self):
         """
         Returns
         -------
-        resolved : ndarray
-            A boolean array of len(self.nsrc) indicating whether a source is
-            resolved. If self.status is undefined, all sources are considered
-            unresolved.
+        resolved : pandas.Series
+            A boolean series of len(self.n_sources) indicating whether a
+            source is resolved. If self.status is undefined, all sources are
+            considered unresolved.
         """
         return (self.status > 0) & (self.status < 4)
-
-    # A flag indicating for each source if it is part of the background
-    @property
-    def is_background(self):
-        """
-        Returns
-        -------
-        is_background : ndarray
-            A boolean array of len(self.nsrc) indicating whether a source is
-            part of the background.
-            """
-        return self.status == 4
-
-    # A flag on whether one or more background components are included in the catalogue. 
-    @property
-    def includes_background(self):
-        """
-        Returns
-        -------
-        includes_background : bool
-            A flag indicating whether one or more background components are in-
-            cluded in the catalogue.
-        """
-        return self.is_background.any()
-
-    # The number of background components included in the catalogue
-    @property
-    def nbackground(self):
-        """
-        Returns
-        -------
-        n_background : int
-            The number of background components that is included in the
-            catalogue."""
-        return self.is_background.sum()
-
-    # The rows of the spectra of the background components (if any)
-    @property
-    def specrow_background(self):
-        """
-        Returns
-        -------
-        specrow_background : array
-            The rows containing the background spectra (if any, otherwise
-            returns an empty array)
-        """
-        return self.specrow[np.flatnonzero(self.is_background)]
 
     #  A flag indicating for each source if it is part of the unresolved stellar component
     @property
@@ -715,13 +627,25 @@ class Sources(object):
         """
         Returns
         -------
-        is_unresolved : ndarray
-            A boolean array of len(self.nsrc) indicating whether a source is
-            part of the unresolved stellar component.
+        is_unresolved : pandas.Series
+            A boolean array of len(self.n_sources) indicating whether a source
+            is part of the unresolved stellar component.
             """
         return self.status == 0
 
-    # A flag on whether a unresolved stellar component is included in the catalogue.     
+    # A flag indicating for each source if it is part of the background
+    @property
+    def is_background(self):
+        """
+        Returns
+        -------
+        is_background : pandas.Series
+            A boolean series of len(self.n_sources) indicating whether a
+            source is part of the background.
+            """
+        return self.status == 4
+
+    # A flag on whether a unresolved stellar component is included in the catalogue.
     @property
     def includes_unresolved(self):
         """
@@ -743,9 +667,44 @@ class Sources(object):
             The row(s) of the spectrum/spectra of the unresolved component(s)
             (if any, otherwise returns an empty array)
         """
-        rows = self.specrow[np.flatnonzero(self.is_unresolved)]
+        rows = self.specrow[self.is_unresolved]
         assert (np.unique(rows).size == 1)
-        return rows[0]
+        return rows[rows.index[0]]
+
+    # A flag on whether one or more background components are included in the catalogue. 
+    @property
+    def includes_background(self):
+        """
+        Returns
+        -------
+        includes_background : bool
+            A flag indicating whether one or more background components are
+            included in the catalog.
+        """
+        return self.is_background.any()
+
+    # The number of background components included in the catalogue
+    @property
+    def n_background(self):
+        """
+        Returns
+        -------
+        n_background : int
+            The number of background components that is included in the
+            catalogue."""
+        return self.is_background.sum()
+
+    # The rows of the spectra of the background components (if any)
+    @property
+    def specrow_background(self):
+        """
+        Returns
+        -------
+        specrow_background : pandas.Series
+            The rows containing the background spectra (if any, otherwise
+            returns an empty array)
+        """
+        return self.specrow[self.is_background]
 
     # The indices of the sources used to determine the PSF (if any)
     @property
@@ -753,11 +712,11 @@ class Sources(object):
         """
         Returns
         -------
-        psf_indices : nd_array
-            A 1dim. array containing the indices of the sources that are used
-            to determine the PSF (i.e. sources whose `status` is 3).
+        psf_indices : pandas.Index
+            A 1dim. index array containing the IDs/indices of the sources that
+            are used to determine the PSF (i.e. sources whose `status` is 3).
         """
-        return np.arange(self.nsrc, dtype=np.int32)[self.status == 3]
+        return self.ids[self.status == 3]
 
     ############################################################################
     #  Methods providing the user with information about the source catalogue  #
@@ -772,25 +731,25 @@ class Sources(object):
         logging.info("   no. of resolved sources: {0}".format(self.is_resolved.sum()))
         logging.info("   no. of nearby sources: {0}".format((self.status == 1).sum()))
         logging.info("   no. of unresolved sources: {0}".format(self.is_unresolved.sum()))
-        logging.info("   no. of background components: {0}".format(self.nbackground))
+        logging.info("   no. of background components: {0}".format(self.n_background))
 
         logging.debug("Overview of all components used in fit:")
         logging.debug("   Component:   IDs (& mags):")
 
         if logging.getLogger().getEffectiveLevel() < 20:
-            for i in xrange(self.specrow.max() + 1):
-                log_string = "   {0:8d}".format(i)
+            for specrow, ids in self.specrow.items():
+                log_string = "   {0:8d}".format(specrow)
 
-                slc = np.flatnonzero(self.specrow == i)
+                for i, source_id in enumerate(ids):
+                    log_string += "   {0:6d} ({1:.2f})".format(source_id, self.weights[source_id])
 
-                for j, k in enumerate(slc):
-                    log_string += "   {0:6d} ({1:.2f})".format(int(self.ID[k]), float(abs(self.weights[k])))
-
-                    if np.mod(j + 1, 2) == 0:
+                    # new line after every second source
+                    if np.mod(i + 1, 2) == 0:
                         logging.debug(log_string)
                         log_string = 11 * " "
 
-                if np.mod(j, 2) == 0:
+                # log remaining source if number of sources was odd
+                if len(log_string.split()) > 1:
                     logging.debug(log_string)
 
         if self.transformation.valid:
@@ -845,7 +804,7 @@ class Sources(object):
             logging.error("Invalid number of dispersion elements in provided spectra.")
 
         assert hdu.header[
-                   "NAXIS2"] == self.ncmp, "No. of spectra in HDU does not match no. of components in source catalog."
+                   "NAXIS2"] == self.n_components, "No. of spectra in HDU does not match no. of components in source catalog."
         assert hdu.header["NAXIS1"] == 2, "Data in provided HDU has invalid shape."
 
         self.data_hdu = hdu
@@ -854,7 +813,7 @@ class Sources(object):
         if wave_hdu is not None:
             assert(isinstance(hdu, fits.hdu.image._ImageBaseHDU)), "Invalid type '{0}' for argument 'wave_hdu'.".format(
                 re.findall(r"'(.*)'", str(type(hdu)))[0])
-            assert(wave_hdu.shape == (self.ndisp, self.ncmp)), "'wave_hdu' and 'hdu' must have same shape."
+            assert(wave_hdu.shape == (self.ndisp, self.n_components)), "'wave_hdu' and 'hdu' must have same shape."
             self.data_wave_hdu = wave_hdu
         # otherwise, check if dispersion information can be updated.
         else:
@@ -863,7 +822,7 @@ class Sources(object):
                     setattr(self, key.lower(), self.data_hdu.header["{0}3".format(key)])
 
         # create boolean array that keeps track of which sources have spectra loaded
-        self.spectrum_loaded = np.zeros((self.ncmp, ), dtype=np.bool)
+        self.spectrum_loaded = np.zeros((self.n_components,), dtype=np.bool)
 
     def load_spectra(self, components=None, layers=None, init_wave=False):
         """
@@ -900,11 +859,11 @@ class Sources(object):
                     re.findall(r"'(.*)'", str(type(components)))[0])
             components = np.sort(np.atleast_1d(components))
         else:
-            components = np.arange(self.ncmp, dtype=np.int32)
+            components = np.arange(self.n_components, dtype=np.int32)
 
         # check if all provided IDs are actually in the source catalogue
         assert (components[0] >= 0) & (
-            components[-1] < self.ncmp), "Not all requested components fall in available range."
+            components[-1] < self.n_components), "Not all requested components fall in available range."
 
         if layers is not None:
             assert isinstance(layers, (int, np.integer, list, np.ndarray)),\
@@ -916,7 +875,7 @@ class Sources(object):
             nlayer = self.ndisp
 
         # keep track of loaded spectra
-        self.spectrum_loaded = np.in1d(np.arange(self.ncmp, dtype=np.int32), components)
+        self.spectrum_loaded = np.in1d(np.arange(self.n_components, dtype=np.int32), components)
 
         # initialize array for spectra. The shape of the array is (#<requested layers>, #<requested IDs>, 2)
         # The last axis distinguishes between data or uncertainties.
@@ -926,7 +885,7 @@ class Sources(object):
 
         # fill array using data from Spectrum HDU if one is available
         if self.data_hdu is not None:
-            if nlayer == self.ndisp and components.size == self.ncmp:
+            if nlayer == self.ndisp and components.size == self.n_components:
                 self.data[:] = self.data_hdu.data
                 if self.data_wave_hdu is not None:
                     self.data_wave = self.data_wave_hdu.data
@@ -1072,7 +1031,7 @@ class Sources(object):
 
         self.names = QtCore.QStringList(self.ID[ownSpec].astype("|S10"))
         self.nameMap = dict((zip(self.ID[ownSpec].astype("|S10"), self.specrow[ownSpec])))
-        for i in xrange(self.nbackground):
+        for i in xrange(self.n_background):
             self.names.append("Back{0:04d}".format(i))
             self.nameMap["Back{0:04d}".format(i)] = self.specrow_background[i]
         if self.includes_unresolved:
@@ -1295,10 +1254,10 @@ class Sources(object):
                     assert ID in self.ID, "Source #{0} is not included in catalogue.".format(ID)
                     ifs_coordinates_id[i] = ID
                 except KeyError:
-                    if hdu.header["NAXIS2"] != (self.nsrc - self.nbackground):
+                    if hdu.header["NAXIS2"] != (self.n_sources - self.n_background):
                         logging.error("Cannot infer IDs for provided coordinates.")
                     assert hdu.header["NAXIS2"] == (
-                        self.nsrc - self.nbackground), "Shape of data in HDU not compatible with source catalogue."
+                        self.n_sources - self.n_background), "Shape of data in HDU not compatible with source catalogue."
                     ifs_coordinates_id = self.ID[self.status < 4]
                     break
 
@@ -1781,7 +1740,7 @@ class Sources(object):
         try:
             select = np.nonzero(self._status >= 0)[0]
         except ValueError:
-            select = np.arange(self.nsrc, dtype=np.int32)
+            select = np.arange(self.n_sources, dtype=np.int32)
 
         # sort by increasing magnitudes (if possible)
         if not np.isnan(self._mag).all():
@@ -1834,11 +1793,11 @@ class Sources(object):
 
         # get the components for which the spectra are requested
         if components is None:
-            components = np.arange(self.ncmp, dtype=np.int32)
+            components = np.arange(self.n_components, dtype=np.int32)
         elif isinstance(components, (int, np.integer, list, np.ndarray)):
             components = np.atleast_1d(components)
         elif components == "current":
-            components = np.arange(self.ncmp, dtype=np.int32)[self.spectrum_loaded]
+            components = np.arange(self.n_components, dtype=np.int32)[self.spectrum_loaded]
 
         # check if spectra have been loaded for all requested components
         if self.spectrum_loaded is None:

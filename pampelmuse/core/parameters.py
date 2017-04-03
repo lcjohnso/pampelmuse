@@ -1,7 +1,7 @@
 """
 parameters.py
 =============
-Copyright 2013-2016 Sebastian Kamann
+Copyright 2013-2017 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -42,7 +42,7 @@ currently not possible to add parameters afterwards.
 
 Latest SVN revision
 -------------------
-342, 2016/07/31
+408, 2017/04/03
 """
 import logging
 import re
@@ -52,7 +52,7 @@ from astropy.io import fits
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 342
+__revision__ = 408
 
 
 class Parameters(object):
@@ -118,7 +118,7 @@ class Parameters(object):
                     assert field in hdu.data.names, "Required field '{0}' missing in HDU.".format(field)
 
             # get dispersion information using the TFORM{i} header key (where i is the index of the field 'values')
-            for i in xrange(hdu.header["TFIELDS"]):
+            for i in range(hdu.header["TFIELDS"]):
                 if hdu.header["TTYPE{0}".format(i + 1)] == "value":
                     size = re.findall(r"([0-9]*)[A-Z]", hdu.header["TFORM{0}".format(i + 1)])[0]
                     if size != "":
@@ -136,7 +136,7 @@ class Parameters(object):
             self.free = np.zeros(self._data.shape[1], dtype=np.bool)
 
             # read the parameter values into the structure
-            for i in xrange(hdu.data.size):
+            for i in range(hdu.data.size):
                 name = hdu.data.field("name")[i]
 
                 if name not in self.names:
@@ -161,7 +161,7 @@ class Parameters(object):
             self.free = np.zeros((self.npars,), dtype=np.bool)
 
         # iterate over provided parameters
-        for name, value in kwargs.iteritems():
+        for name, value in kwargs.items():
 
             # get number of spectral pixels
             ndisp = len(np.atleast_1d(value))  # use np.atleast_1d to get len=1 for single values
@@ -326,7 +326,7 @@ class Parameters(object):
         the valid array entries along the first axis. This is done independently for each
         parameter, i.e. each chunk data[:, i, 0], with i >= 0 > npars.
         """
-        for i in xrange(self.npars):
+        for i in range(self.npars):
             if 0 < (~self.mask[:, i, 0]).sum() < self.ndisp:
                 self.data[:, i, 0] = np.interp(np.arange(self.ndisp), (~self.mask[:, i, 0]).nonzero()[0],
                                                self.data[~self.mask[:, i, 0], i, 0])

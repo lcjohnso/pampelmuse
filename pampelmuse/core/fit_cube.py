@@ -282,14 +282,14 @@ class FitCube(object):
             if not self.sources.ifs_coordinates_fitted[~self.sources.is_background].all():
                 logger.error('The provided status of the source positions is not supported.')
                 logger.error('Only {0} out of {1} source positions have polynomial fits.'.format(
-                    self.sources.ifs_coordinates_fitted.sum(), self.sources.nsrc - self.sources.nbackground))
+                    self.sources.ifs_coordinates_fitted.sum(), self.sources.n_sources - self.sources.n_background))
             else:
                 self.position_parameters['xy'] = False
         elif self.sources.ifs_coordinates_free[~self.sources.is_background].any():
             if not self.sources.ifs_coordinates_free[~self.sources.is_background].all():
                 logger.error('The provided status of the source positions is not supported.')
                 logger.error('Only {0} out of {1} source positions are free fit parameters.'.format(
-                    self.sources.ifs_coordinates_free.sum(), self.sources.nsrc - self.sources.nbackground))
+                    self.sources.ifs_coordinates_free.sum(), self.sources.n_sources - self.sources.n_background))
             else:
                 self.position_parameters['xy'] = True
         else:
@@ -520,7 +520,7 @@ class FitCube(object):
             if self.background is not None:
                 self.background.transform = transform
                 fit_input[-1]['background'] = self.background.get_sparse_matrix(
-                    offset=self.sources.ncmp - self.sources.nbackground)
+                    offset=self.sources.n_components - self.sources.n_background)
             else:
                 fit_input[-1]['background'] = None
 
@@ -788,14 +788,14 @@ class FitCube(object):
             only used with MUSE pixtables.
         """
         assert(len(fluxes) == len(uncertainties)), '"fluxes" and "uncertainties" must have same length'
-        assert(len(fluxes) == self.sources.ncmp), 'Length of "fluxes" must match number of components in fit.'
+        assert(len(fluxes) == self.sources.n_components), 'Length of "fluxes" must match number of components in fit.'
         self.sources.data[current, :, 0] = fluxes
         self.sources.data[current, :, 1] = uncertainties
         if wave is not None:
             if self.sources.data_wave is None:
                 logging.error('Cannot store wavelength values in Sources instance. Array not initialized.')
             else:
-                assert(len(wave) == self.sources.ncmp)
+                assert(len(wave) == self.sources.n_components)
                 self.sources.data_wave[current, :] = wave
 
     def write_psf_parameters(self, current, parameters, values):

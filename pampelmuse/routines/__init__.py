@@ -22,21 +22,19 @@ along with PampelMuse. If not, see <http://www.gnu.org/licenses/>.
 +++
 Last SVN revision
 -----------------
-334, 2016/07/26
+408, 2017/04/03
 """
 from .cubefit import cubefit
 from .initfit import initfit
 from .getspectra import getspectra
-from .makecube import makecube
 from .polyfit import polyfit
 from .ptsort import ptsort
 from .subtres import subtres
-from .shotnoi import shotnoi
 from .singlesrc import singlesrc
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 334
+__revision__ = 408
 
 
 __all__ = ["cubefit", "getspectra", "initfit", "makecube", "polyfit", "ptsort", "shotnoi", "subtres", "singlesrc"]
