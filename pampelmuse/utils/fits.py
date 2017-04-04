@@ -206,7 +206,7 @@ def open_prm(filename, ndisp=-1):
             sigma_hdu = hdulist[k]
         except KeyError:
             sigma_hdu = None
-        sources.open_spectra_hdu(hdulist[i], sigma_hdu=sigma_hdu, wave_hdu=wave_hdu)
+        sources.open_spectra_hdu(hdulist[i], sigma_hdu=sigma_hdu, data_wave_hdu=wave_hdu)
     except KeyError:
         logging.critical("No spectra (HDU 'SPECTRA') have been provided.")
 

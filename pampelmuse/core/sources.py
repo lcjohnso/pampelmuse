@@ -615,9 +615,9 @@ class Sources(object):
         Returns
         -------
         resolved : pandas.Series
-            A boolean series of len(self.n_sources) indicating whether a
-            source is resolved. If self.status is undefined, all sources are
-            considered unresolved.
+            A boolean series of len(Spectrum.n_sources) indicating whether a
+            source is resolved. If Spectrum.status is undefined, all sources
+            are considered unresolved.
         """
         return (self.status > 0) & (self.status < 4)
 
@@ -628,7 +628,7 @@ class Sources(object):
         Returns
         -------
         is_unresolved : pandas.Series
-            A boolean array of len(self.n_sources) indicating whether a source
+            A boolean array of len(Spectrum.n_sources) indicating whether a source
             is part of the unresolved stellar component.
             """
         return self.status == 0
@@ -640,7 +640,7 @@ class Sources(object):
         Returns
         -------
         is_background : pandas.Series
-            A boolean series of len(self.n_sources) indicating whether a
+            A boolean series of len(Spectrum.n_sources) indicating whether a
             source is part of the background.
             """
         return self.status == 4
@@ -758,71 +758,60 @@ class Sources(object):
     #############################################################################
     #              Methods dealing with the spectra of the sources              #
     #############################################################################
-    def open_spectra_hdu(self, hdu, sigma_hdu=None, wave_hdu=None):
+    def open_spectra_hdu(self, hdu, data_wave_hdu=None):
         """
         Open a FITS HDU containing the spectra of the sources. Note that the
         spectra must be provided in the form of a single HDU containing both
-        spectra and uncertainties, the shape of the data array must be
-        (Sources.ndisp, Sources.ncmp, 2) [python counting]. The HDU is
-        accessible via attribute Sources.data_hdu afterwards.
+        spectra and uncertainties.
           
         Parameters
         ----------
-        hdu : astropy.io.fits.PrimaryHDU or astropy.io.fits.ImageHDU instance
-            The HDU containing the data (and the uncertainties for 3dim. data).
-            Note that only 2dim. or 3dim. data are supported (see description
-            of method above).
-        sigma_hdu : astropy.io.fits.PrimaryHDU or astropy.io.fits.ImageHDU instance, optional
-            The HDU containing the uncertainties for 2dim. data. The array in
-            the HDU must have the same shape as the data.
-        wave_hdu : astropy.io.fits.PrimaryHDU or astropy.io.fits.ImageHDU instance, optional
+        hdu : instance of astropy.io.fits.ImageHDU
+            The HDU containing the spectra and their uncertainties for. The
+            shape of the data array must be [python counting]:
+            (Sources.n_disp, Sources.n_components, 2)
+            The HDU is accessible via attribute Sources.data_hdu afterwards.
+        data_wave_hdu : instance of astropy.io.fits.ImageHDU, optional
             This parameter can be used to provide a separate wavelength array
-            for each spectrum in 'hdu'. If provided, must have same shape as
-            'hdu'.
+            for each spectrum in 'hdu'. If provided, must have a shape of
+            (Sources.n_disp, Sources.n_components).
         """
         # sanity checks on provided keywords, both must be HDUs that can carry images
-        assert isinstance(hdu, fits.hdu.image._ImageBaseHDU), "Invalid type '{0}' for argument 'hdu'.".format(
-            re.findall(r"'(.*)'", str(type(hdu)))[0])
-        if sigma_hdu is not None:
-            assert isinstance(sigma_hdu,
-                              fits.hdu.image._ImageBaseHDU), "Invalid type '{0}' for argument 'sigma_hdu'.".format(
-                re.findall(r"'(.*)'", str(type(sigma_hdu)))[0])
+        for name, value in {'DATA': hdu, 'WAVE': data_wave_hdu}.items():
+            if value is not None and not isinstance(value, fits.hdu.image._ImageBaseHDU):
+                logger.error("{0}-HDU has invalid type '{1}'.".format(name, type(value)))
+                return
+            elif value.header["NAXIS"] != 3:
+                logger.error("{0}-HDU must be 3D array, not {1}D.".format(name, value.header["NAXIS"]))
 
-        if "EXTNAME" in hdu.header:
-            logging.info("Reading spectra from HDU `{0}`.".format(hdu.header["EXTNAME"]))
-        else:
-            logging.info("Reading spectra from unnamed HDU.")
+            if 'EXTNAME' in value.header:
+                logger.info('Reading data from HDU "{0}".'.format(value.header['EXTNAME']))
+                name = value.header['EXTNAME']
 
-        if hdu.header["NAXIS"] != 3:
-            logging.error("Spectra must be provided as 3dim. array.")
-        assert hdu.header["NAXIS"] == 3, "Expected 3dim. data but got {0}dim.".format(hdu.header["NAXIS"])
+            # check if dispersion information is valid
+            if self.ndisp == 1 and name == 'DATA':
+                self.ndisp = hdu.header['NAXIS3']
+            elif value.header['NAXIS3'] != self.ndisp:
+                logger.error('HDU "{0}" has invalid dispersion information.'.format(name))
+                return
 
-        # check if dispersion information is valid
-        if self.ndisp == 1:
-            self.ndisp = hdu.header["NAXIS3"]
-        elif hdu.header["NAXIS3"] != self.ndisp:
-            logging.error("Invalid number of dispersion elements in provided spectra.")
-
-        assert hdu.header[
-                   "NAXIS2"] == self.n_components, "No. of spectra in HDU does not match no. of components in source catalog."
-        assert hdu.header["NAXIS1"] == 2, "Data in provided HDU has invalid shape."
+            # check if number of spectra is valid
+            if value.header['NAXIS2'] != self.n_components:
+                logger.error('HDU "{0}" has invalid number of components.'.format(name))
+                return
 
         self.data_hdu = hdu
+        self.data_wave_hdu = data_wave_hdu
 
-        # check if separate HDU with wavelength per spectrum was provided
-        if wave_hdu is not None:
-            assert(isinstance(hdu, fits.hdu.image._ImageBaseHDU)), "Invalid type '{0}' for argument 'wave_hdu'.".format(
-                re.findall(r"'(.*)'", str(type(hdu)))[0])
-            assert(wave_hdu.shape == (self.ndisp, self.n_components)), "'wave_hdu' and 'hdu' must have same shape."
-            self.data_wave_hdu = wave_hdu
-        # otherwise, check if dispersion information can be updated.
-        else:
+        # if no dedicated wavelength HDU was provided, try to update dispersion information from header of data HDU
+        if self.data_wave_hdu is None:
             for key in ["CRVAL", "CDELT", "CRPIX", "CTYPE", "CUNIT"]:
                 if "{0}3".format(key) in self.data_hdu.header:
                     setattr(self, key.lower(), self.data_hdu.header["{0}3".format(key)])
 
-        # create boolean array that keeps track of which sources have spectra loaded
-        self.spectrum_loaded = np.zeros((self.n_components,), dtype=np.bool)
+        # create boolean series that keeps track of which sources have spectra loaded
+        self.spectrum_loaded = pd.Series(np.zeros((self.n_components,), dtype=np.bool),
+                                         index=pd.Index(np.arange(self.n_components)))
 
     def load_spectra(self, components=None, layers=None, init_wave=False):
         """
@@ -830,12 +819,15 @@ class Sources(object):
         layer(s). If an HDU with dedicated wavelength data for each component
         is available, the wavelength data will also be loaded.
 
-        The method will create an empty array and try to fill it using
-        available FITS HDUs, provided previously via the method
+        The method will create an empty pandas DataFrame and try to fill it
+        using the available HDUs, provided previously via the method
         Sources.open_spectra_hdu(). If no such HDU are available, the array
-        will be empty. The shape of the data array, available via the property
-        Sources.data, will be (Sources.ndisp, Sources.ncmp, 2). The wavelength
-        data (if any) can be accessed via Sources.data_wave
+        will be empty.
+        
+        The rows of the data frame will contain the wavelength information.
+        The columns of the data frame contain the individual components. For
+        each component, the spectrum, its uncertainties, and if available the
+        wavelength are stored. This is achieved via a pandas MultiIndex.
 
         Parameters
         ----------
@@ -853,93 +845,76 @@ class Sources(object):
             via Sources.open_spectra_hdu so far.
         """
         # sanity checks on provided IDs and layers
-        if components is not None:
-            assert isinstance(components, (int, np.integer, list, np.ndarray)),\
-                "Parameter 'components' must be integer or array-like, not {0}.".format(
-                    re.findall(r"'(.*)'", str(type(components)))[0])
-            components = np.sort(np.atleast_1d(components))
-        else:
+        if components is not None and not isinstance(components, (int, np.integer, list, np.ndarray)):
+            logger.error("Parameter 'components' must be integer or array-like, not {0}.".format(type(components)))
+            return
+        # load all components if None was provided
+        elif components is None:
             components = np.arange(self.n_components, dtype=np.int32)
+        # make sure components are available as an array
+        else:
+            components = np.atleast_1d(components)
 
         # check if all provided IDs are actually in the source catalogue
-        assert (components[0] >= 0) & (
-            components[-1] < self.n_components), "Not all requested components fall in available range."
+        if components.min() < 0 or components.max() >= self.n_components:
+            logger.error('Some requested components fall outside available range.')
+            return
 
-        if layers is not None:
-            assert isinstance(layers, (int, np.integer, list, np.ndarray)),\
-                "Parameter 'layers' must be transformable to an array."
-            layers = np.atleast_1d(layers)
-            nlayer = 1
-        else:
+        if layers is not None and not isinstance(layers, (int, np.integer, list, np.ndarray)):
+            logger.error('Parameter "layers" must be integer or array-like, not {0}.'.format(type(layers)))
+            return
+        elif layers is None:
             layers = np.arange(self.ndisp)
-            nlayer = self.ndisp
+        else:
+            layers = np.atleast_1d(layers)
 
-        # keep track of loaded spectra
-        self.spectrum_loaded = np.in1d(np.arange(self.n_components, dtype=np.int32), components)
+        # initialize data frame for spectra data.
+        # rows contain dispersion data using the actual wavelengths as a pandas Float64Index
+        index = pd.Float64Index(self.wave[layers])
 
-        # initialize array for spectra. The shape of the array is (#<requested layers>, #<requested IDs>, 2)
-        # The last axis distinguishes between data or uncertainties.
-        self.data = np.zeros((nlayer, components.size, 2), dtype=np.float32)
-        if self.data_wave_hdu is not None or init_wave:
-            self.data_wave = np.zeros((nlayer, components.size), dtype=np.float32)
+        # columns contain components and ('flux', 'sigma'[, 'wave']) in pandas.MultiIndex
+        properties = ['flux', 'sigma'] if self.data_wave_hdu is None else ['flux', 'sigma', 'wave']
+        columns = pd.MultiIndex.from_product([properties, components], names=['property', 'component'])
+
+        self.data = pd.DataFrame(np.zeros((index.size, columns.size), dtype=np.float32), index=index, columns=columns)
 
         # fill array using data from Spectrum HDU if one is available
         if self.data_hdu is not None:
-            if nlayer == self.ndisp and components.size == self.n_components:
-                self.data[:] = self.data_hdu.data
-                if self.data_wave_hdu is not None:
-                    self.data_wave = self.data_wave_hdu.data
-            else:
-                for i in xrange(nlayer):
-                    self.data[i] = self.data_hdu.section[layers[i]][components]
-                    if self.data_wave_hdu is not None:
-                        self.data_wave[i] = self.data_wave_hdu.section[layers[i]][components]
+            self.data.loc[:, 'flux'] = self.data_hdu.data[layers, components, 0]
+            self.data.loc[:, 'sigma'] = self.data_hdu.data[layers, components, 1]
+        if self.data_wave_hdu is not None:
+            self.data.loc[:, 'wave'] = self.data_wave_hdu.data[layers, components]
 
-    def get_wave(self, component=None):
+        # keep track of loaded spectra
+        self.spectrum_loaded = pd.Series(np.in1d(np.arange(self.n_components, dtype=np.int32), components),
+                                         index=np.arange(self.n_components))
+
+    @property
+    def wave(self):
         """
-        Returns the wavelength data for one or more spectra.
+        Returns the global wavelength array.
 
-        The return value depends on which components are requested and whether
-        all spectra have the same dispersion information.
-
-        Parameters
-        ----------
-        component : int or array_like with shape (N,), optional
-            The index(es) of the component(s) for which the wavelength
-            information should be returned. Default is to return a single
-            array (approximately) valid for all spectra.
+        Note that this is always the wavelength array that is (approximately)
+        valid for every spectrum. In case each spectrum has its own wavelength
+        solution, this can be accessed from the Spectrum.data data frame,
+        using the 'wave' column in the MultiIndex.
 
         Returns
         -------
-        wave : nd_array, shape (k,) or (k, N)
-            The wavelength array. Note that if component is None or a global
-            wavelength scale is valid for all spectra, the return value
-            will be 1dim., otherwise 2dim.
+        wave : nd_array, shape (k,)
+            The wavelength array.
         """
         # in case dispersion information has changed, existing wavelength data must be reset.
         if self._wave is not None and self._wave.size != self.ndisp:
             self._wave = None
 
-        # case 1) wavelength available for each spectrum but average requested
-        if self.data_wave is not None and component is None:
-            if self._wave is None:
-                self._wave = np.nanmean(self.data_wave, axis=1)  # shape (k,)
-        # case 2) wavelength available for each spectrum and individual component(s) requested
-        elif self.data_wave is not None and self.spectrum_loaded[component].all():
-            # get index of the spectrum in the Sources.data_wave array
-            i = np.cumsum(self.spectrum_loaded)[component] - 1
-            self._wave = self.data_wave[:, i]  # shape (k, N)
-        # case 3) global wavelength for all spectra
-        else:
-            if self._wave is None:
-                self._wave = np.arange(self.ndisp, dtype=np.float64)  # shape (k,)
-                self._wave -= (self.crpix - 1)
-                self._wave *= self.cdelt
-                self._wave += self.crval
-        return self._wave
+        if self._wave is None:
+            self._wave = np.arange(self.ndisp, dtype=np.float64)  # shape (k,)
+            self._wave -= (self.crpix - 1)
+            self._wave *= self.cdelt
+            self._wave += self.crval
 
-    # For compatibility with existing code, we define the wave property where the component index is set to zero.
-    wave = property(get_wave)
+        return self._wave
 
     def get_magnitude(self, component, passband=None):
         """
@@ -962,16 +937,14 @@ class Sources(object):
 
         Returns
         -------
-        mag : float or nd_array, shape (N,)
-            The calculated magnitude(s) in the AB system under the assumption
-            that the spectrum has units of erg/s/cm2/Angstrom.
+        mag : pandas.Series
+            Series of floats containing the magnitude(s) in the AB system of
+            the component(s) under the assumption that the spectrum have units
+            of erg/s/cm2/Angstrom.
         """
+        # load spectra of requested components if necessary
         if not self.spectrum_loaded[component].all():
             self.load_spectra(components=component)
-
-        # index/indices of component(s) in spectrum data array
-        i = np.cumsum(self.spectrum_loaded)[component] - 1
-        logging.debug('Index of component {0} in loaded data: {1}'.format(component, i))
 
         # wavelength must be calculated in Angstrom
         if self.cunit == 'm':
@@ -980,80 +953,78 @@ class Sources(object):
             factor = 10
         else:
             factor = 1
-        wave = self.get_wave(component=component)*factor
 
-        # if no passband is provided calculate magnitudes on white light image
-        if not passband:
-            throughput = np.ones(self.ndisp, dtype='<f4')
-        else:
-            throughput_curve = get_filter(passband)
-            throughput = throughput_curve(wave)
+        # if passband is provided, prepare resampling to wavelengths of spectra
+        throughput_curve = get_filter(passband) if passband else None
 
         # it is assumed that the spectra are in units of erg/s/cm^2/Angstrom
         # if that is not the case, the user has to do the conversion itself
         # returned are AB magnitudes, for the calculation of AB magnitudes from fluxes per Angstrom, see
         # https://en.wikipedia.org/wiki/AB_magnitude#Expression_in_terms_of_f.CE.BB
+        magnitudes = []
 
-        # handle various cases:
-        # case 1) one component requested: data[:, i, 0] has shape (k,), wave has shape (k,)
-        if not hasattr(component, '__iter__'):
-            integrated_flux = np.nansum(throughput*self.data[:, i, 0]*(wave**2))/np.nansum(throughput)
+        # loop over components
+        for component in np.atleast_1d(component):
+            # get flux
+            flux = self.data[('flux', component)]
+
+            # get wavelength, check if each spectrum requires own wavelength array or global one can be used.
+            if self.data_wave_hdu is None:
+                wave = factor*self.wave
+            else:
+                wave = factor*self.data[('wave', component)]
+
+            # resample throughput curve (if available, otherwise create whitelight image)
+            if throughput_curve is not None:
+                throughput = throughput_curve(wave)
+            else:
+                throughput = np.ones(self.ndisp, dtype='<f4')
+
+            # calculate magnitude and add to list
+            integrated_flux = np.nansum(throughput*flux*(wave**2))/np.nansum(throughput)
             if integrated_flux <= 0:
                 logging.warning('Cannot determined magnitude for component #{0} with negative flux.'.format(component))
-                return np.nan
-        # case 2) N components requested
-        else:
-            # case 2a) common wavelength data: data[:, i, 0] has shape (k, N), wave has shape (k,)
-            if wave.ndim == 1:
-                integrated_flux = np.nansum(throughput*self.data[:, i, 0].T*(wave**2), axis=-1)/np.nansum(throughput)
-            # case 2b) wavelength data per spectrum:  data[:, i, 0] has shape (k, N), wave has shape (k, N)
+                magnitudes.append(np.nan)
             else:
-                integrated_flux = np.nansum(throughput*self.data[:, i, 0]*(wave**2), axis=0)/np.nansum(
-                    throughput, axis=0)
-            if (integrated_flux <= 0).any():
-                logging.warning('Cannot determined magnitude for {0} source(s) with negative flux.'.format(
-                    (integrated_flux <= 0).sum()))
-        return -2.5*np.log10(3.34e4*integrated_flux) + 8.9
+                magnitudes.append(-2.5*np.log10(3.34e4*integrated_flux) + 8.9)
+
+        return pd.Series(magnitudes, index=np.atleast_1d(component))
 
     def provideComponentNames(self):
         """
-        Short routine to provide the IDs of the primary sources for each component
-        as a QStringList. Additionally, the method initializes a dictionary
-        Sources.nameMap that maps the name of each components primary source (as a
-        QString) to its value in the Sources.specrow attribute.
+        Method to provide the IDs of the primary sources for each component as
+        a QStringList.
 
         Returns
         -------
         names : QStringList
            The names of the components
         """
-        ownSpec = np.in1d(self.status, np.arange(2, 4))
+        # add sources with own spectrum, i.e. have status between 2 and 4
+        names = QtCore.QStringList(self.ids[(self.status >= 2) & (self.status <= 4)].astype("|S10"))
 
-        self.names = QtCore.QStringList(self.ID[ownSpec].astype("|S10"))
-        self.nameMap = dict((zip(self.ID[ownSpec].astype("|S10"), self.specrow[ownSpec])))
-        for i in xrange(self.n_background):
-            self.names.append("Back{0:04d}".format(i))
-            self.nameMap["Back{0:04d}".format(i)] = self.specrow_background[i]
+        # if available, add unresolved component
         if self.includes_unresolved:
-            self.names.append("Unresolved")
-            self.nameMap["Unresolved"] = self.specrow_unresolved
+            names.append("Unresolved")
 
-        return self.names
+        # add background components
+        for i in range(self.n_background):
+            names.append("Back{0:04d}".format(i))
 
-    def viewSpectrum(self, name=None, ID=None):
+        return names
+
+    def viewSpectrum(self, name=None):
         """
         Return the spectrum corresponding to a provided ID or name of the
-        component. This method may only called after Sources.provideComponentNames
-        has been called to initialize the attribute Sources.nameMap.
+        component.
         
         Parameters
         ----------
-        name : string, optional
-           The name of the requested component. Note that if `name` is not
-           provided, `ID` must be given.
-        ID : int, optional
-           The ID of the requested component. Note that if ID` is not
-           provided, `name` must be given.
+        name : string
+           The name of the requested component. Can either be th ID of a
+           source or 'Unresolved' (to fetch the spectrum of the unresolved
+           component) or 'BackXXXX' (to fetch the spectrum of background
+           component XXXX).
 
         Returns
         -------
@@ -1064,25 +1035,32 @@ class Sources(object):
             A 1dim. array containing the the requested spectrum.
         """
         if self.spectrum_loaded is None and self.data_hdu is None:
-            logging.critical("No spectra have been loaded using Sources.load_spectra() or Sources.open_spectra_hdu().")
-
-        if name is None and ID is None:
-            logging.error("Either name or ID must be provided.")
-            return
-
-        # get no. of component (i.e. specrow)
-        if name is not None:
-            specrow = self.nameMap[name]
+            logging.error("No spectra have been loaded using Sources.load_spectra() or Sources.open_spectra_hdu().")
+            return None, None
+        # get index of component (i.e. specrow)
         else:
-            specrow = self.specrow[np.where(self.ID == ID)[0][0]]
+            # check if ID was provided
+            try:
+                name = int(name)
+            # otherwise, check if unresolved or background component requested
+            except ValueError:
+                if name == 'Unresolved':
+                    i = self.specrow_unresolved
+                elif name[:4] == 'Back':
+                    i = self.specrow_background.iloc[int(name[4:])]
+            else:
+                i = self.specrow[name]
 
         # load the spectrum if it has not been loaded previously
-        if self.spectrum_loaded is None or not self.spectrum_loaded[specrow]:
+        if self.spectrum_loaded is None or not self.spectrum_loaded[i]:
             # check if a spectrum is available for the requested source
-            self.load_spectra(components=specrow)
+            self.load_spectra(components=i)
 
-        i = np.cumsum(self.spectrum_loaded)[specrow] - 1  # index of the spectrum in the Sources.data array
-        return self.get_wave(specrow), self.data[:, i, 0]
+        # return data, check before if dedicated wavelength array exists for spectrum
+        if self.data_wave_hdu is None:
+            return self.wave, self.data[('flux', i)]
+        else:
+            return self.data[('wave', i)], self.data[('flux', i)]
 
     #############################################################################
     #            Methods dealing with IFU coordinates of the sources            #
