@@ -31,7 +31,7 @@ Added
 
 Latest SVN revision
 -------------------
-402, 2017/03/09
+411, 2017/04/06
 """
 import datetime
 import logging
@@ -417,6 +417,7 @@ class SpectrumWriter(object):
                 primary_hdu.header["HIERARCH SPECTRUM SNRATIO"] = (snr, "Estimated signal-to-noise")
             else:
                 logger.error("S/N estimation returned NaN - Spectrum of source #{0} corrupted.".format(source_id))
+                primary_hdu.header["HIERARCH SPECTRUM SNRATIO"] = (None, "Signal-to-noise estimation failed")
 
             if np.mean(self.sources.data[self.start:self.stop, i, 0]) < 0:
                 flag += 4
