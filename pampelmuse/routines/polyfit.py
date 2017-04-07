@@ -182,7 +182,7 @@ def polyfit(config):
         # fit IFS coordinates
         logging.info("Polynomial fit (function={0}, order={1}) to source coordinates...".format(
             polytype, polydeg))
-        sources.fitIfsCoordinates(ids=None, order=polydeg, mask=mask, function=polytype, commonSlope=common,
+        sources.fitIfsCoordinates(ids=None, order=polydeg, mask=mask, polynom=polytype, common_slope=common,
                                   instrument=ifs_data)
 
         # create header containing configuration

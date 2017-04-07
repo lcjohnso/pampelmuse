@@ -339,7 +339,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             for entry in ["x Positions", "y Positions", "Coord. Transf."]:
                 if self.spectrumShowHduComboBox.findText(entry) == -1:
                     self.spectrumShowHduComboBox.addItem(entry)
-            self.available_data["Positions"] = self.sources.providePosIDs()
+            self.available_data["Positions"] = self.sources.providePositionIds()
             self.available_data["Coord. Transf."] = self.sources.transformation.provideParNames()
 
         self.ifsPositionsKnown = True
@@ -370,7 +370,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         for entry in ["x Positions", "y Positions"]:
             if self.spectrumShowHduComboBox.findText(entry) == -1:
                 self.spectrumShowHduComboBox.addItem(entry)
-        self.available_data["Positions"] = self.sources.providePosIDs()
+        self.available_data["Positions"] = self.sources.providePositionIds()
 
         self.ifsPositionsKnown = True
         self.dataLoaded()  # update status of GUI
@@ -956,7 +956,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             y_label = r"$f_\lambda\,[\mathrm{counts}/\mathrm{layer}]$"
 
         elif self.current_hdu in ["x Positions", "y Positions"]:
-            ifs_coordinates = self.sources.viewIfsCoordinates(ID=int(self.current_row_in_hdu))
+            ifs_coordinates = self.sources.viewIfsCoordinates(source_id=int(self.current_row_in_hdu))
             y_label = r"${0}_\mathrm{{IFS}}\,[\mathrm{{spaxel}}]$".format(self.current_hdu[0])
             if self.current_hdu == "x Positions":
                 y_data, y_fit = ifs_coordinates[:, 0].T
@@ -1055,8 +1055,8 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             else:
                 ids = int(self.current_row_in_hdu)
 
-            self.sources.fitIfsCoordinates(ids=ids, order=order, mask=~self.spectrumMask, function=function.lower(),
-                                           commonSlope=self.actionForce_common_slope.isChecked(),
+            self.sources.fitIfsCoordinates(ids=ids, order=order, mask=~self.spectrumMask, polynom=function.lower(),
+                                           common_slope=self.actionForce_common_slope.isChecked(),
                                            statusBar=self.statusBar, instrument=self.instrument)
 
         elif self.current_hdu == "Coord. Transf.":

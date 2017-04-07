@@ -122,7 +122,7 @@ def my_lsq_sigma(a, b, sigma=None):
             x[:] = np.nan
     else:
         x = np.zeros((_b.shape[0], _A.shape[-1]), dtype=np.float32)
-        for i in xrange(_b.shape[0]):
+        for i in range(_b.shape[0]):
             if slc[i].sum() > _A.shape[-1]:
                 if sigma is not None:
                     x[i] = np.linalg.lstsq(_A[i, slc[i]], _b[i, slc[i]])[0]
@@ -280,7 +280,7 @@ class Transformation(Parameters):
             in_select = []
             out_select = []
 
-            for i in xrange(in_coords.size):
+            for i in range(in_coords.size):
                 in_id = in_coords['id'][i]
                 if in_id not in out_coords['id']:
                     continue
@@ -364,7 +364,7 @@ class Transformation(Parameters):
         else:
             logging.info("   source     dx     dy")
 
-        for i in xrange(out_coords.shape[1]):
+        for i in range(out_coords.shape[1]):
             if ids is not None:
                 source_id = int(ids[i])
             else:
@@ -471,6 +471,13 @@ class Transformation(Parameters):
 
     @property
     def zmatrix(self):
+        """
+        Returns
+        -------
+        zmatrix : numpy.array
+             The matrix will have a shape of (K, 2, 2), where K is the number
+             of defined layers.
+        """
         # create diagonal matrix with trace [x0, y0] for each layer (index 0 is spectral one)
         _m = np.zeros((self.ndisp, 2, 2), dtype=np.float32)
         _m[:, 0, 0] = self.data[:, -2, int(self.fitted[-2])]  # parameter x0
@@ -487,6 +494,13 @@ class Transformation(Parameters):
 
     @property
     def fmatrix(self):
+        """
+        Returns
+        -------
+        fmatrix : numpy.array
+             The matrix will have a shape of (K, 2, 2), where K is the number
+             of defined layers.
+        """
         # create matrix [[A C] [-B D]] for each layer (index 0 is spectral one)
         _f = np.zeros((self.ndisp, 2, 2), dtype=np.float32)
         _f[:, 0, 0] = self.data[:, 0, int(self.fitted[0])]
@@ -503,9 +517,23 @@ class Transformation(Parameters):
         #             _f[~valid, i, j] = fct(np.flatnonzero(~valid))
         return _f
 
-    def __call__(self, in_coords):
-        return np.inner(self.zmatrix, np.ones(in_coords.shape, dtype=in_coords.dtype)).swapaxes(-2, -1) + np.inner(
-            self.fmatrix, in_coords).swapaxes(-2, -1)
+    def __call__(self, xy):
+        """
+        
+        Parameters
+        ----------
+        xy : array_like, shape (N, 2)
+            The input coordinates for N sources.
+
+        Returns
+        -------
+        numpy.array, shape (K, N, 2)
+            The transformed coordinates for K layers and N sources.
+        """
+        temp = np.inner(self.zmatrix, np.ones(xy.shape, dtype=xy.dtype)) + np.inner(self.fmatrix, xy)
+
+        # before returning results, need to swap last to axes.
+        return temp.swapaxes(-2, -1)
 
     def info(self):
         """

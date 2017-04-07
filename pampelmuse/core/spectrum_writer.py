@@ -205,7 +205,7 @@ class SpectrumWriter(object):
         has_spectrum = np.in1d(self.sources.status, [2, 3])
         components = self.sources.specrow[has_spectrum]
         self.dmag[has_spectrum] = self.sources.get_magnitude(
-            component=components, passband=passband) - self.sources.mag[has_spectrum]
+            components=components, passband=passband) - self.sources.mag[has_spectrum]
 
         # perform kappa-sigma-clipping in 10 (input) magnitude bins
         bin_edges = mstats.mquantiles(self.sources.mag[np.isfinite(self.dmag)], np.arange(0, 1.0, 0.1))
@@ -423,7 +423,7 @@ class SpectrumWriter(object):
 
             # calculate magnitude(s) from spectrum if requested
             for filter_name in filter_names:
-                mag = self.sources.get_magnitude(component=i, passband=filter_name)
+                mag = self.sources.get_magnitude(components=i, passband=filter_name)
                 if np.isfinite(mag):
                     primary_hdu.header["HIERARCH SPECTRUM MAG {0}".format(filter_name.upper())] = (
                         mag, "AB magnitude from spectrum")
