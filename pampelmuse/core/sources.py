@@ -21,7 +21,6 @@ along with PampelMuse. If not, see <http://www.gnu.org/licenses/>.
 
 Provides
 --------
-function pampelmuse.core.sources.match_on_id
 class pampelmuse.core.sources.Sources
 
 Purpose
@@ -38,7 +37,7 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-408, 2017/04/03
+413, 2017/04/09
 """
 import collections
 import logging
@@ -48,6 +47,7 @@ import numpy as np
 import pandas as pd
 from numpy.polynomial import Chebyshev, Legendre, Hermite, Polynomial
 from astropy.io import fits
+from astropy.table import Table
 from ..core.coordinates import Transformation
 from ..filters import get_filter
 
@@ -59,43 +59,10 @@ except ImportError:
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 408
+__revision__ = 413
 
 
 logger = logging.getLogger(__name__)
-
-
-def match_on_id(parent, child):
-    """
-    Compare to 1dim. lists for common entries. For each element in 'child'
-    that is also part of the 'parent' list, the index of the element in the
-    'parent' list is returned.
-
-    Parameters
-    ----------
-    parent : array_like, 1dim.
-        The list that that is scanned
-    child : array_like, 1dim.
-        The list containing the entries that 'parent' is scanned for.
-
-    Returns
-    -------
-    indices : nd_array
-        The index of every 'child'-entry in the 'parent' list (if found).
-    """
-    c = np.asarray(child, dtype=np.int32)
-    p = np.asarray(parent, dtype=np.int32)
-
-    # The following statement works but quickly eats up the whole memory if p or c are large
-    # return np.nonzero((c[:, np.newaxis]-p) == 0)[1]
-
-    # Following the suggestion from http://stackoverflow.com/questions/17374547/matching-elements-in-numpy-array
-    sort_idx = np.argsort(p)
-    sorted_insert = np.searchsorted(p[sort_idx], c, side="left")
-
-    # The following is equivalent to unsorted_insert = sort_idx[sorted_insert] but faster
-    unsorted_insert = np.take(sort_idx, sorted_insert)
-    return unsorted_insert
 
 
 class Sources(object):
@@ -1559,201 +1526,134 @@ class Sources(object):
         # load IFS coordinates for all sources _WITHOUT_ interpolation
         self.load_ifs_coordinates(ids=ids)
 
+        # for further processing, get values for each source
+        xy = self.ifs_coordinates.loc[:, (slice(None), slice(None), 'value')]
+
         # create pseudo-mask if None provided
         if mask is None:
             mask = pd.Series(False, index=self.wave)
 
         # determine 'mean' coordinate if option 'common_slope' selected
         if common_slope:
-            # need to create masked array from IFS coordinates in order to get useful mean values
-            ifs_coordinates_ma = np.ma.MaskedArray(self.ifs_coordinates[..., 0],
-                                                   np.isnan(self.ifs_coordinates[..., 0]))
+
+            # get mean coordinates along x and y for each available source
+            xy_mean = np.nanmean(xy, axis=0).reshape((-1, 2))
 
             # sources used for creating mean slope are those with status 2 or 3
             used = ((self.status > 1) & (self.status < 4))[self.ifs_coordinates_loaded]
 
             # if "instrument" is known, then only use sources within FoV to determine common slope.
             if instrument is not None:
-                used &= instrument.infov(ifs_coordinates_ma.mean(axis=0))
+                used &= instrument.infov(xy_mean)
 
             # get mean coordinate along x and y plus boolean array indicating for which layers valid data exist
-            meancoord_ma = np.ma.mean(ifs_coordinates_ma, axis=1)
-            meancoord = meancoord_ma.filled(np.nan)
-            meanvalid = valid[:, np.newaxis] & ~np.isnan(meancoord)
+            mean_x = np.nanmean(xy.loc[:, (slice(None), 'x')], axis=1)
+            mean_y = np.nanmean(xy.loc[:, (slice(None), 'y')], axis=1)
+            mean_mask = mask | np.nan(mean_x) | np.isnan(mean_y)
 
             # fit mean coordinates with requested order
-            xfit = fit_function.fit(self.wave[meanvalid[:, 0]], meancoord[meanvalid[:, 0], 0], order)
-            yfit = fit_function.fit(self.wave[meanvalid[:, 1]], meancoord[meanvalid[:, 1], 1], order)
+            mean_x_fit = fit_function.fit(self.wave[~mean_mask], mean_x[~mean_mask], order)
+            mean_y_fit = fit_function.fit(self.wave[~mean_mask], mean_x[~mean_mask], order)
 
             order = 0  # all individual coordinates are now "fitted" with zeroth order polynomials
 
-        # loop over selected sources and get their polynomial coordinate fits
-        for n, j in enumerate(indices_to_fit):
+        # loop over selected sources and fir polynomials to x- and y-coordinates
+        for n, source_id in enumerate(ids, start=1):
 
-            # get index of source in array of IFS coordinates
-            i = self.ifs_coordinates_loaded.cumsum()[j] - 1
+            x = xy[(source_id, 'x')]
+            y = xy[(source_id, 'y')]
 
-            # for each source, get layers where x- and y-coordinate are defined. If it is not defined for any layer
-            # just use reference coordinate and trigger warning
-            valid_i = valid & np.any(~np.isnan(self.ifs_coordinates[:, i, :, 0]), axis=-1)
-
+            # for each source, get layers where x- and y-coordinate are defined.
+            mask_i = mask | np.isnan(x) | np.isnan(y)
             if common_slope:
-                valid_i &= meanvalid.all(axis=1)
-            if valid_i.sum() > order:
-                wave = self.wave[valid_i]
-                fx_wave = self.ifs_coordinates[valid_i, i, 0, 0]
-                fy_wave = self.ifs_coordinates[valid_i, i, 1, 0]
+                mask_i |= mean_mask
+
+            # make sure number of non-masked data points is larger than degree of polynomial
+            if (~mask_i).sum() > order:
+                if common_slope:
+                    x_fit_i = mean_x_fit + fit_function.fit(self.wave[~mask], x[~mask] - mean_x_fit(self.wave[~mask]),
+                                                            order, domain=mean_x_fit.domain)
+                    y_fit_i = mean_y_fit + fit_function.fit(self.wave[~mask], y[~mask] - mean_y_fit(self.wave[~mask]),
+                                                            order, domain=mean_y_fit.domain)
+                else:
+                    x_fit_i = fit_function.fit(self.wave[~mask], x[~mask], order)
+                    y_fit_i = fit_function.fit(self.wave[~mask], y[~mask], order)
+
+                # update IFS coordinates data frame
+                self.ifs_coordinates[(source_id, 'x', 'fit')] = x_fit_i(self.wave)
+                self.ifs_coordinates[(source_id, 'y', 'fit')] = y_fit_i(self.wave)
+
+                # update dictionary containing polynomial fits
+                self.ifs_coordinates_fit_functions[id] = [x_fit_i, y_fit_i]
+
+            # if not, trigger error message and skip source
             else:
-                wave = self.wave[meanvalid.all(axis=1)] if common_slope else self.wave
-                fx_wave = self.x[j]*np.ones(meanvalid.all(axis=1).sum() if common_slope else self.ndisp)
-                fy_wave = self.y[j]*np.ones(meanvalid.all(axis=1).sum() if common_slope else self.ndisp)
-                logging.warning("Not enough successful fits for source #{0} - using reference coordinates.".format(
-                    self.ID[j]))
+                logger.error("Source #{0} has insufficient wavelength information for polynomial fit.".format(
+                    source_id))
 
-            if common_slope:
-                xfit_i = xfit + fit_function.fit(wave, fx_wave - xfit(wave), order, domain=xfit.domain)
-                yfit_i = yfit + fit_function.fit(wave, fy_wave - yfit(wave), order, domain=yfit.domain)
-            else:
-                xfit_i = fit_function.fit(wave, fx_wave, order)
-                yfit_i = fit_function.fit(wave, fy_wave, order)
-
-            self.ifs_coordinates_fit_functions[self.ID[j]] = [xfit_i, yfit_i]
-
-            # update coordinate information for this source
-            self.ifs_coordinates_fitted[j] = True
-            self.ifs_coordinates[:, i, 0, 1] = np.where(valid_i, xfit_i(self.wave), np.nan)
-            self.ifs_coordinates[:, i, 1, 1] = np.where(valid_i, yfit_i(self.wave), np.nan)
-
-            logging.debug("Polynomial fit to source #{0} [{1}/{2}]".format(self.ID[j], n, len(indices_to_fit)))
+            # log progress
+            logging.debug("Polynomial fit to source #{0} [{1}/{2}]".format(source_id, n, len(ids)))
             if statusBar is not None:
-                statusBar.showMessage("Polynomial fit to source #{0} [{1}/{2}]".format(
-                    self.ID[j], n, len(indices_to_fit)), 5000)
-
-    ##############################################################################
-    #              Source selection methods/properties                           #
-    ##############################################################################
-
-    def distance_to_brighter(self):
-        """
-        DEPRECATED - not used anymore since revision 118
-        Calculate the distance of a source to the nearest source that has
-        is brighter as the source itself. This calculation is performed
-        for all sources that have IFS coordinates available.
-        
-        Returns
-        -------
-        mindist : ndarray
-            The distance to the nearest brighter source in units of spaxels.
-        nearsrc : ndarray
-            The ID of the nearest brighter source.
-        """
-
-        logging.info("Determining distance to nearest brighter source...")
-
-        # average IFS coordinates over dispersion axis
-        x = self.ifs_coordinates[..., 0, 0].mean(axis=0)
-        y = self.ifs_coordinates[..., 1, 0].mean(axis=0)
-        mag = self._mag[self.ifs_coordinates_loaded]
-
-        # prepare output arrays
-        mindist = np.zeros(x.shape, dtype=np.float32)
-        nearsrc = np.zeros(x.shape, dtype=np.int32)
-
-        # loop over all source that have IFS coordinates available.
-        for i in xrange(x.size):
-            dist_i = np.sqrt((x - x[i]) ** 2 + (y - y[i]) ** 2)
-            dist_i[(mag - mag[i]) >= 0] = 99.  # exclude all sources that are not brighter
-
-            mindist[i] = dist_i.min()
-            nearsrc[i] = self.ID[self.ifs_coordinates_loaded][dist_i.argmin()]
-
-        return mindist, nearsrc
-
-    def shoulder_drop(self, r):
-        """
-        DEPRECATED - not used anymore since revision 130 (or so)
-        This method determines the shoulder drop or topographic prominence
-        of the sources that is a measure for how strongly a source dominates
-        its surroundings. The measure used here is the flux ratio of the source
-        to the brightest source within distance r. This quantity is used to
-        select the sources that are used to fit the PSF.
-        For the exact definition of the topographic prominence, see
-        http://en.wikipedia.org/wiki/Topographic_prominence. The definition
-        here is slightly modified.
-        
-        Parameters
-        ----------
-        r : float
-            The search radius around each source. Only sources with distances
-            <r are used to measure the shoulder drop for a source.
-            
-        Returns
-        -------
-        shoulder_drop : ndarray
-            For each source with IFS coordinates available, the flux ratio of
-            the source to its brightest neighbor (within a distance r) is
-            returned.
-        """
-        logging.info("Determining shoulder drop of sources...")
-
-        x = self.ifs_coordinates[..., 0, 0].mean(axis=0)
-        y = self.ifs_coordinates[..., 1, 0].mean(axis=0)
-        mag = self._mag[self.ifs_coordinates_loaded]
-
-        dist = np.sqrt((x - x[:, np.newaxis]) ** 2 + (y - y[:, np.newaxis]) ** 2)
-        np.fill_diagonal(dist, 99.)
-
-        offset = mag[:, np.newaxis] - mag
-        offset[dist > r] = 99.
-
-        return 10 ** (-0.4 * offset.min(axis=0))
+                statusBar.showMessage("Polynomial fit to source #{0} [{1}/{2}]".format(id, n, len(ids)), 5000)
 
     ##############################################################################
     #                             Output methods                                 #
     ##############################################################################
     def make_catalogue_hdu(self):
         """
-        Write the source catalogue to an astropy.io.fits.BinTableHDU. Note that
-        only sources that are used in a fit, i.e. have Sources.status>=0, are
-        included in the table. The returned table is named 'SOURCES'.
+        Write the source catalogue to an astropy.io.fits.BinTableHDU.
+
+        Note that only sources that are used in a fit, i.e. have
+        Sources.status >= 0, are included in the table. The returned table is
+        named 'SOURCES'.
         
         Returns
         -------
         sources : astropy.io.fits.BinTableHDU
             The source catalogue as a FITS binary table extension.
         """
-        logging.info("Saving catalogue in FITS BinTableHDU 'SOURCES'...")
+        logger.info("Saving catalogue in FITS BinTableHDU 'SOURCES'...")
 
         try:
-            select = np.nonzero(self._status >= 0)[0]
+            select = self.status >= 0
         except ValueError:
             select = np.arange(self.n_sources, dtype=np.int32)
 
-        # sort by increasing magnitudes (if possible)
-        if not np.isnan(self._mag).all():
-            select = select[self._mag[select].argsort()]
+        # convert catalog to astropy Table
+        out_table = Table.from_pandas(self.catalog[select])
 
-        outcols = [fits.Column(name="id", format="J", array=self.ID[select])]
+        # then convert to HDU
+        out_hdu = fits.BinTableHDU(out_table.as_array(), name='SOURCES')
 
-        formats = {"x": "E", "y": "E", "mag": "E", "ra": "D", "dec": "D", "status": "I", "specrow": "I", "primary": "J"}
-        for attribute in ["x", "y", "mag", "ra", "dec", "status", "primary", "specrow"]:
-            # if getattr(self, "_{0}".format(attribute)) is not None:
-            logging.debug("Adding column '{0}' to table...".format(attribute))
-            outcols.append(fits.Column(name=attribute, format=formats[attribute],
-                                       array=getattr(self, attribute)[select]))
+        # return
+        return out_hdu
 
-        return fits.BinTableHDU.from_columns(
-                outcols, header=fits.Header(cards=[fits.Card(key="EXTNAME", value="SOURCES")]))
+        # TODO: Find way to convert to HDU instance
+
+        # outcols = [fits.Column(name="id", format="J", array=self.ID[select])]
+        #
+        # formats = {"x": "E", "y": "E", "mag": "E", "ra": "D", "dec": "D", "status": "I", "specrow": "I", "primary": "J"}
+        # for attribute in ["x", "y", "mag", "ra", "dec", "status", "primary", "specrow"]:
+        #     # if getattr(self, "_{0}".format(attribute)) is not None:
+        #     logging.debug("Adding column '{0}' to table...".format(attribute))
+        #     outcols.append(fits.Column(name=attribute, format=formats[attribute],
+        #                                array=getattr(self, attribute)[select]))
+        #
+        # return fits.BinTableHDU.from_columns(
+        #         outcols, header=fits.Header(cards=[fits.Card(key="EXTNAME", value="SOURCES")]))
 
     def make_spectra_hdu(self, components=None):
         """
-        Write the spectra to an astropy.io.fits.ImageHDU. There are different
-        options to specify which spectra are stored in the HDU that can
-        be controlled using the keyword 'components'. In any case, the data
-        will be 3dim., with the first axis being the dispersion axis, the
-        second referencing the sources and the third containing either the
-        spectrum or its uncertainties. The HDU that is returned is named
-        'SPECTRA'.
+        Write the spectra to an astropy.io.fits.ImageHDU.
+
+        The data in the HDU will be 3dimensional, with the zeroth axis (python
+        counting) being the dispersion axis, the first axis containing the
+        components, and the second containing either the spectrum or its
+        uncertainties.
+
+        The HDU that is returned is named 'SPECTRA'. If dedicated wavelength
+        data exist for each spectrum, they will be stored in a separate HDU
+        named 'WAVE' with a 2dim. data array.
         
         WARNING: If not all spectra that should be included in the HDU are
         available, i.e. have been loaded using Sources.load_spectra(), then
@@ -1765,129 +1665,150 @@ class Sources(object):
         ----------
         components : int or array_like, optional
             The component(s) for which the spectra should be included in the
-            HDU. If None is provided, all spectra are included. If the key-
-            word is set to "current", the current Sources.data array is
+            HDU. If None is provided, all components are included. If the
+            keyword is set to "current", the current Sources.data array is
             stored.
         
         Returns
         -------
-        spectra : astropy.io.fits.ImageHDU
+        astropy.io.fits.ImageHDU
             The HDU containing the spectra as a 3dim. array. The standard
             dispersion keywords (CRVAL3, CDELT3, ...) are included in the
             FITS header.
+        astropy.io.fits.ImageHDU or None
+            If each spectrum has a dedicated wavelength array, they will be
+            stored in a separate HDU.
         """
-        logging.info("Saving spectra in FITS ImageHDU 'SPECTRA'...")
+        logger.info("Saving spectra in FITS ImageHDU 'SPECTRA'...")
 
         # get the components for which the spectra are requested
         if components is None:
-            components = np.arange(self.n_components, dtype=np.int32)
+            components = self.spectrum_loaded.index
         elif isinstance(components, (int, np.integer, list, np.ndarray)):
-            components = np.atleast_1d(components)
+            components = pd.Index(np.atleast_1d(components))
         elif components == "current":
-            components = np.arange(self.n_components, dtype=np.int32)[self.spectrum_loaded]
+            components = self.spectrum_loaded.index[self.spectrum_loaded]
+        else:
+            logger.error('Unsupported value for keyword "components": {0}'.format(components))
 
         # check if spectra have been loaded for all requested components
         if self.spectrum_loaded is None:
             self.load_spectra(components=components)
         else:
             if not self.spectrum_loaded[components].all():
-                logging.warning("Reloading spectra, modifications to Sources.data will be lost.")
+                logger.warning("Reloading spectra, modifications to Sources.data will be lost.")
                 self.load_spectra(components=components)
 
         if not self.spectrum_loaded.all():
-            logging.warning("HDU does not contain spectra of all components.")
             # Note that currently the class (via Sources.open_spectra_hdu()) does not support loading HDUs that
             # contain the spectra for a subset of the components. So a warning is triggered if an HDU that does
             # not include all spectra will be created.
+            logger.warning("Returned HDU will not contain spectra of all components.")
 
-        spectra_hdu = fits.ImageHDU(self.data, name="SPECTRA")
-        if self.data_wave is not None:  # check if dedicated wavelength HDU must be returned
-            wave_hdu = fits.ImageHDU(self.data_wave, name='WAVE')
+        # check if dedicated wavelength information exist for each source. If so, it will be stored in a
+        # separate HDU
+        has_wave = 'wave' in self.data.column.levels[1]
+
+        # Pandas DataFrames store the data as 2dimensional arrays with shape (index.size, columns.size),
+        # even when a MultiIndex is used. For this reason, we have to reshape that data before adding it to
+        # the HDU.
+        output_data = self.data.values.reshape((self.data.shape[0], -1, 3 if has_wave else 2))
+
+        # prepare HDU(s)
+        if has_wave:
+            spectra_hdu = fits.ImageHDU(output_data[..., :-1], name='SPECTRA')
+            wave_hdu = fits.ImageHDU(output_data[..., -1], name='WAVE')
         else:  # otherwise, include dispersion information in Fits-Header
+            spectra_hdu = fits.ImageHDU(output_data, name='SPECTRA')
             wave_hdu = None
-            spectra_hdu.header["CRPIX3"] = self.crpix
-            spectra_hdu.header["CRVAL3"] = self.crval
-            spectra_hdu.header["CDELT3"] = self.cdelt
-            if self.ctype is not None:
-                spectra_hdu.header["CTYPE3"] = self.ctype
-            if self.cunit is not None:
-                spectra_hdu.header["CUNIT3"] = self.cunit
 
+        # add dispersion information
+        spectra_hdu.header["CRPIX3"] = self.crpix
+        spectra_hdu.header["CRVAL3"] = self.crval
+        spectra_hdu.header["CDELT3"] = self.cdelt
+        if self.ctype is not None:
+            spectra_hdu.header["CTYPE3"] = self.ctype
+        if self.cunit is not None:
+            spectra_hdu.header["CUNIT3"] = self.cunit
+
+        # return
         return spectra_hdu, wave_hdu
 
-    def make_ifs_coordinates_hdu(self, ids=None, fit=False, name="POSITIONS", **kwargs):
+    def make_ifs_coordinates_hdu(self, ids=None, fit=False, name='POSITIONS'):
         """
         Create an astropy.io.fits.ImageHDU containing the IFS coordinates of
-        (a subset of) the sources or a astropy.io.fits.BinTableHDU containing
-        the parameters of the polynomial fits to them. The keyword 'ids' can
-        be used to control which sources enter the HDU.
-        
+        (a subset of) the sources or an astropy.io.fits.BinTableHDU containing
+        the parameters of the polynomial fits to them.
+
         When the IFS coordinates are stored the array will always be 3dim.,
-        with the first axis being the dispersion axis, the second axis distin-
-        guishing the individual sources, and the third axis giving x or y coor-
-        dinates.
+        with the zeroth axis (python counting) containing the dispersion
+        information, the first axis containing the individual sources, and the
+        second axis providing x or y coordinates.
+
+        When the polynomial fits are stored, the  table  will contain five
+        columns, providing the ID, the type of fit function along x and y, and
+        the fit parameters along x- and y for every source.
+
         WARNING: If not all IFS coordinates that should be included in the HDU
-        are available, i.e. have been loaded via Sources.load_ifs_coordinates(),
-        then all requested IFS coordinates are reloaded. This means that changes
-        to the Sources.ifs_coordinates array that were made after the last call to
-        Sources.load_ifs_coordinates() will be lost. This does not concern the
-        polynomial fits to the coordinates as the fit parameters are stored in a
-        dictionary and will be used to recover the fits when reloading the data.
-        
-        When the polynomial fits are stored, the  table  will contain five columns,
-        providing the ID, the type of fit function along x and y, and the fit para-
-        meters along x- and y for every source.
+        are available, i.e. have been loaded previously via
+        Sources.load_ifs_coordinates(), then all requested IFS coordinates are
+        reloaded. This means that changes to the Sources.ifs_coordinates array
+        that were made after the last call to Sources.load_ifs_coordinates()
+        will be lost. This does not concern the polynomial fits to the
+        coordinates as the fit parameters are stored in a dictionary and will
+        be used to recover the fits when reloading the data.
         
         Parameters
         ----------
         ids : array_like or int, optional
-            The ID(s) of the sources for which the IFS coordinates should be written
-            to the HDU. If None is provided, all point sources from the catalogue
-            are included. If the keyword is set to 'current', the IFS coordinates
-            currently available in Sources.ifs_coordinates are used.
+            The ID(s) of the sources for which the IFS coordinates should be
+            written to the HDU. If None is provided, all point sources from
+            the catalogue are included. If the keyword is set to 'current',
+            the IFS coordinates currently available in Sources.ifs_coordinates
+            are used.
         fit : boolean, optional
-            A flag indicating if the fit to the data should be written to the HDU
-            instead of the data. It will be included in the FITS header as the
-            hierarch keyword PAMPELMUSE POSITIONS POLY.
+            A flag indicating if the fit to the data should be written to a
+            HDU instead of the data.
         name : string, optional
             The name given to the HDU, i.e. the header keyword EXTNAME.
 
         Returns
         -------
-        ifs_coordinates_hdu : astropy.io.fits.ImageHDU
-            A 3dim. FITS array containing the data or the fits to them. Note that
-            the routine will also add the hierarch keywords PAMPELMUSE POSITIONS ID?
-            to the FITS header that give the ID of the sources included in each row
-            of  the array. An additional hierarch keyword PAMPELMUSE POSITIONS
-            FULLFIT is used to indicate if the coordinates are free parameters in a
-            fit.
+        astropy.io.fits.ImageHDU or astropy.io.fits.TableHDU
+            The HDU containing the coordinates . It will contain a 3dim. array
+            unless fit=True. In that case, it will contain a binary FITS table
+            with the parameters of the polynomial fits to the individual IFS
+            coordinates.
         """
         if not fit:
-            logging.info("Saving IFS coordinates to ImageHDU '{0}'...".format(name))
+            logger.info("Saving IFS coordinates to ImageHDU '{0}'...".format(name))
 
         # check which coordinates should be saved
         if ids is None:
-            ids = self.ID[self.status < 4]
+            ids = self.ids[(self.status > -1) & (self.status < 4)]
         elif isinstance(ids, (int, np.integer, list, np.ndarray)):
-            ids = np.atleast_1d(ids)
+            ids = pd.Index(np.atleast_1d(ids))
         elif ids == "current":
             if not fit:
-                ids = self.ID[self.ifs_coordinates_loaded]
+                ids = self.ids[self.ifs_coordinates_loaded]
             else:
-                ids = self.ID[self.ifs_coordinates_fitted]
+                ids = self.ids[self.ifs_coordinates_fitted]
 
+        # if polynomial fits should be saved
         if fit:
-            logging.info("Saving fits to IFS coordinates to BinTableHDU '{0}'...".format(name))
+            logger.info("Saving fits to IFS coordinates to BinTableHDU '{0}'...".format(name))
 
             # fits are saved for the requested sources that have polynomial fits available
-            ids_tosave = np.intersect1d(ids, self.ifs_coordinates_fit_functions.keys())
-
-            if ids_tosave.size == 0:
-                logging.error("Position fits not available for any of the requested sources.")
-                logging.error("Cannot create BinTableHDU '{0}'.".format(name))
+            ids_to_save = np.intersect1d(ids, self.ifs_coordinates_fit_functions.keys())
 
             # get the number of sources for which fits should be stored
-            nfit = ids_tosave.size
+            n_fit = ids_to_save.size
+
+            if n_fit < ids.size:
+                logger.error("Position fits not available for some of the requested sources.")
+                if n_fit == 0:
+                    logger.error("Cannot create BinTableHDU '{0}'.".format(name))
+                    return None
 
             # get the maximum polynomial degree used in the fits. Note that this would not be necessary if one would
             # use the feature that FITS tables can store arrays of variable length
@@ -1895,84 +1816,81 @@ class Sources(object):
             # Unfortunately, the implementation in astropy seems buggy and I always get an array full of zeros when
             # opening the file again. Therefore, in case different degrees have been used in the fits, the higher
             # orders of the low-order polynomials are padded with zeros.
-            xmax = max(self.ifs_coordinates_fit_functions[i][0].degree() for i in ids_tosave)
-            ymax = max(self.ifs_coordinates_fit_functions[i][1].degree() for i in ids_tosave)
+            x_max_degree = max(self.ifs_coordinates_fit_functions[i][0].degree() for i in ids_to_save)
+            y_max_degree = max(self.ifs_coordinates_fit_functions[i][1].degree() for i in ids_to_save)
 
             # prepare the arrays to hold the data
-            src = np.zeros((nfit, ), dtype=np.int32)
-            xfct = np.zeros((nfit, ), dtype=np.int16)
-            xprm = np.zeros((nfit, xmax + 1), dtype=np.float32)
-            yfct = np.zeros((nfit, ), dtype=np.int32)
-            yprm = np.zeros((nfit, ymax + 1), dtype=np.float32)
+            source_ids = ids.values
+            x_function = np.zeros((n_fit, ), dtype=np.int16)
+            x_coefficients = np.zeros((n_fit, x_max_degree + 1), dtype=np.float32)
+            y_function = np.zeros((n_fit, ), dtype=np.int32)
+            y_coefficients = np.zeros((n_fit, y_max_degree + 1), dtype=np.float32)
 
             #  loop over all sources that have polynomial fits available
             domain = None
-            for i, ID in enumerate(ids):
-                src[i] = ID
+            for i, source_id in enumerate(ids):
 
-                xfit, yfit = self.ifs_coordinates_fit_functions[ID]
+                x_polynom, y_polynom = self.ifs_coordinates_fit_functions[source_id]
 
                 # make sure all fit functions use the same domain, this is needed because the domain set by the fit
                 # is the min and max of the fitted range and this if different from the default one used by the
                 # __init__ methods. Since currently the start and end of the domain are stored as HIERARCH-keywords,
                 # the domain must be the same for all fits.
                 if domain is None:
-                    domain = xfit.domain
-                else:
-                    if (xfit.domain != domain).any():
-                        xfit = xfit.convert(domain=domain)
-                if (yfit.domain != domain).any():
-                    yfit = yfit.convert(domain=domain)
+                    domain = x_polynom.domain
+                elif (x_polynom.domain != domain).any():
+                    x_polynom = x_polynom.convert(domain=domain)
+                if (y_polynom.domain != domain).any():
+                    y_polynom = y_polynom.convert(domain=domain)
 
                 # to get fit function, first check which class the instance originates from, then translate name to
                 # an integer
-                for fct in self.available.keys():
-                    if isinstance(xfit, self.available[fct]):
-                        xfct[i] = self.polyident[fct]
-                xprm[i, :(xfit.degree() + 1)] = xfit.coef
-                for fct in self.available.keys():
-                    if isinstance(yfit, self.available[fct]):
-                        yfct[i] = self.polyident[fct]
-                yprm[i, :(yfit.degree() + 1)] = yfit.coef
+                for name, function in self.available_polynoms.items():
+                    if isinstance(x_polynom, function):
+                        x_function[i] = self.polyident[name]
+                    if isinstance(y_polynom, function):
+                        y_function[i] = self.polyident[name]
+
+                # add coefficients of polynomial, take care of zero-padding
+                x_coefficients[i, :(x_polynom.degree() + 1)] = x_polynom.coef
+                y_coefficients[i, :(y_polynom.degree() + 1)] = y_polynom.coef
 
             # prepare the output table
-            outhdu = fits.BinTableHDU.from_columns(
-                    [fits.Column(name="id", format="J", array=src),
-                     fits.Column(name="xfct", format="I", array=xfct),
-                     fits.Column(name="xprm", format="{0}E".format(xprm.shape[1]), array=xprm),
-                     fits.Column(name="yfct", format="I", array=yfct),
-                     fits.Column(name="yprm", format="{0}E".format(yprm.shape[1]), array=yprm)])
+            out_hdu = fits.BinTableHDU.from_columns(
+                [fits.Column(name="id", format="J", array=source_ids),
+                 fits.Column(name="x_function", format="I", array=x_function),
+                 fits.Column(name="x_coefficients", format="{0}E".format(x_coefficients.shape[1]),
+                             array=x_coefficients),
+                 fits.Column(name="y_function", format="I", array=y_function),
+                 fits.Column(name="y_coefficients", format="{0}E".format(y_coefficients.shape[1]),
+                             array=y_coefficients)])
 
-            outhdu.header["EXTNAME"] = name
-            outhdu.header["hierarch PAMPELMUSE POSITIONS POLY"] = True
-            outhdu.header["hierarch PAMPELMUSE POSITIONS DOMAIN START"] = domain[0]
-            outhdu.header["hierarch PAMPELMUSE POSITIONS DOMAIN END"] = domain[1]
+            out_hdu.header["EXTNAME"] = name
 
-            # write the polynomial identifications
+            # save domain in header
+            out_hdu.header["hierarch PAMPELMUSE POSITIONS DOMAIN START"] = domain[0]
+            out_hdu.header["hierarch PAMPELMUSE POSITIONS DOMAIN END"] = domain[1]
+
+            # save the polynomial identifications in the header
             for name, index in self.polyident.iteritems():
-                outhdu.header["hierarch PAMPELMUSE POSITIONS POLY{0}".format(index)] = name
+                out_hdu.header["hierarch PAMPELMUSE POSITIONS POLY{0}".format(index)] = name
+
+        # directly save IFS coordinates
         else:
             # make sure IFS coordinates are loaded for all sources AND across the entire dispersion range
-            if not self.ifs_coordinates_loaded[match_on_id(self.ID, ids)].all() \
-                    or self.ifs_coordinates.shape[0] != self.ndisp:
-                logging.warning("Reloading IFS coordinates, modifications to Sources.ifs_coordinates will be lost.")
-                self.load_ifs_coordinates(ids=ids, layers=None)
+            if not self.ifs_coordinates_loaded[ids].all() or self.ifs_coordinates.shape[0] != self.ndisp:
+                logger.warning("Reloading IFS coordinates, modifications to Sources.ifs_coordinates will be lost.")
+                self.load_ifs_coordinates(ids=ids)
 
-            to_store = np.flatnonzero(self.ifs_coordinates_free[self.ifs_coordinates_loaded])
+            # Pandas DataFrames store the data as 2dimensional arrays with shape (index.size, columns.size),
+            # even when a MultiIndex is used. For this reason, we have to reshape that data before adding it to
+            # the HDU.
+            output_data = self.ifs_coordinates.loc[:, (ids, slice(None), 'value')].values
 
-            # make sure there is some data to be stored
-            if to_store.size == 0:
-                logging.critical("Cannot write IFS coordinates to HDU. No data available.")
-                return NotImplemented
-
-            outhdu = fits.ImageHDU(self.ifs_coordinates[:, to_store][..., int(fit)], name=name)
-
-            outhdu.header["hierarch PAMPELMUSE POSITIONS POLY"] = False
-            outhdu.header["hierarch PAMPELMUSE POSITIONS FULLFIT"] = True
+            out_hdu = fits.ImageHDU(output_data.reshape((output_data.shape[0], -1, 2)), name=name)
 
             # create entry in header about ID of each source and the row containing its position
-            for i in xrange(len(to_store)):
-                outhdu.header["hierarch PAMPELMUSE POSITIONS ID{0}".format(i)] = self.ID[self.ifs_coordinates_loaded][
-                    to_store[i]]
+            for i, source_id in enumerate(ids):
+                out_hdu.header["hierarch PAMPELMUSE POSITIONS ID{0}".format(i)] = source_id
 
-        return outhdu
+        return out_hdu

@@ -1,7 +1,7 @@
 """
 coordinates.py
 ==============
-Copyright 2013-2016 Sebastian Kamann
+Copyright 2013-2017 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -27,22 +27,22 @@ class pampelmuse.core.coordinates.Transformation
 
 Purpose
 -------
-The module is designed as an interface for loading, modifying, and storing the
-coordinate transformation that is used by PampelMuse. The class 'Transformation'
-is designed to provide a convenient way to transform from input to IFU coordi-
-nates. It is used as a super-class by the 'Sources'-class of PampelMuse.
-
+The module serves as an interface for loading, modifying, and storing the
+coordinate transformation that is used by PampelMuse.
 
 The function 'my_lq_sigma' is designs to perform a linear least squares fit
 of type [A*x = b] for x when besides the data uncertainties of the data are
 provided.
 
-
-The class 'Transformation' inherits from the class pampelmuse.core.parameters.Parameters
-that defines a more general framework for dealing with parameters within PampelMuse.
+The class 'Transformation' is designed to provide a convenient way to
+transform from input to IFU coordinates. It is used as a super-class by the
+'Sources'-class of PampelMuse. It is a child-class of
+pampelmuse.core.parameters.Parameters that defines a more general framework
+for dealing with parameters within PampelMuse.
 
 Currently the spaxel coordinates for a layer are determined from the reference
-coordinates via an affine transformation including six parameters, A, B, C, D, x0, y0:
+coordinates via an affine transformation including six parameters, A, B, C, D,
+x0, y0:
 
 (i)  x_spaxel = A*x_ref + C*y_ref + x0
 (ii) y_spaxel = D*y_ref - B*x_ref + y0
