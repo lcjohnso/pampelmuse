@@ -1628,20 +1628,6 @@ class Sources(object):
         # return
         return out_hdu
 
-        # TODO: Find way to convert to HDU instance
-
-        # outcols = [fits.Column(name="id", format="J", array=self.ID[select])]
-        #
-        # formats = {"x": "E", "y": "E", "mag": "E", "ra": "D", "dec": "D", "status": "I", "specrow": "I", "primary": "J"}
-        # for attribute in ["x", "y", "mag", "ra", "dec", "status", "primary", "specrow"]:
-        #     # if getattr(self, "_{0}".format(attribute)) is not None:
-        #     logging.debug("Adding column '{0}' to table...".format(attribute))
-        #     outcols.append(fits.Column(name=attribute, format=formats[attribute],
-        #                                array=getattr(self, attribute)[select]))
-        #
-        # return fits.BinTableHDU.from_columns(
-        #         outcols, header=fits.Header(cards=[fits.Card(key="EXTNAME", value="SOURCES")]))
-
     def make_spectra_hdu(self, components=None):
         """
         Write the spectra to an astropy.io.fits.ImageHDU.
