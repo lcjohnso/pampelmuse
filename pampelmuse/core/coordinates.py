@@ -70,16 +70,16 @@ This results in the inverse transformation:
 
 Latest SVN revision
 -------------------
-417, 2017/04/12
+418, 2017/04/12
 """
 import logging
-import re
 import numpy as np
+import pandas as pd
 from ..core.parameters import Parameters
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 417
+__revision__ = 418
 
 
 logger = logging.getLogger(__name__)
@@ -174,7 +174,7 @@ class Transformation(Parameters):
         # call initialization method of super-class, make sure order is A, B, C, D.
         super(Transformation, self).__init__(data=data, free=free, **kwargs)
 
-        # if only four parameters are defined, the transformation is conformal
+        # if only four parameters are defined, the transformation is conformal and needs to be converted
         if self.defined.sum() == 4:
             logger.warning('Initialising coordinate transformation using outdated parameters.')
 
@@ -197,192 +197,115 @@ class Transformation(Parameters):
                 logger.error("Missing required parameter '{0}' of coord. transformation.".format(name))
 
     @classmethod
-    def from_coordinates(cls, in_coords, out_coords, ids=None, out_sigma=None, **kwargs):
+    def from_coordinates(cls, xy_in, xy_out, fixed=None):
         """
         Initialize a new coordinate transformation using the provided input
-        (reference) and output (IFS) coordinates in a least squares fit. The
-        data may be provided as plain multidimensional numpy arrays or using
-        record arrays, containing at least three fields named 'id', 'x', and
-        'y'. Note that it is currently not possible to use different types of
-        arrays (plain/record) for input and output.
-        Uncertainties associated with the output coordinates might also be
-        provided.
+        (reference) and output (IFS) coordinates in a least squares fit.
+
+        Both, input and output coordinates should be provided as pandas data
+        frames, containing the sources as individual columns (each with x and
+        y as second level of a pandas MultiIndex). If the data frame with the
+        output coordinates has more than one row, a coordinate transformation
+        will be determined for each row.
 
         Parameters
         ----------
-        in_coords : ndarray
-            The input coordinates. If they are provided as a record array, it
-            must contain at least 3 fields, named 'id', 'x', and 'y',
-            containing the IDs of the sources and their reference x- and y-
-            coordinates. Otherwise, a 2dim. numpy array should be provided with
-            shape (N,2), and N>=2 being the number of sources.
-        out_coords : ndarray
-            The output coordinates. Again, if a record array is provided, it
-            must contain the three fields 'id', 'x', and 'y'. The sources are
-            matched to their counterparts in the input coordinates array based
-            on the ID. If the array contains fields named 'x_err' and 'y_err',
-            those are assumed to be the uncertainties associated with 'x' and
-            'y'.
-            In case a plain numpy array is provided, it must be 3dim. and of
-            shape (M,N,2), with M being the number of spectral layers, and
-            N>2 the number of sources. Note that the same sources in the same
-            order as for the input coordinates must be provided (unless record
-            arrays are used). The keyword 'out_sigma' may be used to provide
-            the uncertainties of the input coordinates.
-        ids : ndarray, optional
-            If the coordinates are not provided as record arrays, this keyword
-            parameter may be used to provide the source IDs. They are only used
-            for logging.
-        out_sigma : ndarray, optional
-            If the coordinates are not provided as record arrays, this keyword
-            parameter may be used to provided the uncertainties associated with
-            the output coordinates. The array must have the same shape as the
-            output coordinates array of course.
+        xy_in : pandas.DataFrame
+            The input coordinates. The columns of the data frame must contain
+            the source identifiers and the x- and y-coordinates as a pandas
+            MultiIndex. Currently only the first row of the data frame will
+             be used.
+        xy_out : pandas.DataFrame
+            The output coordinates. Again, the columns of the data frame must
+            contain the source identifiers and the x- and y-coordinates as a
+            pandas MultiIndex. If the data frame contains N rows, the
+            transformation will be calculated for each row independently.
+        fixed : pandas.DataFrame, optional
+            If any parameters of the coordinate transformation should be fixed
+            to given values, the fixed parameters and their values can be
+            provided as a pandas DataFrame using the same indices as 'xy_out'
+            and the fixed parameters as column names.
         """
-        logging.info("Determining coordinate transformation using provided data...")
+        logger.info("Initialising coordinate transformation from provided data...")
 
         # perform sanity checks on input data
-        assert isinstance(in_coords, np.ndarray), "Parameter 'in_coords' must be numpy array, not {0}".format(
-            re.findall(r"'(.*)'", str(type(in_coords)))[0])
-        assert isinstance(out_coords, np.ndarray), "Parameter 'out_coords' must be numpy array, not {0}".format(
-            re.findall(r"'(.*)'", str(type(out_coords)))[0])
-
-        # check if record arrays or plain numpy arrays were provided.
-        if in_coords.dtype.names is not None:  # deal with record arrays
-
-            # check if provided data is valid
-            for name in ['id', 'x', 'y']:
-                if name not in in_coords.dtype.names:
-                    logging.error("Cannot find field '{0}' in input coordinates.".format(name))
-                    return
-                if name not in out_coords.dtype.names:
-                    logging.error("Cannot find field '{0}' in output coordinates.".format(name))
-                    return
-
-            # get dispersion information for provided output coordinates
-            if out_coords["x"].shape != out_coords["y"].shape:
-                logging.error("Output x- & y-coordinates. have different dimensions.")
+        for name, df in {'xy_in': xy_in, 'xy_out': xy_out}:
+            if not isinstance(df, pd.DataFrame):
+                logger.error('Parameter {0} must be pandas DataFrame, not "{1}"'.format(name, type(xy_in)))
+            # make sure data frame has right format
+            if len(df.columns.levshape) != 2:
+                logger.error('Invalid column format for parameter "{0}".'.format(name))
+                logger.error('MultiIndex must have depth=2.')
                 return
-            else:
-                disp = (out_coords["x"].ndim > 1)
-
-            if disp:
-                m = out_coords["x"].shape[1]
-            else:
-                m = 1
-
-            # check if errors for output coordinates are provided
-            if "x_err" in out_coords.dtype.names and "y_err" in out_coords.dtype.names:
-                err = True
-                logging.info("Found uncertainties of output coordinates.")
-            else:
-                err = False
-                logging.info("No uncertainties of output coordinates found.")
-
-            # find matching coordinate pairs
-            in_select = []
-            out_select = []
-
-            for i in range(in_coords.size):
-                in_id = in_coords['id'][i]
-                if in_id not in out_coords['id']:
-                    continue
-                in_select.append(i)
-                out_select.append(np.where(out_coords['id'] == in_id)[0][0])
-
-            n = len(in_select)  # no of matching sources provided
-            if n < 2:
-                logging.error("Matched <2 sources between input and output coordinates.")
+            elif df.columns.levshape[1] != 2:
+                logger.error('Invalid column format for parameter "{0}".'.format(name))
+                logger.error('Second level of MultiIndex must have length=2')
                 return
-            elif n < 4:
-                logging.warning("Matched only {0} sources between input and output coordinates.".format(n))
-            else:
-                logging.info("Matched {0} sources between input and output coordinates.".format(n))
+            elif 'x' not in df.columns.levels[1].values or 'y' not in df.columns.levels[1].values:
+                logger.error('Invalid column format for parameter "{0}".'.format(name))
+                logger.error('Second level of MultiIndex must contain "x" and "y".')
+                return
 
-            # create ndarrays for fitting
-            indata = np.zeros((n, 2), dtype=np.float32)
-            indata[:, 0] = in_coords["x"][in_select]
-            indata[:, 1] = in_coords["y"][in_select]
+        # find sources that overlap between input and output coordinates
+        common_ids = np.intersect1d(xy_in.columns.levels[0], xy_out.columns.levels[0], assume_unique=True)
+        if len(common_ids) < 4:
+            logger.error('Need at least 4 sources to fit coordinate transformation.')
+            return
 
-            outdata = np.zeros((m, n, 2), dtype=np.float32)
-            if disp:
-                outdata[..., 0] = out_coords["x"][out_select].swapaxes(0, 1)
-                outdata[..., 1] = out_coords["y"][out_select].swapaxes(0, 1)
-            else:
-                outdata[..., 0] = out_coords["x"][out_select]
-                outdata[..., 1] = out_coords["y"][out_select]
+        # for the fitting, plain numpy arrays are used
+        in_data = np.zeros((len(common_ids), 2), dtype=np.float32)
+        out_data = np.zeros((xy_out.shape[0], len(common_ids), 2), dtype=np.float32)
 
-            if err:
-                outsigma = np.zeros(outdata.shape, dtype=np.float32)
-                if disp:
-                    outsigma[..., 0] = out_coords["x_err"][out_select].swapaxes(0, 1)
-                    outsigma[..., 1] = out_coords["y_err"][out_select].swapaxes(0, 1)
-                else:
-                    outsigma[..., 0] = out_coords["x_err"][out_select]
-                    outsigma[..., 1] = out_coords["y_err"][out_select]
-            else:
-                outsigma = None
+        for i, source_id in enumerate(common_ids):
+            in_data[i, 0] = xy_in[(source_id, 'x')]
+            in_data[i, 1] = xy_in[(source_id, 'y')]
 
-            ids = in_coords["id"][in_select]
-
-        else:  # deal with normal (plain) numpy arrays
-            # sanity checks for input coordinates
-            assert in_coords.ndim == 2, "Input coordinates array must be 2dim."
-            assert in_coords.shape[0] >= 2, "At least 2 sources must be provided."
-            assert in_coords.shape[1] == 2, "First axis of input coordinates array must be [x y]."
-            indata = in_coords
-
-            # sanity checks for output coordinates
-            assert out_coords.ndim == 3, "Output coordinates array must be 3dim."
-            assert out_coords.shape[1] == in_coords.shape[
-                0], "Input and output coordinates must be provided for the same sources."
-            assert out_coords.shape[2] == 2, "Second axis of output coordinates array must be [x y]."
-            outdata = out_coords
-
-            # check if uncertainties provided
-            if out_sigma is not None:
-                assert isinstance(out_sigma, np.ndarray), "Parameter 'out_sigma' must be numpy array, not {0}".format(
-                    re.findall(r"'(.*)'", str(type(out_sigma)))[0])
-                assert out_sigma.shape == out_coords.shape, \
-                    "Array shapes of output coordinates and their uncertainties differ."
-                outsigma = out_sigma
-            else:
-                outsigma = None
+            out_data[:, i, 0] = xy_out[(source_id, 'x')]
+            out_data[:, i, 1] = xy_out[(source_id, 'y')]
 
         # perform the actual fit and initialize the values of the parameters of the coordinate transformation.
-        data, residuals = cls.fit_to_coordinates(indata, outdata, outsigma=outsigma)
+        _data, residuals = cls.quick_fit(in_data, out_data, fixed=fixed)
+
+        data = pd.DataFrame(_data, index=xy_out.index, columns=cls.PARAMETERS)
 
         # The main results of the computation ar presented as logging.INFO messages
-        logging.info("Determined coord. transformation for {0} image(s).".format(outdata.shape[0]))
+        logger.info("Fitted coordinate transformation for {0} image(s).".format(out_data.shape[0]))
 
-        logging.info("Best-fit parameters:")
-        kwargs = {}  # The parameter values are stored in a dictionary so they can passed to the __init__ call below
+        logger.info("Best-fit parameters:")
+
         for i, parameter in enumerate(cls.PARAMETERS):
-            logging.info("   {0} = {1:8.3f}".format(parameter, np.nanmean(data[:, i])))
-            kwargs[parameter] = data[:, i]
+            logger.info("   {0} = {1:8.3f}".format(parameter, np.nanmean(data[parameter])))
 
-        logging.info("Offsets of individual sources:")
-        if ids is not None:
-            logging.info("       ID     dx     dy")
-        else:
-            logging.info("   source     dx     dy")
+        logger.info("Offsets of individual sources:")
+        logger.info("       ID     dx     dy")
 
-        for i in range(out_coords.shape[1]):
-            if ids is not None:
-                source_id = int(ids[i])
-            else:
-                source_id = i
-            logging.info("   {0:6d}  {1:+5.2f}  {2:+5.2f}".format(source_id, np.nanmean(residuals[:, i, 0]),
-                                                                  np.nanmean(residuals[:, i, 1])))
+        for i, source_id in enumerate(common_ids):
+            logger.info("   {0:6d}  {1:+5.2f}  {2:+5.2f}".format(source_id,
+                                                                 np.nanmean(residuals[:, i, 0]),
+                                                                 np.nanmean(residuals[:, i, 1])))
 
-        return cls(**kwargs)
+        # define which parameters are free/fixed
+        free = np.ones((len(cls.PARAMETERS)), dtype=np.bool)
+        if fixed is not None:
+            for parameter in fixed.columns.names:
+                free[cls.PARAMETERS.index(parameter)] = False
+
+        # initialize new instance
+        return cls(data=data, free=free)
 
     @property
     def valid(self):
-        return (self.fitted | self.defined).sum() >= 4
+        """
+        Returns
+        -------
+        bool
+           Flag indicating if all parameters of the coordinate transformation
+           have valid data.
+        """
+        return self.defined.all()
 
     @staticmethod
-    def fit_to_coordinates(indata, outdata, outsigma=None, fixed=None):
+    def quick_fit(in_data, out_data, fixed=None):
         """
         A short-cut for calculating a new coordinate transformation, without
         any checking of the input. The method basically solves the equation
@@ -395,15 +318,12 @@ class Transformation(Parameters):
         
         Parameters
         ----------
-        indata : array_like, shape (N, 2)
+        in_data : array_like, shape (N, 2)
             The input coordinates (u and v) for a sample of N>=2 sources.
-        outdata : array_like, shape (N, 2) or (M, N, 2)
+        out_data : array_like, shape (N, 2) or (M, N, 2)
             The output coordinates (x and y) for the same sample of sources
-            as in `indata`. If 'outdata' is 3dimensional, the transformation
+            as in 'in_data'. If 'out_data' is 3dimensional, the transformation
             is determined for the M spectral layers.
-        outsigma : array_like, shape (N, 2) or (M, N, 2), optional
-            The uncertainties (if any) associated with the output coordinates.
-            Must be of same size as 'outdata' if provided.
         fixed : dict, optional
             If one or more of the parameters of the coordinate transformation
             should be fixed to specific values, provide them as a dictionary
@@ -412,65 +332,61 @@ class Transformation(Parameters):
 
         Returns
         -------
-        The results of the least squares fit. Consult the documentation of
-        my_lsq_sigma for more information on the output.
+        ndarray, shape (M, 6)
+            The results of the least squares fit. Consult the documentation of
+            scipy.linalg.lstsq for more information on the output.
 
         Raises
         ------
-        IOError - if N <= number of requested parameters
+        IOError
+            if N <= number of requested parameters
         """
+        # initialize empty dictionary if no fixed parameters were provided
         if fixed is None:
             fixed = {}
 
         # n is the number of provided sources, N=2n is the number of columns of the matrix A
         # (each source contributes two rows)
-        n = indata.shape[0]
-        N = 2 * n
-        if N <= (6 - len(fixed)):
-            logging.error('Number of coordinates must be greater than number of parameters.')
-            raise IOError('size of indata must be >{0} but is {1}'.format(indata.size, N-len(fixed)))
+        n = in_data.shape[0]
+        if (2*n) <= (6 - len(fixed)):
+            logger.error('Number of coordinates must be greater than number of parameters.')
+            return None
 
         # fill matrix using input coordinates, the matrix equation will contain alternating equations for x and y,
         # equations involving output x coordinates in even rows (0,2,...N-2) and involving output y coordinates in
         # odd rows (1,3,...,N-1)
-        A = np.zeros((N, 6), dtype=np.float32)
-        A[slice(0, N, 2), 0] = indata[:, 0]
-        A[slice(0, N, 2), 2] = indata[:, 1]
-        A[slice(0, N, 2), -2] = 1.
-        A[slice(1, N, 2), 1] = -indata[:, 0]
-        A[slice(1, N, 2), 3] = indata[:, 1]
-        A[slice(1, N, 2), -1] = 1.
+        in_matrix = np.zeros((2*n, 6), dtype=np.float32)
+        in_matrix[0:2*n:2, 0] = in_data[:, 0]
+        in_matrix[0:2*n:2, 2] = in_data[:, 1]
+        in_matrix[0:2*n:2, -2] = 1.
+        in_matrix[1:2*n:2, 1] = -in_data[:, 0]
+        in_matrix[1:2*n:2, 3] = in_data[:, 1]
+        in_matrix[1:2*n:2, -1] = 1.
 
-        # make sure input is available as numpy arrays & join x- & y-data
-        outdata = np.atleast_2d(outdata)
-        # collapse last two axes, add spectral axis at index 0 (if none was provided)
-        b = outdata.reshape((-1, outdata.shape[-1] * outdata.shape[-2]))
-
-        if outsigma is not None:
-            outsigma = np.atleast_2d(outsigma)
-            sigma = outsigma.reshape(b.shape)
-        else:
-            sigma = None
+        # make sure input is available as 3D numpy array (if needed, create pseudo-dispersion axis)
+        out_data = np.atleast_3d(out_data)
+        # collapse last two axes
+        b = out_data.reshape((-1, out_data.shape[-1] * out_data.shape[-2]))
 
         # handle fixed parameters, if any:
-        # The idea is to multiply each fixed parameter with the corresponding column of A, subtract the results from b,
-        # and exclude the column from the fit
-        use_column = np.ones(A.shape[1], dtype=np.bool)
-        if fixed is not None:
-            for parameter, value in fixed.items():
-                value = np.atleast_1d(value)
-                if value.size != b.shape[0]:
-                    logging.error('Fixed parameter {0} in coord. transf. has invalid shape.'.format(parameter))
-                else:
-                    i = Transformation.PARAMETERS.index(parameter)
-                    b -= value[:, np.newaxis]*A[:, i]
-                    use_column[i] = False
+        # The idea is to multiply each fixed parameter with the corresponding column of the matrix,
+        # subtract the results from b, and exclude the column from the fit
+        use_column = np.ones(in_matrix.shape[1], dtype=np.bool)
+        for parameter, value in fixed.items():
+            value = np.atleast_1d(value)
+            if value.size != b.shape[0]:
+                logger.error('Fixed parameter {0} in coord. transf. has invalid shape.'.format(parameter))
+            else:
+                i = Transformation.PARAMETERS.index(parameter)
+                b -= value[:, np.newaxis]*in_matrix[:, i]
+                use_column[i] = False
 
-        bestfit = my_lsq_sigma(A[:, use_column], b, sigma=sigma)
-        residuals = b - np.dot(bestfit, A.T)
+        # for linear fit, the dispersion axis of b must be the last axis
+        best_fit = np.linalg.lstsq(in_matrix[:, use_column], b.T)[0]  # returns array with shape (6, M)
+        residuals = b - np.dot(best_fit, in_matrix.T)  # creates array with shape (M, 2*n)
 
         # call fitting function
-        return bestfit, residuals.reshape((-1, n, 2))  # split x- and y-axes in residuals array again
+        return best_fit.T, residuals.reshape((-1, n, 2))  # split x- and y-axes in residuals array again
 
     @property
     def zmatrix(self):

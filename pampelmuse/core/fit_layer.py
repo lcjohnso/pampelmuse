@@ -1184,7 +1184,7 @@ class FitLayer(object):
             logger.error('Cannot fit coordinate transformation. Less than 4 sources provided.')
             raise IOError('Len of first axis of input arrays must be >=4 but is {0}'.format(xy_true.shape[0]))
 
-        bestfit, residuals = Transformation.fit_to_coordinates(xy_reference, xy_true, fixed=fixed)
+        bestfit, residuals = Transformation.quick_fit(xy_reference, xy_true, fixed=fixed)
         return bestfit
 
     @staticmethod
