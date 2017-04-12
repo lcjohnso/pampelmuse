@@ -516,8 +516,11 @@ class SpectrumWriter(object):
         dy = (min(radius, y_c), min(radius + 1, image.shape[0] - y_c))
 
         # fill output array where possible
-        outdata[radius - dy[0]:radius + dy[1], radius - dx[0]:radius + dx[1]] = image[
-            y_c - dy[0]:y_c + dy[1], x_c - dx[0]:x_c + dx[1]]
+        try:
+            outdata[radius - dy[0]:radius + dy[1], radius - dx[0]:radius + dx[1]] = image[
+                y_c - dy[0]:y_c + dy[1], x_c - dx[0]:x_c + dx[1]]
+        except ValueError:
+            logger.error('Could not create poststamp image.')
 
         return outdata
 
