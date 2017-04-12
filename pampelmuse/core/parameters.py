@@ -32,7 +32,7 @@ coordinate transformation from reference to IFS coordinates.
 
 Latest SVN revision
 -------------------
-416, 2017/04/12
+417, 2017/04/12
 """
 import logging
 import numpy as np
@@ -42,7 +42,7 @@ from astropy.io import fits
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 416
+__revision__ = 417
 
 
 logger = logging.getLogger(__name__)
@@ -64,7 +64,7 @@ class Parameters(object):
     possible to add parameters afterwards.
     """
 
-    def __init__(self, data, free):
+    def __init__(self, data, free, **kwargs):
         """
         Initialize a new instance of the Parameters class.
         
@@ -74,7 +74,14 @@ class Parameters(object):
         free : array_like,
             A boolean array containing a flag for each parameter in 'data'
             indicating if the parameter is allowed to vary in a fit
+        kwargs
+            This method does not support any additional keyword arguments.
         """
+        # make sure no unsupported arguments were provided
+        if kwargs:
+            logger.error('Unsupported keyword argument(s): {0}'.format(', '.join(kwargs.keys())))
+            return
+
         # Sanity check on provided data
         if not isinstance(data, pd.DataFrame):
             logger.error('Parameter "data" must be pandas DataFrame, not {0}.'.format(type(data)))
@@ -150,9 +157,9 @@ class Parameters(object):
         names = hdu.columns.names
 
         # check if required fields 'name' and 'value exist':
-        for field in ["name", "value"]:
+        for field in ['name', 'value', 'freepar']:
             if field not in names:
-                logger.error("Cannot find required field '{0}' in provided HDU.".format(field))
+                logger.error('Cannot find required field "{0}" in provided HDU.'.format(field))
                 return None
 
         # get values of all parameters, make sure it has correct shape (even when no dispersion information available)
@@ -178,22 +185,28 @@ class Parameters(object):
         # initialise pandas DataFrame. For this, the shape of data must be (n_dispersion, n_columns)
         data_frame = pd.DataFrame(data.reshape(data.shape[0], -1), index=index, columns=columns)
 
+        # get information on free parameters
+        free = hdu_data['freepar']
+
         # return instance
-        return cls(data_frame)
+        return cls(data_frame, free=free)
 
     @classmethod
-    def from_dictionary(cls, parameters):
+    def from_dictionary(cls, parameters, free=None):
         """
         parameters : dict
             The dictionary containing the parameter names as keys and their
             values as values.
+        free : array_like,
+            A boolean array containing a flag for each parameter in 'data'
+            indicating if the parameter is allowed to vary in a fit.
 
         Returns
         -------
         instance of Parameters
             The new instance of the class.
         """
-        return cls(pd.DataFrame.from_dict(parameters))
+        return cls(pd.DataFrame.from_dict(parameters), free=free)
 
     @property
     def names(self):

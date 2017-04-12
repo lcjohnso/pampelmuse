@@ -70,7 +70,7 @@ This results in the inverse transformation:
 
 Latest SVN revision
 -------------------
-416, 2017/04/12
+417, 2017/04/12
 """
 import logging
 import re
@@ -79,7 +79,10 @@ from ..core.parameters import Parameters
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 416
+__revision__ = 417
+
+
+logger = logging.getLogger(__name__)
 
 
 def my_lsq_sigma(a, b, sigma=None):
@@ -152,51 +155,46 @@ class Transformation(Parameters):
     """
     PARAMETERS = ["A", "B", "C", "D", "x0", "y0"]
 
-    def __init__(self, **kwargs):
+    def __init__(self, data, free=None, **kwargs):
         """
         Initialize an instance of the 'Transformation`-class.
        
         Parameters
         ----------
+        data : pandas.DataFrame
+            The data used to initialize a new instance should be provided as a
+            pandas DataFrame containing one parameter per column.
+        free : array_like,
+            A boolean array containing a flag for each parameter in 'data'
+            indicating if the parameter is allowed to vary in a fit
         kwargs
             Any keyword arguments that are provided are passed on to the call
-            of the initialization method of the super-class. They might be used
-            to provide initial values to the parameters of the coordinate trans-
-            formation.
+            of the initialization method of the super-class.
         """
-        # if no HDU is provided as a keyword argument, check if the individual parameters are provided, otherwise
-        #  initialize them to NaN.
-        if "hdu" not in kwargs:
-            for name in self.PARAMETERS:
-                if name not in kwargs:
-                    kwargs[name] = np.nan
-
         # call initialization method of super-class, make sure order is A, B, C, D.
-        super(Transformation, self).__init__(order=self.PARAMETERS, **kwargs)
+        super(Transformation, self).__init__(data=data, free=free, **kwargs)
 
         # if only four parameters are defined, the transformation is conformal
         if self.defined.sum() == 4:
-            if not self.defined[-2:].any():
-                # in this case, make sure that x0 and y0 are used instead of C and D
-                self._data[:, -2:] = self._data[:, -4:-2]
-                self.free[-2:] = self.free[-4:-2]
-                self.fitted[-2:] = self.fitted[-4:-2]
+            logger.warning('Initialising coordinate transformation using outdated parameters.')
 
-                # then copy B to C and A to D
-                self._data[:, 2] = self._data[:, 1]
-                self._data[:, 3] = self._data[:, 0]
-                self.free[2] = self.free[1]
-                self.free[3] = self.free[0]
-                self.fitted[2] = self.fitted[1]
-                self.fitted[3] = self.fitted[0]
+            # replace C=x0 and D=y0
+            self.data.rename(columns={'C': 'x0', 'D': 'y0'}, inplace=True)
+
+            # copy B to C and A to D
+            self.data[('C', 'fit')] = self.data[('B', 'fit')]
+            self.data[('C', 'value')] = self.data[('B', 'value')]
+            self.data[('D', 'fit')] = self.data[('A', 'fit')]
+            self.data[('D', 'value')] = self.data[('A', 'value')]
+
+            # update information on free parameters
+            self.free['C'] = self.free['B']
+            self.free['D'] = self.free['A']
 
         # check if all required parameters are available
-        i = 0
         for name in self.PARAMETERS:
             if name not in self.names:
-                logging.critical("Missing required parameter '{0}' of coord. transformation.".format(name))
-            #     assert name in self.names, "Cannot find '{0}' among parameters of coord. transf.".format(name)
-            i += 1
+                logger.error("Missing required parameter '{0}' of coord. transformation.".format(name))
 
     @classmethod
     def from_coordinates(cls, in_coords, out_coords, ids=None, out_sigma=None, **kwargs):
@@ -540,33 +538,52 @@ class Transformation(Parameters):
         # before returning results, need to swap last to axes.
         return temp.swapaxes(-2, -1)
 
-    def info(self):
+    def info(self, names=None):
         """
         The method pretty-prints some information about the status of the
-        coordinate transformation parameters out on the scree.
+        coordinate transformation parameters out on the screen.
+        
+        names : list, optional
+            The parameter can be used to restrict the output to a subset of
+            parameters or to print them in a given order. By default, use the
+            order defined by coordinates.PARAMETERS.
         """
-        logging.info("Summary of coordinate transformation instance:")
+        logger.info("Summary of coordinate transformation instance:")
+
+        if names is None:
+            names = self.PARAMETERS
 
         # call info method of super class. Provide parameter names to get order right
-        super(Transformation, self).info(self.PARAMETERS)
+        super(Transformation, self).info(names=names)
 
-    def make_hdu(self, **kwargs):
+    def make_hdu(self, include_fit=True, header_keys=None):
         """
         Write the current values of the parameters of the coordinate
-        transformation to a fits.BinTableHDU instance. The method is
-        basically a wrapper of the 'make_hdu' instance defined in the
-        super-class and adds some header keywords that provide further
-        information about the coordinate transformation in use.
+        transformation to a fits.BinTableHDU instance.
+        
+        The method is basically a wrapper of the 'make_hdu' instance
+        defined in the Parameters-class and adds some header keywords that
+        provide further information about the coordinate transformation in
+        use.
         
         Parameters
         ----------
-        kwargs
-            Any keyword parameters parameters passed to this method will
-            be directed to the call of the 'make_hdu' method of the super-
-            class.
+        include_fit : boolean, optional
+            Whether or not the fits to the parameters should  be included
+            in the table.
+        header_keys : dict, optional
+            Any additional keywords that should be included in the FITS
+            header of the  table.
+            
+        Returns
+        -------
+        astropy.io.fits.BinTableHDU instance
+            The HDU containing the parameters.
         """
-        kwargs["extname"] = "POSPARS"
+        if header_keys is None:
+            header_keys = {}
+        header_keys['EXTNAME'] = 'POSPARS'
 
-        logging.info("Saving coordinate transformation in BinTableHDU '{0}'...".format(kwargs["extname"]))
+        logger.info("Saving coordinate transformation in BinTableHDU '{0}'...".format(header_keys['EXTNAME']))
 
-        return super(Transformation, self).make_hdu(**kwargs)
+        return super(Transformation, self).make_hdu(include_fit=include_fit, header_keys=header_keys)
