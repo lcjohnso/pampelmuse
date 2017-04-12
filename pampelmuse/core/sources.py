@@ -37,7 +37,7 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-413, 2017/04/09
+416, 2017/04/12
 """
 import collections
 import logging
@@ -59,7 +59,7 @@ except ImportError:
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 413
+__revision__ = 416
 
 
 logger = logging.getLogger(__name__)
@@ -1279,7 +1279,7 @@ class Sources(object):
             xy_ref = np.vstack((self.x[ids], self.y[ids])).T
 
             # coordinate transformation may needs to be resized
-            if self.transformation.ndisp != self.ndisp:
+            if self.transformation.n_dispersion != self.ndisp:
                 logger.warning('Adding dispersion information to coordinate transformation.')
                 self.transformation.resize(self.ndisp)
 
@@ -1802,8 +1802,8 @@ class Sources(object):
             # Unfortunately, the implementation in astropy seems buggy and I always get an array full of zeros when
             # opening the file again. Therefore, in case different degrees have been used in the fits, the higher
             # orders of the low-order polynomials are padded with zeros.
-            x_max_degree = max(self.ifs_coordinates_fit_functions[i][0].degree() for i in ids_to_save)
-            y_max_degree = max(self.ifs_coordinates_fit_functions[i][1].degree() for i in ids_to_save)
+            x_max_degree = max([self.ifs_coordinates_fit_functions[i][0].degree() for i in ids_to_save])
+            y_max_degree = max([self.ifs_coordinates_fit_functions[i][1].degree() for i in ids_to_save])
 
             # prepare the arrays to hold the data
             source_ids = ids.values
@@ -1831,10 +1831,10 @@ class Sources(object):
 
                 # to get fit function, first check which class the instance originates from, then translate name to
                 # an integer
-                for name, function in self.available_polynoms.items():
-                    if isinstance(x_polynom, function):
+                for name, polynom_type in self.available_polynoms.items():
+                    if isinstance(x_polynom, polynom_type):
                         x_function[i] = self.polyident[name]
-                    if isinstance(y_polynom, function):
+                    if isinstance(y_polynom, polynom_type):
                         y_function[i] = self.polyident[name]
 
                 # add coefficients of polynomial, take care of zero-padding

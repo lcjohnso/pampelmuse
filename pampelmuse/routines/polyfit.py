@@ -173,11 +173,11 @@ def polyfit(config):
             mask = None
 
         # fit PSF parameters
-        for i in range(psf.npars):
+        for i in range(psf.n_parameters):
             if psf.free[i]:
                 logging.info("Polynomial fit (function={0}, order={1}) to PSF parameter {2}...".format(
                     polytype, polydeg, psf.names[i]))
-                psf.polynomial_fit(name=psf.names[i], order=polydeg, mask=mask, function=polytype)
+                psf.polynomial_fit(name=psf.names[i], order=polydeg, mask=mask, polynom=polytype)
         
         # fit IFS coordinates
         logging.info("Polynomial fit (function={0}, order={1}) to source coordinates...".format(

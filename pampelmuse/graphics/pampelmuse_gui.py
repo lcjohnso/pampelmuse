@@ -331,7 +331,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         if data is not None:
             self.sources.transformation = Transformation(hdu=data)
             # make sure transformation has same dispersion axis as Sources instance
-            if self.sources.ndisp != self.sources.transformation.ndisp == 1:
+            if self.sources.ndisp != self.sources.transformation.n_dispersion == 1:
                 self.sources.transformation.resize(self.sources.ndisp)
 
         # create entries for positions and coord. transf. in QComboBox if not existent
@@ -340,7 +340,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
                 if self.spectrumShowHduComboBox.findText(entry) == -1:
                     self.spectrumShowHduComboBox.addItem(entry)
             self.available_data["Positions"] = self.sources.providePositionIds()
-            self.available_data["Coord. Transf."] = self.sources.transformation.provideParNames()
+            self.available_data["Coord. Transf."] = self.sources.transformation.provideParameterNames()
 
         self.ifsPositionsKnown = True
         self.dataLoaded()  # update status of GUI
@@ -390,13 +390,13 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             self.psf = Variables(hdu=data)  # initialize PSF
 
         # make sure PSF parameters have same dispersion axis as Sources instance
-        if self.sources.ndisp != self.psf.ndisp == 1:
+        if self.sources.ndisp != self.psf.n_dispersion == 1:
             self.psf.resize(self.sources.ndisp)
 
         # update QComboBox for newly loaded data
         if self.spectrumShowHduComboBox.findText("PSF") == -1:
             self.spectrumShowHduComboBox.addItem("PSF")
-        self.available_data["PSF"] = self.psf.provideParNames()
+        self.available_data["PSF"] = self.psf.provideParameterNames()
 
         self.dataLoaded()  # update status of GUI
 
@@ -1046,7 +1046,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
 
         elif self.current_hdu == "PSF":
             self.psf.polynomial_fit(name=self.current_row_in_hdu, order=order, mask=~self.spectrumMask,
-                                    function=function.lower())
+                                    polynom=function.lower())
 
         elif self.current_hdu in ["x Positions", "y Positions"]:
 

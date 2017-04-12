@@ -70,7 +70,7 @@ This results in the inverse transformation:
 
 Latest SVN revision
 -------------------
-388, 2017/01/24
+416, 2017/04/12
 """
 import logging
 import re
@@ -79,7 +79,7 @@ from ..core.parameters import Parameters
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 388
+__revision__ = 416
 
 
 def my_lsq_sigma(a, b, sigma=None):
@@ -135,15 +135,20 @@ def my_lsq_sigma(a, b, sigma=None):
 
 class Transformation(Parameters):
     """
-    The class stores information about the coordinate transformation that is
-    used by PampelMuse. So far, the coordinates transformation is defined as
-        x = A*u + C*v + x0
-        y =-B*u + D*v + y0
-    With (x,y) being the coordinates in IFU pixels and (u,v) being the input
-    (or reference) coordinates. A, B, C, D, x0, and y0 are the parameters of
-    the transformation.
-    Note that earlier versions used a simpler version of the coordinate trans-
-    formation, with C=B and D=A. This is still supported as input format.
+    The class handles the coordinate transformation from reference to IFS
+    coordinates that is used by PampelMuse.
+    
+    The coordinates transformation (u, v) -> (x, y) is defined as
+    
+        x = A*u + C*v + x0,
+        y =-B*u + D*v + y0,
+    
+    where (x, y) are the IFS pixel coordinates and (u,v) are the reference
+    pixel coordinates. A, B, C, D, x0, and y0 are the parameters of the
+    transformation.
+    
+    Note that earlier versions used a simpler version of the coordinate
+    transformation, with C=B and D=A. This is still supported as input format.
     """
     PARAMETERS = ["A", "B", "C", "D", "x0", "y0"]
 
@@ -479,7 +484,7 @@ class Transformation(Parameters):
              of defined layers.
         """
         # create diagonal matrix with trace [x0, y0] for each layer (index 0 is spectral one)
-        _m = np.zeros((self.ndisp, 2, 2), dtype=np.float32)
+        _m = np.zeros((self.n_dispersion, 2, 2), dtype=np.float32)
         _m[:, 0, 0] = self.data[:, -2, int(self.fitted[-2])]  # parameter x0
         _m[:, 1, 1] = self.data[:, -1, int(self.fitted[-1])]  # parameter y0
 
@@ -502,7 +507,7 @@ class Transformation(Parameters):
              of defined layers.
         """
         # create matrix [[A C] [-B D]] for each layer (index 0 is spectral one)
-        _f = np.zeros((self.ndisp, 2, 2), dtype=np.float32)
+        _f = np.zeros((self.n_dispersion, 2, 2), dtype=np.float32)
         _f[:, 0, 0] = self.data[:, 0, int(self.fitted[0])]
         _f[:, 0, 1] = self.data[:, 2, int(self.fitted[2])]
         _f[:, 1, 0] = -self.data[:, 1, int(self.fitted[1])]
