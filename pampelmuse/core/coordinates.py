@@ -22,17 +22,12 @@ along with PampelMuse. If not, see <http://www.gnu.org/licenses/>.
 +++
 Provides
 --------
-function pampelmuse.core.coordinates.my_lsq_sigma
 class pampelmuse.core.coordinates.Transformation
 
 Purpose
 -------
 The module serves as an interface for loading, modifying, and storing the
 coordinate transformation that is used by PampelMuse.
-
-The function 'my_lq_sigma' is designs to perform a linear least squares fit
-of type [A*x = b] for x when besides the data uncertainties of the data are
-provided.
 
 The class 'Transformation' is designed to provide a convenient way to
 transform from input to IFU coordinates. It is used as a super-class by the
@@ -85,57 +80,6 @@ __revision__ = 418
 logger = logging.getLogger(__name__)
 
 
-def my_lsq_sigma(a, b, sigma=None):
-    """
-    The routine is a wrapper around the the numpy.linalg.lstsq-routine. It is
-    designed as an extension that allows the user to also provide uncertainties
-    together with the data when minimizing |Ax-b|.
-
-    Parameters
-    ----------
-    a : array_like, shape (M, N)
-        "Coefficient" matrix.
-    b : array_like, shape (M,) or (K, M)
-        Ordinate or "dependent variable" values. If `b` is two-dimensional,
-        the least-squares solution is calculated for each of the `K` columns
-        of `b`.
-    sigma : array_like, same shape as b, optional
-        Uncertainties associated to the data provided in `b`.
-
-    Returns
-    -------
-    x : ndarray, shape (N,) or (K, N)
-        Least-squares solution.  The shape of `x` depends on the shape of
-        `b`.
-    """
-    # implement uncertainties (if provided)
-    if sigma is not None:
-        _A = (1. / (sigma[..., np.newaxis] / a))
-        _b = b / sigma
-    else:
-        _A = a
-        _b = b
-    slc = ~np.isnan(_b)
-
-    if b.ndim == 1:
-        if slc.sum() > _A.shape[-1]:
-            x = np.linalg.lstsq(_A[slc], _b[slc])[0]
-        else:
-            x = np.zeros(_A.shape[-1], dtype=np.float32)
-            x[:] = np.nan
-    else:
-        x = np.zeros((_b.shape[0], _A.shape[-1]), dtype=np.float32)
-        for i in range(_b.shape[0]):
-            if slc[i].sum() > _A.shape[-1]:
-                if sigma is not None:
-                    x[i] = np.linalg.lstsq(_A[i, slc[i]], _b[i, slc[i]])[0]
-                else:
-                    x[i] = np.linalg.lstsq(_A[slc[i]], _b[i, slc[i]])[0]
-            else:
-                x[i] = np.nan
-    return x
-
-
 class Transformation(Parameters):
     """
     The class handles the coordinate transformation from reference to IFS
@@ -155,13 +99,13 @@ class Transformation(Parameters):
     """
     PARAMETERS = ["A", "B", "C", "D", "x0", "y0"]
 
-    def __init__(self, data, free=None, **kwargs):
+    def __init__(self, data=None, free=None, **kwargs):
         """
         Initialize an instance of the 'Transformation`-class.
        
         Parameters
         ----------
-        data : pandas.DataFrame
+        data : pandas.DataFrame, optional
             The data used to initialize a new instance should be provided as a
             pandas DataFrame containing one parameter per column.
         free : array_like,
@@ -171,6 +115,10 @@ class Transformation(Parameters):
             Any keyword arguments that are provided are passed on to the call
             of the initialization method of the super-class.
         """
+        # if no data provided, initialise all parameters to NaN
+        if data is None:
+            data = pd.DataFrame([[np.nan]*len(self.PARAMETERS)], columns=self.PARAMETERS)
+
         # call initialization method of super-class, make sure order is A, B, C, D.
         super(Transformation, self).__init__(data=data, free=free, **kwargs)
 
@@ -229,22 +177,12 @@ class Transformation(Parameters):
         logger.info("Initialising coordinate transformation from provided data...")
 
         # perform sanity checks on input data
-        for name, df in {'xy_in': xy_in, 'xy_out': xy_out}:
-            if not isinstance(df, pd.DataFrame):
-                logger.error('Parameter {0} must be pandas DataFrame, not "{1}"'.format(name, type(xy_in)))
-            # make sure data frame has right format
-            if len(df.columns.levshape) != 2:
-                logger.error('Invalid column format for parameter "{0}".'.format(name))
-                logger.error('MultiIndex must have depth=2.')
-                return
-            elif df.columns.levshape[1] != 2:
-                logger.error('Invalid column format for parameter "{0}".'.format(name))
-                logger.error('Second level of MultiIndex must have length=2')
-                return
-            elif 'x' not in df.columns.levels[1].values or 'y' not in df.columns.levels[1].values:
-                logger.error('Invalid column format for parameter "{0}".'.format(name))
-                logger.error('Second level of MultiIndex must contain "x" and "y".')
-                return
+        if not cls._validate_input(xy_in):
+            logger.error('Data provided for parameter xy_in is invalid. Check previous errors.')
+            return
+        if not cls._validate_input(xy_out):
+            logger.error('Data provided for parameter xy_out is invalid. Check previous errors.')
+            return
 
         # find sources that overlap between input and output coordinates
         common_ids = np.intersect1d(xy_in.columns.levels[0], xy_out.columns.levels[0], assume_unique=True)
@@ -263,8 +201,14 @@ class Transformation(Parameters):
             out_data[:, i, 0] = xy_out[(source_id, 'x')]
             out_data[:, i, 1] = xy_out[(source_id, 'y')]
 
+        # convert format for fixed parameters to dictionary
+        _fixed = {}
+        if fixed is not None:
+            for parameter in fixed.columns.names:
+                _fixed[parameter] = fixed[parameter].values
+
         # perform the actual fit and initialize the values of the parameters of the coordinate transformation.
-        _data, residuals = cls.quick_fit(in_data, out_data, fixed=fixed)
+        _data, residuals = cls.quick_fit(in_data, out_data, fixed=_fixed)
 
         data = pd.DataFrame(_data, index=xy_out.index, columns=cls.PARAMETERS)
 
@@ -293,48 +237,77 @@ class Transformation(Parameters):
         # initialize new instance
         return cls(data=data, free=free)
 
-    @property
-    def valid(self):
+    @staticmethod
+    def _validate_input(data_frame):
         """
+        An internal method that checks if a provided data frame has a valid
+        format, i.e. is provided with MultiIndex columns containing 'x' and
+        'y' as second level indices.
+        
+        Parameters
+        ----------
+        data_frame : pandas.DataFrame
+           The data frame that should be checked for consistency.
+        
         Returns
         -------
         bool
-           Flag indicating if all parameters of the coordinate transformation
-           have valid data.
+            Flag indicating if the provided data frame is valid.
         """
-        return self.defined.all()
+        # check if data frame
+        if not isinstance(data_frame, pd.DataFrame):
+            logger.error('Expected pandas DataFrame, got "{0}"'.format(type(data_frame)))
+            return False
+        # make sure columns are a pandas MultiIndex
+        if not isinstance(data_frame.columns, pd.MultiIndex):
+            logger.error('Columns of provided data frame must be pandas.MultiIndex instance.')
+            return False
+        # make sure columns have the right depths
+        if len(data_frame.columns.levshape) != 2:
+            logger.error('Expected MultiIndex with 2 levels, got {0}.'.format(data_frame.columns.levshape))
+            return False
+        # check if required parameters were provided
+        if 'x' not in data_frame.columns.levels[1].values or 'y' not in data_frame.columns.levels[1].values:
+            logger.error('Second level of MultiIndex must contain "x" and "y".')
+            return False
+        return True
 
     @staticmethod
     def quick_fit(in_data, out_data, fixed=None):
         """
-        A short-cut for calculating a new coordinate transformation, without
-        any checking of the input. The method basically solves the equation
-        A*x=b in a least squares sense for x=[A,B,C,D,...]. The input coordinates
-        are written to A while the output coordinates constitute b.
+        Obtain the parameters of a coordinate transformation from a least
+        squares fit to the provided coordinates.
         
-        NOTE: Deviating from the behaviour of the method 'fit_to_data', the parameters
-        of the transformation are not re-initialized here. Instead, the result of the
-        least squared fit is returned.
+        The method basically solves the equation A*x=b in a least squares
+        sense for x=[A, B, C, D, x0, y0]. The input coordinates are written to
+        A while the output coordinates constitute b.
         
         Parameters
         ----------
         in_data : array_like, shape (N, 2)
             The input coordinates (u and v) for a sample of N>=2 sources.
-        out_data : array_like, shape (N, 2) or (M, N, 2)
+        out_data : array_like, shape (N, 2) or (K, N, 2)
             The output coordinates (x and y) for the same sample of sources
             as in 'in_data'. If 'out_data' is 3dimensional, the transformation
-            is determined for the M spectral layers.
+            is determined for the K spectral layers.
         fixed : dict, optional
             If one or more of the parameters of the coordinate transformation
             should be fixed to specific values, provide them as a dictionary
-            of 'parameter_name: value' pairs. Note that if outdata is 3D, the
-            values must be specified for each of the M spectral layers.
+            of 'parameter_name: value' pairs. Note that if 'out_data' is 3D,
+            the values must be specified for each of the K spectral layers.
 
         Returns
         -------
-        ndarray, shape (M, 6)
-            The results of the least squares fit. Consult the documentation of
-            scipy.linalg.lstsq for more information on the output.
+        best_fit : nd_array, shape (K, 6 - n_fixed)
+            The parameter values obtained in the least squares fit. Note that
+            if any 'fixed' parameters were provided, they will not appear in
+            the array that is returned.
+            IMPORTANT: The array will be 2D even if the 'out_data' parameter
+            was provided as a 2D array.
+        residuals : nd_array, shape (K, N, 2)
+            The offsets along x and y for each provided source.
+            IMPORTANT: The array will be 2D even if the 'out_data' parameter
+            was provided as a 2D array.
 
         Raises
         ------
@@ -349,8 +322,8 @@ class Transformation(Parameters):
         # (each source contributes two rows)
         n = in_data.shape[0]
         if (2*n) <= (6 - len(fixed)):
-            logger.error('Number of coordinates must be greater than number of parameters.')
-            return None
+            logger.critical('Number of coordinates must be greater than number of parameters.')
+            raise IOError('Not enough sources provided.')
 
         # fill matrix using input coordinates, the matrix equation will contain alternating equations for x and y,
         # equations involving output x coordinates in even rows (0,2,...N-2) and involving output y coordinates in
@@ -381,78 +354,93 @@ class Transformation(Parameters):
                 b -= value[:, np.newaxis]*in_matrix[:, i]
                 use_column[i] = False
 
-        # for linear fit, the dispersion axis of b must be the last axis
-        best_fit = np.linalg.lstsq(in_matrix[:, use_column], b.T)[0]  # returns array with shape (6, M)
-        residuals = b - np.dot(best_fit, in_matrix.T)  # creates array with shape (M, 2*n)
+        # for linear fit, the dispersion axis of b must be the last axis, so b needs to be transposed
+        best_fit = np.linalg.lstsq(in_matrix[:, use_column], b.T)[0]  # -> returns array with shape (6 - n_fixed, K)
 
-        # call fitting function
-        return best_fit.T, residuals.reshape((-1, n, 2))  # split x- and y-axes in residuals array again
+        # create residuals
+        # for dot-product, last dimension of 1st argument must be equal to first dimension of 2nd argument
+        residuals = b - np.dot(best_fit.T, in_matrix.T[use_column])
+        # (K, 6 - n_fixed) DOT (6 - n_fixed, 2*n) -> creates array with shape (K, 2*n)
+
+        # when returning residuals, transpose residuals array and split x- and y-axes in residuals array again
+        return best_fit.T, residuals.reshape((-1, n, 2))
 
     @property
-    def zmatrix(self):
+    def valid(self):
         """
         Returns
         -------
-        zmatrix : numpy.array
+        bool
+           Flag indicating if all parameters of the coordinate transformation
+           have valid data.
+        """
+        return self.defined.all()
+
+    @property
+    def z_matrix(self):
+        """
+        Returns
+        -------
+        z_matrix : numpy.array
              The matrix will have a shape of (K, 2, 2), where K is the number
              of defined layers.
         """
         # create diagonal matrix with trace [x0, y0] for each layer (index 0 is spectral one)
-        _m = np.zeros((self.n_dispersion, 2, 2), dtype=np.float32)
-        _m[:, 0, 0] = self.data[:, -2, int(self.fitted[-2])]  # parameter x0
-        _m[:, 1, 1] = self.data[:, -1, int(self.fitted[-1])]  # parameter y0
+        z = np.zeros((self.n_dispersion, 2, 2), dtype=np.float32)
+        z[:, 0, 0] = self.data[('x0', 'value' if not self.fitted['x0'] else 'fit')]  # parameter x0
+        z[:, 1, 1] = self.data[('x0', 'value' if not self.fitted['x0'] else 'fit')]  # parameter y0
 
-        # if np.isnan(_m).any():
-        #     logging.warning("Coordinate transformation contains interpolated values.")
-        #     for i in xrange(2):
-        #         for j in xrange(2):
-        #             valid = ~np.isnan(_m[:, i, j])
-        #             fct = interpolate.InterpolatedUnivariateSpline(np.flatnonzero(valid), _m[valid, i, j],  k=2)
-        #             _m[~valid, i, j] = fct(np.flatnonzero(~valid))
-        return _m
+        return z
 
     @property
-    def fmatrix(self):
+    def f_matrix(self):
         """
         Returns
         -------
-        fmatrix : numpy.array
+        f_matrix : numpy.array
              The matrix will have a shape of (K, 2, 2), where K is the number
              of defined layers.
         """
         # create matrix [[A C] [-B D]] for each layer (index 0 is spectral one)
-        _f = np.zeros((self.n_dispersion, 2, 2), dtype=np.float32)
-        _f[:, 0, 0] = self.data[:, 0, int(self.fitted[0])]
-        _f[:, 0, 1] = self.data[:, 2, int(self.fitted[2])]
-        _f[:, 1, 0] = -self.data[:, 1, int(self.fitted[1])]
-        _f[:, 1, 1] = self.data[:, 3, int(self.fitted[3])]
+        f = np.zeros((self.n_dispersion, 2, 2), dtype=np.float32)
+        f[:, 0, 0] = self.data[('A', 'value' if not self.fitted['A'] else 'fit')]
+        f[:, 0, 1] = self.data[('C', 'value' if not self.fitted['C'] else 'fit')]
+        f[:, 1, 0] = -self.data[('B', 'value' if not self.fitted['B'] else 'fit')]
+        f[:, 1, 1] = self.data[('D', 'value' if not self.fitted['D'] else 'fit')]
 
-        # if np.isnan(_f).any():
-        #     logging.warning("Coordinate transformation contains interpolated values.")
-        #     for i in xrange(2):
-        #         for j in xrange(2):
-        #             valid = ~np.isnan(_f[:, i, j])
-        #             fct = interpolate.InterpolatedUnivariateSpline(np.flatnonzero(valid), _f[valid, i, j],  k=2)
-        #             _f[~valid, i, j] = fct(np.flatnonzero(~valid))
-        return _f
+        return f
 
-    def __call__(self, xy):
+    def __call__(self, xy_in):
         """
+        Transform a set of reference coordinates to IFS coordinates using the
+        current values of the coordinate transformation.
         
         Parameters
         ----------
-        xy : array_like, shape (N, 2)
-            The input coordinates for N sources.
+        xy_in : pandas.DataFrame
+            The input coordinates for N sources. The coordinates of each
+            source should be provided as MultiIndex columns of the data frame,
+            with source identifiers in the first level and x and y in the
+            second.
 
         Returns
         -------
-        numpy.array, shape (K, N, 2)
-            The transformed coordinates for K layers and N sources.
+        pandas DataFrame
+            The transformed coordinates for K layers and N sources. The layers
+            represent the rows of the data frame while the sources and their x
+            and y-coordinates are stored as MultiIndex columns.
         """
-        temp = np.inner(self.zmatrix, np.ones(xy.shape, dtype=xy.dtype)) + np.inner(self.fmatrix, xy)
+        if not self._validate_input(xy_in):
+            logger.error('Data for parameter xy_in has invalid format. Check previous errors.')
 
-        # before returning results, need to swap last to axes.
-        return temp.swapaxes(-2, -1)
+        # need to split x- and y-axis
+        _xy_in = xy_in.values[0].reshape((1, -1, 2))
+
+        _xy_out = np.dot(self.z_matrix, np.ones(_xy_in.T.shape) + np.dot(self.f_matrix, _xy_in.T))
+        # -> creates array of shape (K, 2, N)
+
+        # when creating data frame, need to swap last to axes.
+        return pd.DataFrame(_xy_out.swapaxes(-2, -1), columns=xy_in.columns, index=self.data.index)
 
     def info(self, names=None):
         """

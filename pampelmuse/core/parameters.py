@@ -98,7 +98,7 @@ class Parameters(object):
                 logger.error('Invalid column format in provided data.')
                 logger.error('Second level of MultiIndex must have length=2')
                 return
-            elif 'values' not in data.columns.levels[1].values or 'fit' not in data.columns.levels[1].values:
+            elif 'value' not in data.columns.levels[1].values or 'fit' not in data.columns.levels[1].values:
                 logger.error('Invalid column format in provided data.')
                 logger.error('Second level of MultiIndex must contain "value" and "fit".')
                 return
@@ -149,38 +149,39 @@ class Parameters(object):
         """
 
         if "EXTNAME" in hdu.header:
-            logger.info("Initialising parameters from HDU '{0}'...".format(hdu.header["EXTNAME"]))
+            logger.info("Initialising parameters from HDU '{0}' ...".format(hdu.header["EXTNAME"]))
         else:
-            logger.info("Initializing parameters from unnamed HDU...")
+            logger.info("Initializing parameters from unnamed HDU ...")
 
         # get names of all parameters
-        names = hdu.columns.names
+        column_names = hdu.columns.names
+        logger.info('Found the following columns: {0}'.format(', '.join(column_names)))
 
         # check if required fields 'name' and 'value exist':
         for field in ['name', 'value', 'freepar']:
-            if field not in names:
+            if field not in column_names:
                 logger.error('Cannot find required field "{0}" in provided HDU.'.format(field))
                 return None
 
         # get values of all parameters, make sure it has correct shape (even when no dispersion information available)
         hdu_data = hdu.data
-        data = np.atleast_2d(hdu_data['values'].T)  # has shape (n_dispersion, n_parameters)
+        data = np.atleast_2d(hdu_data['value'].T)  # has shape (n_dispersion, n_parameters)
 
         # define indices for data frame
         index = pd.Index(np.arange(data.shape[0]))
 
         # check if polynomial fits are available
-        contains_polynoms = 'isfitted' in names and 'polyfit' in names
+        contains_polynoms = 'isfitted' in column_names and 'polyfit' in column_names
 
         if contains_polynoms:
             # if polynomial fits are included, add them to the data array (append a new axis)
             data = np.dstack((data, np.atleast_2d(hdu_data['polyfit'].T)))  # has shape (n_dispersion, n_parameters, 2)
 
             # must define a pandas MultiIndex: 0th level - parameter 1st level: value or fit
-            columns = pd.MultiIndex.from_product([names, ['fit', 'value']], names=['parameter', 'type'])
+            columns = pd.MultiIndex.from_product([hdu_data['name'], ['fit', 'value']], names=['parameter', 'type'])
         else:
             # otherwise a plain pandas Index is sufficient for the columns
-            columns = names
+            columns = column_names
 
         # initialise pandas DataFrame. For this, the shape of data must be (n_dispersion, n_columns)
         data_frame = pd.DataFrame(data.reshape(data.shape[0], -1), index=index, columns=columns)
@@ -259,7 +260,7 @@ class Parameters(object):
             A series of length Parameters.n_parameters that specifies if a
             value for each parameter has been defined.
         """
-        return (~self.mask[..., 0]).any(axis=0)
+        return (~self.mask.loc[:, (slice(None), 'value')]).any(axis=0)
 
     @property
     def fitted(self):
