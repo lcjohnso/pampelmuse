@@ -1405,9 +1405,9 @@ class Sources(object):
 
         # get output coordinates
         xy_out = self.ifs_coordinates.loc[self.wave[layers], (slice(None), slice(None), 'value')]
-        # TODO: implement data frames in Transform
-        raise NotImplementedError
-        # self.transformation = Transformation.from_coordinates(xy_in, xy_out, **kwargs)
+
+        # define new transformation using coordinates
+        self.transformation = Transformation.from_coordinates(xy_in, xy_out, **kwargs)
 
     def providePositionIds(self, min_status=1):
         """
