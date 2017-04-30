@@ -1,7 +1,7 @@
 """
 __init__.py
 ===========
-Copyright 2013-2016 Sebastian Kamann
+Copyright 2013-2017 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -36,7 +36,7 @@ Added
 
 Latest SVN Revision
 -------------------
-387, 2017/01/23
+421, 2017/04/30
 """
 import logging
 import os
@@ -45,7 +45,7 @@ from scipy import interpolate
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 387
+__revision__ = 421
 
 
 # ALIASES is a dictionary containing for each available filter a list of alternative names

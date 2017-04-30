@@ -65,7 +65,7 @@ This results in the inverse transformation:
 
 Latest SVN revision
 -------------------
-418, 2017/04/12
+421, 2017/04/30
 """
 import logging
 import numpy as np
@@ -74,7 +74,7 @@ from ..core.parameters import Parameters
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 418
+__revision__ = 421
 
 
 logger = logging.getLogger(__name__)
@@ -107,10 +107,12 @@ class Transformation(Parameters):
         ----------
         data : pandas.DataFrame, optional
             The data used to initialize a new instance should be provided as a
-            pandas DataFrame containing one parameter per column.
+            pandas DataFrame containing one parameter per column. By default,
+            all parameters are set to NaN.
         free : array_like,
             A boolean array containing a flag for each parameter in 'data'
-            indicating if the parameter is allowed to vary in a fit
+            indicating if the parameter is allowed to vary in a fit. By
+             default, all parameters are free.
         kwargs
             Any keyword arguments that are provided are passed on to the call
             of the initialization method of the super-class.
@@ -151,18 +153,21 @@ class Transformation(Parameters):
         (reference) and output (IFS) coordinates in a least squares fit.
 
         Both, input and output coordinates should be provided as pandas data
-        frames, containing the sources as individual columns (each with x and
-        y as second level of a pandas MultiIndex). If the data frame with the
+        frames. The input coordinates should be formatted such that 'x' and
+        'y' are individual columns of the data frame and the source
+        identifiers are used as row indices. The data frame with th output
+        coordinates should contain the identifiers as individual columns
+        (each with x and y as second level of a pandas MultiIndex), while the
+        rows encode any dispersion information. If the data frame with the
         output coordinates has more than one row, a coordinate transformation
         will be determined for each row.
 
         Parameters
         ----------
         xy_in : pandas.DataFrame
-            The input coordinates. The columns of the data frame must contain
-            the source identifiers and the x- and y-coordinates as a pandas
-            MultiIndex. Currently only the first row of the data frame will
-             be used.
+            The input coordinates. The rows of the data frame must use the
+            source identifiers as indices and the x- and y-coordinates as
+            should be available as columns 'x' and 'y'.
         xy_out : pandas.DataFrame
             The output coordinates. Again, the columns of the data frame must
             contain the source identifiers and the x- and y-coordinates as a
@@ -177,15 +182,19 @@ class Transformation(Parameters):
         logger.info("Initialising coordinate transformation from provided data...")
 
         # perform sanity checks on input data
-        if not cls._validate_input(xy_in):
-            logger.error('Data provided for parameter xy_in is invalid. Check previous errors.')
+        if not isinstance(xy_in, pd.DataFrame):
+            logger.error('Parameter "xy_in" must be pandas DataFrame, not {0}.'.format(type(xy_in)))
             return
+        if 'x' not in xy_in.columns or 'y' not in xy_in.columns:
+            logger.error('Cannot find coordinates in input coordinates ("xy_in" misses column "x" or "y").')
+            return
+
         if not cls._validate_input(xy_out):
             logger.error('Data provided for parameter xy_out is invalid. Check previous errors.')
             return
 
         # find sources that overlap between input and output coordinates
-        common_ids = np.intersect1d(xy_in.columns.levels[0], xy_out.columns.levels[0], assume_unique=True)
+        common_ids = np.intersect1d(xy_in.index, xy_out.columns.levels[0], assume_unique=True)
         if len(common_ids) < 4:
             logger.error('Need at least 4 sources to fit coordinate transformation.')
             return
@@ -195,8 +204,8 @@ class Transformation(Parameters):
         out_data = np.zeros((xy_out.shape[0], len(common_ids), 2), dtype=np.float32)
 
         for i, source_id in enumerate(common_ids):
-            in_data[i, 0] = xy_in[(source_id, 'x')]
-            in_data[i, 1] = xy_in[(source_id, 'y')]
+            in_data[i, 0] = xy_in.at[source_id, 'x']
+            in_data[i, 1] = xy_in.at[source_id, 'y']
 
             out_data[:, i, 0] = xy_out[(source_id, 'x')]
             out_data[:, i, 1] = xy_out[(source_id, 'y')]
@@ -263,7 +272,7 @@ class Transformation(Parameters):
             logger.error('Columns of provided data frame must be pandas.MultiIndex instance.')
             return False
         # make sure columns have the right depths
-        if len(data_frame.columns.levshape) != 2:
+        if len(data_frame.columns.levshape) < 2:
             logger.error('Expected MultiIndex with 2 levels, got {0}.'.format(data_frame.columns.levshape))
             return False
         # check if required parameters were provided
@@ -388,7 +397,7 @@ class Transformation(Parameters):
         # create diagonal matrix with trace [x0, y0] for each layer (index 0 is spectral one)
         z = np.zeros((self.n_dispersion, 2, 2), dtype=np.float32)
         z[:, 0, 0] = self.data[('x0', 'value' if not self.fitted['x0'] else 'fit')]  # parameter x0
-        z[:, 1, 1] = self.data[('x0', 'value' if not self.fitted['x0'] else 'fit')]  # parameter y0
+        z[:, 1, 1] = self.data[('y0', 'value' if not self.fitted['y0'] else 'fit')]  # parameter y0
 
         return z
 
@@ -418,10 +427,9 @@ class Transformation(Parameters):
         Parameters
         ----------
         xy_in : pandas.DataFrame
-            The input coordinates for N sources. The coordinates of each
-            source should be provided as MultiIndex columns of the data frame,
-            with source identifiers in the first level and x and y in the
-            second.
+            The input coordinates. The rows of the data frame must use the
+            source identifiers as indices and the x- and y-coordinates as
+            should be available as columns 'x' and 'y'.
 
         Returns
         -------
@@ -430,17 +438,24 @@ class Transformation(Parameters):
             represent the rows of the data frame while the sources and their x
             and y-coordinates are stored as MultiIndex columns.
         """
-        if not self._validate_input(xy_in):
-            logger.error('Data for parameter xy_in has invalid format. Check previous errors.')
+        # perform sanity checks on input data
+        if not isinstance(xy_in, pd.DataFrame):
+            logger.error('Parameter "xy_in" must be pandas DataFrame, not {0}.'.format(type(xy_in)))
+            return
+        if 'x' not in xy_in.columns or 'y' not in xy_in.columns:
+            logger.error('Cannot find coordinates in input coordinates ("xy_in" misses column "x" or "y").')
+            return
 
-        # need to split x- and y-axis
-        _xy_in = xy_in.values[0].reshape((1, -1, 2))
-
-        _xy_out = np.dot(self.z_matrix, np.ones(_xy_in.T.shape) + np.dot(self.f_matrix, _xy_in.T))
+        _xy_in = xy_in[['x', 'y']].values  # -> has shape (N, 2)
+        _xy_out = np.dot(self.z_matrix, np.ones(_xy_in.T.shape)) + np.dot(self.f_matrix, _xy_in.T)
         # -> creates array of shape (K, 2, N)
 
         # when creating data frame, need to swap last to axes.
-        return pd.DataFrame(_xy_out.swapaxes(-2, -1), columns=xy_in.columns, index=self.data.index)
+        _xy_out = _xy_out.swapaxes(-2, -1)
+
+        # finally, x- and y-axes need to be merged again
+        return pd.DataFrame(_xy_out.reshape((_xy_out.shape[0], -1)), index=self.data.index,
+                            columns=pd.MultiIndex.from_product([xy_in.index, ['x', 'y']]))
 
     def info(self, names=None):
         """

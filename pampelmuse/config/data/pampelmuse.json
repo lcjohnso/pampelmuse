@@ -20,7 +20,7 @@
     "profile": "moffat",
     "beta": 2.5,
     "fwhm": 3.0,
-    "ellipticity": 0.0,
+    "e": 0.0,
     "theta": 0.0,
     "fit": 6,
     "radius": 15

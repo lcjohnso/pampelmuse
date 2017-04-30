@@ -37,7 +37,7 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-416, 2017/04/12
+421, 2017/04/30
 """
 import collections
 import logging
@@ -59,7 +59,7 @@ except ImportError:
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 416
+__revision__ = 421
 
 
 logger = logging.getLogger(__name__)
@@ -101,33 +101,43 @@ class Sources(object):
         """
         warnings.simplefilter("always", DeprecationWarning)  # By default this type of warning is ignored
 
-        # open the data
-        self.catalog = catalog
+        # open the data, check if provided as DataFrame
+        if not isinstance(catalog, pd.DataFrame):
+            catalog = pd.DataFrame(catalog)
+
+        # use source IDs as index if they exist
+        if 'id' in catalog.columns:
+            self.catalog = catalog.set_index('id', drop=True)
+        else:
+            self.catalog = catalog
+
+        # assert that data frame is NOT a view of another one.
+        if self.catalog.values.base.size != self.catalog.values.size:
+            logger.warning('Need to copy catalog as it is a view to another pandas.DataFrame.')
+            self.catalog = self.catalog.copy()
 
         # check that source IDs are unique
         if self.ids.duplicated().any():
             logger.critical('Provided source catalog contains {0} duplicated IDs.'.format(self.ids.duplicated().sum()))
             return
 
-        # use source IDs as index
-        self.catalog.set_index('id', drop=False, inplace=True)
-
         # check if other columns are available - if not, add them and fill with NaN
         for column in ['x', 'y', 'ra', 'dec', 'mag']:
             if column not in self.catalog.columns:
                 dtype = np.float64 if column in ['ra', 'dec'] else np.float32
-                self.catalog[column] = pd.Series(np.zeros(self.catalog.shape[1], dtype=dtype),
+                self.catalog[column] = pd.Series(np.zeros(self.catalog.shape[0], dtype=dtype),
                                                  index=self.catalog.index)
                 self.catalog[column] = np.nan
 
         # if available, get status of each source in analysis
         if 'status' not in self.catalog.columns:
-            self.catalog['status'] = pd.Series(np.zeros((self.n_sources,), dtype=np.int16), index=self.catalog.index)
+            self.catalog.loc[:, 'status'] = pd.Series(np.zeros((self.n_sources,), dtype=np.int16),
+                                                      index=self.catalog.index)
             self.catalog.at[self.ids < 0, 'status'] = 4  # assume IDs<0 are used for background components
 
         # if available, get primary source of each component, otherwise assume each source has its own component
         if 'primary' not in self.catalog.columns:
-            self.catalog['primary'] = self.ids
+            self.catalog.loc[:, 'primary'] = self.ids
 
         self._weights = None  # a 1dim. array of length Sources.nsrc containing the relative contribution of each
         # source to its component. This attribute is determined internally when the first call to its getter method is
@@ -167,7 +177,7 @@ class Sources(object):
         self.ifs_coordinates_fit_hdu = None
 
         # Initialize the dispersion information
-        self.ndisp = 1
+        self.n_dispersion = 1
         self.crval = 1.
         self.crpix = 1
         self.cdelt = 1.
@@ -202,7 +212,7 @@ class Sources(object):
         
         Parameters
         ----------
-        value : array-like
+        value : array-like or pandas Series
             The updated values of a source property
 
         Returns
@@ -217,11 +227,15 @@ class Sources(object):
         ValueError
             If value has an incorrect shape.
         """
-        if not isinstance(value, (list, np.ndarray)):
-            raise IOError('Expected array-like variable, got {0}'.format(type(value)))
-        if not len(value) == self.n_sources:
-            raise ValueError('Array-size does not match number of sources in catalog.')
-        return pd.Series(value, index=self.catalog.index)
+        if not isinstance(value, (list, np.ndarray, pd.Series)):
+            raise IOError('Expected pandas Series or array-like variable, got {0}'.format(type(value)))
+        if not isinstance(value, pd.Series):
+            if len(value) != self.n_sources:
+                raise ValueError('Array-size does not match number of sources in catalog.')
+            else:
+                return pd.Series(value, index=self.catalog.index)
+        else:
+            return value
 
     # Reference x-coordinates
     @property
@@ -252,7 +266,7 @@ class Sources(object):
         except (IOError, ValueError) as msg:
             logger.error('Cannot update values for source property "x": {0}'.format(msg))
         else:
-            self.catalog['x'] = value
+            self.catalog.loc[:, 'x'] = value
 
     # Reference y-coordinates
     @property
@@ -283,7 +297,7 @@ class Sources(object):
         except (IOError, ValueError) as msg:
             logger.error('Cannot update values for source property "y": {0}'.format(msg))
         else:
-            self.catalog['y'] = value
+            self.catalog.loc[:, 'y'] = value
 
     # Broadband magnitudes
     @property
@@ -344,7 +358,7 @@ class Sources(object):
         except (IOError, ValueError) as msg:
             logger.error('Cannot update values for source property "ra": {0}'.format(msg))
         else:
-            self.catalog['ra'] = value
+            self.catalog.loc[:, 'ra'] = value
 
     # WCS coordinates: Dec
     @property
@@ -375,7 +389,7 @@ class Sources(object):
         except (IOError, ValueError) as msg:
             logger.error('Cannot update values for source property "ra": {0}'.format(msg))
         else:
-            self.catalog['ra'] = value
+            self.catalog.loc[:, 'ra'] = value
 
     # The status of the sources during the fit
     @property
@@ -412,7 +426,7 @@ class Sources(object):
         except (IOError, ValueError) as msg:
             logger.error('Cannot update values for source property "status": {0}'.format(msg))
         else:
-            self.catalog['status'] = value
+            self.catalog.loc[:, 'status'] = value
             if 'specrow' in self.catalog.columns:
                 # if Sources.status is (re)set after attribute Sources.specrow has been set internally,
                 # the latter is not valid anymore.
@@ -450,7 +464,7 @@ class Sources(object):
         except (IOError, ValueError) as msg:
             logger.error('Cannot update values for source property "status": {0}'.format(msg))
         else:
-            self.catalog['status'] = value
+            self.catalog.loc[:, 'status'] = value
             # if Sources.primary is (re)set after attribute Sources.specrow has been set internally,
             # the latter is not valid anymore.
             if 'specrow' in self.catalog.columns:
@@ -499,12 +513,12 @@ class Sources(object):
                     # assigned primary component might have become the secondary component of another source.
                     secondary = []
                     j = i
-                    while self.catalog.at[j, 'primary'] != self.ids[j]:  # continue until current source is primary
+                    while self.catalog.at[j, 'primary'] != j:  # continue until current source is primary
 
                         # exclude source if primary source has status = -1.
                         if self.catalog.at[j, 'primary'] not in self.ids:
-                            logging.error("No 'primary' counterpart for source #{0}".format(self.ids[i]))
-                            logging.error("Source #{0} excluded".format(self.ids[i]))
+                            logging.error("No 'primary' counterpart for source #{0}".format(i))
+                            logging.error("Source #{0} excluded".format(i))
                             self.status[i] = -1
                             break
                         secondary.append(j)
@@ -514,7 +528,7 @@ class Sources(object):
                     specrow[i] = unresolved_row
 
             # set column in sources catalog
-            self.catalog['specrow'] = specrow
+            self.catalog.loc[:, 'specrow'] = specrow
 
         return self.catalog['specrow']
 
@@ -751,9 +765,9 @@ class Sources(object):
                 name = value.header['EXTNAME']
 
             # check if dispersion information is valid
-            if self.ndisp == 1:
-                self.ndisp = hdu.header['NAXIS3']
-            elif value.header['NAXIS3'] != self.ndisp:
+            if self.n_dispersion == 1:
+                self.n_dispersion = hdu.header['NAXIS3']
+            elif value.header['NAXIS3'] != self.n_dispersion:
                 logger.error('HDU {0} has invalid dispersion information.'.format(name))
                 return
 
@@ -827,7 +841,7 @@ class Sources(object):
             logger.error('Parameter "layers" must be integer or array-like, not {0}.'.format(type(layers)))
             return
         elif layers is None:
-            layers = np.arange(self.ndisp)
+            layers = np.arange(self.n_dispersion)
         else:
             layers = np.atleast_1d(layers)
             # layer selection must be consecutive
@@ -842,9 +856,8 @@ class Sources(object):
         init_wave |= self.data_wave_hdu is not None
 
         # columns contain components and ('flux', 'sigma'[, 'wave']) in pandas.MultiIndex
-        properties = ['flux', 'sigma'] if init_wave else ['flux', 'sigma', 'wave']
+        properties = ['flux', 'sigma'] if not init_wave else ['flux', 'sigma', 'wave']
         columns = pd.MultiIndex.from_product([components, properties], names=['component', 'property'])
-
         # fill array using data from Spectrum HDU if one is available
         if self.data_hdu is not None:
             # get requested chunk of data from available HDU
@@ -888,11 +901,11 @@ class Sources(object):
             The wavelength array.
         """
         # in case dispersion information has changed, existing wavelength data must be reset.
-        if self._wave is not None and self._wave.size != self.ndisp:
+        if self._wave is not None and self._wave.size != self.n_dispersion:
             self._wave = None
 
         if self._wave is None:
-            self._wave = np.arange(self.ndisp, dtype=np.float64)  # shape (k,)
+            self._wave = np.arange(self.n_dispersion, dtype=np.float64)  # shape (k,)
             self._wave -= (self.crpix - 1)
             self._wave *= self.cdelt
             self._wave += self.crval
@@ -926,7 +939,7 @@ class Sources(object):
             of erg/s/cm2/Angstrom.
         """
         # load _full_ spectra of requested components if necessary
-        if not self.spectrum_loaded[components].all() or self.data.shape[0] != self.ndisp:
+        if not self.spectrum_loaded[components].all() or self.data.shape[0] != self.n_dispersion:
             self.load_spectra(components=components)
 
         # wavelength must be calculated in Angstrom
@@ -961,7 +974,7 @@ class Sources(object):
             if throughput_curve is not None:
                 throughput = throughput_curve(wave)
             else:
-                throughput = np.ones(self.ndisp, dtype='<f4')
+                throughput = np.ones(self.n_dispersion, dtype='<f4')
 
             # calculate magnitude and add to list
             integrated_flux = np.nansum(throughput*flux*(wave**2))/np.nansum(throughput)
@@ -1156,9 +1169,9 @@ class Sources(object):
             logger.info('Reading source coordinates from HDU {0} ...'.format(hdu.header.get('EXTNAME', '')))
 
             # check if dispersion information is valid
-            if self.ndisp == 1:
-                self.ndisp = hdu.header["NAXIS3"]
-            elif hdu.header["NAXIS3"] != self.ndisp:
+            if self.n_dispersion == 1:
+                self.n_dispersion = hdu.header["NAXIS3"]
+            elif hdu.header["NAXIS3"] != self.n_dispersion:
                 logger.error("Invalid number of dispersion elements in provided IFS coordinates.")
                 return
 
@@ -1244,7 +1257,7 @@ class Sources(object):
             logger.error('Parameter "layers" must be integer or array-like, not {0}.'.format(type(layers)))
             return
         elif layers is None:
-            layers = np.arange(self.ndisp)
+            layers = np.arange(self.n_dispersion)
         else:
             layers = np.atleast_1d(layers)
             # layer selection must be consecutive
@@ -1276,14 +1289,18 @@ class Sources(object):
         # second choice: use coordinate transformation if available
         elif self.transformation.valid:
             # collect input coordinates in array of shape (n_sources, 2)
-            xy_ref = np.vstack((self.x[ids], self.y[ids])).T
+            xy_in = self.catalog.loc[ids, ['x', 'y']]  # np.vstack((self.x[ids], self.y[ids])).T
 
             # coordinate transformation may needs to be resized
-            if self.transformation.n_dispersion != self.ndisp:
+            if len(self.transformation.data.index) != len(self.wave) or (
+                        self.transformation.data.index != self.wave).any():
                 logger.warning('Adding dispersion information to coordinate transformation.')
-                self.transformation.resize(self.ndisp)
+                self.transformation.resize(self.wave)
 
-            data = self.transformation(xy_ref)[layers]
+            # function returns pandas DataFrame, need to get values and reshape
+            # TODO: directly use DataFrame
+            _data = self.transformation(xy_in).loc[self.wave[layers]]
+            data = _data.values.reshape((_data.shape[0], -1, 2))
             # data array has shape (n_layers, n_sources, 2)
 
         # third choice: just use reference coordinates
@@ -1356,7 +1373,7 @@ class Sources(object):
         #         # 4th entry in square brackets must be slice; if an index (i.e. 0) is used, the shape of the resulting
         #         # sub-array is not as expected
 
-    def fit_coordinate_transformation(self, layers=slice(None), **kwargs):
+    def fit_coordinate_transformation(self, layers=None, fixed=None):
         """
         The method initializes a new coordinate transformation using the
         available reference and IFS coordinates.
@@ -1371,9 +1388,9 @@ class Sources(object):
             The indices of the layers for which the IFS coordinates should be
             loaded. If none are provided, the coordinates are loaded for the
             whole wavelength range.
-        kwargs
-            Any additional keyword arguments are passed to the call of
-            Transformation.from_coordinates() which performs the actual fit.
+        fixed : dictionary, optional
+            In case any parameters should be fixed to given values, provide
+            here the names of those parameters and their fixed values.
         """
         if self.x is None or self.y is None:
             logging.error("Cannot determine coordinate transformation. Missing reference coordinates.")
@@ -1393,7 +1410,7 @@ class Sources(object):
             logger.error('Parameter "layers" must be integer or array-like, not {0}.'.format(type(layers)))
             return
         elif layers is None:
-            layers = np.arange(self.ndisp)
+            layers = np.arange(self.n_dispersion)
         else:
             layers = np.atleast_1d(layers)
             # layer selection must be consecutive
@@ -1405,9 +1422,11 @@ class Sources(object):
 
         # get output coordinates
         xy_out = self.ifs_coordinates.loc[self.wave[layers], (slice(None), slice(None), 'value')]
+        # remove 2nd level of MultiIndex (as it only contains 'value')
+        xy_out.columns = xy_out.columns.droplevel(2)
 
         # define new transformation using coordinates
-        self.transformation = Transformation.from_coordinates(xy_in, xy_out, **kwargs)
+        self.transformation = Transformation.from_coordinates(xy_in, xy_out, fixed=fixed)
 
     def providePositionIds(self, min_status=1):
         """
@@ -1468,7 +1487,7 @@ class Sources(object):
             return
 
         # load the coordinates if they have not been loaded previously
-        if not self.ifs_coordinates_loaded[source_id] or self.ifs_coordinates.shape[0] < self.ndisp:
+        if not self.ifs_coordinates_loaded[source_id] or self.ifs_coordinates.shape[0] < self.n_dispersion:
             self.load_ifs_coordinates(ids=source_id)
 
         # return it
@@ -1693,7 +1712,7 @@ class Sources(object):
 
         # check if dedicated wavelength information exist for each source. If so, it will be stored in a
         # separate HDU
-        has_wave = 'wave' in self.data.column.levels[1]
+        has_wave = 'wave' in self.data.columns.levels[1]
 
         # Pandas DataFrames store the data as 2dimensional arrays with shape (index.size, columns.size),
         # even when a MultiIndex is used. For this reason, we have to reshape that data before adding it to
@@ -1864,7 +1883,7 @@ class Sources(object):
         # directly save IFS coordinates
         else:
             # make sure IFS coordinates are loaded for all sources AND across the entire dispersion range
-            if not self.ifs_coordinates_loaded[ids].all() or self.ifs_coordinates.shape[0] != self.ndisp:
+            if not self.ifs_coordinates_loaded[ids].all() or self.ifs_coordinates.shape[0] != self.n_dispersion:
                 logger.warning("Reloading IFS coordinates, modifications to Sources.ifs_coordinates will be lost.")
                 self.load_ifs_coordinates(ids=ids)
 

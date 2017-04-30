@@ -50,7 +50,7 @@ are saved in the PRM file that is written to disk.
 
 Latest SVN Revision
 -------------------
-408, 2017/04/03
+421, 2017/04/30
 """
 import datetime
 import logging
@@ -61,7 +61,7 @@ from ..utils.fits import open_ifs_data, make_header_from_config, save_prm
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 408
+__revision__ = 421
 
 
 logger = logging.getLogger(__name__)
@@ -118,10 +118,10 @@ def initfit(config):
     # adjust numbers of first and last layer to be analysed
     first_layer = config['layers'].get('first', 0)
     if first_layer < 0:
-        first_layer = ifs_data.nlayer - first_layer
+        first_layer = ifs_data.nlayer + first_layer
     last_layer = config['layers'].get('last', -1)
     if last_layer < 0:
-        last_layer = ifs_data.nlayer - last_layer + 1
+        last_layer = ifs_data.nlayer + last_layer + 1
 
     # Initialize instance of SourceSelector class
     selector = SourceSelector(photometry_file=config['catalog']['name'],

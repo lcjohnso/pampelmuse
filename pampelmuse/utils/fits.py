@@ -210,7 +210,7 @@ def open_prm(filename, ndisp=-1):
     except KeyError:
         logging.critical("No spectra (HDU 'SPECTRA') have been provided.")
 
-    if 0 < ndisp != sources.ndisp:
+    if 0 < ndisp != sources.n_dispersion:
         logging.error("PRM-file and IFS data have incompatible dispersion dimensions.")
 
     # Positions

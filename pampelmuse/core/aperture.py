@@ -1,7 +1,7 @@
 """
 aperture.py
 ===========
-Copyright 2013-2016 Sebastian Kamann
+Copyright 2013-2017 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -26,15 +26,17 @@ class pampelmuse.core.aperture.AperPhoto
 
 Purpose
 -------
-This module implements  the class 'AperPhoto' that is designed to perform
+This module implements the class 'AperPhoto' that is designed to perform
 aperture photometry on a 2dim. image or aperture spectrophotometry a 3dim.
-datacube. An instance of the class can be initialized from IFS data and a
-cources catalogue. To this aim, a valid instance of pampelmuse.core.cube.Cube
-and a valid instance of pampelmuse.core.sources.Sources must be provided.
-The aperture photometry is performed for each layer of the IFS data indepen-
-dently. A local background around every source is estimated and subtracted
-before its flux and moments are determined. If requested, the routine also
-estimates the global background in each layer of the data.
+data cube.
+
+An instance of the class can be initialized from IFS data and a list of
+centroids. To this aim, a valid instance of pampelmuse.core.cube.Cube
+and a pandas DataFrame containing columnc 'x' and 'y' must be provided.
+The aperture photometry is performed for each layer of the IFS data
+independently. A local background around every source is estimated and
+subtracted before its flux and moments are determined. If requested, the
+routine also estimates the global background in each layer of the data.
 
 Provides
 --------
@@ -42,18 +44,19 @@ function pampelmuse.core.aperture.run_ap
 
 Latest SVN revision
 -------------------
-356, 2016/08/10
+421, 2017/04/30
 """
 import logging
 from multiprocessing import Pool
 import numpy as np
+import pandas as pd
 from scipy import spatial
 from ..utils.statistics import clip_sigma
 from ..instruments import Instrument, MusePixtable
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 356
+__revision__ = 421
 
 
 logger = logging.getLogger(__name__)
@@ -68,9 +71,9 @@ def init_worker(centroids, background, r_aperture, calc_moments, threshold, *arg
 
     Parameters
     ----------
-    centroids : nd_array
-        The initial guesses for the centroids of the sources as an array of
-        shape (n, 2) for n sources.
+    centroids : pandas.DataFrame
+        The initial guesses for the centroids of the sources. At least the
+        columns 'x' and 'y' must be present.
     background : basestring
         How the background is modeled: should be 'local' or 'global'.
     r_aperture : float
@@ -87,174 +90,154 @@ def init_worker(centroids, background, r_aperture, calc_moments, threshold, *arg
     global g_r_aperture
     global g_calc_moments
     global g_threshold
+    global g_properties
 
     g_centroids = centroids
     g_background = background
     g_r_aperture = r_aperture
-    g_calc_moments = calc_moments
     g_threshold = threshold
+    if calc_moments:
+        g_properties = ['flux', 'x', 'y', 'x2', 'y2']
+    else:
+        g_properties = ['flux']
 
 
-def run_ap(input_data):
+def run_ap(data):
     """
-    This function performs aperture photometry on one or more images around
-    a set of input coordinates. Each image must be a 1dim. array, and the
-    positions of the individual spaxels must be provided with the data.
-    For the purpose of parallelizing the code, this function is defined out-
-    side of the AperPhoto class. The parallelization via multi-threading
+    This function performs aperture photometry on one image with a random
+    arrangement of pixels.
+
+    The image must be a provided as a pandas DataFrame, containing athe flux,
+    x-, and y-coordinate of every pixel.
+
+    For the purpose of parallelizing the code, this function is defined
+    outside of the AperPhoto class. The parallelization via multi-threading
     seems not to work if a method of the same class is called.
     
     Parameters
     ----------
-    input_data : dictionary
-        The dictionary must contain the following entries:
-
-        transformation : array_like, shape (M,2)
-            The x- and y-positions of the M individual pixels in the 'data'
-            array
-        data : array_like, shape (M,) or (P,M)
-            The data on which to perform aperture photometry. It should be
-            provided with the spatial dimensions collapsed, i.e. a single
-            image should be provided as a 1D array and P images should be
-            provided as a 2D array with the first axis counting the images.
-            Note that the data can have NaN values for invalid pixels. They
-            are masked out before the calculation.
+    data : pandas DataFrame
+        The data on which to perform aperture photometry. It should be
+        provided as a pandas DataFrame containing at least three columns,
+        containing x-, y-coordinate, and flux of every pixel.
 
     Returns
     -------
-    results : nd_array, shape (P,N,1) or (P,N,6)
-        The calculated values are returned as a 3D array: first axis counts images,
-        the second counts centroids, and the third counts the measured properties.
-        If calc_moments is set to False, the only property will be the measured
-        flux, otherwise, the flux will be returned together with the first and
-        second order spatial moments.
-    background : ndarray, shape (P,), optional
-        The spectrum of the global background is only returned if the parameter
-        background is set to 'global'.
+    results : pandas.DataFrame
+        The calculated values are returned as a pandas DataFrame containing
+        the measured properties for the individual centroids as columns of a
+        pandas MultiIndex (centroids on first level, properties on second).
+        If calc_moments is set to False, the only property will be the
+        measured flux, otherwise, the flux will be returned together with the
+        first and second order spatial moments.
+    background : float
+        The flux of the global background.
     """
     global g_centroids
     global g_background
     global g_r_aperture
     global g_threshold
-    global g_calc_moments
-
-    # data can either be an individual layer (1D) or a sequence of layers (2D). In the latter case, the first axis of
-    # the array must denote the layer number. The code performs a loop over the first axis, so it must be ensured that
-    # data is always 2D.
-    data = np.atleast_2d(input_data['data'])
+    global g_properties
 
     # prepare output array
-    results = np.zeros((data.shape[0], g_centroids.shape[0], 1 + 5 * g_calc_moments), dtype=np.float32)
+    results = pd.DataFrame(np.nan, index=[0], columns=pd.MultiIndex.from_product([g_centroids.index, g_properties],
+                                                                                 names=['id', 'property']))
+
+    # exclude masked pixels, make sure at least some pixels have signal
+    valid = np.isfinite(data['flux'])
+    if not valid.any():
+        logger.error("Layer contains only masked pixels.")
+        return results
 
     # calculate distance of centroid of each source to each spaxel. Note that the shape of the returned array is
-    # (N_spaxels, N_sources)
-    offsets = spatial.distance.cdist(input_data['transformation'], g_centroids)
+    # (N_spaxel, N_sources)
+    _offsets = spatial.distance.cdist(data.loc[valid, ['x', 'y']].values, g_centroids[['x', 'y']].values)
+    # create data frame containing spaxels as rows and centroids as columns
+    offsets = pd.DataFrame(_offsets, index=data[valid].index, columns=g_centroids.index)
 
-    # in the next steps, we define properties that do not change from one layer to another
-    # 1) global background pixels, defined as having distances >r_aper to all sources
-    if g_background == "global":
-        backpix = (offsets > g_r_aperture).all(axis=1)
-        if backpix.sum() < 20:
-            logger.warning("Using < 20 pixels to estimate global background.")
+    # select global background pixels, defined as having distances >r_aper to all sources, and calculate global
+    # background
+    logger.debug("Determining global background ...")
+    min_offsets = offsets.min(axis=1)
+    back_pixels = min_offsets[min_offsets > g_r_aperture].index
+    if len(back_pixels) < 20:
+        logger.warning("Using < 20 pixels to estimate global background.")
 
-        backvalues = np.zeros((data.shape[0],), dtype=np.float32)  # also create empty array for background values
+    # perform kappa-sigma clipping to determine background level and noise
+    back_data = clip_sigma(data.loc[back_pixels, 'flux'], axis=None)
+    back_mean = back_data.mean()
+    back_std = back_data.std()
+    global_background = back_mean
+    logger.debug("... global background is {0:.2g}/pixel".format(global_background))
 
-    # 2) local background pixels, defined as having distances >2*r_aper and <4*r_aper to one source
-    else:
-        backpix = (offsets > 2 * g_r_aperture) & (offsets <= 4 * g_r_aperture)
-        backvalues = None
+    # loop over all centroids
+    for i, (index, row) in enumerate(g_centroids.iterrows(), start=1):
 
-    # 3) flux pixels, defined a having distances <=r_aper to one source.
-    fluxpix = offsets <= g_r_aperture
+        logger.debug("Processing source #{0} [{1}/{2}] ...".format(index, i, g_centroids.shape[0]))
 
-    # estimate global background value if requested. For this, all spaxels within a distance r_aper to any source
-    # centroid are masked out
-    for i in range(data.shape[0]):
+        # estimate local background in annulus between 2*r_aper and 4*r_aper (if requested, otherwise global
+        # background is used)
+        if g_background == "local":
+            # determine local background pixels, defined as having distances >2*r_aper and <4*r_aper to one source
+            back_pixels = (offsets[index] > (2 * g_r_aperture)) & (offsets[index] <= (4 * g_r_aperture))
 
-        valid = ~np.isnan(data[i])
-        data[i, ~valid] = 0
+            back_data = clip_sigma(data.loc[offsets.index[back_pixels], 'flux'], axis=None)
+            back_mean = back_data.mean()
+            back_std = back_data.std()
+            logger.debug("... local background is {0:.2g}+/-{1:0.2g}".format(back_mean, back_std))
 
-        if not valid.any():
-            logger.error("Layer contains only masked pixels.")
-            results[i] = np.nan
-            continue
+        # determine flux pixels, defined a having distances <=r_aper to one source.
+        flux_pixels = (offsets[index] <= g_r_aperture)
 
-        if g_background == "global":
-            logger.debug("Determining global background...")
+        # Get array for calculations & subtract background estimate
+        flux_data = data.loc[offsets.index[flux_pixels], 'flux'] - back_mean
+        results.loc[0, (index, 'flux')] = flux_data.sum()
 
-            # perform kappa-sigma clipping to determine background level and noise
-            backdata = clip_sigma(data[i, backpix & valid], axis=None)
-            backval = backdata.mean()
-            backstd = backdata.std()
+        logger.debug("... flux inside aperture is {0:.3g}".format(results.loc[0, (index, 'flux')]))
 
-            backvalues[i] = backval
-            logger.debug("...global background is {0:.2g}/pixel".format(backval))
+        # Moment calculation, only if requested:
+        if len(g_properties) > 1:
 
-        # loop over all centroids
-        for j in range(g_centroids.shape[0]):
+            # note that only pixels above the background noise should be used
+            moment_pixels = flux_pixels & (data.loc[valid, 'flux'] > (back_mean + g_threshold * back_std))
+            moment_data = data.loc[offsets.index[moment_pixels], 'flux']
+            logger.debug("... {0} pixel(s) available for moment calculation".format(moment_pixels.sum()))
+            if moment_pixels.sum() > 3:
+                x_grid = data.loc[moment_pixels.index, 'x']
+                y_grid = data.loc[moment_pixels.index, 'y']
 
-            logger.debug("Processing source {0}/{1}...".format(j + 1, g_centroids.shape[0]))
+                total = float(moment_data.sum())
+                x = (x_grid * moment_data).sum() / total
+                y = (y_grid * moment_data).sum() / total
+                x2 = (x_grid * x_grid * moment_data).sum() / total - x ** 2
+                y2 = (y_grid * y_grid * moment_data).sum() / total - y ** 2
+                xy = (x_grid * y_grid * moment_data).sum() / total - x * y
 
-            # estimate local background in annulus between 2*r_aper and 4*r_aper (if requested, otherwise global
-            # background is used)
-            if g_background == "local":
-                backdata = clip_sigma(data[i, backpix[:, j] & valid], axis=None)
-                backval = backdata.mean()
-                backstd = backdata.std()
-                logger.debug("...local background is {0:.2g}+/-{1:0.2g}".format(backval, backstd))
+                logger.debug("... moments: x={0:.1f}, y={1:.1f}, x2={2:.1f}, y2={3:.1f}, xy={4:.1f}".format(
+                    x, y, x2, y2, xy))
 
-            # Get array for calculations & subtract background estimate
-            fluxdata = data[i, fluxpix[:, j] & valid] - backval
-            results[i, j, 0] = fluxdata.sum()
-            logger.debug("...flux inside aperture is {0:.3g}".format(results[i, j, 0]))
+                # check validity: physical moments measured and centroid inside measurement area
+                if x_grid.min() < x < x_grid.max() and y_grid.min() < y < y_grid.max():
+                    if x2 > 0 and y2 > 0 and xy ** 2 < (x2 * y2):
+                        results.loc[0, (index, 'x')] = x
+                        results.loc[0, (index, 'y')] = y
+                        results.loc[0, (index, 'x2')] = x2
+                        results.loc[0, (index, 'y2')] = y2
+                        results.loc[0, (index, 'xy')] = xy
+            else:
+                logger.debug("...too few pixels - skipping moment calculation.")
 
-            # Moment calculation, only if requested:
-            if g_calc_moments:
-                mompix = fluxpix[:, j] & valid & (data[i] > (backval + g_threshold * backstd))
-                momdata = data[i, mompix]
-                logger.debug("...{0} pixel(s) available for moment calculation".format(mompix.sum()))
-                if mompix.sum() > 3:
-                    X = input_data['transformation'][mompix, 1]
-                    Y = input_data['transformation'][mompix, 0]
-
-                    total = float(momdata.sum())
-                    x = (X * momdata).sum() / total
-                    y = (Y * momdata).sum() / total
-                    x2 = (X * X * momdata).sum() / total - x ** 2
-                    y2 = (Y * Y * momdata).sum() / total - y ** 2
-                    xy = (X * Y * momdata).sum() / total - x * y
-
-                    # if unphysical moments measured or centroid outside measurement area, spectrumMask out all
-                    # results for this source
-                    if x2 <= 0 or y2 <= 0 or xy ** 2 >= (x2 * y2) or x < X.min() or x > X.max() or y < Y.min() \
-                            or y > Y.max():
-                        x = np.nan
-                        y = np.nan
-                        x2 = np.nan
-                        y2 = np.nan
-                        xy = np.nan
-                    logger.debug(
-                        "...calculated moments: x={0:.1f}, y={1:.1f}, x2={2:.1f}, y2={3:.1f}, xy={4:.1f}".format(
-                            x, y, x2, y2, xy))
-                else:
-                    logger.debug("...too few pixels - skipping moment calculation.")
-                    x = np.nan
-                    y = np.nan
-                    x2 = np.nan
-                    y2 = np.nan
-                    xy = np.nan
-                results[i, j, 1:6] = [x, y, x2, y2, xy]
-
-        return [results, backvalues] if g_background == "global" else results
+    return results, global_background
 
 
 class AperPhoto:
     """
-    Perform aperture (spectro)photometry on 2 or 3dimensional data using
-    a provided list of sources. The calculation of the first and second order
-    moments for the provided sources  is optional. Prior to any flux or moment
-    measurement, a background (global or local if  requested) is determined
-    and subtracted. 
+    Perform aperture (spectro)photometry on 2 or 3dimensional data using a
+    provided list of sources.
+
+    The calculation of the first and second order moments for the provided
+    sources is optional. Prior to any flux or moment measurement, a background
+    (global or local if requested) is determined and subtracted.
     """
 
     def __init__(self, cube, centroids, psf_instance=None):
@@ -267,27 +250,32 @@ class AperPhoto:
             All the information about the data that should  be analysed should
             be provided here. For further information on how to do this, check
             the documentation included in the class 'Cube'.
-        centroids : array_like
-            Initial guesses for the centroids of the sources, provided as an
-            array of shape (n, 2) for n sources.
-            ------------------------------------------------------------------
-            IMPORTANT: According to the numpy convention, coordinates must be
-                       provided in reverse order, i.e (y, x) instead of (x, y)
-            ------------------------------------------------------------------
+        centroids : pandas.DataFrame
+            Initial guesses for the centroids of the sources, provided as a
+            pandas DataFrame containing at least the columns 'x' and 'y'. The
+            various sources should constitute the rows of the DataFrame.
         psf_instance : an instances of pampelmuse.psf.profiles.Profile
             To estimate the aperture correction, i.e. the fraction of flux
             outside the aperture, provide a model of the PSF of the sources.
-            Warning: the aperture correction is not implemented yet.
+            WARNING: the aperture correction is not implemented yet.
         """
         logger.info("Initializing aperture photometry, validating input...")
 
-        # Checking 'cube'
-        assert isinstance(cube, Instrument), \
-            "Parameter 'cube' must be an instance of a pampelmuse.instrument class, not{0}.".format(cube.__class__)
+        # Checking cube
+        if not isinstance(cube, Instrument):
+            logger.error(
+                'Parameter "cube" must be an instance of a pampelmuse.instrument class, not {0}.'.format(type(cube)))
+            return
         self.cube = cube
 
-        self.centroids = np.atleast_2d(centroids)
-        assert self.centroids.shape[1] == 2, 'Last axis of centroids parameter must have length 2.'
+        # Checking centroids
+        if not isinstance(centroids, pd.DataFrame):
+            logger.error('Parameter "centroids" must be pandas DataFrame, not {0}.'.format(type(centroids)))
+            return
+        elif 'x' not in centroids.columns or 'y' not in centroids.columns:
+            logger.error('Columns "x" and "y" must be in centroids.')
+            return
+        self.centroids = centroids
 
         self.n_sources = self.centroids.shape[0]
         logger.info('Centroids for {0} source(s) provided.'.format(self.n_sources))
@@ -301,15 +289,16 @@ class AperPhoto:
     def __call__(self, r_aper=3., layer_range=(0, -1), calc_moments=True, thresh=3., background="global", n_cpu=1,
                  n_bin=1):
         """
-        Method performs the actual aperture (spectro)photometry (and
-        measures the moments if requested). An estimate of the global
-        background is determined using a sigma-clipping approach.
-        Optionally, a local background around every source can be
-        determined.
+        Method performs the actual aperture (spectro-) photometry and measures
+        the moments if requested.
 
-        Note that the aperture (spectro)photometry is always performed
-        around the input coordinates, NOT around the first order moments
-        (even if they are calculated).
+        If requested, an estimate of the global background is first determined
+        using a sigma-clipping approach. Optionally, a local background around
+        every source can be determined.
+
+        Note that aperture (spectro-) photometry is always performed around
+        the input coordinates, NOT around the first order moments (even if they
+        are calculated).
 
         Parameters
         ----------
@@ -340,13 +329,16 @@ class AperPhoto:
 
         Returns
         -------
-        results : numpy_record_array
-            For every source, the flux/spectrum is provided in field
-            'spectrum' and moments are provided in fields 'x', 'y', 'x2',
-            'y2' and 'xy'.
-            Note that if the parameter 'background' is set to 'global' the
-            spectrum of the background will be stored in the 'spectrum'
-            field of a hypothetical source with ID=-1.
+        results : pandas.DataFrame
+            The data frame will contain one row per layer in the IFS data. The
+            sources define the first layer of the columns and the measurements
+            the second level of the columns (using a a pandas MultiIndex).
+            For every source, the flux/spectrum is provided in 'flux' and the
+            moments (if calculated) are provided in fields 'x', 'y', 'x2',
+            'y2', and 'xy'.
+        background : pandas.Series
+            The global  background determined in every layer (if the parameter
+            'background' is set to 'global').
         """
         self.r_aper = r_aper
 
@@ -355,62 +347,45 @@ class AperPhoto:
             start = self.cube.wave.size + start
         if stop < 0:
             stop = self.cube.wave.size + (stop + 1)
-        self.nbin = n_bin
-        self.layers_to_analyse = np.arange(start + self.nbin//2, stop, self.nbin, dtype=np.int16)
+        self.n_bin = n_bin
+        self.layers_to_analyse = np.arange(start + self.n_bin // 2, stop, self.n_bin, dtype=np.int16)
 
         self.thresh = thresh
         self.calc_moments = calc_moments
         self.n_cpu = n_cpu
 
         if background not in ["local", "global"]:
-            logger.critical("Unknown value '{0}' for parameter 'background'. Must be 'local' or 'global'.".format(
+            logger.error("Unknown value '{0}' for parameter 'background'. Must be 'local' or 'global'.".format(
                 background))
-        assert(background in ["local", "global"]),\
-            "Parameter 'background' must be  either 'local' or 'global', not '{0}'.".format(background)
+            return
 
         logger.info("Starting calculation with the following setup:")
         logger.info("   aperture radius [pixel]: {0:.1f}".format(r_aper))
         logger.info("   range of considered layers: {0} - {1}, ".format(start, stop))
-        logger.info("   binning factor of input data: {0}".format(self.nbin))
+        logger.info("   binning factor of input data: {0}".format(self.n_bin))
         logger.info("   pixel threshold [sigma]: {0}".format(thresh))
         logger.info("   calculating moments?: {0}".format(calc_moments))
         logger.info("   background estimation: {0}".format(background))
         logger.info("   number of CPUs: {0}".format(n_cpu))
 
-        # prepare record array that will contains output.
-        logger.info("   preparing array to hold results...")
-        dtype = [("id", np.int32), ("flux", np.float32, (self.cube.wave.size,))]
-        if calc_moments:
-            for name in ["x", "y", "x2", "y2", "xy"]:
-                dtype.append((name, np.float32, (self.cube.wave.size,)))
-        self.results = np.zeros(self.n_sources + (background == "global"), dtype=dtype)
-        if self.results.size == 1:
-            self.results.view("<f4")[:] = np.nan
-        else:
-            self.results[:] = np.nan
-
-        # use ID=-1 for a global background if it is used
-        if background == "global":
-            self.results["id"][-1] = -1
-            for name in ["x", "y", "x2", "y2", "xy"]:
-                self.results[name][-1] = np.nan
-
         # prepare list to store intermediate results
         _results = []
 
         # initialize parallelisation
-        initargs = (self.centroids, background, r_aper, calc_moments, thresh)
+        init_arguments = (self.centroids, background, r_aper, calc_moments, thresh)
         if self.n_cpu > 1:
-            pool = Pool(self.n_cpu, initializer=init_worker, initargs=initargs)
+            pool = Pool(self.n_cpu, initializer=init_worker, initargs=init_arguments)
         else:
             pool = None
-            init_worker(*initargs)
+            init_worker(*init_arguments)
 
         # loop over layers, collect input data.
         # every time number of layers is equal to number of CPUs, trigger parallel analysis
-        input_data = []
+        input_data = []  # container for input data of each layer
+        layer_indices = []  # container for index of each layer
         for i, layer_index in enumerate(self.layers_to_analyse):
             logger.info("Processing layer {0}/{1}".format(i + 1, self.layers_to_analyse.size))
+            layer_indices.append(layer_index)
 
             # load data - note that layer binning is currently not performed for pixtables.
             if n_bin == 1 or isinstance(self.cube, MusePixtable):
@@ -421,7 +396,8 @@ class AperPhoto:
                 else:
                     data = self.cube.integrate(layer_index - n_bin // 2, stop)[0]
 
-            input_data.append({'data': data, 'transformation': self.cube.transform})
+            input_data.append(pd.DataFrame(np.append(self.cube.transform, data[:, None], axis=1),
+                                           columns=['y', 'x', 'flux']))
 
             if not i % self.n_cpu or layer_index == self.layers_to_analyse[-1]:
                 if n_cpu > 1:
@@ -431,17 +407,8 @@ class AperPhoto:
                     _results.append(run_ap(input_data[0]))
                 input_data = []
 
-        if background == "global":
-            results = np.vstack([r[0] for r in _results])
-            self.results["flux"][-1, self.layers_to_analyse] = np.hstack((r[1] for r in _results))
-        else:
-            results = np.vstack(_results)
+        results = pd.concat([r[0] for r in _results], axis=0, ignore_index=True)
+        results.index = layer_indices
+        background = pd.Series([r[1] for r in _results], index=layer_indices)
 
-        self.results["flux"][:results.shape[1], self.layers_to_analyse] = results[..., 0].T
-        if calc_moments:
-            i = 1
-            for name in ["x", "y", "x2", "y2", "xy"]:
-                self.results[name][:results.shape[1], self.layers_to_analyse] = results[..., i].T
-                i += 1
-
-        return self.results
+        return results, background

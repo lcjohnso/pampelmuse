@@ -1,7 +1,7 @@
 """
 instrument.py
 =============
-Copyright 2013-2016 Sebastian Kamann
+Copyright 2013-2017 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -28,7 +28,7 @@ defines generic methods that are inherited by all its subclasses.
 
 Latest SVN revision
 -------------------
-390, 2017/01/25
+421, 2017/04/30
 """
 import logging
 import matplotlib
@@ -42,7 +42,7 @@ from ..utils.distance import dist2path, point_in_poly
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 390
+__revision__ = 421
 
 
 class Instrument(object):
@@ -471,10 +471,12 @@ class Instrument(object):
             else:
                 self.wave *= self.wcs.wcs.cdelt[2]
             self._wave += self.wcs.wcs.crval[2]
-            if self.wcs.wcs.ctype[2] == 'um' or self.wcs.wcs.ctype[2] == 'um':
+            if self.wcs.wcs.cunit[2] == 'um':
                 self._wave *= 1e4
-            elif self.wcs.wcs.ctype[2] == 'nm' or self.wcs.wcs.ctype[2] == 'nm':
+            elif self.wcs.wcs.cunit[2] == 'nm':
                 self._wave *= 10
+            elif self.wcs.wcs.cunit[2] == 'm':
+                self._wave *= 10**10
         return self._wave
 
     @wave.setter
@@ -878,25 +880,18 @@ class Instrument(object):
         # open filtercurve, check if it overlaps with IFs data
         fct = get_filter(passband)
 
-        # passband given in Angstrom, so need to account for possibly different wavelength scales
-        if self.wcs.wcs.cunit[-1] == 'm':
-            scale = 1e10
-        elif self.wcs.wcs.cunit[-1] == 'nm':
-            scale = 10.
-        else:
-            scale = 1.
-
+        # note that both IFS data and filter curve should be in Angstrom
         wmin = fct.get_knots().min()  # min. of defined wavelength range
-        imin = np.argmax(scale*self.wave > wmin)
+        imin = np.argmax(self.wave > wmin)
 
         wmax = fct.get_knots().max()  # max. of defined wavelength range
-        imax = self.wave.size - 1 - np.argmax(scale*self.wave[::-1] < wmax)
+        imax = self.wave.size - 1 - np.argmax(self.wave[::-1] < wmax)
 
-        if imin >= imax or scale*self.wave.max() < wmin or scale*self.wave.min() > wmax:
+        if imin >= imax or self.wave.max() < wmin or self.wave.min() > wmax:
             logging.error("No overlap between provided wavelength range and passband {0}.".format(passband))
             return (None, None), None
         else:
-            weights = fct(scale*self.wave[imin:imax])
+            weights = fct(self.wave[imin:imax])
             assert not np.isnan(weights).any()
             return self.integrate(imin, imax, weights=weights, **kwargs), weights
 

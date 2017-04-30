@@ -32,7 +32,7 @@ coordinate transformation from reference to IFS coordinates.
 
 Latest SVN revision
 -------------------
-417, 2017/04/12
+421, 2017/04/30
 """
 import logging
 import numpy as np
@@ -42,7 +42,7 @@ from astropy.io import fits
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 417
+__revision__ = 421
 
 
 logger = logging.getLogger(__name__)
@@ -124,30 +124,37 @@ class Parameters(object):
             logger.error("Either use 'hdu' or the keyword arguments to provide parameters.")
             return
 
+        # check if data frame is sufficiently ordered for slicing
+        # check: http://pandas.pydata.org/pandas-docs/stable/advanced.html#using-slicers
+        if not self.data.columns.is_lexsorted():
+            logger.warning('Data frame containing parameters not sorted. Reordering ...')
+            self.data = self.data.sortlevel(0, axis=1)  # axis=1 = columns
+
     @classmethod
-    def from_hdu(cls, hdu):
+    def from_hdu(cls, hdu, **kwargs):
         """
         Initialises a new instance of the Parameters-class from a FITS table
         HDU.
         
-        The table must contain fields named 'name' and 'value', providing the
-        names and values of the various parameters, respectively. Additional
-        fields that are used when available are 'freepar', indicating whether
-        the parameter are allowed to vary during a fit, 'isfitted', indicating
-        whether the parameter behaviour with wavelength has been modelled with
-        a polynomial. If so, the code will also check for the field 'polyfit',
-        containing the polynomial fit.
-        
         Parameters
         ----------
         hdu : instance of fits.table.BinTableHDU
+            The table must at least contain columns named 'name', 'value', and
+            'freepar', providing the names, values, and variability flags of
+            the various parameters, respectively. Additional fields that are
+            used when available are 'isfitted' and 'polyfit'. The former
+            indicates if the parameter behaviour with wavelength has been
+            modelled with a polynomial. If so, the code assumes the polynomial
+            fit to be contained in 'polyfit'.
+        kwargs
+            Any additional keyword arguments are passed on to the
+            initialisation sequence of the class.
 
         Returns
         -------
         instance of Parameters
             The new instance of the class.
         """
-
         if "EXTNAME" in hdu.header:
             logger.info("Initialising parameters from HDU '{0}' ...".format(hdu.header["EXTNAME"]))
         else:
@@ -190,7 +197,7 @@ class Parameters(object):
         free = hdu_data['freepar']
 
         # return instance
-        return cls(data_frame, free=free)
+        return cls(data_frame, free=free, **kwargs)
 
     @classmethod
     def from_dictionary(cls, parameters, free=None):
@@ -260,7 +267,10 @@ class Parameters(object):
             A series of length Parameters.n_parameters that specifies if a
             value for each parameter has been defined.
         """
-        return (~self.mask.loc[:, (slice(None), 'value')]).any(axis=0)
+        _defined = (~self.mask.loc[:, (slice(None), 'value')]).any(axis=0)
+        # note that the Series will still have a MultiIndex with the first level containing only 'value'.  Remove it:
+        _defined.index = _defined.index.droplevel(1)
+        return _defined
 
     @property
     def fitted(self):
@@ -271,7 +281,10 @@ class Parameters(object):
             A series of length Parameters.n_parameters that specifies if the
             values of a parameter have been fitted.
         """
-        return (~self.mask.loc[:, (slice(None), 'fit')]).all(axis=0)
+        _fitted = (~self.mask.loc[:, (slice(None), 'fit')]).all(axis=0)
+        # note that the Series will still have a MultiIndex with the first level containing only 'fit'.  Remove it:
+        _fitted.index = _fitted.index.droplevel(1)
+        return _fitted
 
     @property
     def contains_free_parameters(self):
@@ -327,7 +340,7 @@ class Parameters(object):
         """
         # issue warning if reindexing would remove existing data
         if not np.in1d(self.data.index, index).all():
-            logger.error('Changing dispersion axis will remove existing data.')
+            logger.warning('Changing dispersion axis as requested will alter existing values.')
 
         self.data = self.data.reindex(index=index, method='nearest')
         # with method='nearest', the code will fill new rows of the data frame
