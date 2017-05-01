@@ -142,7 +142,7 @@ def parallel_process_layers(fit_parameters):
     layerfit = FitLayer(data=data, variances=variances, transformation=transformation, psf_type=g_psf_type,
                         psf_parameters=psf_parameters, xy=xy, position_parameters=position_parameters,
                         magnitudes=g_magnitudes, components=g_components, background=background,
-                        wave=wave, maxrad=g_maxrad, osfactor=g_osfactor, osradius=g_osradius)
+                        wave=wave, psf_radius=g_maxrad, osfactor=g_osfactor, osradius=g_osradius)
 
     results = layerfit.residuals_from_fluxes(fluxes=fluxes, background_fluxes=background_fluxes)
 

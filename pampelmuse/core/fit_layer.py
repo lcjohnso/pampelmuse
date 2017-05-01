@@ -1,7 +1,7 @@
 """
 fit_array.py
 ============
-Copyright 2013-2016 Sebastian Kamann
+Copyright 2013-2017 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -57,12 +57,13 @@ parameters are not fitted.
 
 Latest SVN revision
 -------------------
-401, 2017/03/03
+422, 2017/04/30
 """
 import contextlib
 import logging
 import time
 import numpy as np
+import pandas as pd
 from scipy import optimize, sparse
 from scipy.sparse import linalg
 from ..psf import Gaussian, Moffat, DoubleGaussian
@@ -70,7 +71,7 @@ from ..core.coordinates import Transformation
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 401
+__revision__ = 422
 
 
 logger = logging.getLogger(__name__)
@@ -125,36 +126,37 @@ def printoptions(*args, **kwargs):
 
 class FitLayer(object):
     """
-    This class is designed to perform a PSF fit on a single layer of a data
-    cube. If requested, it optimizes for the parameters of the PSF model and
+    This class performs a PSF fit on a single layer of a data cube.
+
+    If requested, it optimizes for the parameters of the PSF model and
     the positions of the provided sources. In any case, the fluxes of the
     sources are optimized.
     """
 
     _unresolved_matrix = None
 
-    def __init__(self, data, variances, transformation, psf_type, psf_parameters, xy, position_parameters=None,
-                 magnitudes=None, components=None, last_component_is_unresolved=False, background=None,
-                 wave=None, maxrad=np.inf, osfactor=1, osradius=0):
+    def __init__(self, data, catalog, psf_type, psf_parameters, psf_radius=np.inf, position_parameters=None,
+                 last_component_is_unresolved=False, background=None, osfactor=1, osradius=0):
         """
         Initialize a new instance of the FitLayer class.
 
         Parameters
         ----------
-        data : array_like, 1D
+        data : pandas.DataFrame
             The data on which the PSF fit should be performed. Note that this
-            should be a 1dim. array and that the 'transformation' parameter is
-            used to translate from pixels to spatial (x, y)-positions.
-        variances : array_like, 1D
-            The variances of the data array. If provided, both arrays must have
-            the same size. It is also possible to provide None, in which case
-            the routine will try to estimate the variances from the deviation
-            between data and model.
-        transformation : array_like, 2D
-            This array performs assigns spatial (x,y) coordinates to the
-            pixels of the 'data' and 'variance' arrays. Therefore, it must be
-            2dim, with the zeroth axis having the same length as 'data' and
-            the first axis having a length of 2.
+            should be provided as a pandas DataFrame containing at least the
+            columns 'x', 'y', and 'value', providing the spatial coordinates
+            and the flux in each pixel. Additional columns that are used when
+            present are 'variance' and 'wave', containing the variance and the
+            exact wavelength of each pixel.
+        catalog : pandas.DataFrame
+            The catalog of sources that should be optimized on the data. It
+            must also be provided as a pandas DataFrame, containing one source
+            per row and at least the columns 'x' and 'y', containing (initial
+            guesses of) the centroid coordinates. Additional columns that are
+            used when present are 'component' and 'magnitude'. If available,
+            they should contain information on which sources are combined to
+            components and what their relative magnitudes per component are.
         psf_type : string
             The type of PSF to be used. Currently 'gauss', 'moffat', and
             'double_gauss' are supported.
@@ -165,97 +167,69 @@ class FitLayer(object):
              - gauss: fwhm, e, theta
              - moffat: beta, fwhm, e, theta
              - double_gauss: fwhm1, fwhm2, f12, e, theta
-        xy : array_like, 2D
-            The reference coordinates of the sources used in the fit. Zeroth
-            axis defines the number of sources, first axis must have length 2.
+        psf_radius : float, optional
+            The radius in pixels out to which the PSF profiles will be defined.
         position_parameters : dictionary
             The initial guesses (or fixed values) of the individual parameters
             of the coordinate transformation (if any). If not provided, it is
             assumed that 'xy' contains pixel coordinates.
-        magnitudes : array_like, optional
-            Relative magnitudes of the sources to be fitted. If none are
-            provided, it is assumed that all sources have the same magnitudes
-            in the fit. If provided, its length must match the number of
-            sources defined by 'xy'.
-            IMPORTANT: The idea of this parameter is to define fixed flux
-            ratios for sources that are fitted as a combined component. If no
-            such components exist, this parameter can safely be ignored.
-        components : array_like, optional
-            This array defines how the sources are combined into components in
-            the fit. To this aim, each entry should be an integer defining the
-            corresponding fit component. The relative weight of the sources in
-            each component is determined from the 'magnitudes' array. If
-            provided, the length of 'components' must match the number of
-            sources defined by 'xy'.
         last_component_is_unresolved : boolean, optional
             This flag should be set to true if the fit component with the
             highest index (i.e. the highest entries in 'components') is an
             unresolved component. See Kamann et al. (2013) for the idea of the
             unresolved component.
-        wave : array_like, optional
-            This parameter may be used to provide a separate wavelength array
-            for the data array. If provided, the code will use it to determine
-            an effective wavelength for each fitted component. This is only
-            useful if not all pixels of the data array have the same
-            wavelength.
-        maxrad : float, optional
-            The radius in pixels out to which the PSF profiles will be defined.
         osfactor : int, optional
             The oversampling factor used to increase the accuracy of the
             calculation of the core shape of the PSF profiles.
         osradius : float, optional
             The radius in pixels out to which the oversampling is being used.
         """
-        self.maxrad = maxrad
+        self.psf_radius = psf_radius
 
-        # Prepare data and variances, make sure they are 1dim. and have the same size
-        self.data = np.asarray(data)
-        if self.data.ndim != 1:
-            logger.error('Data array must be 1dimensional.')
-        if variances is not None:
-            self._variances = np.asarray(variances)
-            if self._variances.shape != self.data.shape:
-                logger.error('Arrays containing data and variances must have same shape.')
-        else:
-            self._variances = None
-        if wave is not None:
-            self.wave = sparse.csc_matrix(wave)
-            if self.wave.shape[-1] != self.data.shape[-1]:
-                logging.error('If provided, wavelength array must have same shape as data array.')
+        # check consistency of provided data
+        if not isinstance(data, pd.DataFrame):
+            logger.error('Parameter "data" must be pandas DataFrame, not {0}'.format(type(data)))
+            return
+        for column in ['x', 'y', 'value']:
+            if column not in data.columns:
+                logger.error('Missing required column "{0}" in provided data.'.format(column))
+                return
+        self.data = data
+        self.n_pixel = self.data.shape[0]
+
+        if 'wave' in self.data.columns:
+            self.wave = sparse.csc_matrix(self.data['wave'].values)
         else:
             self.wave = None
-        self.nspaxel = self.data.size
 
-        # this is the transformation from spaxels to (x,y) coordinates
-        self.transformation = np.asarray(transformation)
-        if self.transformation.ndim != 2 or self.transformation.shape != (self.nspaxel, 2):
-            logger.error('Spaxel-to-xy transformation has invalid shape.')
+        # check consistency of source catalog
+        if not isinstance(catalog, pd.DataFrame):
+            logger.error('Parameter "catalog" must be pandas DataFrame, not {0}'.format(type(catalog)))
+            return
+        for column in ['x', 'y']:
+            if column not in catalog.columns:
+                logger.error('Missing required column "{0}" in provided source catalog.'.format(column))
+                return
+        self.catalog = catalog
+        self.n_sources = self.catalog.shape[0]
 
-        # work on source catalogue
-        self.xy = np.asarray(xy)
-        if self.xy.ndim != 2 or self.xy.shape[1] != 2:
-            logger.error('Array containing source coordinates has invalid shape.')
-        self.n_sources = self.xy.shape[0]
+        # check if information on components available, otherwise assume each source fitted individually
+        if 'component' not in self.catalog.columns or 'magnitude' not in self.catalog.columns:
+            self.catalog['component'] = pd.Series(np.arange(self.n_sources, dtype=np.int32), index=self.catalog.index)
+            self.catalog['magnitude'] = pd.Series(0., index=self.catalog.index)
 
-        self.magnitudes = np.asarray(magnitudes) if magnitudes is not None else np.zeros(self.n_sources, dtype='<f4')
-        if self.magnitudes.size != self.n_sources:
-            logger.error('Number of provided magnitudes ({0}) does not match number of sources ({1}).'.format(
-                self.magnitudes.size, self.n_sources))
-
-        self.components = components if components is not None else np.arange(self.n_sources, dtype='<i4')
-        if self.components.size != self.n_sources:
-                logger.error('No. of entries in components data ({0}) does not match number of sources ({1}).'.format(
-                    self.components.size, self.n_sources))
-        self.n_components = self.components.max() + 1
+        self.n_components = self.catalog['component'].max() + 1
         self.last_component_is_unresolved = last_component_is_unresolved
 
-        # handle background if any was provided
-        if background is not None:
-            assert(isinstance(background, sparse.coo_matrix)), \
-                '"background" must be provided asTransformation.PARAMETERS a scipy.sparse.coo_matrix'
+        # check consistency and handle background if any was provided
+        if background is not None and not isinstance(background, sparse.coo_matrix):
+            logger.error('Parameter "background" must be a scipy.sparse.coo_matrix, not {0}'.format(type(background)))
+            return
+        elif background is not None:
             self.background = background
             self.n_background = 1 + self.background.col.max() - self.background.col.min()
         else:
+            self.background = None
             self.n_background = 0
 
         # Initialize PSF
@@ -270,10 +244,10 @@ class FitLayer(object):
             psf_class = None
 
         # define PSF profile for each source, check if direct positions were provided for some sources
-        self.psf_instances = []
-        for i in range(self.n_sources):
-            new_psf = psf_class(transform=self.transformation, uc=self.xy[i, 0], vc=self.xy[i, 1],
-                                mag=self.magnitudes[i], src_id=i, maxrad=maxrad, osfactor=osfactor, osradius=osradius)
+        self.psf_instances = {}
+        for index, row in self.catalog.iterrows():
+            new_psf = psf_class(transform=self.data[['x', 'y']].values, uc=row['x'], vc=row['y'], mag=row['magnitude'],
+                                src_id=index, maxrad=self.psf_radius, osfactor=osfactor, osradius=osradius)
             # initialize the PSF parameters:
             for key, value in psf_parameters.items():
                 setattr(new_psf, key, value)
@@ -283,48 +257,52 @@ class FitLayer(object):
                     setattr(new_psf, key, value)
             # otherwise use reference coordinates as direct IFS coordinates
             else:
-                new_psf.xc = self.xy[i, 0]
-                new_psf.yc = self.xy[i, 1]
-            self.psf_instances.append(new_psf)
+                new_psf.xc = row['x']
+                new_psf.yc = row['y']
+            self.psf_instances[index] = new_psf
 
         self.source_matrix = None
         self.fit_weights = None
-        self.fluxes = np.zeros((self.n_components,), dtype='<f4')
-        self.background_fluxes = np.zeros((self.n_background,), dtype='<f4')
+        self.fluxes = pd.Series(0., index=np.arange(self.n_components))
+        self.background_fluxes = pd.Series(0., index=np.arange(-1, -self.n_background, -1))
 
     @property
     def variances(self):
         """
-        This method is designed to provide an estimate of the variances
-        if they are not provided externally. To this aim, the method compares
-        the current model with the data and determines the deviation between
-        the two as a function of the model flux using a running MAD.
+        This method is designed to provide an estimate of the variances if
+        they are not provided externally.
+
+        To this aim, the method compares the current model with the data and
+        determines the deviation between the two as a function of the model
+        flux using a running MAD.
 
         Returns
         -------
-        variances : ndarray
+        variances : pandas-Series
             The array containing the estimated variances. Note that it will
             be filled with 1s if no model is yet available.
         """
         # if available, use provided variances
-        if self._variances is not None:
-            return self._variances
+        if 'variance' in self.data:
+            return self.data['variance']
         # otherwise, we only can estimate the variances if a model exists
-        elif (self.fluxes != 0).any():
+        elif self.fluxes.max() > 0:
             model_fluxes = self.model.sum(axis=1).getA1()
-            xbin, ybin = FitLayer.calc_running_mad(model_fluxes, self.current)
-            return 1.4826*np.interp(model_fluxes, xbin, ybin)  # 1.4826 is for MAD -> sigma conversion
+            x_bin, y_bin = FitLayer.calc_running_mad(model_fluxes, self.current)
+            return pd.Series(1.4826*np.interp(model_fluxes, x_bin, y_bin), index=self.catalog.index)
+            # 1.4826 is for MAD -> sigma conversion
         # if not, just return 1s
         else:
-            return np.ones(self.data.shape, dtype=np.float32)
+            return pd.Series(1., index=self.data.index)
 
     def get_weight_factors(self, alpha=2, beta=2):
         """
         This method implements a weighting scheme similar to the one used by
-        P. Stetson in DAOphot. The idea is to reduce the weights of deviant
-        pixels (i.e. pixels with huge residuals) using a modified variance.
-        The weight of a pixel i in the fit is modified from a pure variance-
-        weighting as follows:
+        P. Stetson in DAOphot.
+
+        The idea is to reduce the weights of deviant pixels (i.e. pixels with
+        huge residuals) using a modified variance. The weight of a pixel i in
+        the fit is modified from a pure variance-weighting as follows:
 
         w_i = f_i(residuals_i) / variance_i, where
 
@@ -341,17 +319,18 @@ class FitLayer(object):
 
         Returns
         -------
-        f : ndarray
+        f : pandas.Series
              The factors by which the variances should be divided to get
              modified variances for the fitting process.
         """
-        if (self.fluxes != 0).any():
-            return 1. / (1. + np.abs(self.current / (alpha*np.sqrt(self.variances)))**beta)
+        if self.fluxes.max() > 0:
+            return pd.Series(1. / (1. + np.abs(self.current / (alpha*np.sqrt(self.variances)))**beta),
+                             index=self.data.index)
         else:
-            return np.ones(self.data.shape, dtype=np.float32)
+            return pd.Series(1., index=self.data.index)
 
     def __call__(self, fluxes=None, background_fluxes=None, psf_parameters_to_fit=None, position_parameters_to_fit=None,
-                 sources=None, psf_sources=None, maxiter=5):
+                 sources=None, psf_sources=None, max_iterations=5):
         """
         This method carries out a least-squares fir to the data. The process
         is iterative: The model is optimized for the fluxes, the PSF, and the
@@ -360,14 +339,17 @@ class FitLayer(object):
 
         Parameters
         ----------
-        fluxes : array_like, optional
-            Initial values for the fluxes of the components. Note that the fit
-            of the fluxes is a linear optimization, hence no initial guesses
+        fluxes : pandas.DataFrame, optional
+            Initial values for the fluxes of the components. If provided, its
+            length must match the number of components provided upon instance
+            initialisation. Note that the fit of the fluxes is a linear
+            optimization, hence no initial guesses are required.
+        background_fluxes : pandas.DataFrame, optional
+            Initial values for the fluxes of the background components. If
+            provided, its length must match the number of background
+            components provided upon instance initialisation. Again, as the
+            optimization of the fluxes is a linear process, no initial guesses
             are required.
-        background_fluxes : array_like, optional
-            Initial values for the fluxes of the background components. Again,
-            as the optimization of the fluxes is a linear process, no initial
-            guesses are required.
         psf_parameters_to_fit : array_like, optional
             The names of the parameters of the PSF that should be optimized in
             the fit. Default is to fix all the PSF parameters to their initial
@@ -378,7 +360,7 @@ class FitLayer(object):
             parameters to their initial values.
             IMPORTANT: If no coordinate transformation is used and instead an
             optimization of the individual source positions are wanted, set
-             this parameter to 'xy'.
+            this parameter to 'xy'.
         sources : array_like, optional
             The indices of the sources used to optimize the PSF parameters and
             the source coordinates. If none are provided, all sources are being
@@ -388,7 +370,7 @@ class FitLayer(object):
             as parameter 'sources' should be used to optimize the PSF. The idea
             behind this is that usually a higher S/N is required to get the
             shape of the PSF right than to get its centroid.
-        maxiter : int, optional
+        max_iterations : int, optional
             The maximum number of iterations.
 
         Returns
@@ -410,28 +392,39 @@ class FitLayer(object):
              of each component. Otherwise None is returned.
         """
         if fluxes is not None:
-            if fluxes.size != self.n_components:
+            if isinstance(fluxes, (list, np.ndarray)):
+                fluxes = pd.Series(fluxes, index=self.fluxes.index)
+            elif not isinstance(fluxes, pd.Series):
+                logger.error('Parameter "fluxes" must be convertible to pandas Series.')
+                return
+            elif fluxes.size != self.n_components:
                 logger.error('No. of provided fluxes does not match number of components.')
-            else:
-                self.fluxes = fluxes
+                return
+            self.fluxes = fluxes
+
         if background_fluxes is not None:
+            if isinstance(background_fluxes, (list, np.ndarray)):
+                background_fluxes = pd.Series(background_fluxes, index=self.background_fluxes.index)
+            elif not isinstance(background_fluxes, pd.Series):
+                logger.error('Parameter "background_fluxes" must be convertible to pandas Series.')
+                return
             if 0 < self.n_background != background_fluxes.size:
                 logger.error('No. of provided background fluxes does not match number of background components.')
-            else:
-                self.background_fluxes = background_fluxes
+                return
+            self.background_fluxes = background_fluxes
 
         # Determine initial weights for each pixel in the fit.
         self.fit_weights = 1./self.variances
 
-        for iteration in range(1, maxiter + 1):
-            if maxiter > 1:
-                logger.info("Iteration {0} (of max. {1})".format(iteration, maxiter))
+        for iteration in range(1, max_iterations + 1):
+            if max_iterations > 1:
+                logger.info("Iteration {0} (of max. {1})".format(iteration, max_iterations))
 
             if self.source_matrix is None:
                 self.source_matrix, included_components = self.build_matrix()
 
                 # fluxes of components outside FoV are set to NaN
-                self.fluxes[~included_components] = np.nan
+                self.fluxes.loc[~self.fluxes.index.isin(included_components)] = np.nan
 
             # Fit fluxes by direct matrix inversion
             # first obtain fit matrix by multiplying source matrix with sqrt of fitting weights
@@ -464,11 +457,11 @@ class FitLayer(object):
             logger.info("Chi**2 of current fit: {0:.1f}".format(bestfit[3] ** 2))
 
             # The background fluxes are currently stored in a separate array
-            self.fluxes[included_components] += (bestfit[0] / total_flux)[:included_components.sum()]
-            self.background_fluxes += (bestfit[0] / total_flux)[included_components.sum():]
+            self.fluxes.loc[included_components] += (bestfit[0] / total_flux)[:included_components.sum()]
+            self.background_fluxes += (bestfit[0] / total_flux)[-self.n_background:]
 
             # Convergence criterion: the average relative change in flux is < 0.5 percent
-            delta_flux = (bestfit[0] / total_flux)[:included_components.sum()] / self.fluxes[included_components]
+            delta_flux = (bestfit[0] / total_flux)[:-self.n_background] / self.fluxes.loc[included_components]
             with printoptions(precision=4, suppress=True):
                 logger.debug("Relative changes in fluxes: {0}".format(delta_flux))
             if np.median(abs(delta_flux)) < 0.005:
@@ -535,10 +528,10 @@ class FitLayer(object):
                                     parameter, psf_results[i]))
 
                 # PSF and/or positions have changed, so the matrix needs to be recalculated (unless end of iteration)
-                if iteration < maxiter:
+                if iteration < max_iterations:
                     self.source_matrix = None
 
-            elif iteration < maxiter:
+            elif iteration < max_iterations:
                 # re-calculate fitting weights
                 self.fit_weights = self.get_weight_factors() / self.variances
             else:
@@ -586,9 +579,9 @@ class FitLayer(object):
         -------
         The current best-fit model.
         """
-        fluxes = np.hstack((self.fluxes[np.isfinite(self.fluxes)], self.background_fluxes))
-        return self.source_matrix * sparse.dia_matrix((fluxes, [0]), shape=(
-            self.source_matrix.shape[1], self.source_matrix.shape[1]))
+        fluxes = pd.concat([self.fluxes[np.isfinite(self.fluxes)], self.background_fluxes], axis=0)
+        return self.source_matrix * sparse.dia_matrix((fluxes.values, [0]), shape=(self.source_matrix.shape[1],
+                                                                                   self.source_matrix.shape[1]))
 
     @property
     def current(self):
@@ -638,15 +631,18 @@ class FitLayer(object):
 
     def build_matrix(self, update_unresolved=True):
         """
-        Define the source matrix. The source matrix is a sparse matrix that
-        contains the spatial profiles of all resolved components, one per
-        column.
+        (Re)calculate the source matrix.
+
+        The source matrix is a sparse matrix that contains the spatial
+        profiles of all resolved components, one per column.
+
         The method initially creates three empty arrays to hold
         (a) the source (PSF) coefficients, divided by the pixel uncertainties
         (b) the (1dim.) coordinates of the coefficients on the data array
             (they are the row indices of the final PSF coefficient matrix)
         (c) the component to which each source belongs
             (they are the column indices of the final PSF coefficient matrix)
+
         It then loops over all sources in the 'Sources'-instance, obtains
         their PSF and adds it to the respective column of the array. After-
         wards, the arrays are combined into a single sparse matrix.
@@ -663,105 +659,110 @@ class FitLayer(object):
         source_matrix : a scipy.sparse.csc_matrix-instance
             This is the PSF coefficient matrix that is used in the linear
             least-squares fit to determine the source fluxes.
-        included_components : nd_array
-            A 1dim. boolena array with length equal to the number of
-            components that is True for each component that contributes
-            to the PSF source matrix.
+        included_components : pandas.Index
+            The indices of the components that actually contribute to the
+            source matrix, i.e. are defined on any of the data pixels.
         """
         if not self.last_component_is_unresolved:
             update_unresolved = True
 
         t0 = time.time()
 
-        # result will be a list with length equal to the number of sources, each entry is again a list containing three
-        # entries: the spaxels on which the PSF is defined, the corresponding fluxes, and the integrated flux
-        results = []
-        for i, psf in enumerate(self.psf_instances):
-            if self.last_component_is_unresolved and not update_unresolved:
-                if self.components[i] == self.n_components - 1:
-                    continue
+        # result will be a list with length equal to the number of sources, each entry is again a list containing two
+        # entries: the spaxels on which the PSF is defined and the corresponding fluxes
+        pixels = []
+        components = []
+        fluxes = []
 
-            spaxels, fluxes = psf.get_flux()
-            if spaxels.size == 0:
-                logger.warning("Source no. {0} entirely outside FoV.".format(psf.src_id))
-            results.append([spaxels, fluxes, fluxes.sum()])
+        # create a pandas DataFrame to calculate the integrated fluxes of all components
+        psf_fluxes = pd.DataFrame({'flux': pd.Series(0., index=self.catalog.index),
+                                   'component': self.catalog['component']})
+
+        for index, psf in self.psf_instances.items():
+            current_component = self.catalog.at[index, 'component']
+
+            if not update_unresolved and current_component == (self.n_components - 1):
+                continue
+
+            current_pixels, current_fluxes = psf.get_flux()
+            if current_pixels.size == 0:
+                logger.warning("Source #{0} entirely outside FoV.".format(index))
+
+            pixels.extend(current_pixels)
+            fluxes.extend(current_fluxes)
+            components.extend(len(current_pixels)*[current_component])
+
+            psf_fluxes.at[index, 'flux'] = current_fluxes.sum()
+
+        matrix_data = pd.DataFrame({'i0': pixels, 'i1':  components, 'flux': fluxes})
 
         t1 = time.time()
         logger.debug("Time required to calculate PSF profiles: {0:.3f}s".format(t1 - t0))
 
         # Calculate total flux of each component
-        if not self.last_component_is_unresolved or update_unresolved:
-            components = self.components
-        else:
-            components = self.components[self.components < self.components.max()]
-        totflux, ordered_components = sum_by_group([r[-1] for r in results], components)
-        # note that the total fluxes are already in the correct order, i.e. sorted by component
+        total_fluxes = psf_fluxes.groupby(by='component').agg(np.sum)
 
         t2 = time.time()
         logger.debug("Time required to combine components: {0:.3f}s".format(t2 - t1))
 
         # check if any row does not contribute at all
-        empty_components = ordered_components[totflux <= 0]
+        empty_components = total_fluxes[total_fluxes <= 0].index
         if len(empty_components) > 0:
             logger.warning("Encountered component(s) that contribute zero flux: {0}".format(empty_components))
 
-        # Fill the matrix: the indices and intensities of all PSF instances are combined and serve as row indices (i0)
-        # and values of the matrix. To obtain the column indices of the matrix (i1), we use the property 'specrow' of
-        # the Sources class and correct for components with zero flux contribution (if they exist)
-        i0 = np.hstack((r[0] for r in results))  # the row indices
-
-        i1 = np.zeros(i0.shape, dtype=np.int32)
-        jstart = 0
-        for i in range(len(results)):
-            if components[i] in empty_components:
-                assert(len(results[i][0]) == 0), results[i]
-                continue
-            jend = jstart + len(results[i][0])
-            i1[jstart:jend] = components[i]
-            jstart = jend
-
-        f = np.hstack((r[1] for r in results))  # the fluxes
-
-        # If components are entirely outside the field of view, the indices in i1 will not be contiguous but there will
-        # be gaps that must be removed.
-        assert np.intersect1d(i1, empty_components).size == 0, "i1 contains indices of components with zero flux."
-        for empty_component in empty_components[::-1]:
-            i1[i1 > empty_component] -= 1
+            # if so, reduce index number of higher components (start with highest empty component to avoid gaps)
+            for i1 in np.sort(empty_components.values)[::-1]:
+                matrix_data.loc[matrix_data['i1'] > i1, 'i1'] -= 1
 
         # create matrix: first, a COO matrix is constructed. Note that it handles the case when the input data contains
         # multiple entries for the some indices (row, column). After construction, the matrix is converted to a
         # CSC matrix to speed up future usage of it.
-        nrows = self.data.size
-        ncols = self.n_components - len(empty_components) + self.n_background
+        n_rows = self.data.size
+        n_columns = self.n_components - len(empty_components) + self.n_background
 
-        if self.last_component_is_unresolved:  # handle the unresolved component
+        # handle the unresolved component
+        if self.last_component_is_unresolved:
+
             # need to take into account that the row of the unresolved component in the matrix changes if some
             # components do not contribute
             unresolved_component = self.n_components - 1 - len(empty_components)
-            if update_unresolved or self._unresolved_matrix is None:
-                # just store the unresolved sources as a list for later re-use
-                r = (i1 != unresolved_component)
-                self._unresolved_matrix = sparse.coo_matrix((f[~r], (i0[~r], i1[~r])), shape=(nrows, ncols))
-                _Apsf = sparse.coo_matrix((f[r], (i0[r], i1[r])), shape=(nrows, ncols)) + self._unresolved_matrix
-            else:
-                _Apsf = sparse.coo_matrix((f, (i0, i1)), shape=(nrows, ncols)) + self._unresolved_matrix
-        else:
-            _Apsf = sparse.coo_matrix((f, (i0, i1)), shape=(nrows, ncols))
 
+            if update_unresolved or self._unresolved_matrix is None:
+                # store the unresolved sources as a list for later re-use
+                slc = (matrix_data['i1'] != unresolved_component)
+                self._unresolved_matrix = sparse.coo_matrix(
+                    (matrix_data.loc[~slc, 'flux'], (matrix_data.loc[~slc, 'i0'], matrix_data.loc[~slc, 'i1'])),
+                    shape=(n_rows, n_columns))
+
+                # then add it to matrix of resolved sources
+                _psf_matrix = sparse.coo_matrix(
+                    (matrix_data.loc[slc, 'flux'], (matrix_data.loc[slc, 'i0'], matrix_data.loc[slc, 'i1'])),
+                    shape=(n_rows, n_columns)) + self._unresolved_matrix
+            else:
+                # create matrix for resolved sources, add matrix for unresolved ones
+                _psf_matrix = sparse.coo_matrix(
+                    (matrix_data['flux'], (matrix_data['i0'], matrix_data['i1'])),
+                    shape=(n_rows, n_columns)) + self._unresolved_matrix
+        else:
+            # create full matrix
+            _psf_matrix = sparse.coo_matrix((matrix_data['flux'], (matrix_data['i0'], matrix_data['i1'])),
+                                            shape=(n_rows, n_columns))
+
+        # add background matrix if available
         if self.n_background > 0:
             if empty_components is None:
-                _Apsf = _Apsf + self.background
+                _psf_matrix = _psf_matrix + self.background
             else:
+                # if PSF matrix contains unresolved components, need to adapt indices of background matrix
                 used = ~np.in1d(np.arange(self.n_components + self.n_background), empty_components)
-                _Apsf = _Apsf + self.background.tocsc()[:, used].tocoo()
+                _psf_matrix = _psf_matrix + self.background.tocsc()[:, used].tocoo()
 
         t3 = time.time()
         logger.debug("Time required to create matrix: {0:.3f}s".format(t3 - t2))
         logger.debug("Full source matrix creation took {0:.2f}s.".format(t3-t0))
 
-        # return CSC matrix and array containing the components that contribute flux
-        zero_component = np.in1d(np.arange(self.n_components, dtype=np.int32), empty_components)
-        return _Apsf.tocsc(), ~zero_component
+        # return CSC matrix and indices of components that contribute
+        return _psf_matrix.tocsc(), total_fluxes[total_fluxes > 0].index
 
     def fit_psf_single_source(self, sources, psf_parameters=None, fit_positions=True, psf_sources=None):
         """
@@ -907,7 +908,7 @@ class FitLayer(object):
 
             # reset PSF instance to state it had before the fit
             psf.transform = self.transformation
-            psf.maxrad = self.maxrad
+            psf.maxrad = self.psf_radius
 
         return results
 

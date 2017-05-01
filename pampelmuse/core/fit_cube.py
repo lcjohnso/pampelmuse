@@ -1,7 +1,7 @@
 """
 fit_cube.py
 ===========
-Copyright 2013-2016 Sebastian Kamann
+Copyright 2013-2017 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -31,7 +31,7 @@ extraction for a data cube.
 
 Latest SVN revision
 -------------------
-375, 2016/09/23
+422, 2016/04/30
 """
 import logging
 import time
@@ -42,7 +42,7 @@ from .background import BackgroundGrid
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 375
+__revision__ = 422
 
 
 logger = logging.getLogger(__name__)
@@ -175,7 +175,7 @@ def parallel_fit_layer(fit_parameters):
                         psf_parameters=psf_parameters, xy=xy, position_parameters=position_parameters,
                         magnitudes=g_magnitudes, components=g_components, background=background,
                         last_component_is_unresolved=g_last_component_is_unresolved, wave=wave,
-                        maxrad=g_maxrad, osfactor=g_osfactor, osradius=g_osradius)
+                        psf_radius=g_maxrad, osfactor=g_osfactor, osradius=g_osradius)
 
     results = layerfit(fluxes=None, psf_parameters_to_fit=g_psf_parameters_to_fit,
                        position_parameters_to_fit=g_position_parameters_to_fit,
@@ -187,10 +187,12 @@ def parallel_fit_layer(fit_parameters):
 
 class FitCube(object):
     """
-    This class implements the core-routine of PampelMuse. It uses a catalog of
-    input sources, created e.g. using the dedicated subroutine 'INITFIT', to
-    analyse a complete data cube in a layer-by-layer manner. The fitting
-    process itself is split into three parts:
+    This class implements the PSF fit on a complete cube.
+
+    The class uses a catalog of input sources, created e.g. using the
+    dedicated subroutine 'INITFIT', to analyse a complete data cube in a
+    layer-by-layer manner. The fitting process itself is split into three
+    parts:
     
         (i) Fluxes:
         A linear least-squares fit is performed for all the resolved sources
@@ -216,7 +218,7 @@ class FitCube(object):
     wavelength range.
     """
 
-    def __init__(self, ifs_data, sources, psf_attributes, maxrad=np.inf, osfactor=5, osradius=2, **kwargs):
+    def __init__(self, ifs_data, sources, psf_attributes, maxrad=np.inf, osfactor=5, osradius=2):
         """
         Initialize an instance of the `StarFit'-class.
     
@@ -324,7 +326,7 @@ class FitCube(object):
         else:
             self.background = None
 
-    def __call__(self, layer_range=(0, -1), n_track=10, n_cpu=1, maxiter=20, use_variances=True, n_bin=1):
+    def __call__(self, layer_range=(0, -1), n_track=10, n_cpu=1, max_iterations=20, use_variances=True, n_bin=1):
         """
         Execute the fitting process. For each layer of the provided
         data cube, the following steps are performed:
@@ -349,7 +351,7 @@ class FitCube(object):
             that `n_track' will be divided by `n_bin', if layer binning is used.
         n_cpu : integer
             The number of CPUs that should be used.
-        maxiter : int, optional
+        max_iterations : int, optional
             The maximum number of iterations per image. The default is 20.
         use_variances : boolean, optional
             A flag indicating whether the uncertainties of the IFS data should
@@ -384,8 +386,8 @@ class FitCube(object):
         omitted_layers = ~np.in1d(np.arange(self.sources.ndisp, dtype=np.int16), layers_to_analyse)
 
         # Number of iterations per layer.
-        if maxiter > 1:
-            logger.info("Maximum iterations per layer: {0}".format(maxiter))
+        if max_iterations > 1:
+            logger.info("Maximum iterations per layer: {0}".format(max_iterations))
         else:
             logger.info("No iteration on individual layers performed.")
 
@@ -469,7 +471,7 @@ class FitCube(object):
                     position_parameters_to_fit,
                     sources,
                     psf_sources,
-                    maxiter
+                    max_iterations
                     )
         if n_cpu > 1:
             pool = Pool(n_cpu, initializer=init_worker, initargs=initargs)
