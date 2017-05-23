@@ -100,7 +100,7 @@ def cubefit(config):
     logging.info("Starting fit process...")
 
     fitter = FitCube(ifs_data=ifs_data, sources=sources, psf_attributes=psf_attributes,
-                     maxrad=config['psf'].get('radius', default=15))
+                     psf_radius=config['psf'].get('radius', default=15))
 
     fitter(layer_range=(first_layer, last_layer),
            n_cpu=config['global'].get('cpucount', default=1),

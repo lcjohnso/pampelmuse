@@ -278,7 +278,7 @@ class MakeResidualsCube(FitCube):
         initargs = (self.psf_attributes.profile,
                     self.magnitudes[selected],
                     selected_components,
-                    self.maxrad,
+                    self.psf_radius,
                     self.osfactor,
                     self.osradius
                     )
@@ -303,7 +303,7 @@ class MakeResidualsCube(FitCube):
             logger.info("Collecting input data processing layer #{0}.".format(jj))
 
             # get 1D arrays containing valid data pixels, also sigma-values if requested
-            data, variances, transform, wave = self.get_layer(jj, n_bin=1, use_variances=False, mask_nan=False)
+            data, variances, transform, wave = self.get_layer(jj, n_bin=1, use_variances=False, skip_nan=False)
             fit_input.append({'data': data, 'variances': variances, 'transformation': transform, 'wave': wave})
 
             # update fluxes

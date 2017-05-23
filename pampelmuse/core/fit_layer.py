@@ -77,43 +77,6 @@ __revision__ = 423
 logger = logging.getLogger(__name__)
 
 
-def sum_by_group(values, groups):
-    """
-    This is a fast algorithm for summing up the data in one
-    array based on the groups provided in the second array.
-    It is taken from http://stackoverflow.com/questions\
-    /4373631/sum-array-by-number-in-numpy?lq=1
-
-    Parameters
-    ----------
-    values : array_like, 1dim.
-        The data that should be summed up.
-    groups : array_like, 1dim.
-        The groups according to which the data in 'values'
-        should be summed. It must have the same length as
-        'values'
-
-    Returns
-    -------
-    values : nd_array
-        The summed up data. Note that the entries are sorted
-        according to the provided group numbers.
-    groups : nd_array
-        A sorted list of all the groups provided as input.
-    """
-    order = np.argsort(groups)
-    groups = np.asarray(groups)[order]
-    values = np.asarray(values)[order]
-    values.cumsum(out=values, dtype=np.float64)
-    # print "CUMSUM:", values
-    index = np.ones(len(groups), 'bool')
-    index[:-1] = groups[1:] != groups[:-1]
-    values = values[index]
-    groups = groups[index]
-    values[1:] = values[1:] - values[:-1]
-    return values, groups
-
-
 # for a nicer printing of numpy arrays, following suggestion from
 # http://stackoverflow.com/questions/2891790/pretty-printing-of-numpy-array
 @contextlib.contextmanager
