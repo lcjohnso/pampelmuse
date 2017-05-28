@@ -182,7 +182,7 @@ class Parameters(object):
 
         if contains_polynoms:
             # if polynomial fits are included, add them to the data array (append a new axis)
-            data = np.dstack((data, np.atleast_2d(hdu_data['polyfit'].T)))  # has shape (n_dispersion, n_parameters, 2)
+            data = np.dstack((np.atleast_2d(hdu_data['polyfit'].T, data)))  # has shape (n_dispersion, n_parameters, 2)
 
             # must define a pandas MultiIndex: 0th level - parameter 1st level: value or fit
             columns = pd.MultiIndex.from_product([hdu_data['name'], ['fit', 'value']], names=['parameter', 'type'])
@@ -197,7 +197,7 @@ class Parameters(object):
         free = hdu_data['freepar']
 
         # return instance
-        return cls(data_frame, free=free, **kwargs)
+        return cls(data=data_frame, free=free, **kwargs)
 
     @classmethod
     def from_dictionary(cls, parameters, free=None):

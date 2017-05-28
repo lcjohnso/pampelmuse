@@ -37,7 +37,7 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-421, 2017/04/30
+425, 2017/05/28
 """
 import collections
 import logging
@@ -59,7 +59,7 @@ except ImportError:
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 421
+__revision__ = 425
 
 
 logger = logging.getLogger(__name__)
@@ -107,7 +107,7 @@ class Sources(object):
 
         # use source IDs as index if they exist
         if 'id' in catalog.columns:
-            self.catalog = catalog.set_index('id', drop=True)
+            self.catalog = catalog.set_index('id', drop=False)  # Note that astropy does not store the index column!
         else:
             self.catalog = catalog
 
@@ -464,7 +464,7 @@ class Sources(object):
         except (IOError, ValueError) as msg:
             logger.error('Cannot update values for source property "status": {0}'.format(msg))
         else:
-            self.catalog.loc[:, 'status'] = value
+            self.catalog.loc[:, 'primary'] = value
             # if Sources.primary is (re)set after attribute Sources.specrow has been set internally,
             # the latter is not valid anymore.
             if 'specrow' in self.catalog.columns:
@@ -522,6 +522,7 @@ class Sources(object):
                             self.status[i] = -1
                             break
                         secondary.append(j)
+                        j = self.catalog.at[j, 'primary']
 
                     specrow[secondary] = specrow[j]
                 elif status[i] == 0:
@@ -741,8 +742,8 @@ class Sources(object):
         Parameters
         ----------
         hdu : instance of astropy.io.fits.ImageHDU
-            The HDU containing the spectra and their uncertainties for. The
-            shape of the data array must be [python counting]:
+            The HDU containing the spectra and their uncertainties. The shape
+            of the data array must be [python counting]:
             (Sources.n_disp, Sources.n_components, 2)
             The HDU is accessible via attribute Sources.data_hdu afterwards.
         data_wave_hdu : instance of astropy.io.fits.ImageHDU, optional
@@ -850,7 +851,7 @@ class Sources(object):
 
         # initialize axes of data frame for spectra data.
         # rows contain dispersion data using the actual wavelengths as a pandas Float64Index
-        index = pd.Float64Index(self.wave[layers])
+        index = self.wave[layers]
 
         # check if dedicated wavelength information per source should be used
         init_wave |= self.data_wave_hdu is not None
@@ -861,8 +862,10 @@ class Sources(object):
         # fill array using data from Spectrum HDU if one is available
         if self.data_hdu is not None:
             # get requested chunk of data from available HDU
+            # apparently there is an issue with the byte-order between astropy and pandas:
+            # https://github.com/astropy/astropy/issues/1156
             logger.debug('Reading spectrum data HDU ...')
-            data = self.data_hdu.section[layers[0]:layers[-1] + 1][:, components]
+            data = self.data_hdu.section[layers[0]:layers[-1] + 1][:, components].byteswap().newbyteorder()
             # -> array shape (n_layers, n_components, 2)
             if init_wave:
                 # add wavelength information if available
@@ -872,7 +875,7 @@ class Sources(object):
                 # otherwise use global wavelength array
                 else:
                     wave = np.repeat(self.wave[layers][:, np.newaxis], columns.size, axis=-1)
-                data = np.dstack((data, wave))
+                data = np.dstack((data, wave.byteswap().newbyteorder()))
                 # -> array shape (n_layers, n_components, 3)
         else:
             # create empty array that can be used to initialize data frame
@@ -910,7 +913,7 @@ class Sources(object):
             self._wave *= self.cdelt
             self._wave += self.crval
 
-        return self._wave
+        return pd.Float64Index(self._wave)
 
     def get_magnitude(self, components, passband=None):
         """
@@ -1637,6 +1640,10 @@ class Sources(object):
             select = self.status >= 0
         except ValueError:
             select = np.arange(self.n_sources, dtype=np.int32)
+
+        # make sure 'id' is among columns (as the index is not stored by the astropy routine)
+        if 'id' not in self.catalog.columns:
+            self.catalog.loc[:, 'id'] = self.catalog.index.values
 
         # convert catalog to astropy Table
         out_table = Table.from_pandas(self.catalog[select])

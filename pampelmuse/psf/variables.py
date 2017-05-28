@@ -73,7 +73,7 @@ class Variables(Parameters):
               "theta": r"$\theta\ [\mathrm{rad}]$", "fwhm1": r"$\mathrm{FWHM}_1\ [\mathrm{spaxel}]$",
               "fwhm2": r"$\mathrm{FWHM}_2\ [\mathrm{spaxel}]$", "f12": r"$f_\mathrm{12}$"}
 
-    def __init__(self, profile, data=None, free=None, **kwargs):
+    def __init__(self, profile='moffat', data=None, free=None, **kwargs):
         """
         Initialize an instance of pampelmuse.core.psf.attributes.Parameters
         
@@ -121,11 +121,15 @@ class Variables(Parameters):
         # if no profile is provided, the header keyword PSFTYPE must be available in the FITS header
         if profile is None and 'PSFTYPE' not in hdu.header:
             logger.error('Cannot infer type of PSF from FITS header.')
-        elif profile is None:
+        # if PSF type provided and in  header, latter has priority
+        elif "PSFTYPE" in hdu.header:
+            if profile is not None and profile != hdu.header['PSFTYPE']:
+                logger.warning('Provided PSF type {0} does not match PSF type {1} in HDU'.format(
+                    profile, hdu.header['PSFTYPE']))
             profile = hdu.header['PSFTYPE']
 
         # call class method of super-class
-        super(Variables, cls).from_hdu(hdu=hdu, profile=profile)
+        return super(Variables, cls).from_hdu(hdu=hdu, profile=profile)
 
     def info(self, names=None):
         """

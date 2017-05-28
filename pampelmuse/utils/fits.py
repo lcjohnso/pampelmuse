@@ -32,12 +32,13 @@ The provided functions facilitate working with FITS data.
 
 Latest SVN revision
 -------------------
-408, 2017/04/03
+425, 2017/05/28
 """
 import os
 import logging
 import numpy as np
 from astropy.io import fits
+from astropy.table import Table
 from ..core import Sources
 from ..core.coordinates import Transformation
 from ..instruments import *
@@ -46,7 +47,7 @@ from ..psf import Variables
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 408
+__revision__ = 425
 
 
 def open_ifs_data(prefix, **kwargs):
@@ -191,7 +192,8 @@ def open_prm(filename, ndisp=-1):
     logging.info("Obtaining information on sources in the field...")
 
     # Source catalogue
-    sources = Sources(catalog=hdulist["SOURCES"])
+    catalog = Table.read(filename, hdu=1)
+    sources = Sources(catalog=catalog.to_pandas())
 
     # Spectra
     try:
@@ -201,12 +203,7 @@ def open_prm(filename, ndisp=-1):
             wave_hdu = hdulist[j]
         except KeyError:
             wave_hdu = None
-        try:
-            k = hdulist.index_of("SIGMASPC")
-            sigma_hdu = hdulist[k]
-        except KeyError:
-            sigma_hdu = None
-        sources.open_spectra_hdu(hdulist[i], sigma_hdu=sigma_hdu, data_wave_hdu=wave_hdu)
+        sources.open_spectra_hdu(hdulist[i], data_wave_hdu=wave_hdu)
     except KeyError:
         logging.critical("No spectra (HDU 'SPECTRA') have been provided.")
 
@@ -224,7 +221,7 @@ def open_prm(filename, ndisp=-1):
 
     try:
         i = hdulist.index_of("POSPARS")
-        sources.transformation = Transformation(hdu=hdulist[i])
+        sources.transformation = Transformation.from_hdu(hdulist[i])
     except KeyError:
         logging.warning("No coord. transf. (HDU 'POSPARS') detected.")
         sources.ifs_coordinates_free[sources.status < 4] = True
@@ -234,11 +231,11 @@ def open_prm(filename, ndisp=-1):
     logging.info("Obtaining PSF properties...")
     try:
         i = hdulist.index_of("PSFPARS")
-        psf_attributes = Variables(hdu=hdulist[i])
+        psf_attributes = Variables.from_hdu(hdu=hdulist[i])
     except KeyError:  # otherwise, assume Gaussian, round with FWHM=3.0pixel
         logging.warning("No HDU 'PSFPARS' found. Using default PSF.")
 
-        psf_attributes = Variables(**{"profile": "gauss", "fwhm": 3.0})
+        psf_attributes = Variables.from_dictionary({"profile": "gauss", "fwhm": 3.0})
         psf_attributes.free = np.atleast_1d([1, 0, 0])
 
     psf_attributes.info()
@@ -383,7 +380,7 @@ def make_header_from_config(config, **kwargs):
     for key, item in config.items():
         for sub_key, value in item.items():
             # parameters 'mask' and 'saturated' can be lists and need to be handled separately:
-            if hasattr(value, '__iter__'):
+            if isinstance(value, (list, tuple)):
                 for i, value_i in enumerate(value, start=1):
                     header['HIERARCH PAMPELMUSE {0} {1} {2}'.format(key, sub_key, i)] = value_i
             else:

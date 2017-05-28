@@ -65,7 +65,7 @@ This results in the inverse transformation:
 
 Latest SVN revision
 -------------------
-421, 2017/04/30
+425, 2017/05/28
 """
 import logging
 import numpy as np
@@ -74,7 +74,7 @@ from ..core.parameters import Parameters
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 421
+__revision__ = 425
 
 
 logger = logging.getLogger(__name__)
@@ -346,8 +346,9 @@ class Transformation(Parameters):
         in_matrix[1:2*n:2, -1] = 1.
 
         # make sure input is available as 3D numpy array (if needed, create pseudo-dispersion axis)
-        out_data = np.atleast_3d(out_data)
-        # collapse last two axes
+        if len(out_data.shape) == 2:
+            out_data = out_data[np.newaxis, ...]
+        # collapse last two axes (i.e. x and y)
         b = out_data.reshape((-1, out_data.shape[-1] * out_data.shape[-2]))
 
         # handle fixed parameters, if any:
@@ -373,17 +374,6 @@ class Transformation(Parameters):
 
         # when returning residuals, transpose residuals array and split x- and y-axes in residuals array again
         return best_fit.T, residuals.reshape((-1, n, 2))
-
-    @property
-    def valid(self):
-        """
-        Returns
-        -------
-        bool
-           Flag indicating if all parameters of the coordinate transformation
-           have valid data.
-        """
-        return self.defined.all()
 
     @property
     def z_matrix(self):

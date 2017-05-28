@@ -57,7 +57,7 @@ parameters are not fitted.
 
 Latest SVN revision
 -------------------
-423, 2017/05/07
+425, 2017/05/28
 """
 import contextlib
 import logging
@@ -71,7 +71,7 @@ from ..core.coordinates import Transformation
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 423
+__revision__ = 425
 
 
 logger = logging.getLogger(__name__)
@@ -209,7 +209,7 @@ class FitLayer(object):
         # define PSF profile for each source, check if direct positions were provided for some sources
         self.psf_instances = {}
         for index, row in self.catalog.iterrows():
-            new_psf = psf_class(transform=self.data[['x', 'y']].values, uc=row['x'], vc=row['y'], mag=row['magnitude'],
+            new_psf = psf_class(transform=self.data[['y', 'x']].values, uc=row['x'], vc=row['y'], mag=row['magnitude'],
                                 src_id=index, maxrad=self.psf_radius, osfactor=osfactor, osradius=osradius)
             # initialize the PSF parameters:
             for key, value in psf_parameters.items():
@@ -231,7 +231,7 @@ class FitLayer(object):
         # prepare array for fluxes of all components (including background components if any)
         self.fluxes = pd.Series(0., index=np.arange(self.n_components))
         if self.n_background > 0:
-            self.fluxes = self.fluxes.append(pd.Series(0., index=np.arange(-1, -self.n_background, -1)))
+            self.fluxes = self.fluxes.append(pd.Series(0., index=np.arange(-1, -(self.n_background + 1), -1)))
 
     @property
     def variances(self):
@@ -353,7 +353,7 @@ class FitLayer(object):
         return_psf : pandas.Series
              The best-fit parameters of the PSF, or None if a fixed PSf was
              used.
-        return_wave : pd.Series
+        return_wave : pandas.Series
              If dedicated wavelength information per pixel was provided with
              the data, this Series will contain the weighted wavelength value
              for each returned flux. Otherwise an empty Series is returned.
@@ -397,17 +397,6 @@ class FitLayer(object):
             fit_matrix = fit_matrix * sparse.dia_matrix((1./total_flux, [0]), shape=(m, m))
             # -> shape m, n
 
-            # for testing, show scatter plot with current residuals
-            # import matplotlib.pyplot as plt
-            # fig = plt.figure(figsize=(8, 10))
-            # ax = fig.add_axes([0.04, 0.52, 0.92, 0.46])
-            # ax.scatter(self.transformation[:, 1], self.transformation[:, 0], marker='s', s=300, c=self.current,
-            #            cmap=plt.cm.hot, edgecolors='face', vmin=-100, vmax=1000)
-            # ax2 = fig.add_axes([0.04, 0.02, 0.92, 0.46])
-            # ax2.scatter(self.transformation[:, 1], self.transformation[:, 0], marker='s', s=300,
-            #             c=self.model.sum(axis=1).getA1(), cmap=plt.cm.hot, edgecolors='face', vmin=-100, vmax=1000)
-            # plt.show()
-
             # The fit for the source fluxes is carried out on the residuals, not the data itself. The fitted residual
             # fluxes are added to the existing ones
             t1 = time.time()
@@ -426,6 +415,17 @@ class FitLayer(object):
             if np.nanmedian(abs(delta_flux)) < 0.005:
                 break
 
+            # # for testing, show scatter plot with current residuals and model
+            # import matplotlib.pyplot as plt
+            # fig = plt.figure(figsize=(8, 10))
+            # ax = fig.add_axes([0.04, 0.52, 0.92, 0.46])
+            # ax.scatter(self.data.loc[:, 'x'], self.data.loc[:, 'y'], marker='s', s=300, c=self.current,
+            #            cmap=plt.cm.hot, edgecolors='face', vmin=-1000, vmax=10000)
+            # ax2 = fig.add_axes([0.04, 0.02, 0.92, 0.46])
+            # ax2.scatter(self.data.loc[:, 'x'], self.data.loc[:, 'y'], marker='s', s=300,
+            #             c=self.model.sum(axis=1).getA1(), cmap=plt.cm.hot, edgecolors='face', vmin=-1000, vmax=10000)
+            # plt.show()
+
             # carry out optimization of PSF and/or source positions
             if psf_parameters_to_fit is not None or position_parameters_to_fit is not None:
 
@@ -438,12 +438,12 @@ class FitLayer(object):
                     # if positions are fitted directly, update them
                     if 'xy' in position_parameters_to_fit:
                         for index, row in results.iterrows():
-                            if np.isfinite(row['x']) and np.isfinite(row['y']):
-                                self.psf_instances[index].xc = row['x']
-                                self.psf_instances[index].yc = row['y']
+                            if np.isfinite(row['xc']) and np.isfinite(row['yc']):
+                                self.psf_instances[index].xc = row['xc']
+                                self.psf_instances[index].yc = row['yc']
                         # afterwards remove columns from data frame
-                        del results['x']
-                        del results['y']
+                        del results['xc']
+                        del results['yc']
 
                     # get average values from individual fits as pandas Series
                     final = self.average_psf_fits(results, psf_parameters_to_fit, position_parameters_to_fit)
@@ -452,21 +452,22 @@ class FitLayer(object):
                     final = pd.Series()
                     # first fit positions
                     if position_parameters_to_fit is not None:
-                        final.append(self.fit_sources_simultaneously(position_parameters_to_fit))
+                        final = final.append(self.fit_sources_simultaneously(position_parameters_to_fit))
                     # then PSf parameters
                     if psf_parameters_to_fit is not None:
-                        final.append(self.fit_sources_simultaneously(psf_parameters_to_fit))
+                        final = final.append(self.fit_sources_simultaneously(psf_parameters_to_fit))
 
                 # update values in PSF instances
                 for parameter in position_parameters_to_fit + psf_parameters_to_fit:
-                    if np.isfinite(final[parameter]):
+                    if parameter in final and np.isfinite(final[parameter]):
+                        value = final[parameter]
                         try:
-                            [setattr(psf, parameter, final[parameter]) for psf in self.psf_instances]
+                            [setattr(psf, parameter, value) for psf in self.psf_instances.values()]
                         except AssertionError:
                             logger.error('PSF fit yielded invalid value {0:.1f} for parameter {1}.'.format(
-                                parameter, final[parameter]))
+                                parameter, value))
                         else:
-                            logger.info('Updated parameters "{0}" to {1}.'.format(parameter, final[parameter]))
+                            logger.info('Updated parameters "{0}" to {1}.'.format(parameter, value))
                     else:
                         logger.error('Cannot update parameter "{0}" because fit yielded NaN.'.format(parameter))
 
@@ -535,7 +536,7 @@ class FitLayer(object):
         -------
         The residuals of the current best fit model.
         """
-        return self.data - self.model.sum(axis=1).getA1()
+        return self.data['value'] - self.model.sum(axis=1).getA1()
 
     def residuals_from_fluxes(self, fluxes):
         """
@@ -657,7 +658,7 @@ class FitLayer(object):
         logger.debug("Time required to calculate PSF profiles: {0:.3f}s".format(t1 - t0))
 
         # Calculate total flux of each component
-        total_fluxes = psf_fluxes.groupby(by='component').agg(np.sum)
+        total_fluxes = psf_fluxes.groupby(by='component').agg(np.sum)['flux']
 
         t2 = time.time()
         logger.debug("Time required to combine components: {0:.3f}s".format(t2 - t1))
@@ -674,7 +675,7 @@ class FitLayer(object):
         # create matrix: first, a COO matrix is constructed. Note that it handles the case when the input data contains
         # multiple entries for the some indices (row, column). After construction, the matrix is converted to a
         # CSC matrix to speed up future usage of it.
-        n_rows = self.data.size
+        n_rows = self.data.shape[0]
         n_columns = self.n_components - len(empty_components) + self.n_background
 
         # handle the unresolved component
@@ -707,7 +708,7 @@ class FitLayer(object):
 
         # add background matrix if available
         if self.n_background > 0:
-            if empty_components is None:
+            if not len(empty_components):
                 _psf_matrix = _psf_matrix + self.background
             else:
                 # if PSF matrix contains unresolved components, need to adapt indices of background matrix
@@ -723,7 +724,7 @@ class FitLayer(object):
         return _psf_matrix.tocsc(), source_indices.append(self.fluxes.index[-self.n_background:])
 
     def fit_sources_consecutive(self, sources, psf_parameters=None, fit_positions=True, psf_sources=None,
-                                local_background=False):
+                                local_background=True):
         """
         Perform the PSF fit for one or more sources individually after
         subtracting all other sources using their current best fit.
@@ -776,11 +777,11 @@ class FitLayer(object):
 
         # prepare array that will hold the results
         # first collect columns that need to be included in the array
-        columns = ['flux', 'snr']
+        columns = ['snr', 'flux']
         if psf_parameters is not None:
             columns.extend(psf_parameters)
         if fit_positions:
-            columns.extend(['x', 'y'])
+            columns.extend(['xc', 'yc'])
 
         # prepare empty data frame & fill with NaNs
         results = pd.DataFrame(0., index=sources, columns=columns)
@@ -794,11 +795,11 @@ class FitLayer(object):
             # Collect fit parameters and their initial guesses:
             # (a) the names of the free parameters for this PSF
             if i in psf_sources:
-                names = results.columns
+                names = results.columns[1:]
             elif fit_positions:
-                names = results.columns[[0, 1, -2, -1]]
+                names = results.columns[[1, -2, -1]]
             else:
-                names = results.columns[:2]
+                names = results.columns[1]
 
             # (b) the initial guesses for the parameter fit
             # (1) flux
@@ -815,31 +816,31 @@ class FitLayer(object):
 
             logger.debug("Initial guesses for fit of source no. {0}: {1}".format(psf.src_id, dict(zip(names, x0))))
 
-            # get values and variances for pixels where the current PSF is defined
+            # for fit, get residuals and variances for pixels where the current PSF is defined
+            data = self.current[psf.used]
             variances = 1. / self.fit_weights[psf.used]
-            data = self.current[psf.used] + x0[0] * psf.f
-
-            # need to update pixel-to-xy transformation and radius of current PSF
-            psf.transform = self.data.loc[psf.used, ['x', 'y']]
-            psf.maxrad = np.inf
 
             # for following calculations, find pixels inside/outside of circle with radius of FWHM
             pixel = np.unique(psf.osmap, return_index=True)[1]  # this makes sure every subspaxel only counted once
             in_fwhm = (psf.r[pixel] < psf.fwhm)
 
-            # if requested, subtract local background
+            # if requested, subtract local background, defined as median of residuals outside FWHM
             if local_background:
                 data -= np.median(data[~in_fwhm])
 
-            # for debugging, show plot with current data
+            # add best-fit PSF-profile to residuals to get data used in fit
+            data += x0[0] * psf.f
+
+            # # for debugging, show plot with current data
             # import matplotlib.pyplot as plt
-            # fig = plt.figure()
-            # ax = fig.add_axes([0.12, 0.12, 0.83, 0.83])
-            # # print(psf.uc, psf.vc, psf.xc, psf.yc)
-            # ax.scatter(psf.x, psf.y, marker='o', s=50, c=data, cmap=plt.cm.hot)
+            # fig = plt.figure(figsize=(5, 8))
+            # ax1 = fig.add_axes([0.12, 0.54, 0.83, 0.44])
+            # ax1.scatter(psf.x, psf.y, marker='o', s=50, c=data, cmap=plt.cm.hot, vmin=-1000, vmax=10000)
+            # ax2 = fig.add_axes([0.12, 0.05, 0.83, 0.44])
+            # ax2.scatter(psf.x, psf.y, marker='o', s=50, c=psf.f*x0[0], cmap=plt.cm.hot, vmin=-1000, vmax=10000)
             # plt.show()
 
-            # prior to fit, check if enough pixels available and source actually detected
+            # prior to fit, check if enough pixels available and source is actually detected
             if data.size <= len(x0):
                 # insufficient number of pixels, return initial guess
                 logger.error('Cannot perform PSF fit for source #{0}: N_pixels <= N_parameters.'.format(i))
@@ -860,16 +861,24 @@ class FitLayer(object):
                 logger.error('Cannot perform PSF fit for source #{0}: No significant peak detected.'.format(i))
                 continue
 
+            # need to update pixel-to-xy transformation and radius of current PSF
+            psf.transform = self.data.loc[psf.used, ['y', 'x']].values
+            psf.maxrad = np.inf
+
             # fit
             try:
                 result = optimize.leastsq(self.single_psf_optimizer, x0=np.asarray(x0), Dfun=self.single_psf_jacobi,
-                                          col_deriv=True, args=(names, psf, data, np.sqrt(variances)),
+                                          col_deriv=True, args=(names, psf, data.values, np.sqrt(variances.values)),
                                           full_output=True, epsfcn=0.0)
             except Exception as msg:  # optimize.minpack.error as error:
                 # error handler to avoid code crashes completely
                 # note that type of exception thrown seems to depend on scipy version
                 logger.error('PSF fit failed for source #{0}: {1}.'.format(i, msg))
                 continue
+            finally:
+                # reset radius und transformation of PSF instance to status before fit
+                psf.transform = self.data[['y', 'x']].values
+                psf.maxrad = self.psf_radius
 
             # check if result of a successful fit makes any sense:
             if 0 < result[-1] <= 4:
@@ -879,19 +888,19 @@ class FitLayer(object):
                     continue
                 # offset between fitted centroid and initial guess must be <= FWHM
                 elif 'xc' in names:
-                    ix = names.index("xc")
-                    iy = names.index("yc")
+                    ix = names.get_loc("xc")
+                    iy = names.get_loc("yc")
                     offset = np.sqrt((result[0][ix]-x0[ix])**2 + (result[0][iy]-x0[iy])**2)
                     if offset > psf.fwhm:
                         logger.error('PSF fit for source #{0} yielded offset > FWHM wrt. initial guess.'.format(i))
                         continue
 
             # add S/N to results array
-            results.at[i, 'snr'] = result[0][0] / np.sqrt(sum(variances/(psf.f**2)))
+            results.at[i, 'snr'] = result[0][0] * np.sqrt(sum((psf.f**2)*self.fit_weights[psf.used]))
 
             # if fit successful, include in data frame containing results
             if 0 < result[-1] <= 4:
-                results.loc[i, names] = results[0]
+                results.loc[i, names] = result[0]
 
                 # log outcome of fit
                 _string = ", ".join(["{0}={1:.2f}".format(names[k], result[0][k]) for k in range(1, len(names))])
@@ -901,11 +910,6 @@ class FitLayer(object):
             # otherwise log warning about failed fit
             else:
                 logger.warning("PSF fit failed for source #{0}: {1}".format(i, result[-2]))
-
-        # finally, reset PSF instances to state they had before the fit
-        for i in sources:
-            self.psf_instances[i].transform = self.catalog[['x', 'y']].values
-            self.psf_instances[i].maxrad = self.psf_radius
 
         # return
         return results
@@ -1159,7 +1163,7 @@ class FitLayer(object):
             DataFrame containing aat least the columns 'x' and 'y'.
         xy_true : pandas.DataFrame
             The best-fit (or true) coordinates of the same N sources, again
-            provided as pandas DataFrame containing the columns 'x' and 'y'.
+            provided as pandas DataFrame containing the columns 'xc' and 'yc'.
         fixed : dictionary, optional
             The names and values of the parameters that should be fixed to
             their given values when determining the new coordinate
@@ -1185,11 +1189,11 @@ class FitLayer(object):
             raise IOError('Len of first axis of input arrays must be >=4 but is {0}'.format(len(indices)))
 
         # perform fit
-        best_fit, residuals = Transformation.quick_fit(xy_reference.loc[indices, ['x', 'y']],
-                                                       xy_true.loc[indices, ['x', 'y']], fixed=fixed)
+        best_fit, residuals = Transformation.quick_fit(xy_reference.loc[indices, ['x', 'y']].values,
+                                                       xy_true.loc[indices, ['xc', 'yc']].values, fixed=fixed)
 
         # return Series containing only fitted parameters
-        return pd.Series(best_fit, index=[p for p in Transformation.PARAMETERS if p not in fixed.keys()])
+        return pd.Series(best_fit[0], index=[p for p in Transformation.PARAMETERS if p not in fixed.keys()])
 
     @staticmethod
     def calc_running_mad(x, y, n=500):
@@ -1234,7 +1238,7 @@ class FitLayer(object):
             ybin[i] = np.median(abs(cury))
         return xbin, ybin
 
-    def average_psf_fits(self, results, position_parameters=None, psf_parameters=None):
+    def average_psf_fits(self, results, psf_parameters=None, position_parameters=None):
         """
         Average the results of several PSF fits.
 
@@ -1252,11 +1256,11 @@ class FitLayer(object):
             fitted source and one column per fitted PSF parameter. If it also
             contains the columns 'x' and 'y' and 'position_parameters' is not
             None, the code will fit a coordinate transformation.
-        position_parameters : array_like, optional
-            The list of PSF parameters that have been fitted.
         psf_parameters : array_like, optional
             The list of coordinate transformation parameters that should be
             fitted.
+        position_parameters : array_like, optional
+            The list of PSF parameters that have been fitted.
 
         Returns
         -------
@@ -1277,7 +1281,7 @@ class FitLayer(object):
                 else:
                     logger.warning('Cannot calculate mean of "{0}" because no PSF fit succeeded.'.format(name))
                     _final[name] = np.nan
-            final.append(_final)
+            final = final.append(_final)
 
         # fit coordinate transformation to provided centroid coordinates
         if position_parameters is not None:
@@ -1289,15 +1293,15 @@ class FitLayer(object):
                 if parameter not in position_parameters:
                     fixed[parameter] = getattr(self.psf_instances[index], parameter)
             # select valid fits
-            valid = np.isfinite(results[:, -2:]).all(axis=1)
+            valid = np.isfinite(results[['xc', 'yc']]).all(axis=1)
 
             # perform fit
             try:
-                _final = FitLayer._update_coordinate_transformation(self.catalog, results.loc[valid, ['x', 'y']],
+                _final = FitLayer._update_coordinate_transformation(self.catalog, results.loc[valid, ['xc', 'yc']],
                                                                     fixed=fixed)
             except IOError:
                 logging.error('Fit of coordinate transformation failed.')
             else:
-                final.append(_final)
+                final = final.append(_final)
 
         return final

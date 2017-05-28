@@ -31,7 +31,7 @@ extraction for a data cube.
 
 Latest SVN revision
 -------------------
-424, 2017/05/14
+425, 2017/05/28
 """
 import logging
 import time
@@ -43,7 +43,7 @@ from .background import BackgroundGrid
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 424
+__revision__ = 425
 
 
 logger = logging.getLogger(__name__)
@@ -92,23 +92,23 @@ def init_worker(psf_type, psf_radius, psf_parameters_to_fit, position_parameters
     derived from the names of the parameters by adding a prefix 'g_'
     """
     global g_psf_type
-    global g_last_component_is_unresolved
     global g_psf_radius
-    global g_osfactor
-    global g_osradius
     global g_psf_parameters_to_fit
     global g_position_parameters_to_fit
+    global g_last_component_is_unresolved
+    global g_osfactor
+    global g_osradius
     global g_sources
     global g_psf_sources
     global g_max_iterations
 
     g_psf_type = psf_type
-    g_last_component_is_unresolved = last_component_is_unresolved
     g_psf_radius = psf_radius
-    g_osfactor = osfactor
-    g_osradius = osradius
     g_psf_parameters_to_fit = psf_parameters_to_fit
     g_position_parameters_to_fit = position_parameters_to_fit
+    g_last_component_is_unresolved = last_component_is_unresolved
+    g_osfactor = osfactor
+    g_osradius = osradius
     g_sources = sources
     g_psf_sources = psf_sources
     g_max_iterations = max_iterations
@@ -125,17 +125,16 @@ def parallel_fit_layer(fit_parameters):
     ----------
     fit_parameters : dict
         A dictionary containing the parameters necessary to launch the fit:
-        data - the data array that defines the layer.
-        variances - the variances for the data array.
-        transformation - The transformation from pixel to x- & y-coordinates
-        xy - the reference or pixel coordinates of the sources.
+        data - the value, variance, x-, and y-positions, and wavelength
+               (optional) of each pixel of the layer.
+        catalog - the pixel coordinates, statuses, components, and relative
+                  magnitudes of all sources to be used in fit.
         psf_parameters - the initial guesses/fixed values of the PSF
                          parameters.
         position_parameters - the initial guesses/fixed values of the coord.
                               transformation parameters.
         background - the matrix containing the footprints of the individual
                      background components.
-        wave - the wavelengths of each pixel in the data array.
 
     Returns
     -------
@@ -148,7 +147,6 @@ def parallel_fit_layer(fit_parameters):
         psf - The fitted values of the PSF parameters.
         wave - The average wavelength determined for each component.
     """
-
     # fit parameters is a dictionary that must contain the following keys:
     # data, variances, transformation, xy, psf_parameters, position_parameters
     data = fit_parameters['data']
@@ -157,8 +155,8 @@ def parallel_fit_layer(fit_parameters):
     position_parameters = fit_parameters['position_parameters']
     background = fit_parameters['background']
 
-    global g_psf_type, g_magnitudes, g_components, g_last_component_is_unresolved, g_psf_radius, g_osfactor, g_osradius
-    global g_psf_parameters_to_fit, g_position_parameters_to_fit, g_sources, g_psf_sources, g_max_iterations
+    global g_psf_type, g_psf_radius, g_psf_parameters_to_fit, g_position_parameters_to_fit
+    global g_last_component_is_unresolved, g_osfactor, g_osradius, g_sources, g_psf_sources, g_max_iterations
 
     layerfit = FitLayer(data=data, catalog=catalog, psf_type=g_psf_type, psf_parameters=psf_parameters,
                         psf_radius=g_psf_radius, position_parameters=position_parameters,
@@ -167,7 +165,7 @@ def parallel_fit_layer(fit_parameters):
 
     results = layerfit(fluxes=None, psf_parameters_to_fit=g_psf_parameters_to_fit,
                        position_parameters_to_fit=g_position_parameters_to_fit,
-                       sources=g_sources, psf_sources=g_psf_sources, maxiter=g_max_iterations)
+                       sources=g_sources, psf_sources=g_psf_sources, max_iterations=g_max_iterations)
 
     del layerfit
     return results
@@ -354,9 +352,12 @@ class FitCube(object):
         layers_to_analyse[0::2] = _layers_to_analyse[_layers_to_analyse.size // 2:]
         layers_to_analyse[1::2] = _layers_to_analyse[:_layers_to_analyse.size // 2][::-1]
 
+        # finally, get indices corresponding to requested layers
+        indices_to_analyse = self.sources.wave[layers_to_analyse]
+
         # also get list of layers that are not included in this run
         # (if the binning factor is >1, they may still be considered)
-        omitted_layers = ~np.in1d(np.arange(self.sources.n_dispersion, dtype=np.int16), layers_to_analyse)
+        omitted_indices = self.sources.wave[~self.sources.wave.isin(indices_to_analyse)]
 
         # Number of iterations per layer.
         if max_iterations > 1:
@@ -368,30 +369,35 @@ class FitCube(object):
         # whole array with spectra needs to be loaded
         self.sources.load_spectra()
         # fluxes of omitted layers are set to NaN
-        self.sources.data[omitted_layers] = np.nan
+        self.sources.data.loc[omitted_indices] = np.nan
 
         # if parameters (of the PSF or the coordinate transformation) are fitted, it must be ensured that the instances
         # have correct dispersion information
         if self.psf_attributes.n_dispersion != self.sources.n_dispersion:
             self.psf_attributes.resize(self.sources.wave)
-        if self.sources.transformation.valid and self.sources.transformation.n_dispersion != self.sources.n_dispersion:
-            self.sources.transformation.resize(self.sources.wave)
+        else:
+            self.psf_attributes.data.index = self.sources.wave
+        if self.sources.transformation.valid:
+            if self.sources.transformation.n_dispersion != self.sources.n_dispersion:
+                self.sources.transformation.resize(self.sources.wave)
+            else:
+                self.sources.transformation.data.index = self.sources.wave
 
         # Interpolate across wavelength range to ensure the parameters have valid values for all fitted layers.
         # Afterwards set parameters of omitted layers to NaN. Note that this is not done for polynomial fits to the
         # parameters
         self.psf_attributes.interpolate()
-        self.psf_attributes.data.loc[omitted_layers, (slice(None), 'value')] = np.nan
+        self.psf_attributes.data.loc[omitted_indices, (slice(None), 'value')] = np.nan
         if self.sources.transformation.valid:
             self.sources.transformation.interpolate()
-            self.sources.transformation.data[omitted_layers, (slice(None), 'value')] = np.nan
+            self.sources.transformation.data.loc[omitted_indices, (slice(None), 'value')] = np.nan
 
         # Load full coordinate array into memory because doing it per layer is quite slow.
         self.sources.load_ifs_coordinates()
         # replace NaNs to make sure valid coordinates are available for all fitted layers.
         self.sources.ifs_coordinates.fillna(method='pad', inplace=True)
         # then set values for all omitted layers to NaN
-        self.sources.ifs_coordinates[omitted_layers] = np.nan
+        self.sources.ifs_coordinates.loc[omitted_indices] = np.nan
 
         # Check how many CPUs should be used
         if n_cpu is None:
@@ -421,7 +427,7 @@ class FitCube(object):
 
         # check which sources should be used in single PSF fits
         # if no PSF sources exist, use method for layers with few sources/spaxels
-        if sum(self.sources.status == 3) == 0:
+        if not (self.sources.status == 3).any():
             sources = None
             psf_sources = None
         # if source positions are fitted directly, all affected sources must be used, plus a subset to constrain the PSF
@@ -432,6 +438,14 @@ class FitCube(object):
         else:
             sources = self.sources.ids[self.sources.status == 3]
             psf_sources = None
+
+        # collect sources data
+        stellar = self.sources.status < 4
+        series = []
+        series.extend([self.sources.x[stellar], self.sources.y[stellar]])
+        series.append(self.sources.specrow[stellar])
+        series.append(self.sources.weights[stellar])
+        catalog = pd.concat(series, axis=1, keys=['x', 'y', 'component', 'magnitude'])
 
         initargs = (self.psf_attributes.profile,
                     self.psf_radius,
@@ -451,27 +465,30 @@ class FitCube(object):
             init_worker(*initargs)
 
         # loop over all layers in cube that should be analysed
-        for i, jj in enumerate(layers_to_analyse):
+        for i, jj in enumerate(indices_to_analyse):
 
             # Add a common prefix for all logging messages related to the analysis of the current layer.
-            n_digits = int(np.log10(layers_to_analyse.size)) + 1  # for logging prefix, get number of digits of N_layer
+            n_digits = int(np.log10(indices_to_analyse.size)) + 1  # for logging prefix, get number of digits of N_layer
             fmt = logging.Formatter("%(asctime)s[%(levelname)-8s]: [{0:0{1}d}/{2}] %(message)s".format(
-                i+1, n_digits, layers_to_analyse.size), datefmt='%m/%d/%Y %H:%M:%S')
+                i+1, n_digits, indices_to_analyse.size), datefmt='%m/%d/%Y %H:%M:%S')
             handler = logging.getLogger().handlers[0]
             handler.setFormatter(fmt)
 
             # call fitting routine
-            logger.info("Collecting input data for fit to layer #{0}.".format(jj))
+            logger.info("Collecting input data for fit to layer with wavelength {0:.4g}m.".format(jj))
 
             # among stored layers of last fits, find those nearest to current layer
             if len(last_layers) > n_track:
-                nearest_layers = last_layers[np.argsort(abs(last_layers - jj))[:n_track]]
+                if np.mod(i, 2):  # if i is odd, layer has low wavelength
+                    nearest_layers = last_layers[:n_track]
+                else:  # otherwise, layer has high wavelength
+                    nearest_layers = last_layers[-n_track:]
             else:
                 nearest_layers = last_layers
             logger.debug("Layers used to update initial guesses: {0}".format(nearest_layers))
 
             # get 1D arrays containing valid data pixels, also sigma-values if requested
-            data = self.get_layer(jj, n_bin=n_bin, use_variances=use_variances)
+            data = self.get_layer(self.sources.wave.get_loc(jj), n_bin=n_bin, use_variances=use_variances)
             fit_input.append({'data': data})
 
             # update PSF parameters
@@ -484,12 +501,13 @@ class FitCube(object):
 
             # update direct coordinates if required
             if self.sources.ifs_coordinates_fitted.any() or self.sources.ifs_coordinates_free.any():
-                fit_input[-1]['xy'] = self.read_ifs_coordinates(jj, last=nearest_layers)
+                catalog[['x', 'y']] = self.read_ifs_coordinates(jj, last=nearest_layers)
                 fit_input[-1]['position_parameters'] = None
-            else:
-                fit_input[-1]['xy'] = np.dstack((self.sources.x[~self.sources.is_background],
-                                                 self.sources.y[~self.sources.is_background]))[0]
 
+            # add sources catalog to fit input
+            fit_input[-1]['catalog'] = catalog
+
+            # add background if requested
             if self.background is not None:
                 self.background.transform = data[['x', 'y']].values
                 fit_input[-1]['background'] = self.background.get_sparse_matrix(
@@ -499,7 +517,7 @@ class FitCube(object):
 
             # The first two layers are fitted sequentially in order to obtain useful initial guesses for the
             # following ones. Otherwise a parallel fit is triggered every n_cpu's layer
-            if i in [0, 1] or np.mod(i - 1, n_cpu) == 0 or jj == layers_to_analyse[-1]:
+            if i in [0, 1] or np.mod(i - 1, n_cpu) == 0 or jj == indices_to_analyse[-1]:
                 if n_cpu > 1:
                     _results = pool.map_async(parallel_fit_layer, fit_input)
                     results = _results.get()
@@ -509,14 +527,14 @@ class FitCube(object):
                 # write results for the individual layers
                 for k, result in enumerate(results, start=1):
                     # recover layer for which the results were obtained
-                    current = layers_to_analyse[i - len(results) + k]
-                    # for each layer, four arguments are returned: fluxes, uncertainties, positions, and PSF parameters
+                    current = indices_to_analyse[i - len(results) + k]
+                    # for each layer, the fit returns: fluxes, uncertainties, positions, and PSF parameters, wave
                     self.write_fluxes(current, result[0], result[1], result[-1])
                     if position_parameters_to_fit is not None and 'xy' in position_parameters_to_fit:
                         self.write_ifs_coordinates(current, result[2])
                     else:
-                        self.write_coordinate_transformation(current, position_parameters_to_fit, result[2])
-                    self.write_psf_parameters(current, psf_parameters_to_fit, result[3])
+                        self.write_coordinate_transformation(current, result[2])
+                    self.write_psf_parameters(current, result[3])
 
                 # reset list containing input data for parallel fit
                 fit_input = []
@@ -527,16 +545,16 @@ class FitCube(object):
                     # no updating requested
                     last_layers = []
                 else:
-                    assert (jj in layers_to_analyse)
-                    i = np.where(layers_to_analyse == jj)[0][0]
+                    assert (jj in indices_to_analyse)
+                    i = np.where(indices_to_analyse == jj)[0][0]
                     if i < 2:
                         # nothing to update yet
                         last_layers = []
                     elif i <= 2 * n_track:
                         # use all images that have been fitted so far
-                        last_layers = layers_to_analyse[:i]
+                        last_layers = indices_to_analyse[:i]
                     else:
-                        last_layers = layers_to_analyse[i - 2:max(0, i - 2 - 2 * n_track):-1]
+                        last_layers = indices_to_analyse[i - 2:max(0, i - 2 - 2 * n_track):-1]
 
     def get_layer(self, current, n_bin, use_variances=True, skip_nan=True):
         """
@@ -586,7 +604,7 @@ class FitCube(object):
             mask = np.zeros(values.size, dtype=np.bool)
 
         # collect arrays in dictionary for initialisation of pandas DataFrame
-        data = {'value': values[~mask], 'x': transform[~mask, 1], 'y': transform[~mask, 1]}
+        data = {'value': values[~mask], 'x': transform[~mask, 1], 'y': transform[~mask, 0]}
         # add variances if requested
         if use_variances:
             data['variance'] = variances[~mask]
@@ -599,10 +617,12 @@ class FitCube(object):
     def read_psf_parameters(self, current, last=None):
         """
         Method to determine updated PSF parameters for a given layer using the
-        results from adjacent layers. If possible, the method obtains values
-        by averaging over the results from the nearest layers, otherwise it
-        uses the values from the psf_attributes instance for the current layer.
-        If a polynomial fit exists for a parameter, it is always used.
+        results from adjacent layers.
+        
+        If possible, the method obtains values by averaging over the results
+        from the nearest layers, otherwise it uses the values from the
+        psf_attributes instance for the current layer. If a polynomial fit
+        exists for a parameter, it is always used.
 
         Parameters
         ----------
@@ -617,37 +637,39 @@ class FitCube(object):
         parameters : dictionary
             The updated value of each PSF parameter for the current layer.
         """
-        logstring = "Initial PSF model:"
+        log_string = "Initial PSF model:"
 
         if last is None:
             last = []
 
         # loop over PSF parameters
         parameters = {}
-        for i, prm in enumerate(self.psf_attributes.names):
+        for parameter in self.psf_attributes.names:
             # check if polynomial fit exists; if so, use it.
-            if self.psf_attributes.fitted[i]:
-                value = self.psf_attributes.data[current, i, 1]
+            if self.psf_attributes.fitted[parameter]:
+                value = self.psf_attributes.data.at[current, (parameter, 'fit')]
             else:
                 # find successful fits in provided 'last' layers
-                success = np.intersect1d(last, np.nonzero(~self.psf_attributes.mask[:, i, 0])[0])
-                if len(success) > 0:
-                    value = np.mean(self.psf_attributes.data[success, i, 0])
+                success = ~self.psf_attributes.mask.loc[last, (parameter, 'value')]
+                if success.sum() > 0:
+                    value = np.mean(self.psf_attributes.data.loc[last[success], (parameter, 'value')])
                 else:
-                    value = self.psf_attributes.data[current, i, 0]
-            parameters[prm] = value
-            logstring += " {0}={1:.2f},".format(prm, float(value))
-        logger.info(logstring[:-1])
+                    value = self.psf_attributes.data.at[current, (parameter, 'value')]
+            parameters[parameter] = value
+            log_string += " {0}={1:.2f},".format(parameter, float(value))
+        logger.info(log_string[:-1])
 
         return parameters
 
     def read_coordinate_transformation(self, current, last=None):
         """
         Method to update the parameters of the coordinate transformation for
-        a given layer of data. If possible, the method obtains values
-        by averaging over the results from the nearest layers, otherwise it
-        uses the values from the transformation instance for the current
-        layer. If a polynomial fit exists for a parameter, it is always used.
+        a given layer of data.
+        
+        If possible, the method obtains values by averaging over the results
+        from the nearest layers, otherwise it uses the values from the
+        transformation instance for the current layer. If a polynomial fit
+        exists for a parameter, it is always used.
 
         Parameters
         ----------
@@ -662,50 +684,54 @@ class FitCube(object):
         parameters : dictionary
             The updated value of each PSF parameter for the current layer.
         """
-        logstring = "Initial coord. transformation:"
+        log_string = "Initial coordinate transformation:"
 
         if last is None:
             last = []
 
         # loop over parameters of coordinate transformation
         parameters = {}
-        for i, prm in enumerate(self.sources.transformation.names):
+        for parameter in self.sources.transformation.names:
             # check if polynomial fit exists; if so, use it.
-            if self.sources.transformation.fitted[i]:
-                value = self.sources.transformation.data[current, i, 1]
+            if self.sources.transformation.fitted[parameter]:
+                value = self.sources.transformation.data.at[current, (parameter, 'fit')]
             else:
                 # find successful fits in provided 'last' layers
-                success = np.intersect1d(last, np.nonzero(~self.sources.transformation.mask[:, i, 0])[0])
-                if len(success) > 0:
-                    value = np.mean(self.sources.transformation.data[success, i, 0])
+                success = ~self.sources.transformation.mask.loc[last, (parameter, 'value')]
+                if success.sum() > 0:
+                    value = np.mean(self.sources.transformation.data.loc[last[success], (parameter, 'value')])
                 else:
-                    value = self.sources.transformation.data[current, i, 0]
-            parameters[prm] = value
-            logstring += " {0}={1:.2f},".format(prm, float(value))
-        logger.info(logstring[:-1])
+                    value = self.sources.transformation.data.at[current, (parameter, 'value')]
+            parameters[parameter] = value
+            log_string += " {0}={1:.2f},".format(parameter, float(value))
+        logger.info(log_string[:-1])
 
         return parameters
 
     def read_ifs_coordinates(self, current, last=None):
         """
         Method to update the IFS coordinates for all sources for a given
-        layer. If possible, obtain updated values by averaging over the
-        results from nearest the layers, otherwise just use the values in the
-        sources instance. If a polynomial fit exists for a parameter, it is
-        always used.
+        layer.
+        
+        If possible, obtain updated values by averaging over the results from
+        nearest the layers, otherwise just use the values in the sources
+        instance. If a polynomial fit exists for a centroid, it is always
+        used.
 
         Parameters
         ----------
         current : integer
-            The index of the layer for which the parameters should be obtained
+            The index of the layer for which the centroids should be obtained
         last : list of integers, optional
             A list containing the indices of the layers that are averaged to
             get the new value.
 
         Returns
         -------
-        centroids : ndarray
-            The updated value of each PSF parameter for the current layer.
+        centroids : pandas.DataFrame
+            The updated centroid coordinates of the sources in the requested
+            layer. The Data Frame will contain the columns 'x' and 'y' and use
+            the sources identifiers as indices.
         """
         if last is None:
             last = []
@@ -714,23 +740,26 @@ class FitCube(object):
         t0 = time.time()
 
         # loop over sources
-        centroids = []
-        for k, i in enumerate(np.flatnonzero(self.sources.status < 4)):
+        centroids = pd.DataFrame(0, index=self.sources.ids[self.sources.status < 4], columns=['x', 'y'])
+        for index in centroids.index:
+
             # check if polynomial fit exists; if so, use it.
-            if self.sources.ifs_coordinates_fitted[i]:
-                centroids.append(self.sources.ifs_coordinates[current, k, :, 1])
-            elif self.sources.ifs_coordinates_free[i]:
+            if self.sources.ifs_coordinates_fitted[index]:
+                centroids.at[index, 'x'] = self.sources.ifs_coordinates.at[current, (index, 'x', 'fit')]
+                centroids.at[index, 'y'] = self.sources.ifs_coordinates.at[current, (index, 'y', 'fit')]
+            else:
                 # find successful fits in provided 'last' layers
-                success = np.intersect1d(last, np.nonzero(~np.isnan(self.sources.ifs_coordinates[:, k, 0, 0]))[0])
+                success = last[np.isfinite(self.sources.ifs_coordinates.loc[last, (index, 'x', 'value')])]
                 if len(success) > 0:
-                    centroids.append([np.mean(self.sources.ifs_coordinates[success, k, 0, 0]),
-                                      np.mean(self.sources.ifs_coordinates[success, k, 1, 0])])
+                    centroids.at[index, 'x'] = np.mean(self.sources.ifs_coordinates.loc[success, (index, 'x', 'value')])
+                    centroids.at[index, 'y'] = np.mean(self.sources.ifs_coordinates.loc[success, (index, 'y', 'value')])
                 else:
-                    centroids.append(self.sources.ifs_coordinates[current, k, :, 0])
+                    centroids.at[index, 'x'] = self.sources.ifs_coordinates.at[current, (index, 'x', 'value')]
+                    centroids.at[index, 'x'] = self.sources.ifs_coordinates.at[current, (index, 'x', 'value')]
 
         logger.debug("Time required to update source coordinates: {0:6.4f}s".format(time.time() - t0))
 
-        return np.asarray(centroids, dtype=np.float32)
+        return centroids
 
     def write_fluxes(self, current, fluxes, uncertainties, wave=None):
         """
@@ -752,16 +781,13 @@ class FitCube(object):
         """
         assert(len(fluxes) == len(uncertainties)), '"fluxes" and "uncertainties" must have same length'
         assert(len(fluxes) == self.sources.n_components), 'Length of "fluxes" must match number of components in fit.'
-        self.sources.data[current, :, 0] = fluxes
-        self.sources.data[current, :, 1] = uncertainties
+        self.sources.data.loc[current, (slice(None), 'flux')] = fluxes
+        self.sources.data.loc[current, (slice(None), 'sigma')] = uncertainties
         if wave is not None:
-            if self.sources.data_wave is None:
-                logging.error('Cannot store wavelength values in Sources instance. Array not initialized.')
-            else:
-                assert(len(wave) == self.sources.n_components)
-                self.sources.data_wave[current, :] = wave
+            assert(len(wave) == self.sources.n_components)
+            self.sources.data.loc[current, (slice(None), 'wave')] = wave
 
-    def write_psf_parameters(self, current, parameters, values):
+    def write_psf_parameters(self, current, values):
         """
         This method writes the fitted PSF parameters back to the instance of
         pampelmuse.psf.Variables that was provided when initialising the
@@ -771,21 +797,17 @@ class FitCube(object):
         ----------
         current : int
             The index of the layer for which the fluxes were fitted.
-        parameters : array_like
-            The names of the PSF parameters that were fitted.
-        values : array_like
-            The fitted values of the PSF parameters.
+        values : pandas.Series
+            The fitted values of the PSF parameters. The indices of the Series
+            should be the parameter names.
         """
-
-        if parameters is None:  # nothing to do
+        if values is None:  # nothing to do
             return
         else:
-            assert(len(parameters) == len(values)), '"parameters" and "values" must have same length'
-            for i, parameter in enumerate(parameters):
-                j = self.psf_attributes.names.index(parameter)
-                self.psf_attributes.data[current, j, 0] = values[i]
+            for name, value in values.iteritems():
+                self.psf_attributes.data.at[current, (name, 'value')] = value
 
-    def write_coordinate_transformation(self, current, parameters, values):
+    def write_coordinate_transformation(self, current, values):
         """
         This method writes the fitted parameters of a coord. transformation
         back to the instance of pampelmuse.core.Sources that was provided
@@ -795,18 +817,15 @@ class FitCube(object):
         ----------
         current : int
             The index of the layer for which the fluxes were fitted.
-        parameters : array_like
-            The names of the transformation parameters that were fitted.
         values : array_like
-            The fitted values of the transformation parameters.
+            The fitted values of the transformation parameters. The indices of
+            the Series should be the parameter names.
         """
-        if parameters is None:  # nothing to do
+        if values is None:  # nothing to do
             return
         else:
-            assert(len(parameters) == len(values)), '"parameters" and "values" must have same length'
-            for i, parameter in enumerate(parameters):
-                j = self.sources.transformation.names.index(parameter)
-                self.sources.transformation.data[current, j, 0] = values[i]
+            for name, value in values.iteritems():
+                self.sources.transformation.data.at[current, (name, 'value')] = value
 
     def write_ifs_coordinates(self, current, values):
         """
@@ -818,16 +837,18 @@ class FitCube(object):
         ----------
         current : int
             The index of the layer for which the fluxes were fitted.
-        values : array_like
-            The fitted values of the source centroids.
+        values : pandas.DatFrame
+            The fitted values of the source centroids. The data frame should
+            contain the columns 'xc' and 'yc' and use the source IDs as
+            indices.
         """
 
         if values is None:  # nothing to do
             return
         else:
-            for i, xy in enumerate(values):
+            for i, row in values.iteritems():
                 # The assignment assumes that all sources with lower indices have their IFS coordinates loaded
-                assert (np.all(self.sources.ifs_coordinates_loaded[:i]))
+                assert self.sources.ifs_coordinates_loaded[i]
 
-                self.sources.ifs_coordinates[current, i, 0, 0] = xy[0]
-                self.sources.ifs_coordinates[current, i, 1, 0] = xy[1]
+                self.sources.ifs_coordinates.at[current, (i, 'x')] = row['x']
+                self.sources.ifs_coordinates.at[current, (i, 'y')] = row['y']

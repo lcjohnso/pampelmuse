@@ -36,7 +36,7 @@ which performs the actual analysis.
 
 Latest SVN revision
 -------------------
-407, 2017/04/02
+425, 2017/05/28
 """
 import datetime
 import logging
@@ -45,7 +45,7 @@ from ..utils.fits import make_header_from_config, open_ifs_data, open_prm, save_
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 407
+__revision__ = 425
 
 
 def add_parser(parser):
@@ -80,16 +80,16 @@ def cubefit(config):
     logging.info("Obtaining information on sources in the field...")
 
     # get prefix of IFS data - note that the calling routine makes sure that the entry exists in the configuration
-    prefix = config.get('general', 'prefix')
+    prefix = config['global'].get('prefix')
 
     # open IFS data
     ifs_data = open_ifs_data(prefix=prefix)
 
     # adjust numbers of first and last layer to be analysed
-    first_layer = config['layers'].get('first', default=0)
+    first_layer = config['layers'].get('first', 0)
     if first_layer < 0:
         first_layer = ifs_data.nlayer - first_layer
-    last_layer = config['layers'].get('last', default=-1)
+    last_layer = config['layers'].get('last', -1)
     if last_layer < 0:
         last_layer = ifs_data.nlayer - last_layer + 1
 
@@ -100,13 +100,13 @@ def cubefit(config):
     logging.info("Starting fit process...")
 
     fitter = FitCube(ifs_data=ifs_data, sources=sources, psf_attributes=psf_attributes,
-                     psf_radius=config['psf'].get('radius', default=15))
+                     psf_radius=config['psf'].get('radius', 15.))
 
     fitter(layer_range=(first_layer, last_layer),
-           n_cpu=config['global'].get('cpucount', default=1),
-           maxiter=config['cubefit'].get('iterations', default=5),
-           use_variances=config['cubefit'].get('usesigma', default=True),
-           n_bin=config['layers'].get('binning', default=1))
+           n_cpu=config['global'].get('cpucount', 1),
+           max_iterations=config['cubefit'].get('iterations', 5),
+           use_variances=config['cubefit'].get('usesigma', True),
+           n_bin=config['layers'].get('binning', 1))
 
     logging.info("Saving results...")
 

@@ -33,7 +33,7 @@ Added
 
 Latest SVN revision
 -------------------
-421, 2017/04/30
+425, 2017/05/28
 """
 import logging
 import sys
@@ -51,7 +51,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)'
-__revision__ = 421
+__revision__ = 425
 
 
 logger = logging.getLogger(__name__)
@@ -430,9 +430,10 @@ class SourceSelector(object):
                 data[p['name']] = p['value']
                 free[Variables.PROFILES[profile].index(p['name'])] = p['free']
         # otherwise make sure fwhm (and beta) are >0
-        data['fwhm'] = 2.5
-        if 'beta' in Variables.PROFILES[profile]:
-            data['beta'] = 2.5
+        else:
+            data['fwhm'] = 2.5
+            if 'beta' in Variables.PROFILES[profile]:
+                data['beta'] = 2.5
 
         # initialise instance with PSF parameters and print basic info about PSF
         self.psf_attributes = Variables(profile=profile, data=data, free=free)
@@ -853,7 +854,7 @@ class SourceSelector(object):
         # and are fitted as a single component)
         status = pd.Series(-1, index=self.sources.ids)
         status[self.sources.ids < 0] = 4  # handle background components
-        primary = pd.Series(0., index=self.sources.ids)
+        primary = pd.Series(0, index=self.sources.ids)
         primary[self.sources.ids < 0] = self.sources.ids[self.sources.ids < 0]  # handle background components
 
         # for larger fields of view, such as the MUSE WFM, the stellar density can vary significantly across its extent.
@@ -974,7 +975,7 @@ class SourceSelector(object):
                     status[source_id] = 0
 
             # use brightest unresolved source as "primary"
-            primary[status == 1] = self.sources.mag[status == 1].idxmin()
+            primary[status == 0] = self.sources.mag[status == 1].idxmin()
 
             logger.info("Unresolved component contains {0} sources.".format(np.sum(status == 0)))
 
