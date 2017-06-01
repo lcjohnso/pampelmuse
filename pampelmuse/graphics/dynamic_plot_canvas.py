@@ -39,7 +39,7 @@ top panel, named 'Spectrum Viewer'.
 
 Latest SVN revision
 -------------------4
-382, 2016/01/11
+426, 2016/06/01
 """
 import inspect
 import logging
@@ -50,12 +50,12 @@ from matplotlib.figure import Figure
 from matplotlib.patches import Rectangle
 from matplotlib.transforms import blended_transform_factory
 from matplotlib.widgets import Cursor, SpanSelector
-from PyQt4 import QtCore
+from PyQt5 import QtCore
 matplotlib.pyplot.rcParams["axes.linewidth"] = 1.5
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 382
+__revision__ = 426
 
 
 class DynamicPlotCanvas(FigureCanvasQTAgg):
@@ -248,7 +248,7 @@ class DynamicPlotCanvas(FigureCanvasQTAgg):
         if y_data is not None:
             self.thePlots[name].set_ydata(y_data)
 
-        for i in xrange(len(self.axes.patches)):
+        for i in range(len(self.axes.patches)):
             self.axes.patches[i].set_height(0)
 
         # update axes limits if requested
@@ -281,7 +281,7 @@ class DynamicPlotCanvas(FigureCanvasQTAgg):
             self.axes.set_ylabel(y_label, fontsize=20)
 
         # modify height of rectangles.
-        for i in xrange(len(self.axes.patches)):
+        for i in range(len(self.axes.patches)):
             self.axes.patches[i].set_height(1)
 
         self.draw()  # update canvas.
@@ -309,7 +309,7 @@ class DynamicPlotCanvas(FigureCanvasQTAgg):
         x_min = min(x_click, x_release)
         x_max = max(x_click, x_release)
         logging.info('Selected range: {0:.1f} - {1:.1f}'.format(x_min, x_max))
-        self.emit(QtCore.SIGNAL("rangeSelected"), *[(x_min, x_max), True])
+        self.emit(QtCore.pyqtSignal("rangeSelected"), *[(x_min, x_max), True])
 
     def on_deselect(self, x_click, x_release):
         """
@@ -334,4 +334,4 @@ class DynamicPlotCanvas(FigureCanvasQTAgg):
         x_min = min(x_click, x_release)
         x_max = max(x_click, x_release)
         logging.info('Deselected range: {0:.1f} - {1:.1f}'.format(x_min, x_max))
-        self.emit(QtCore.SIGNAL("rangeSelected"), *[(x_min, x_max), False])
+        self.emit(QtCore.pyqtSignal("rangeSelected"), *[(x_min, x_max), False])

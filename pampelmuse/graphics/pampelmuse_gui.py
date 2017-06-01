@@ -37,7 +37,7 @@ defines the methods that are called by Ui_PampelMuseGui.
 
 Latest SVN revision
 -------------------
-388, 2017/01/24
+426, 2017/06/01
 """
 import logging
 import os
@@ -48,8 +48,8 @@ from matplotlib import patches, colors
 from matplotlib.backends.backend_qt4 import NavigationToolbar2QT as NavigationToolbar
 from astropy import wcs
 from astropy.io import fits
-from PyQt4.QtCore import pyqtSignature, Qt, SIGNAL, QString
-from PyQt4.QtGui import QMainWindow, QHBoxLayout, QVBoxLayout, QDoubleValidator, QFileDialog
+from PyQt5.QtWidgets import Qt, pyqtSlot, pyqtSignal, QString
+from PyQt5.QtGui import QMainWindow, QHBoxLayout, QVBoxLayout, QDoubleValidator, QFileDialog
 from .dynamic_plot_canvas import DynamicPlotCanvas
 from .dynamic_ima_canvas import DynamicImaCanvas
 from .Ui_pampelmuse_gui import Ui_PampelMuseGui
@@ -62,7 +62,7 @@ from ..utils.fits import save_prm
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 388
+__revision__ = 426
 
 
 class ToolbarWithoutMessage(NavigationToolbar):

@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ProjectTasksOptions">
-    <TaskOptions isEnabled="false">
-      <option name="arguments" value="$FileName$ -o $FileNameWithoutExtension$.py  --from-imports" />
+    <TaskOptions isEnabled="true">
+      <option name="arguments" value="$FileName$ -o Ui_$FileNameWithoutExtension$.py  --from-imports" />
       <option name="checkSyntaxErrors" value="true" />
-      <option name="description" value="" />
+      <option name="description" />
       <option name="exitCodeBehavior" value="ERROR" />
       <option name="fileExtension" value="ui" />
       <option name="immediateSync" value="true" />
@@ -14,18 +14,18 @@
         <array />
       </option>
       <option name="outputFromStdout" value="false" />
-      <option name="program" value="/usr/bin/pyuic5" />
+      <option name="program" value="$USER_HOME$/.pyenv/shims/pyuic5" />
       <option name="scopeName" value="Project Files" />
       <option name="trackOnlyRoot" value="false" />
       <option name="workingDir" value="$FileDir$" />
       <envs />
     </TaskOptions>
-    <TaskOptions isEnabled="false">
-      <option name="arguments" value="$FileName$ -o $FileNameWithoutExtension$_rc.py -py3" />
+    <TaskOptions isEnabled="true">
+      <option name="arguments" value="$FileName$ -o $FileNameWithoutExtension$_rc.py" />
       <option name="checkSyntaxErrors" value="true" />
-      <option name="description" value="" />
-      <option name="exitCodeBehavior" value="ERROR" />
-      <option name="fileExtension" value="UNKNOWN" />
+      <option name="description" />
+      <option name="exitCodeBehavior" value="ALWAYS" />
+      <option name="fileExtension" value="xml" />
       <option name="immediateSync" value="true" />
       <option name="name" value="PyQT RCC" />
       <option name="output" value="$FileNameWithoutExtension$_rc.py" />
@@ -33,7 +33,7 @@
         <array />
       </option>
       <option name="outputFromStdout" value="false" />
-      <option name="program" value="/usr/bin/pyrcc5" />
+      <option name="program" value="$USER_HOME$/.pyenv/shims/pyrcc5" />
       <option name="scopeName" value="Project Files" />
       <option name="trackOnlyRoot" value="false" />
       <option name="workingDir" value="$FileDir$" />

@@ -135,7 +135,7 @@
             <string>...</string>
            </property>
            <property name="icon">
-            <iconset resource="../../../../trunk/pampelmuse/graphics/pampelmuse_gui.qrc">
+            <iconset resource="pampelmuse_gui.qrc">
              <normaloff>:/icons/icons/go.png</normaloff>:/icons/icons/go.png</iconset>
            </property>
           </widget>
@@ -217,7 +217,7 @@
             <string>...</string>
            </property>
            <property name="icon">
-            <iconset resource="../../../../trunk/pampelmuse/graphics/pampelmuse_gui.qrc">
+            <iconset resource="pampelmuse_gui.qrc">
              <normaloff>:/icons/icons/go.png</normaloff>:/icons/icons/go.png</iconset>
            </property>
           </widget>
@@ -654,7 +654,7 @@
      <x>0</x>
      <y>0</y>
      <width>950</width>
-     <height>23</height>
+     <height>25</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -719,7 +719,7 @@
     <bool>false</bool>
    </property>
    <property name="icon">
-    <iconset resource="../../../../trunk/pampelmuse/graphics/pampelmuse_gui.qrc">
+    <iconset resource="pampelmuse_gui.qrc">
      <normaloff>:/icons/icons/save.png</normaloff>:/icons/icons/save.png</iconset>
    </property>
    <property name="text">
@@ -731,7 +731,7 @@
   </action>
   <action name="actionQuit">
    <property name="icon">
-    <iconset resource="../../../../trunk/pampelmuse/graphics/pampelmuse_gui.qrc">
+    <iconset resource="pampelmuse_gui.qrc">
      <normaloff>:/icons/icons/exit.png</normaloff>:/icons/icons/exit.png</iconset>
    </property>
    <property name="text">
@@ -779,7 +779,7 @@
     <bool>false</bool>
    </property>
    <property name="icon">
-    <iconset resource="../../../../trunk/pampelmuse/graphics/pampelmuse_gui.qrc">
+    <iconset resource="pampelmuse_gui.qrc">
      <normaloff>:/icons/icons/save_as.png</normaloff>:/icons/icons/save_as.png</iconset>
    </property>
    <property name="text">
@@ -827,7 +827,7 @@
   </action>
  </widget>
  <resources>
-  <include location="../../../../trunk/pampelmuse/graphics/pampelmuse_gui.qrc"/>
+  <include location="pampelmuse_gui.qrc"/>
  </resources>
  <connections/>
 </ui>

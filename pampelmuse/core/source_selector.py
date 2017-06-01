@@ -33,7 +33,7 @@ Added
 
 Latest SVN revision
 -------------------
-425, 2017/05/28
+426, 2017/06/01
 """
 import logging
 import sys
@@ -51,7 +51,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)'
-__revision__ = 425
+__revision__ = 426
 
 
 logger = logging.getLogger(__name__)
@@ -643,12 +643,12 @@ class SourceSelector(object):
             image. Note that it will be possible to adjust this number once
             the GUI has been loaded.
         """
-        from PyQt4 import QtGui
+        from PyQt5 import QtWidgets
         from ..graphics.pampelmuse_gui import PampelMuseGui
 
         logger.info("Preparing GUI for source identification...")
 
-        app = QtGui.QApplication(sys.argv)
+        app = QtWidgets.QApplication(sys.argv)
 
         # get magnitude of n_stars'th brightest star
         n_stars = min(n_stars, self.sources.n_sources - self.sources.n_background - 1)

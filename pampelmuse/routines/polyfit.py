@@ -37,7 +37,7 @@ routine will automatically fit the coordinates and PSF parameters.
 
 Latest SVN revision
 -------------------
-407, 2017/04/02
+426, 2017/06/01
 """
 import datetime
 import logging
@@ -49,7 +49,7 @@ from ..utils.fits import make_header_from_config, open_ifs_data, open_prm, save_
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 407
+__revision__ = 426
 
 
 def add_parser(parser):
@@ -102,14 +102,14 @@ def polyfit(config):
     config['polyfit']['revision'] = __revision__
 
     # for type of polynomial, need to make first letter uppercase for identification in GUI
-    polytype = config['polynom'].get('type', default='plain')
+    polytype = config['polynom'].get('type', 'plain')
     polytype = polytype[0].upper() + polytype[1:]
 
     # get degree of polynomial
-    polydeg = config['polynom'].get('degree', default=0)
+    polydeg = config['polynom'].get('degree', 0)
 
     # if common slope used for all coordinates along one axis
-    common = config['polynom'].get('common', default=False)
+    common = config['polynom'].get('common', False)
 
     # prepare mask to exclude requested wavelength ranges (if any)
     mask = config['polynom'].get('mask', None)
@@ -120,16 +120,15 @@ def polyfit(config):
             mask = None
 
     # Prepare GUI if interactive mode enabled
-    if config['global'].get('interact', default=False):
+    if config['global'].get('interact', False):
 
         # load modules required to display GUI
-        from PyQt4 import QtGui
+        from PyQt5 import QtWidgets
         from pampelmuse.graphics import PampelMuseGui
 
         # initialize GUI
-        app = QtGui.QApplication(sys.argv)
-        ui = PampelMuseGui(sources=sources, ifsData=ifs_data,
-                           refImage=config['polyfit'].get('reference', default=None))
+        app = QtWidgets.QApplication(sys.argv)
+        ui = PampelMuseGui(sources=sources, ifsData=ifs_data, refImage=config['polyfit'].get('reference', None))
 
         # for saving results, provide name of PRM-file
         ui.outfileName = '{0}.prm.fits'.format(prefix)

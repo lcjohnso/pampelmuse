@@ -13,5 +13,5 @@ setup(
     scripts=['bin/PampelMuse', ],
     package_data={'pampelmuse.config': ['data/pampelmuse.json', ],
                   'pampelmuse.filters': ['data/*', ]},
-    requires=['numpy', 'scipy', 'astropy', 'matplotlib', 'pandas']
+    requires=['numpy', 'scipy', 'astropy', 'matplotlib', 'pandas', 'PyQt5']
 )

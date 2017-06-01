@@ -1,1 +1,1 @@
-from pampelmuse_gui import PampelMuseGui
+from .pampelmuse_gui import PampelMuseGui

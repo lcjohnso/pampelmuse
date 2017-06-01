@@ -58,7 +58,7 @@ the data into memory yet but just checks whether the file(s) are valid.
 
 Latest SVN revision
 -------------------
-425, 2017/05/28
+426, 2017/06/01
 """
 import argparse
 import importlib
@@ -77,7 +77,7 @@ from pampelmuse.utils.fits import read_config_from_header
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
 __version__ = "0.94.0.1"
-__revision__ = 425
+__revision__ = 426
 
 
 logger = logging.getLogger(__name__)
@@ -227,7 +227,7 @@ if __name__ == "__main__":
     # check whether dependencies for graphical backends are fulfilled
     graphics = True
     try:
-        from PyQt4 import QtCore, QtGui
+        from PyQt5 import QtCore, QtGui
     except ImportError:
         logger.error("Cannot load 'PyQt4'-modules")
         QtCore = None

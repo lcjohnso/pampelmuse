@@ -35,20 +35,20 @@ pampelmuse.core.cube
 
 Latest SVN revision
 -------------------
-380, 2016/12/14
+426, 2017/06/01
 """
 import logging
 import numpy as np
 from matplotlib import collections, patches
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg
-from PyQt4 import QtCore
+from PyQt5 import QtCore
 from ..instruments import Instrument
 from ..utils.fits import open_ifs_data
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 380
+__revision__ = 426
 
 
 class DynamicImaCanvas(FigureCanvasQTAgg):
@@ -234,7 +234,7 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
         self.layer = i
 
         # emit QtCore.SIGNAL notifying about index of new layer
-        self.emit(QtCore.SIGNAL("layerChanged"), i)
+        self.emit(QtCore.pyqtSignal("layerChanged"), i)
 
     def changeCuts(self, vrange=None, locut=None, hicut=None):
         """
@@ -289,9 +289,9 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
 
         # emit signal that cuts were changed
         if self.cuts[0] != oldcuts[0]:
-            self.emit(QtCore.SIGNAL("changedLoCut"), self.cuts[0])
+            self.emit(QtCore.pyqtSignal("changedLoCut"), self.cuts[0])
         if self.cuts[1] != oldcuts[1]:
-            self.emit(QtCore.SIGNAL("changedHiCut"), self.cuts[1])
+            self.emit(QtCore.pyqtSignal("changedHiCut"), self.cuts[1])
 
     def updateAxesLimits(self):
         """
@@ -459,4 +459,4 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
         except IndexError:
             f = np.nan
 
-        self.emit(QtCore.SIGNAL("coordsChanged"), x, y, f)
+        self.emit(QtCore.pyqtSignal("coordsChanged"), x, y, f)
