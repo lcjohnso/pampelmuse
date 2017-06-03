@@ -1,7 +1,7 @@
 """
 dynamic_ima_canvas.py
 =====================
-Copyright 2013-2016 Sebastian Kamann
+Copyright 2013-2017 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -35,20 +35,20 @@ pampelmuse.core.cube
 
 Latest SVN revision
 -------------------
-426, 2017/06/01
+427, 2017/06/03
 """
 import logging
 import numpy as np
 from matplotlib import collections, patches
 from matplotlib.figure import Figure
-from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from PyQt5 import QtCore
 from ..instruments import Instrument
 from ..utils.fits import open_ifs_data
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 426
+__revision__ = 427
 
 
 class DynamicImaCanvas(FigureCanvasQTAgg):
@@ -63,6 +63,12 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
     x = None  # x-values of data_plot
     y = None  # y-values of data_plot
     ids = None
+
+    # define custom signals
+    layer_changed = QtCore.pyqtSignal(int, name='layerChanged')
+    lower_cut_changed = QtCore.pyqtSignal(float, name='loCutChanged')
+    upper_cut_changed = QtCore.pyqtSignal(float, name='hiCutChanged')
+    pointer_position_changed = QtCore.pyqtSignal(int, int, float, name='coordsChanged')
 
     def __init__(self, parent=None, width=4, height=4, dpi=100):
         """
@@ -234,7 +240,7 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
         self.layer = i
 
         # emit QtCore.SIGNAL notifying about index of new layer
-        self.emit(QtCore.pyqtSignal("layerChanged"), i)
+        self.layer_changed.emit(i)
 
     def changeCuts(self, vrange=None, locut=None, hicut=None):
         """
@@ -289,9 +295,9 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
 
         # emit signal that cuts were changed
         if self.cuts[0] != oldcuts[0]:
-            self.emit(QtCore.pyqtSignal("changedLoCut"), self.cuts[0])
+            self.lower_cut_changed.emit(self.cuts[0])
         if self.cuts[1] != oldcuts[1]:
-            self.emit(QtCore.pyqtSignal("changedHiCut"), self.cuts[1])
+            self.upper_cut_changed.emit(self.cuts[1])
 
     def updateAxesLimits(self):
         """
@@ -459,4 +465,4 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
         except IndexError:
             f = np.nan
 
-        self.emit(QtCore.pyqtSignal("coordsChanged"), x, y, f)
+        self.pointer_position_changed.emit(x, y, f)

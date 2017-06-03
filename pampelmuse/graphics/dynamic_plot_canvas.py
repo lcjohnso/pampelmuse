@@ -1,7 +1,7 @@
 """
 dynamic_plot_canvas.py
 ======================
-Copyright 2013-2016 Sebastian Kamann
+Copyright 2013-2017 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -38,14 +38,14 @@ The class DynamicPlotCanvas is used by the PampelMuse GUI to show the
 top panel, named 'Spectrum Viewer'.
 
 Latest SVN revision
--------------------4
-426, 2016/06/01
+-------------------
+427, 2016/06/03
 """
 import inspect
 import logging
 import matplotlib.pyplot
 import numpy as np
-from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from matplotlib.patches import Rectangle
 from matplotlib.transforms import blended_transform_factory
@@ -55,7 +55,7 @@ matplotlib.pyplot.rcParams["axes.linewidth"] = 1.5
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 426
+__revision__ = 427
 
 
 class DynamicPlotCanvas(FigureCanvasQTAgg):
@@ -65,6 +65,9 @@ class DynamicPlotCanvas(FigureCanvasQTAgg):
     feature is used to create a spectrumMask in wavelength space.
     """
     background = None
+
+    # define custom signals
+    range_selected = QtCore.pyqtSignal(int, int, bool, name='rangeSelected')
 
     def __init__(self, parent=None, width=9, height=5, dpi=100):
         """
@@ -309,7 +312,7 @@ class DynamicPlotCanvas(FigureCanvasQTAgg):
         x_min = min(x_click, x_release)
         x_max = max(x_click, x_release)
         logging.info('Selected range: {0:.1f} - {1:.1f}'.format(x_min, x_max))
-        self.emit(QtCore.pyqtSignal("rangeSelected"), *[(x_min, x_max), True])
+        self.range_selected.emit(x_min, x_max, True)
 
     def on_deselect(self, x_click, x_release):
         """
@@ -334,4 +337,4 @@ class DynamicPlotCanvas(FigureCanvasQTAgg):
         x_min = min(x_click, x_release)
         x_max = max(x_click, x_release)
         logging.info('Deselected range: {0:.1f} - {1:.1f}'.format(x_min, x_max))
-        self.emit(QtCore.pyqtSignal("rangeSelected"), *[(x_min, x_max), False])
+        self.range_selected.emit(x_min, x_max, False)

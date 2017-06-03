@@ -2,7 +2,7 @@
 """
 exit_dialog.py
 ==============
-Copyright 2013-2016 Sebastian Kamann
+Copyright 2013-2017 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -35,15 +35,15 @@ in pampelmuse.graphics.Ui_exit_dialog.
 
 Latest SVN revision
 -------------------
-340, 2016/07/29
+427, 2017/06/02
 """
-from PyQt4.QtGui import QDialog
-from PyQt4.QtCore import pyqtSignature
+from PyQt5.QtWidgets import QDialog
+from PyQt5.QtCore import pyqtSlot
 from .Ui_exit_dialog import Ui_exitUnsavedDialog
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 340
+__revision__ = 427
 
 
 class exitUnsavedDialog(QDialog, Ui_exitUnsavedDialog):
@@ -66,7 +66,7 @@ class exitUnsavedDialog(QDialog, Ui_exitUnsavedDialog):
         
         self.status = None
     
-    @pyqtSignature("")
+    @pyqtSlot()
     def on_buttonBox_accepted(self):
         """
         Handle event when the button to accept the closing
@@ -75,7 +75,7 @@ class exitUnsavedDialog(QDialog, Ui_exitUnsavedDialog):
         self.status = True
         QDialog.close(self)
 
-    @pyqtSignature("")
+    @pyqtSlot()
     def on_buttonBox_rejected(self):
         """
         Handle event when the button to reject the closing

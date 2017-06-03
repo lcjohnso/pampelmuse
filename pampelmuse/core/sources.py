@@ -37,7 +37,7 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-425, 2017/05/28
+427, 2017/06/03
 """
 import collections
 import logging
@@ -53,13 +53,13 @@ from ..filters import get_filter
 
 # check if PyQt is available 
 try:
-    from PyQt4 import QtCore
+    from PyQt5 import QtCore
 except ImportError:
     QtCore = None
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 425
+__revision__ = 427
 
 
 logger = logging.getLogger(__name__)
@@ -996,11 +996,14 @@ class Sources(object):
 
         Returns
         -------
-        names : QStringList
+        names : list of strings
            The names of the components
         """
         # add sources with own spectrum, i.e. have status between 2 and 4
-        names = QtCore.QStringList(self.ids[(self.status >= 2) & (self.status <= 4)].astype("|S10"))
+        _names = self.ids[(self.status >= 2) & (self.status <= 4)].values.astype("|S10")
+
+        # need to decode numpy_bytes to str
+        names = [_names[i].decode('UTF-8') for i in range(len(_names))]
 
         # if available, add unresolved component
         if self.includes_unresolved:
@@ -1449,14 +1452,14 @@ class Sources(object):
 
         Returns
         -------
-        QtCore.QStringList
+        list of strings
             The list is returned as a list of QStrings so that it can be
             used by PyQt-applications.
         """
         # get boolean selection of included sources
         selection = np.in1d(self.status, np.arange(min_status, 4))
 
-        return QtCore.QStringList(self.ids[selection].astype("|S10"))
+        return [star_id.decode('UTF-8') for star_id in self.ids[selection].astype("|S10")]
 
     def viewIfsCoordinates(self, source_id):
         """

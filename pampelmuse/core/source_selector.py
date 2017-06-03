@@ -33,7 +33,7 @@ Added
 
 Latest SVN revision
 -------------------
-426, 2017/06/01
+427, 2017/06/03
 """
 import logging
 import sys
@@ -51,7 +51,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)'
-__revision__ = 426
+__revision__ = 427
 
 
 logger = logging.getLogger(__name__)
@@ -652,7 +652,7 @@ class SourceSelector(object):
 
         # get magnitude of n_stars'th brightest star
         n_stars = min(n_stars, self.sources.n_sources - self.sources.n_background - 1)
-        mag = self.sources.mag[np.argsort(self.sources.mag[:self.sources.n_sources - self.sources.n_background])[n_stars]]
+        mag = self.sources.mag[~self.sources.is_background].sort_values().iloc[n_stars]
 
         identifier = PampelMuseGui(sources=self.sources, ifsData=self.ifs_data, refImage=self.identification_image)
 
