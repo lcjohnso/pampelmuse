@@ -35,7 +35,7 @@ pampelmuse.core.cube
 
 Latest SVN revision
 -------------------
-427, 2017/06/03
+428, 2017/06/05
 """
 import logging
 import numpy as np
@@ -48,7 +48,7 @@ from ..utils.fits import open_ifs_data
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 427
+__revision__ = 428
 
 
 class DynamicImaCanvas(FigureCanvasQTAgg):
@@ -285,7 +285,7 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
             else:
                 # sort pixel values
                 values.sort()
-                self.cuts = (values[cutpix / 2], 0.5 * (values[-cutpix / 2 - 1] + values[-cutpix / 2 - 2]))
+                self.cuts = (values[cutpix//2], 0.5 * (values[-cutpix//2 - 1] + values[-cutpix//2 - 2]))
 
         # change cuts and update canvas
         logging.debug("Updated display cuts are min={0:.3g}, max={1:.3g}".format(

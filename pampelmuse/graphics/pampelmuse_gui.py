@@ -37,13 +37,14 @@ defines the methods that are called by Ui_PampelMuseGui.
 
 Latest SVN revision
 -------------------
-427, 2017/06/02
+428, 2017/06/05
 """
 import logging
 import os
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 from matplotlib import patches, colors
 from matplotlib.backends.backend_qt5 import NavigationToolbar2QT as NavigationToolbar
 from astropy import wcs
@@ -62,7 +63,7 @@ from ..utils.fits import save_prm
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 427
+__revision__ = 428
 
 
 class ToolbarWithoutMessage(NavigationToolbar):
@@ -264,8 +265,8 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         else:
             self.sources = Sources(catalog=data)
 
-        # add new property indicating if a star is currently plotted
-        self.sources.plotted = np.zeros(self.sources.n_sources, dtype=np.bool)
+        # add new property indicating which stars are currently plotted
+        self.sources.plotted = pd.Index([], dtype=np.bool)
 
         self.actionSaveAs.setEnabled(True)
 
@@ -332,7 +333,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
                 if self.spectrumShowHduComboBox.findText(entry) == -1:
                     self.spectrumShowHduComboBox.addItem(entry)
             self.available_data["Positions"] = self.sources.providePositionIds()
-            self.available_data["Coord. Transf."] = self.sources.transformation.provideParameterNames()
+            self.available_data["Coord. Transf."] = self.sources.transformation.names
 
         self.ifsPositionsKnown = True
         self.dataLoaded()  # update status of GUI
@@ -382,13 +383,13 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             self.psf = Variables(hdu=data)  # initialize PSF
 
         # make sure PSF parameters have same dispersion axis as Sources instance
-        if self.sources.ndisp != self.psf.n_dispersion == 1:
+        if self.sources.n_dispersion != self.psf.n_dispersion == 1:
             self.psf.resize(self.sources.ndisp)
 
         # update QComboBox for newly loaded data
         if self.spectrumShowHduComboBox.findText("PSF") == -1:
             self.spectrumShowHduComboBox.addItem("PSF")
-        self.available_data["PSF"] = self.psf.provideParameterNames()
+        self.available_data["PSF"] = self.psf.names
 
         self.dataLoaded()  # update status of GUI
 
@@ -406,7 +407,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             # get current text of HDU and row QComboBoxes and emit the signal that the highlighted row of
             # the current HDU is selected
             self.on_spectrumShowHduComboBox_activated(self.spectrumShowHduComboBox.currentText())
-            self.on_spectrumShowGo_clicked()
+            self.on_spectrumShowGo_pressed()
 
         # initialize spectrumMask if needed
         if self.spectrumMask is None or self.spectrumMask.size != self.sources.n_dispersion:
@@ -662,7 +663,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
                 # b) Other resolved sources (status==2) will be displayed as black circles
                 # c) sources close to a brighter source (status==1) will be displayed as grey circles.
                 if self.edgeColors is None:
-                    self.edgeColors = np.ones(self.sources.n_sources, dtype="|S7")
+                    self.edgeColors = pd.Series(np.zeros(self.sources.n_sources, dtype="<U7"), index=self.sources.ids)
                     self.edgeColors[self.sources.status == 3] = "#00FF00"
                     self.edgeColors[self.sources.status == 2] = "0.0"
                     self.edgeColors[self.sources.status == 1] = "0.5"
@@ -670,13 +671,20 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
                 # load the IFS coordinates for all resolved sources and store them as a separate variable for later
                 # usage
                 if self.ifsOffsets is None:
-                    self.sources.load_ifs_coordinates(ids=self.sources.ids, interpolate=True)
+                    self.sources.load_ifs_coordinates(ids=self.sources.ids)
 
-                    # TODO: use polynomial fit if it exists, direct coordinate otherwise
-                    # index3 = np.asarray(self.sources.ifs_coordinates_fitted, dtype=np.int16)
-
-                    # collect coordinates of sources to be plotted in one array
-                    self.ifsOffsets = self.sources.ifs_coordinates[..., 0]
+                    # use polynomial fits if they exist for all sources, direct coordinates otherwise
+                    if self.sources.ifs_coordinates_fitted[~self.sources.is_background].all():
+                        self.ifsOffsets = {
+                            'x': self.sources.ifs_coordinates.xs(('x', 'fit'), level=('axis', 'type'), axis=1),
+                            'y': self.sources.ifs_coordinates.xs(('y', 'fit'), level=('axis', 'type'), axis=1)}
+                    else:
+                        self.ifsOffsets = {
+                            'x': self.sources.ifs_coordinates.xs(('x', 'value'), level=('axis', 'type'), axis=1),
+                            'y': self.sources.ifs_coordinates.xs(('y', 'value'), level=('axis', 'type'), axis=1)}
+                        # interpolate NaN values
+                        self.ifsOffsets['x'].fillna(method='pad', inplace=True)
+                        self.ifsOffsets['y'].fillna(method='pad', inplace=True)
 
                 if not self.plotStarsCheckBoxPSF.isEnabled():
                     self.plotStarsCheckBoxPSF.setEnabled(True)
@@ -865,15 +873,17 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         self.on_actionSave_triggered()
 
 # The following methods deal with actions that affect the state of the spectrum viewer.
-    def modifyMask(self, limits, mask):
+    def modifyMask(self, lower, upper, mask):
         """
         A region defined by 'limits' is added to or removed from the spectrumMask.
         The region is added if 'spectrumMask' is True, otherwise it is removed.
         
         Parameters:
         -----------
-        limits : (float, float)
-            The min./max. values of the range to be masked.
+        lower : float
+            The min. value of the range to be masked.
+        upper : float
+            The max. value of the range to be masked.
         spectrumMask : bool
             Whether the selected region should be included in the spectrumMask
             (if True) or excluded from it (if False).
@@ -881,8 +891,8 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         if self.spectrumMask is None:
             return
 
-        i_min = np.nanargmin(abs(self.sources.wave - limits[0]))
-        i_max = np.nanargmin(abs(self.sources.wave - limits[1]))
+        i_min = np.nanargmin(abs(self.sources.wave - lower))
+        i_max = np.nanargmin(abs(self.sources.wave - upper))
 
         self.spectrumMask[i_min:i_max] = not mask
         self.plotMask()
@@ -904,7 +914,6 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         while i < maskStart.size:
             start = maskStart[i]
             end = maskEnd[i]
-
             self.dataPlot.addRectangle((start, 0), width=end-start, edgecolor="w", facecolor="k", alpha=0.5,
                                        gid="spectrumMask{0}".format(i))
             i += 1
@@ -929,8 +938,8 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         else:
             self.spectrumShowIdentComboBox.addItems(self.available_data[str(name)])
 
-    @pyqtSlot(str)
-    def on_spectrumShowGo_clicked(self, updateYRange=True):
+    @pyqtSlot()
+    def on_spectrumShowGo_pressed(self, updateYRange=True):
         """
         Handle event that a new curve should be plotted.
         
@@ -940,50 +949,34 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             Flag indicating whether the y-limits of the plot canvas should
             be updated to fit the new data.
         """
-        x_data = None
-
         # retrieve current data for selected HDU and property
         if self.current_hdu == "Spectra":
-            y_fit = None
-            x_data, y_data = self.sources.viewSpectrum(name=self.current_row_in_hdu)
-            y_label = r"$f_\lambda\,[\mathrm{counts}/\mathrm{layer}]$"
+            data = self.sources.viewSpectrum(name=self.current_row_in_hdu)
+            fit = None
+            label = r"$f_\lambda\,[\mathrm{counts}/\mathrm{layer}]$"
 
         elif self.current_hdu in ["x Positions", "y Positions"]:
             ifs_coordinates = self.sources.viewIfsCoordinates(source_id=int(self.current_row_in_hdu))
-            y_label = r"${0}_\mathrm{{IFS}}\,[\mathrm{{spaxel}}]$".format(self.current_hdu[0])
-            if self.current_hdu == "x Positions":
-                y_data, y_fit = ifs_coordinates[:, 0].T
-            else:
-                y_data, y_fit = ifs_coordinates[:, 1].T
-            if not self.sources.ifs_coordinates_fitted[np.where(self.sources.ID == int(self.current_row_in_hdu))[0][0]]:
-                y_fit = None
+            axis = 'x' if self.current_hdu == 'x Positions' else 'y'
+            data = ifs_coordinates[(axis, 'value')]
+            fit = ifs_coordinates[(axis, 'fit')]
+            label = r"${0}_\mathrm{{IFS}}\,[\mathrm{{spaxel}}]$".format(axis)
 
         elif self.current_hdu == "PSF":
-            i = self.psf.names.index(str(self.current_row_in_hdu))
-            y_data = self.psf.data[:, i, 0]
-            if self.psf.fitted[i]:
-                y_fit = self.psf.data[:, i, 1]
-            else:
-                y_fit = None
-            y_label = self.psf.LABELS[self.psf.names[i]]
+            parameter = self.current_row_in_hdu
+            data = self.psf.data[(parameter, 'value')]
+            fit = self.psf.data[(parameter, 'fit')]
+            label = self.psf.LABELS[parameter]
 
         elif self.current_hdu == "Coord. Transf.":
-            i = self.sources.transformation.names.index(str(self.current_row_in_hdu))
-            y_data = self.sources.transformation.data[:, i, 0]
-            if self.sources.transformation.fitted[i]:
-                y_fit = self.sources.ctData[:, i, 1]
-            else:
-                y_fit = None
-            y_label = r"${{\rm {0}}}$".format(self.sources.transformation.names[i])
+            parameter = self.current_row_in_hdu
+            data = self.sources.transformation.data[(parameter, 'value')]
+            fit = self.sources.transformation.data[(parameter, 'fit')]
+            label = r"${{\rm {0}}}$".format(self.current_row_in_hdu)
+
         else:
             logging.error('Unknown HDU encountered: "{0}"'.format(self.current_hdu))
             return
-
-        if x_data is None:
-            x_data = self.sources.wave
-        if (np.isnan(x_data) | np.isnan(y_data)).all():
-            logging.warning('Missing wavelength information.')
-            x_data = np.arange(y_data.size)
 
         # update plot
         if self.sources.cunit == "m":
@@ -995,16 +988,15 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         else:
             x_label = r"$\lambda\,[\mathrm{\AA}]$"
 
-        valid = np.isfinite(x_data) & np.isfinite(y_data)
-        self.dataPlot.updateData(name='data', x_data=x_data[valid], y_data=y_data[valid], x_label=x_label,
-                                 y_label=y_label, update_y_range=updateYRange)
-
-        if y_fit is not None:
-            valid &= np.isfinite(y_fit)
-            self.dataPlot.updateData(name='fit', x_data=x_data[valid], y_data=y_fit[valid],
-                                     update_y_range=updateYRange)
+        valid = np.isfinite(data)
+        self.dataPlot.updateData(name='data', x_data=data[valid].index.values, y_data=data[valid].values,
+                                 x_label=x_label, y_label=label, update_y_range=updateYRange)
+        if fit is not None and np.isfinite(fit).any():
+            valid = np.isfinite(fit)
+            self.dataPlot.updateData(name='fit', x_data=fit[valid].index.values, y_data=fit[valid].values,
+                                     update_y_range=False)
         else:
-            self.dataPlot.updateData(name='fit', x_data=[], y_data=[], update_y_range=updateYRange)
+            self.dataPlot.updateData(name='fit', x_data=[], y_data=[], update_y_range=False)
 
         # show spectrumMask
         self.plotMask()
@@ -1017,14 +1009,14 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             source_id = int(self.current_row_in_hdu)
         except ValueError:  # if current_row_in_hdu is not an ID.
             return
-
-        if self.ifsPlot.ids is not None and source_id in self.ifsPlot.ids:
-            self.on_ifsPlot_picked(np.where(self.ifsPlot.ids == source_id)[0][0])
-        if self.refLoaded and source_id in self.refPlot.ids:
-            self.on_refPlot_picked(np.where(self.refPlot.ids == source_id)[0][0], True)
+        else:
+            if self.ifsPlot.ids is not None and source_id in self.ifsPlot.ids:
+                self.on_ifsPlot_picked(np.where(self.ifsPlot.ids == source_id)[0][0])
+            if self.refLoaded and source_id in self.refPlot.ids:
+                self.on_refPlot_picked(np.where(self.refPlot.ids == source_id)[0][0], True)
 
     @pyqtSlot()
-    def on_spectrumFitGo_clicked(self):
+    def on_spectrumFitGo_pressed(self):
         """
         Handle event when the currently displayed spectral data should be fitted.
         """
@@ -1033,8 +1025,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         order = int(self.spectrumFitOrderSpinBox.value())
 
         if self.current_hdu == "Spectra":
-            self.statusBar().showMessage("Fitting spectra is not supported.",  5000)
-            # logging.warning("(and not that useful anyway, ol' goofball!)")
+            self.statusBar.showMessage("Fitting spectra is not supported.",  5000)
             return
 
         elif self.current_hdu == "PSF":
@@ -1062,7 +1053,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
 
         self.unsavedChanges = True
         self.actionSave.setEnabled(True)
-        self.on_spectrumShowGo_clicked(updateYRange=False)
+        self.on_spectrumShowGo_pressed(updateYRange=False)
 
 # The following methods handle actions that affect the IFU viewer
     @pyqtSlot(int, int)
@@ -1209,16 +1200,11 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         index : int
             The index of the selected source in the IFU viewer plot.
         """
-
-        # recover index of picked source in sources catalog
-        i = np.where(self.sources.ID == self.ifsPlot.ids[index])[0][0]
-
         # recover ID
-        ident = self.sources.ID[i]
+        ident = self.ifsPlot.ids[index]
 
-        # mark source in datacube image by setting the facecolor of its
-        # marker to the edgecolor of its marker, all other symbols with
-        # transparent face
+        # mark source in datacube image by setting the facecolor of its marker to the edgecolor of its marker,
+        # all other symbols with transparent face
         facecolors = np.zeros((len(self.ifsPlot.ids), 4), dtype=np.float32)
         facecolors[index] = self.ifsPlot.edgecolors[index]
         self.ifsPlot.data_plot.set_facecolors(facecolors)
@@ -1228,12 +1214,11 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         indexInComboBox = self.spectrumShowIdentComboBox.findText(str(ident))
         if indexInComboBox >= 0 and self.spectrumShowIdentComboBox.currentText() != str(ident):
             self.spectrumShowIdentComboBox.setCurrentIndex(indexInComboBox)
-            self.spectrumShowGo.click()
-
+            self.on_spectrumShowGo_pressed()
         self.ifsPlot.figure.canvas.draw()
 
         # update status bar
-        self.statusBar().showMessage("Selected source: {0}".format(ident), 5000)
+        self.statusBar.showMessage("Selected source: {0}".format(ident), 5000)
 
 # The following methods deal with actions that affect the state of the reference view.
     @pyqtSlot(str)
@@ -1422,7 +1407,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             self.refPlot.data_plot.remove()
             self.refPlot.data_plot = None
 
-        if not self.sources.plotted.any():
+        if len(self.sources.plotted):
             self.refPlot.draw()
 
         else:
@@ -1467,130 +1452,135 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         to the previous plot or if the plot can be updated in place.
         :return: None
         """
-        index = self.ifuLayerSelectSpinBox.value()
+        index = self.sources.wave[self.ifuLayerSelectSpinBox.value()]
 
         if update_sources:
-
             if self.ifsPlot.data_plot is not None:
                 # TODO: combine the following two commands.
                 self.ifsPlot.data_plot.remove()  # remove scatter plot from Axes instance
                 self.ifsPlot.data_plot = None  # update state of DynamicImaCanvas instance
 
-            if not self.sources.plotted.any():
+            if not len(self.sources.plotted):
                 self.ifsPlot.draw()
 
             else:
-                current_offsets = self.ifsOffsets[index, self.sources.plotted]
-
-                # get IDs, and magnitudes, and colors from _full_ source catalogue.
-                ids = self.sources.ID[self.sources.plotted]
+                x = self.ifsOffsets['x'].loc[index, self.sources.plotted]
+                y = self.ifsOffsets['y'].loc[index, self.sources.plotted]
 
                 # if magnitudes are available in the sources catalogue, we use them to scale the circles representing
                 # the sources.
                 if not np.isnan(self.sources.mag).all():
                     sizes = 10.*(10**(-0.2*(self.sources.mag[self.sources.plotted] - max(self.sources.mag))))
                 else:
-                    sizes = 20*np.ones(self.sources.plotted.sum(), dtype=np.float32)
+                    sizes = 20*np.ones(len(self.sources.plotted), dtype=np.float32)
 
-                edgecolors = colors.ColorConverter().to_rgba_array(self.edgeColors[self.sources.plotted])
-                facecolors = np.zeros((self.sources.plotted.sum(), 4), dtype=np.float32)
+                edgecolors = colors.ColorConverter().to_rgba_array(self.edgeColors[self.sources.plotted].values)
+                facecolors = np.zeros((len(self.sources.plotted), 4), dtype=np.float32)
 
-                self.ifsPlot.addData(current_offsets[:, 0], current_offsets[:, 1], s=sizes, ids=ids, picker=3,
-                                     edgecolors=edgecolors, facecolors=facecolors, update_axes_limits=False)
+                self.ifsPlot.addData(x, y, s=sizes, ids=self.sources.plotted, picker=3, edgecolors=edgecolors,
+                                     facecolors=facecolors, update_axes_limits=False)
                 # NOTE: self.ifsPlot.draw() is unnecessary because it is executed by the addData method.
 
         else:  # if the number of sources stays the same, update the scatter plot in place.
-            current_offsets = self.ifsOffsets[index, self.sources.plotted]
-            assert(current_offsets.shape == self.ifsPlot.dataPlot.get_offsets())
-            self.ifsPlot.dataPlot.set_offsets(current_offsets)
+            x_offsets = self.ifsOffsets['x'].loc[index, self.sources.plotted]
+            y_offsets = self.ifsOffsets['y'].loc[index, self.sources.plotted]
+            assert(len(self.soures.plotted) == self.ifsPlot.dataPlot.get_offsets()[0])
+            self.ifsPlot.dataPlot.set_offsets(np.stack((x_offsets, y_offsets), axis=1))
 
     @pyqtSlot(int)
     def on_plotStarsCheckBoxPSF_stateChanged(self, state):
         """
         This method is called whenever the state of the check box changes that
         indicates if the PSF stars should be overlaid on the reference and/or
-        IFS data.
+        IFS data plot.
 
-        :param state: The new state of the check box. Note that it is not a
-        boolean flag but an integer (0 if disabled, 2 if enabled)
-        :return: None
+        Parameters
+        ----------
+        state : boolean
+            The new state of the check box. Note that it is not a boolean flag
+            but an integer (0 if disabled, 2 if enabled)
         """
-        if state == 0:
-            self.sources.plotted &= (self.sources.status != 3)
-            self.plotted_statuses.remove(3)
-        else:
-            self.sources.plotted |= (self.sources.status == 3) & (self.sources.mag >= self.plotted_mag_range[0]) & (
-                self.sources.mag <= self.plotted_mag_range[1])
-            self.plotted_statuses.append(3)
-        if self.ifsInteractMode == 'pick':
-            self.plot_sources_on_ifs(update_sources=True)
-        if self.refInteractMode == 'pick':
-            self.plot_sources_on_ref()
+        self.deselect_sources_by_status(status=3) if not state else self.select_sources_by_status(status=3)
 
     @pyqtSlot(int)
     def on_plotStarsCheckBoxResolved_stateChanged(self, state):
         """
         This method is called whenever the state of the check box changes that
         indicates if the resolved stars should be overlaid on the reference
-        and/or the IFS data.
+        and/or the IFS data plot.
 
-        :param state: The new state of the check box. Note that it is not a
-        boolean flag but an integer (0 if disabled, 2 if enabled)
-        :return: None
+        Parameters
+        ----------
+        state : boolean
+            The new state of the check box. Note that it is not a boolean flag
+            but an integer (0 if disabled, 2 if enabled)
         """
-        if state == 0:
-            self.sources.plotted &= (self.sources.status != 2)
-            self.plotted_statuses.remove(2)
-        else:
-            self.sources.plotted |= (self.sources.status == 2) & (self.sources.mag >= self.plotted_mag_range[0]) & (
-                self.sources.mag <= self.plotted_mag_range[1])
-            self.plotted_statuses.append(2)
-        if self.ifsInteractMode == 'pick':
-            self.plot_sources_on_ifs(update_sources=True)
-        if self.refInteractMode == 'pick':
-            self.plot_sources_on_ref()
+        self.deselect_sources_by_status(status=2) if not state else self.select_sources_by_status(status=2)
 
     @pyqtSlot(int)
     def on_plotStarsCheckBoxNearby_stateChanged(self, state):
         """
         This method is called whenever the state of the check box changes that
         indicates if the nearby stars should be overlaid on the reference
-        and/or the IFS data.
+        and/or the IFS data plot.
 
-        :param state: The new state of the check box. Note that it is not a
-        boolean flag but an integer (0 if disabled, 2 if enabled)
-        :return: None
+        Parameters
+        ----------
+        state : boolean
+            The new state of the check box. Note that it is not a boolean flag
+            but an integer (0 if disabled, 2 if enabled)
         """
-        if state == 0:
-            self.sources.plotted &= (self.sources.status != 1)
-            self.plotted_statuses.remove(1)
-        else:
-            self.sources.plotted |= (self.sources.status == 1) & (self.sources.mag >= self.plotted_mag_range[0]) & (
-                self.sources.mag <= self.plotted_mag_range[1])
-            self.plotted_statuses.append(1)
-        if self.ifsInteractMode == 'pick':
-            self.plot_sources_on_ifs(update_sources=True)
-        if self.refInteractMode == 'pick':
-            self.plot_sources_on_ref()
+        self.deselect_sources_by_status(status=1) if not state else self.select_sources_by_status(status=1)
 
     @pyqtSlot(int)
     def on_plotStarsCheckBoxUnresolved_stateChanged(self, state):
         """
         This method is called whenever the state of the check box changes that
         indicates if the unresolved stars should be overlaid on the reference
-        and/or the IFS data.
+        and/or the IFS data plot.
 
-        :param state: The new state of the check box. Note that it is not a
-        boolean flag but an integer (0 if disabled, 2 if enabled)
-        :return: None
+        Parameters
+        ----------
+        state : boolean
+            The new state of the check box. Note that it is not a boolean flag
+            but an integer (0 if disabled, 2 if enabled)
         """
-        if state == 0:
-            self.sources.plotted &= (self.sources.status != 0)
-            self.plotted_statuses.remove(0)
-        else:
-            self.sources.plotted |= (self.sources.status == 0) & (self.sources.mag >= self.plotted_mag_range[0]) & (
-                self.sources.mag <= self.plotted_mag_range[1])
-            self.plotted_statuses.append(0)
+        self.deselect_sources_by_status(status=0) if not state else self.select_sources_by_status(status=0)
+
+    def select_sources_by_status(self, status):
+        """
+        The method adds stars with the given status to the selection of stars
+        that are overplotted on the IFS/reference GUI.
+        
+        Parameters
+        ----------
+        status : int
+            The status of the sources to be added.
+        """
+        self.sources.plotted = self.sources.plotted.union(
+            self.sources.ids[(self.sources.status == status) & (
+                self.sources.mag >= self.plotted_mag_range[0]) & (
+                self.sources.mag <= self.plotted_mag_range[1])])
+        self.plotted_statuses.append(status)
+
+        if self.ifsInteractMode == 'pick':
+            self.plot_sources_on_ifs(update_sources=True)
+        if self.refInteractMode == 'pick':
+            self.plot_sources_on_ref()
+
+    def deselect_sources_by_status(self, status):
+        """
+        The method removes stars with the given status from the selection of
+        stars that are overplotted on the IFS/reference GUI.
+        
+        Parameters
+        ----------
+        status: int
+            The status of the sources to be removed.
+        """
+        self.sources.plotted = self.sources.plotted.intersection(self.sources.ids[self.sources.status != status])
+        self.plotted_statuses.remove(status)
+
         if self.ifsInteractMode == 'pick':
             self.plot_sources_on_ifs(update_sources=True)
         if self.refInteractMode == 'pick':
@@ -1602,14 +1592,18 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         This method is called whenever the value in the spin box with
         the lower limit of the selected magnitude range changes.
 
-        :param double: The vew value in the spin box.
-        :return: None
+        Parameters
+        ----------
+        double : float
+            The new value in the spin box.
         """
         if double > self.plotted_mag_range[0]:
-            self.sources.plotted &= (self.sources.mag >= double)
+            self.sources.plotted = self.sources.plotted.intersection(self.sources.ids[self.sources.mag >= double])
         else:
-            self.sources.plotted |= np.in1d(self.sources.status, self.plotted_statuses) & (
-                self.sources.mag >= double) & (self.sources.mag <= self.plotted_mag_range[0])
+            for i in self.plotted_statuses:
+                self.sources.plotted = self.sources.plotted.union(
+                    self.sources.ids[(self.sources.status == i) & (self.sources.mag >= double) & (
+                        self.sources.mag <= self.plotted_mag_range[0])])
         self.plotted_mag_range[0] = double
 
         if self.ifsInteractMode == 'pick':
@@ -1622,15 +1616,19 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         """
         This method is called whenever the value in the spin box with
         the upper limit of the selected magnitude range changes.
-
-        :param double: The vew value in the spin box.
-        :return: None
+        
+        Parameters
+        ----------
+        double : float
+            The new value in the spin box.
         """
         if double < self.plotted_mag_range[1]:
-            self.sources.plotted &= (self.sources.mag <= double)
+            self.sources.plotted = self.sources.plotted.intersection(self.sources.ids[self.sources.mag <= double])
         else:
-            self.sources.plotted |= np.in1d(self.sources.status, self.plotted_statuses) & (
-                self.sources.mag >= self.plotted_mag_range[1]) & (self.sources.mag <= double)
+            for i in self.plotted_statuses:
+                self.sources.plotted = self.sources.plotted.union(
+                    self.sources.ids[(self.sources.status == i) & (self.sources.mag >= self.plotted_mag_range[1]) & (
+                        self.sources.mag <= double)])
         self.plotted_mag_range[1] = double
 
         if self.ifsInteractMode == 'pick':

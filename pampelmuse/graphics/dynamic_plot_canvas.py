@@ -67,7 +67,7 @@ class DynamicPlotCanvas(FigureCanvasQTAgg):
     background = None
 
     # define custom signals
-    range_selected = QtCore.pyqtSignal(int, int, bool, name='rangeSelected')
+    range_selected = QtCore.pyqtSignal(float, float, bool, name='rangeSelected')
 
     def __init__(self, parent=None, width=9, height=5, dpi=100):
         """
@@ -311,7 +311,7 @@ class DynamicPlotCanvas(FigureCanvasQTAgg):
         """
         x_min = min(x_click, x_release)
         x_max = max(x_click, x_release)
-        logging.info('Selected range: {0:.1f} - {1:.1f}'.format(x_min, x_max))
+        logging.info('Selected range: {0:.4g} - {1:.4g}'.format(x_min, x_max))
         self.range_selected.emit(x_min, x_max, True)
 
     def on_deselect(self, x_click, x_release):
@@ -336,5 +336,5 @@ class DynamicPlotCanvas(FigureCanvasQTAgg):
         """
         x_min = min(x_click, x_release)
         x_max = max(x_click, x_release)
-        logging.info('Deselected range: {0:.1f} - {1:.1f}'.format(x_min, x_max))
+        logging.info('Deselected range: {0:.4g} - {1:.4g}'.format(x_min, x_max))
         self.range_selected.emit(x_min, x_max, False)

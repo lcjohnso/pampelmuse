@@ -32,7 +32,7 @@ coordinate transformation from reference to IFS coordinates.
 
 Latest SVN revision
 -------------------
-421, 2017/04/30
+428, 2017/06/05
 """
 import logging
 import numpy as np
@@ -42,7 +42,7 @@ from astropy.io import fits
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 421
+__revision__ = 428
 
 
 logger = logging.getLogger(__name__)
@@ -398,29 +398,6 @@ class Parameters(object):
                 log_string += "      [ ]"
 
             logger.info(log_string)
-
-    def provideParameterNames(self):
-        """
-        Provide the names of the parameters in the definition as QStrings.
-        
-        This method is only needed to load the names of the parameters into
-        the combo box of the GUI of PampelMuse. Note that this method requires
-        PyQt4 to be installed on the system.
-        
-        Returns
-        -------
-        PyQt4.QtCore.QStringList
-            The names of the parameters that define the profile.
-        """
-        try:
-            # check if PyQt4 is available on the system
-            from PyQt4 import QtCore
-        except ImportError:
-            logger.error("PyQt4 is not available on the system.")
-            logger.error("Cannot provide names of PSF parameters as QStrings.")
-            return None
-        else:
-            return QtCore.QStringList(self.names)
 
     def polynomial_fit(self, name, order, mask=None, polynom="plain"):
         """

@@ -37,7 +37,7 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-427, 2017/06/03
+428, 2017/06/05
 """
 import collections
 import logging
@@ -59,7 +59,7 @@ except ImportError:
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 427
+__revision__ = 428
 
 
 logger = logging.getLogger(__name__)
@@ -1030,15 +1030,13 @@ class Sources(object):
 
         Returns
         -------
-        wave : nd_array
-            A 1dim. array containing the wavelength of each pixel of the
-            spectrum.
-        data : nd_array
-            A 1dim. array containing the the requested spectrum.
+        data : pandas.Series
+            The Series containing the the requested spectrum, and using the
+            dispersion information as index.
         """
         if self.spectrum_loaded is None and self.data_hdu is None:
             logging.error("No spectra have been loaded using Sources.load_spectra() or Sources.open_spectra_hdu().")
-            return None, None
+            return None
         # get index of component (i.e. specrow)
         else:
             # check if ID was provided
@@ -1060,9 +1058,9 @@ class Sources(object):
 
         # return data, check before if dedicated wavelength array exists for spectrum
         if self.data_wave_hdu is None:
-            return self.wave, self.data[(i, 'flux')]
+            return self.data[(i, 'flux')]
         else:
-            return self.data[(i, 'wave')], self.data[(i, 'flux')]
+            return pd.Series(self.data[(i, 'wave')].values, index=self.data[(i, 'flux')].values)
 
     #############################################################################
     #            Methods dealing with IFU coordinates of the sources            #
@@ -1247,7 +1245,7 @@ class Sources(object):
         # load all (stellar) components if None was provided
         if ids is None:
             ids = self.ids[~self.is_background]
-        elif not isinstance(ids, (int, np.integer, list, np.ndarray)):
+        elif not isinstance(ids, (int, np.integer, list, np.ndarray, pd.Index)):
             logger.error("Parameter 'ids' must be integer or array-like, not {0}.".format(type(ids)))
             return
         # make sure components are available as a pandas index
@@ -1336,7 +1334,7 @@ class Sources(object):
         # check: http://pandas.pydata.org/pandas-docs/stable/advanced.html#using-slicers
         if not self.ifs_coordinates.columns.is_lexsorted():
             logger.warning('Data frame containing IFS coordinates not sorted. Reordering ...')
-            self.ifs_coordinates = self.ifs_coordinates.sortlevel(0, axis=1)  # axis=1 = columns
+            self.ifs_coordinates = self.ifs_coordinates.sort_index(level=0, axis=1)  # axis=1 = columns
 
         # keep track of for which sources IFS coordinates have been loaded
         self.ifs_coordinates_loaded = pd.Series(np.in1d(self.ids, ids), index=self.ids)
@@ -1453,8 +1451,7 @@ class Sources(object):
         Returns
         -------
         list of strings
-            The list is returned as a list of QStrings so that it can be
-            used by PyQt-applications.
+            The list is returned as a list of strings usable in PyQt5.
         """
         # get boolean selection of included sources
         selection = np.in1d(self.status, np.arange(min_status, 4))
