@@ -37,7 +37,7 @@ defines the methods that are called by Ui_PampelMuseGui.
 
 Latest SVN revision
 -------------------
-428, 2017/06/05
+429, 2017/06/10
 """
 import logging
 import os
@@ -63,7 +63,7 @@ from ..utils.fits import save_prm
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 428
+__revision__ = 429
 
 
 class ToolbarWithoutMessage(NavigationToolbar):
@@ -520,8 +520,10 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         self.ifsPlot.loadLayer(0, residuals=self.actionResiduals.isChecked(), cmap=plt.cm.Blues,
                                interpolation="nearest")
 
-        # adapt layer range to match spectral dimension of data cube
+        # adapt layer range to match spectral dimension of data cube and show central layer
         self.ifuLayerSelectSlider.setMaximum(self.ifsPlot.cube.wave.size-1)
+        self.ifuLayerSelectSlider.setValue(self.ifsPlot.cube.wave.size//2)
+        self.on_ifuLayerSelectSlider_sliderMoved(self.ifsPlot.cube.wave.size//2)
 
         # qt designer does not offer a method to define a validator, so we do it here
         self.ifuMinCutLineEdit.setValidator(QDoubleValidator())
@@ -956,10 +958,11 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             label = r"$f_\lambda\,[\mathrm{counts}/\mathrm{layer}]$"
 
         elif self.current_hdu in ["x Positions", "y Positions"]:
-            ifs_coordinates = self.sources.viewIfsCoordinates(source_id=int(self.current_row_in_hdu))
+            source_id = int(self.current_row_in_hdu)
+            ifs_coordinates = self.sources.viewIfsCoordinates(source_id=source_id)
             axis = 'x' if self.current_hdu == 'x Positions' else 'y'
             data = ifs_coordinates[(axis, 'value')]
-            fit = ifs_coordinates[(axis, 'fit')]
+            fit = ifs_coordinates[(axis, 'fit')] if self.sources.ifs_coordinates_fitted[source_id] else None
             label = r"${0}_\mathrm{{IFS}}\,[\mathrm{{spaxel}}]$".format(axis)
 
         elif self.current_hdu == "PSF":

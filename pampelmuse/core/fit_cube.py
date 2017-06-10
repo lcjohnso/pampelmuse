@@ -31,7 +31,7 @@ extraction for a data cube.
 
 Latest SVN revision
 -------------------
-425, 2017/05/28
+429, 2017/06/10
 """
 import logging
 import time
@@ -43,14 +43,14 @@ from .background import BackgroundGrid
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 425
+__revision__ = 429
 
 
 logger = logging.getLogger(__name__)
 
 
 def init_worker(psf_type, psf_radius, psf_parameters_to_fit, position_parameters_to_fit, last_component_is_unresolved,
-                osfactor, osradius, sources, psf_sources, max_iterations, *args):
+                osfactor, osradius, sources, psf_sources, max_iterations, analyse_psf, *args):
     """
     This function defines the global parameters for the parallel part of the
     analysis. The global parameters are those that do not change from one
@@ -80,10 +80,13 @@ def init_worker(psf_type, psf_radius, psf_parameters_to_fit, position_parameters
     sources : array_like
         The indices of the sources used to fit source coordinates.
     psf_sources : array_like
-        The indices used to fit the PSF parameters.  If None, use same sources
+        The indices used to fit the PSF parameters. If None, use same sources
         as for coordinates.
     max_iterations : int
         The maximum number of iterations.
+    analyse_psf : bool
+       Flag indicating if the radial profiles of the stars used to fit the PSF
+       plus the parameters of the individual PSF fits should be returned.
     args
 
     Returns
@@ -101,6 +104,7 @@ def init_worker(psf_type, psf_radius, psf_parameters_to_fit, position_parameters
     global g_sources
     global g_psf_sources
     global g_max_iterations
+    global g_analyse_psf
 
     g_psf_type = psf_type
     g_psf_radius = psf_radius
@@ -112,6 +116,7 @@ def init_worker(psf_type, psf_radius, psf_parameters_to_fit, position_parameters
     g_sources = sources
     g_psf_sources = psf_sources
     g_max_iterations = max_iterations
+    g_analyse_psf = analyse_psf
 
 
 def parallel_fit_layer(fit_parameters):
@@ -157,6 +162,7 @@ def parallel_fit_layer(fit_parameters):
 
     global g_psf_type, g_psf_radius, g_psf_parameters_to_fit, g_position_parameters_to_fit
     global g_last_component_is_unresolved, g_osfactor, g_osradius, g_sources, g_psf_sources, g_max_iterations
+    global g_analyse_psf
 
     layerfit = FitLayer(data=data, catalog=catalog, psf_type=g_psf_type, psf_parameters=psf_parameters,
                         psf_radius=g_psf_radius, position_parameters=position_parameters,
@@ -165,7 +171,8 @@ def parallel_fit_layer(fit_parameters):
 
     results = layerfit(fluxes=None, psf_parameters_to_fit=g_psf_parameters_to_fit,
                        position_parameters_to_fit=g_position_parameters_to_fit,
-                       sources=g_sources, psf_sources=g_psf_sources, max_iterations=g_max_iterations)
+                       sources=g_sources, psf_sources=g_psf_sources, max_iterations=g_max_iterations,
+                       analyse_psf=g_analyse_psf)
 
     del layerfit
     return results
@@ -295,7 +302,12 @@ class FitCube(object):
         else:
             self.background = None
 
-    def __call__(self, layer_range=(0, -1), n_track=10, n_cpu=1, max_iterations=20, use_variances=True, n_bin=1):
+        # prepare containers for storing detailed PSF information if requested
+        self.profiles = {}
+        self.parameters = {}
+
+    def __call__(self, layer_range=(0, -1), n_track=10, n_cpu=1, max_iterations=20, use_variances=True, n_bin=1,
+                 analyse_psf=True):
         """
         Run the fitting process for the requested layers.
 
@@ -330,6 +342,10 @@ class FitCube(object):
         n_bin : int, optional
             The number of layers of the IFS data combined into a single layer
             for the analysis.
+        analyse_psf : bool, optional
+            Flag indicating if the radial profiles of the stars used to fit
+            the PSF should be returned.
+        
         """
         # check which layers should be analysed
         start, stop = layer_range
@@ -427,7 +443,7 @@ class FitCube(object):
 
         # check which sources should be used in single PSF fits
         # if no PSF sources exist, use method for layers with few sources/spaxels
-        if not (self.sources.status == 3).any():
+        if 3 not in self.sources.status.values:
             sources = None
             psf_sources = None
         # if source positions are fitted directly, all affected sources must be used, plus a subset to constrain the PSF
@@ -456,7 +472,8 @@ class FitCube(object):
                     self.osradius,
                     sources,
                     psf_sources,
-                    max_iterations
+                    max_iterations,
+                    analyse_psf
                     )
         if n_cpu > 1:
             pool = Pool(n_cpu, initializer=init_worker, initargs=initargs)
@@ -529,12 +546,16 @@ class FitCube(object):
                     # recover layer for which the results were obtained
                     current = indices_to_analyse[i - len(results) + k]
                     # for each layer, the fit returns: fluxes, uncertainties, positions, and PSF parameters, wave
-                    self.write_fluxes(current, result[0], result[1], result[-1])
+                    self.write_fluxes(current, result.fluxes, result.uncertainties, result.wave, ignore_index=True)
                     if position_parameters_to_fit is not None and 'xy' in position_parameters_to_fit:
-                        self.write_ifs_coordinates(current, result[2])
+                        self.write_ifs_coordinates(current, result.positions)
                     else:
-                        self.write_coordinate_transformation(current, result[2])
-                    self.write_psf_parameters(current, result[3])
+                        self.write_coordinate_transformation(current, result.positions)
+                    self.write_psf_parameters(current, result.psf)
+
+                    # save PSF if requested
+                    if analyse_psf and sources is not None:
+                        self._write_psf_properties(result.profiles, result.parameters, current_wavelength=current)
 
                 # reset list containing input data for parallel fit
                 fit_input = []
@@ -555,6 +576,10 @@ class FitCube(object):
                         last_layers = indices_to_analyse[:i]
                     else:
                         last_layers = indices_to_analyse[i - 2:max(0, i - 2 - 2 * n_track):-1]
+
+        out = self._make_psf_hdus()
+        out.writeto('psf_test.fits')
+        return self._make_psf_hdus() if analyse_psf else None
 
     def get_layer(self, current, n_bin, use_variances=True, skip_nan=True):
         """
@@ -761,31 +786,46 @@ class FitCube(object):
 
         return centroids
 
-    def write_fluxes(self, current, fluxes, uncertainties, wave=None):
+    def write_fluxes(self, current, fluxes, uncertainties, wave=None, ignore_index=False):
         """
         This method writes the fitted fluxes back to the instance of
-        pampelmuse.core.Sources that was provided when initialising
-        the instance of FitCube.
+        pampelmuse.core.Sources that was provided when initialising the
+        instance of FitCube.
 
         Parameters
         ----------
         current : integer
             The index of the layer for which the fluxes were fitted.
-        fluxes : array_like
-            The fitted fluxes
-        uncertainties : array_like
-            The associated uncertainties
-        wave : array_like, optional
+        fluxes : pandas.Series
+            The fitted fluxes of the components.
+        uncertainties : pandas.Series
+            The uncertainties associated with the fluxes. The Series must use
+            the same indices as the fluxes.
+        wave : pandas.Series, optional
             The average wavelength values for the components. Currently
-            only used with MUSE pixtables.
+            only used with MUSE pixtables. If provided, the Series must use
+            the same indices as the fluxes.
+        ignore_index : bool, optional
+            Set this flag to skip the checks that the provided Series have the
+            same indices as the spectrum catalog.
         """
-        assert(len(fluxes) == len(uncertainties)), '"fluxes" and "uncertainties" must have same length'
-        assert(len(fluxes) == self.sources.n_components), 'Length of "fluxes" must match number of components in fit.'
-        self.sources.data.loc[current, (slice(None), 'flux')] = fluxes
-        self.sources.data.loc[current, (slice(None), 'sigma')] = uncertainties
-        if wave is not None:
-            assert(len(wave) == self.sources.n_components)
-            self.sources.data.loc[current, (slice(None), 'wave')] = wave
+        # perform consistency checks
+        if not ignore_index:
+            if not np.array_equal(fluxes.index, self.sources.data.columns.levels[0]):
+                logger.error('Input series "fluxes" has incompatible index.')
+                return
+            if not np.array_equal(uncertainties.index, self.sources.data.columns.levels[0]):
+                logger.error('Input series "uncertainties" has incompatible index.')
+                return
+            if wave is not None and not np.array_equal(wave.index, self.sources.data.columns.levels[0]):
+                logger.error('Input series "wave" has incompatible index.')
+                return
+
+        # it is faster to convert input data into a single 1D numpy array that is inserted at the given index than
+        # inserting the provided Series consecutively.
+        data = np.stack([fluxes, uncertainties, wave] if wave is not None else [fluxes, uncertainties], axis=-1)
+        self.sources.data.loc[current] = data.flatten()
+
 
     def write_psf_parameters(self, current, values):
         """
@@ -804,7 +844,7 @@ class FitCube(object):
         if values is None:  # nothing to do
             return
         else:
-            for name, value in values.iteritems():
+            for name, value in values.items():
                 self.psf_attributes.data.at[current, (name, 'value')] = value
 
     def write_coordinate_transformation(self, current, values):
@@ -817,14 +857,14 @@ class FitCube(object):
         ----------
         current : int
             The index of the layer for which the fluxes were fitted.
-        values : array_like
+        values : pandas.Series
             The fitted values of the transformation parameters. The indices of
             the Series should be the parameter names.
         """
         if values is None:  # nothing to do
             return
         else:
-            for name, value in values.iteritems():
+            for name, value in values.items():
                 self.sources.transformation.data.at[current, (name, 'value')] = value
 
     def write_ifs_coordinates(self, current, values):
@@ -837,7 +877,7 @@ class FitCube(object):
         ----------
         current : int
             The index of the layer for which the fluxes were fitted.
-        values : pandas.DatFrame
+        values : pandas.DataFrame
             The fitted values of the source centroids. The data frame should
             contain the columns 'xc' and 'yc' and use the source IDs as
             indices.
@@ -846,9 +886,87 @@ class FitCube(object):
         if values is None:  # nothing to do
             return
         else:
-            for i, row in values.iteritems():
+            for i, row in values.items():
                 # The assignment assumes that all sources with lower indices have their IFS coordinates loaded
                 assert self.sources.ifs_coordinates_loaded[i]
 
                 self.sources.ifs_coordinates.at[current, (i, 'x')] = row['x']
                 self.sources.ifs_coordinates.at[current, (i, 'y')] = row['y']
+
+    def _write_psf_properties(self, profiles, parameters, current_wavelength):
+        """
+        This method appends the detailed PSF information returned from the fit
+        to a single layer to the dictionaries containing the combined PSF data.
+        
+        Parameters
+        ----------
+        profiles : pandas.DataFrame
+            The radial PSF profiles. The data frame should contain the radial
+            data as individual columns and use the source IDs as column names.
+        parameters : pd.DataFrame
+            The fitted PSF parameters, one per column. The data frame should
+            contain one row per source.
+        current_wavelength : float
+            The wavelength of the layer for which the results were obtained. 
+        """
+        for source_id, row in parameters.iterrows():
+            row.name = current_wavelength
+            if source_id in self.parameters:
+                self.parameters[source_id].append(row)
+            else:
+                self.parameters[source_id] = [row, ]
+
+        for source_id in profiles:
+            column = profiles[source_id]
+            column.name = current_wavelength
+            if source_id in self.profiles:
+                self.profiles[source_id].append(column)
+            else:
+                self.profiles[source_id] = [column, ]
+
+    def _make_psf_hdus(self):
+        """
+        Create an astropy.io.fits.HDUList containing the individual PSF
+        parameters and radial profiles as a function of wavelength.
+        
+        Returns
+        -------
+        hdu_list : astropy.io.fits.HDUList
+            For each PSF source, the HDUList will contain two separate
+            ImageHDUs. One containing the radial profiles, the other one
+            containing the fitted PSF parameters.
+        """
+        from astropy.io import fits
+        hdu_list = fits.HDUList()
+
+        for source_id, _data in self.parameters.items():
+            data = pd.concat(_data, axis=1)
+            data.sort_index(axis=1, inplace=True)
+
+            # zeroth axis contains parameters, first contains wavelength
+            hdu_list.append(fits.ImageHDU(data.values))
+            hdu_list[-1].header['EXTNAME'] = 'PR_{0}'.format(source_id)
+
+            # add parameter names to header
+            for i, name in enumerate(data.index, start=1):
+                hdu_list[-1].header['PARAM{0:02d}'.format(i)] = name
+
+            # add (approximate) dispersion information (python counting, need to swap for FITS)
+            hdu_list[-1].header['CRVAL1'] = data.columns[0]
+            hdu_list[-1].header['CDELT1'] = np.mean(np.diff(data.columns))
+            hdu_list[-1].header['CRPIX1'] = 1
+
+        for source_id, _data in self.profiles.items():
+            data = pd.concat(_data, axis=1)
+            data.sort_index(axis=1, inplace=True)
+
+            # zeroth axis contains profiles, first contains wavelength (python counting, need to swap for FITS)
+            hdu_list.append(fits.ImageHDU(data.values))
+            hdu_list[-1].header['EXTNAME'] = 'PM_{0}'.format(source_id)
+
+            # add (approximate) dispersion information
+            hdu_list[-1].header['CRVAL1'] = data.columns[0]
+            hdu_list[-1].header['CDELT1'] = np.mean(np.diff(data.columns))
+            hdu_list[-1].header['CRPIX1'] = 1
+
+        return hdu_list

@@ -57,8 +57,9 @@ parameters are not fitted.
 
 Latest SVN revision
 -------------------
-425, 2017/05/28
+429, 2017/06/10
 """
+import collections
 import contextlib
 import logging
 import time
@@ -71,7 +72,7 @@ from ..core.coordinates import Transformation
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 425
+__revision__ = 429
 
 
 logger = logging.getLogger(__name__)
@@ -85,6 +86,11 @@ def printoptions(*args, **kwargs):
     np.set_printoptions(*args, **kwargs)
     yield
     np.set_printoptions(**original)
+
+
+# define namedtuple for returning the results of the fit in a useful structure
+FitResult = collections.namedtuple('FitResult', ['fluxes', 'uncertainties', 'positions', 'psf', 'wave', 'profiles',
+                                                 'parameters'])
 
 
 class FitLayer(object):
@@ -297,7 +303,7 @@ class FitLayer(object):
             return pd.Series(1., index=self.data.index)
 
     def __call__(self, fluxes=None, psf_parameters_to_fit=None, position_parameters_to_fit=None,
-                 sources=None, psf_sources=None, max_iterations=5):
+                 sources=None, psf_sources=None, max_iterations=5, analyse_psf=False):
         """
         This method carries out a least-squares fir to the data.
 
@@ -336,27 +342,40 @@ class FitLayer(object):
             shape of the PSF right than to get its centroid.
         max_iterations : int, optional
             The maximum number of iterations.
+        analyse_psf : bool, optional
+            Set this flag to return the radial profiles of the stars that were
+            used to fit the PSF and position parameters. This parameter only
+            has an effect if 'sources' is not None and at least one of the
+            parameters is being fitted.
 
         Returns
         -------
-        fluxes : pandas.Series
+        fit_result : instance of FitResult namedtuple
+            The tuple contains the following entries that can be accessed via
+            their names.
+            * 'fluxes' : pandas.Series
             The fitted fluxes of the components that actually contributed to
             the observed flux. Sources entirely outside the observed field of
             view are excluded from this series.
-        uncertainties : pandas.Series
-             The associated uncertainties of the returned fluxes.
-        return_positions : pandas.Series or pandas.DataFrame
-             The best-fit parameters of the coordinate transformation or the
-             best-fit centroids of all components (in this case a DataFrame is
-             returned containing columns 'x' and 'y' and one row per source),
-             or None if fixed positions were used.
-        return_psf : pandas.Series
-             The best-fit parameters of the PSF, or None if a fixed PSf was
-             used.
-        return_wave : pandas.Series
-             If dedicated wavelength information per pixel was provided with
-             the data, this Series will contain the weighted wavelength value
-             for each returned flux. Otherwise an empty Series is returned.
+            * 'uncertainties' : pandas.Series
+            The associated uncertainties of the returned fluxes.
+            * 'positions' : pandas.Series or pandas.DataFrame
+            The best-fit parameters of the coordinate transformation or the
+            best-fit centroids of all components (in this case a DataFrame is
+            returned containing columns 'x' and 'y' and one row per source),
+            or None if fixed positions were used.
+            * 'psf' : pandas.Series
+            The best-fit parameters of the PSF, or None if a fixed PSF was
+            used.
+            * 'wave' : pandas.Series
+            If dedicated wavelength information per pixel was provided with
+            the data, this Series will contain the weighted wavelength value
+            for each returned flux. Otherwise None is returned.
+            * 'profiles' : pandas.DataFrame
+            The radial profiles of the PSF stars if requested. Otherwise None.
+            * 'parameters' : pandas.DataFrame
+            The parameters of the individual PSF fits it requested. Otherwise
+            None.
         """
         if fluxes is not None:
             if isinstance(fluxes, (list, np.ndarray)):
@@ -369,6 +388,10 @@ class FitLayer(object):
                 return
             self.fluxes = fluxes
 
+        profiles = None
+        single_psf_results = None
+        included_components = None
+
         # Determine initial weights for each pixel in the fit.
         self.fit_weights = 1./self.variances
 
@@ -378,7 +401,7 @@ class FitLayer(object):
                 logger.info("Iteration {0} (of max. {1})".format(iteration, max_iterations))
 
             # if required, calculate matrix with all sources
-            if self.source_matrix is None:
+            if self.source_matrix is None or included_components is None:
                 self.source_matrix, included_components = self.build_matrix()
 
                 # fluxes of components outside FoV are set to NaN
@@ -406,7 +429,7 @@ class FitLayer(object):
             logger.info("Chi**2 of current fit: {0:.1f}".format(best_fit[3] ** 2))
 
             # update fluxes of all components
-            self.fluxes.loc[included_components] += (best_fit[0] / total_flux)
+            self.fluxes[included_components] += (best_fit[0] / total_flux)
 
             # Convergence criterion: the average relative change in flux is < 0.5 percent
             delta_flux = (best_fit[0] / total_flux) / self.fluxes
@@ -431,29 +454,29 @@ class FitLayer(object):
 
                 # if any sources are provided for the PSF fit, the method for large layers is used
                 if sources is not None:
-                    results = self.fit_sources_consecutive(sources=sources, psf_parameters=psf_parameters_to_fit,
-                                                           psf_sources=psf_sources,
-                                                           fit_positions=(position_parameters_to_fit is not None))
+                    single_psf_results, profiles = self.fit_sources_consecutively(
+                        sources=sources, psf_parameters=psf_parameters_to_fit, psf_sources=psf_sources,
+                        fit_positions=(position_parameters_to_fit is not None), return_psf_profiles=analyse_psf)
 
                     # if positions are fitted directly, update them
                     if 'xy' in position_parameters_to_fit:
-                        for index, row in results.iterrows():
+                        for index, row in single_psf_results.iterrows():
                             if np.isfinite(row['xc']) and np.isfinite(row['yc']):
                                 self.psf_instances[index].xc = row['xc']
                                 self.psf_instances[index].yc = row['yc']
                         # afterwards remove columns from data frame
-                        del results['xc']
-                        del results['yc']
+                        del single_psf_results['xc']
+                        del single_psf_results['yc']
 
                     # get average values from individual fits as pandas Series
-                    final = self.average_psf_fits(results, psf_parameters_to_fit, position_parameters_to_fit)
+                    final = self.average_psf_fits(single_psf_results, psf_parameters_to_fit, position_parameters_to_fit)
 
                 else:
                     final = pd.Series()
                     # first fit positions
                     if position_parameters_to_fit is not None:
                         final = final.append(self.fit_sources_simultaneously(position_parameters_to_fit))
-                    # then PSf parameters
+                    # then PSF parameters
                     if psf_parameters_to_fit is not None:
                         final = final.append(self.fit_sources_simultaneously(psf_parameters_to_fit))
 
@@ -512,9 +535,10 @@ class FitLayer(object):
             return_wave = pd.Series(np.asarray(self.wave.dot(weight_matrix)/weight_matrix.sum(axis=0))[0],
                                     index=included_components)
         else:
-            return_wave = pd.Series()
+            return_wave = None
 
-        return self.fluxes[included_components], uncertainties, return_positions, return_psf, return_wave
+        return FitResult(self.fluxes, uncertainties, return_positions, return_psf, return_wave, profiles,
+                         single_psf_results)
 
     @property
     def model(self):
@@ -723,8 +747,8 @@ class FitLayer(object):
         source_indices = total_fluxes[total_fluxes > 0].index
         return _psf_matrix.tocsc(), source_indices.append(self.fluxes.index[-self.n_background:])
 
-    def fit_sources_consecutive(self, sources, psf_parameters=None, fit_positions=True, psf_sources=None,
-                                local_background=True):
+    def fit_sources_consecutively(self, sources, psf_parameters=None, fit_positions=True, psf_sources=None,
+                                  local_background=True, return_psf_profiles=True):
         """
         Perform the PSF fit for one or more sources individually after
         subtracting all other sources using their current best fit.
@@ -742,7 +766,7 @@ class FitLayer(object):
             The indices of the sources that should be fitted.
         psf_parameters : array_like, optional
             The names of the PSF parameters that should be optimized in the
-            fits. Default is to use a constaant PSF.
+            fits. Default is to use a constant PSF.
         fit_positions : boolean, optional
             Flag indicating if the source positions should be optimized in
             the fits.
@@ -756,6 +780,9 @@ class FitLayer(object):
         local_background : bool, optional
             Flag indicating if the local background should be determined prior
             to each PSF fit.
+        return_psf_profiles : bool, optional
+            Flag indicating if the radial profiles of the stars used in the
+            PSF fits should be returned.
 
         Returns
         -------
@@ -766,9 +793,12 @@ class FitLayer(object):
             parameters have been fitted:
             * 'flux': the fitted flux of each source.
             * 'snr': an estimate of the S/N of each source.
-            * ['fwhm', 'e', 'theta', ...: Tte values of the free PSF parameters.]
+            * ['fwhm', 'e', 'theta', ...: values of the free PSF parameters.]
             * ['x', 'y': the x- and y-centroids obtained in the fits]
-
+        profiles : pandas.DataFrame
+            The radial profiles of the stars to which a PSF profile was fitted
+            if the parameter 'psf_profiles' was set. Otherwise None is
+            returned.
         """
         # The keyword 'psf_sources' may be used to define a subset of 'sources' that is used to fit the PSF parameters.
         # All 'sources' are used for this purpose if psf_sources=None
@@ -786,6 +816,9 @@ class FitLayer(object):
         # prepare empty data frame & fill with NaNs
         results = pd.DataFrame(0., index=sources, columns=columns)
         results[:] = np.nan
+
+        # if PSF profiles should be calculated, prepare empty dictionary for this purpose
+        radial_data = {} if return_psf_profiles else None
 
         # Loop over all sources with free parameters; add source to residuals, fit resulting array and subtract source
         # again.
@@ -830,6 +863,17 @@ class FitLayer(object):
 
             # add best-fit PSF-profile to residuals to get data used in fit
             data += x0[0] * psf.f
+
+            # calculate radial profile if requested
+            if return_psf_profiles:
+                # calculate weight of every sub-pixel (=inverse of number of sub-pixels in pixel)
+                _, unique_inverse, unique_counts = np.unique(psf.osmap, return_inverse=True, return_counts=True)
+                weights = 1./unique_counts[unique_inverse]
+                # account for sub-pixels by duplicating data of every pixel containing sub-pixels.
+                os_data = data[psf.osmap]
+                # calculate profile
+                _, profile = self._get_radial_profile(data=os_data, radii=psf.r, weights=weights)
+                radial_data[i] = profile
 
             # # for debugging, show plot with current data
             # import matplotlib.pyplot as plt
@@ -912,7 +956,7 @@ class FitLayer(object):
                 logger.warning("PSF fit failed for source #{0}: {1}".format(i, result[-2]))
 
         # return
-        return results
+        return results, pd.DataFrame(radial_data)
 
     @staticmethod
     def single_psf_optimizer(x0, names, psf, data, sigma):
@@ -1198,10 +1242,12 @@ class FitLayer(object):
     @staticmethod
     def calc_running_mad(x, y, n=500):
         """
-        Given two 1D arrays x and y, the routine will determine the
-        median absolute deviation (MAD) of y as a function of x. To this
-        aim, the data are sorted by increasing x values and then the MAD
-        is measured in bins of n datapoints with increasing x values.
+        Given two 1D arrays x and y, the routine will determine the median
+        absolute deviation (MAD) of y as a function of x.
+        
+        To this aim, the data are sorted by increasing x values and then the
+        MAD is measured in bins of n datapoints with increasing x values.
+
         NOTE: It is assumed that the median value of y is zero.
 
         Parameters
@@ -1305,3 +1351,51 @@ class FitLayer(object):
                 final = final.append(_final)
 
         return final
+
+    @staticmethod
+    def _get_radial_profile(data, radii, weights=None, sampling=None):
+        """
+        Internal method to determine the radial profile of the data used in a
+        PSF fit.
+        
+        Parameters
+        ----------
+        data : nd_array
+            The data used in the PSF fit.
+        radii : nd_array
+            The distance of each pixel to the centre of the profile. Must have
+            same length as data array.
+        weights : nd_array, optional
+            An optional weighting applied to each data pixel. This is useful
+            if the central pixels were oversampled, for example. If provided,
+            must have same length as data array. Default is to use no
+            weighting. 
+        sampling : array-like
+            The edges of the radial bins in which the profile is measured.
+            The default is to use 10 equally spaced bins in linear space. 
+
+        Returns
+        -------
+        profile : pandas.Series
+            The radial profile determined from the data.
+        """
+        # specify bin edges if they are not provided.
+        if sampling is None:
+            sampling = np.linspace(radii.min(), radii.max(), 11)  # need 11 edges for 10 bins!
+
+        # use unity weights if none provided
+        if weights is None:
+            weights = np.ones(data.size, dtype=np.float32)
+
+        # prepare arrays to hold results
+        output_radii = np.zeros(len(sampling) - 1, dtype=np.float32)
+        profile = np.zeros(len(sampling) - 1, dtype=np.float32)
+
+        for i, r_min in enumerate(sampling[:-1]):
+            r_max = sampling[i + 1]
+
+            in_bin = (radii >= r_min) & (radii <= r_max)
+            output_radii[i] = np.average(radii[in_bin], weights=weights[in_bin])
+            profile[i] = np.average(data[in_bin], weights=weights[in_bin])
+
+        return output_radii, profile

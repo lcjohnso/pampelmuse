@@ -37,7 +37,7 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-428, 2017/06/05
+429, 2017/06/10
 """
 import collections
 import logging
@@ -59,7 +59,7 @@ except ImportError:
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 428
+__revision__ = 429
 
 
 logger = logging.getLogger(__name__)
@@ -1296,10 +1296,12 @@ class Sources(object):
             xy_in = self.catalog.loc[ids, ['x', 'y']]  # np.vstack((self.x[ids], self.y[ids])).T
 
             # coordinate transformation may needs to be resized
-            if len(self.transformation.data.index) != len(self.wave) or (
-                        self.transformation.data.index != self.wave).any():
-                logger.warning('Adding dispersion information to coordinate transformation.')
-                self.transformation.resize(self.wave)
+            if not np.array_equal(self.transformation.data.index, self.wave):
+                if len(self.transformation.data.index) == len(self.wave):
+                    self.transformation.data.index = self.wave
+                else:
+                    logger.warning('Adding dispersion information to coordinate transformation.')
+                    self.transformation.resize(self.wave)
 
             # function returns pandas DataFrame, need to get values and reshape
             # TODO: directly use DataFrame
@@ -1582,8 +1584,8 @@ class Sources(object):
         # loop over selected sources and fir polynomials to x- and y-coordinates
         for n, source_id in enumerate(ids, start=1):
 
-            x = xy[(source_id, 'x')]
-            y = xy[(source_id, 'y')]
+            x = xy[(source_id, 'x')].values
+            y = xy[(source_id, 'y')].values
 
             # for each source, get layers where x- and y-coordinate are defined.
             mask_i = mask | np.isnan(x) | np.isnan(y)
