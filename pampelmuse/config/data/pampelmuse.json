@@ -23,7 +23,8 @@
     "e": 0.0,
     "theta": 0.0,
     "fit": 6,
-    "radius": 15
+    "radius": 15,
+    "inspect": false
   },
   "sky": {
     "use": true,
@@ -70,6 +71,6 @@
     "folder":  "spectra",
     "passbands": null,
     "poststamps": false,
-    "skipfllag": false
+    "skipflag": false
   }
 }

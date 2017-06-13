@@ -58,7 +58,7 @@ the data into memory yet but just checks whether the file(s) are valid.
 
 Latest SVN revision
 -------------------
-426, 2017/06/01
+430, 2017/06/12
 """
 import argparse
 import importlib
@@ -76,8 +76,8 @@ from pampelmuse.utils.fits import read_config_from_header
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.94.0.1"
-__revision__ = 426
+__version__ = "0.94.0.2"
+__revision__ = 430
 
 
 logger = logging.getLogger(__name__)
@@ -172,25 +172,15 @@ if __name__ == "__main__":
         # get primary header
         header = fits.getheader('{0}.prm.fits'.format(user_config['global']['prefix']))
 
-        # read configuration from header
-        existing_config = read_config_from_header(header)
+        # updating configuration using values from header
+        config = read_config_from_header(header, existing_configuration=config)
 
-        # loop over configuration sections
-        for section, items in existing_config.items():
-            # if loop over keys in section
-            for key, value in items.items():
-                # check if key exists and differs from default value
-                if section in config.keys() and key in config[section].keys() and config[section][key] != value:
-                    # update
-                    config[section][key] = value
-
-    # update configuration using command line input. Note that during the analysis, i.e. when calling a routine
-    # different from INITFIT or SINGLESRC, only a subset of the parameters can be changed. For example, it makes no
-    # sense to change the RESLIM parameter after selecting the sources.
+    # update configuration using user file. Note that during the analysis, i.e. when calling a routine different
+    # from INITFIT or SINGLESRC, only a subset of the parameters can be changed. For example, it makes no sense
+    # to change the RESLIM parameter after selecting the sources.
 
     # loop over sections and keys
     for key, section in user_config.items():
-
         #  check if section is valid
         if key not in config.keys():
             logging.error('Unknown key "{0}" in user-configuration file.'.format(key))

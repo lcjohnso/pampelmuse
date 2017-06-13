@@ -36,7 +36,7 @@ which performs the actual analysis.
 
 Latest SVN revision
 -------------------
-425, 2017/05/28
+430, 2017/06/12
 """
 import datetime
 import logging
@@ -45,7 +45,7 @@ from ..utils.fits import make_header_from_config, open_ifs_data, open_prm, save_
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 425
+__revision__ = 430
 
 
 def add_parser(parser):
@@ -88,10 +88,10 @@ def cubefit(config):
     # adjust numbers of first and last layer to be analysed
     first_layer = config['layers'].get('first', 0)
     if first_layer < 0:
-        first_layer = ifs_data.nlayer - first_layer
+        first_layer = ifs_data.nlayer + first_layer
     last_layer = config['layers'].get('last', -1)
     if last_layer < 0:
-        last_layer = ifs_data.nlayer - last_layer + 1
+        last_layer = ifs_data.nlayer + last_layer + 1
 
     # Source catalogue
     sources, psf_attributes = open_prm(filename='{0}.prm.fits'.format(prefix), ndisp=ifs_data.wave.size)
@@ -102,13 +102,16 @@ def cubefit(config):
     fitter = FitCube(ifs_data=ifs_data, sources=sources, psf_attributes=psf_attributes,
                      psf_radius=config['psf'].get('radius', 15.))
 
-    fitter(layer_range=(first_layer, last_layer),
-           n_cpu=config['global'].get('cpucount', 1),
-           max_iterations=config['cubefit'].get('iterations', 5),
-           use_variances=config['cubefit'].get('usesigma', True),
-           n_bin=config['layers'].get('binning', 1))
+    psf_data = fitter(layer_range=(first_layer, last_layer), n_cpu=config['global'].get('cpucount', 1),
+                      max_iterations=config['cubefit'].get('iterations', 5),
+                      use_variances=config['cubefit'].get('usesigma', True),
+                      n_bin=config['layers'].get('binning', 1), analyse_psf=config['psf'].get('inspect', False))
 
     logging.info("Saving results...")
+
+    # save PSF data if requested
+    if psf_data is not None:
+        psf_data.writeto('{0}.psf.fits'.format(prefix), overwrite=True)
 
     # log status of analysis
     config['cubefit']['utc'] = datetime.datetime.utcnow().strftime("%y-%m-%d %H:%M:%S")
@@ -118,5 +121,4 @@ def cubefit(config):
     # create header containing configuration
     header = make_header_from_config(config=config)
 
-    save_prm(sources, psf_attributes, filename='{0}.prm.fits'.format(prefix),
-             header=header)
+    save_prm(sources, psf_attributes, filename='{0}.prm.fits'.format(prefix), header=header)

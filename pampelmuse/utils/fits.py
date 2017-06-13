@@ -1,7 +1,7 @@
 """
 fits.py
 =======
-Copyright 2013-2016 Sebastian Kamann
+Copyright 2013-2017 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -32,7 +32,7 @@ The provided functions facilitate working with FITS data.
 
 Latest SVN revision
 -------------------
-425, 2017/05/28
+430, 2017/06/12
 """
 import os
 import logging
@@ -47,7 +47,7 @@ from ..psf import Variables
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 425
+__revision__ = 430
 
 
 def open_ifs_data(prefix, **kwargs):
@@ -302,7 +302,7 @@ def save_prm(sources, psf_attributes, filename, header=None):
     hdulist.writeto(filename, clobber=True)
 
 
-def read_config_from_header(header):
+def read_config_from_header(header, existing_configuration=None):
     """
     Read an existing configuration of PampelMuse from a FITS header
     
@@ -310,6 +310,11 @@ def read_config_from_header(header):
     ----------
     header : fits.Header
         The header instance containing the configuration.
+    existing_configuration : dict, optional
+        An existing configuration that should be updated using the values from
+        the header. If provided, the code will ignore header keys that have no
+        counterpart in the existing configuration and change the values of the
+        provided configuration to the values found in the header.
 
     Returns
     -------
@@ -350,8 +355,21 @@ def read_config_from_header(header):
                 except ValueError:
                     raise IOError('Header contains invalid configuration: {0}'.format(header_key))
 
-    # return
-    return config
+    # check if existing configuration should be updated
+    if existing_configuration is None:
+        # if not, just return header values
+        return config
+    else:
+        # loop over configuration sections
+        for section, items in config.items():
+            # loop over keys in section
+            for key, value in items.items():
+                # check if key exists and differs from default value
+                if section in existing_configuration.keys() and key in existing_configuration[section].keys():
+                    if existing_configuration[section][key] != value:
+                        # update
+                        existing_configuration[section][key] = value
+        return existing_configuration
 
 
 def make_header_from_config(config, **kwargs):

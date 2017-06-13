@@ -31,7 +31,7 @@ extraction for a data cube.
 
 Latest SVN revision
 -------------------
-429, 2017/06/10
+430, 2017/06/12
 """
 import logging
 import time
@@ -43,7 +43,7 @@ from .background import BackgroundGrid
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 429
+__revision__ = 430
 
 
 logger = logging.getLogger(__name__)
@@ -53,9 +53,10 @@ def init_worker(psf_type, psf_radius, psf_parameters_to_fit, position_parameters
                 osfactor, osradius, sources, psf_sources, max_iterations, analyse_psf, *args):
     """
     This function defines the global parameters for the parallel part of the
-    analysis. The global parameters are those that do not change from one
-    layer to the next, therefore they do not have to be initialized anew for
-    each layer.
+    analysis.
+    
+    The global parameters are those that do not change from one layer to the
+    next, therefore they do not have to be initialized anew for each layer.
 
     Parameters
     ----------
@@ -122,9 +123,11 @@ def init_worker(psf_type, psf_radius, psf_parameters_to_fit, position_parameters
 def parallel_fit_layer(fit_parameters):
     """
     This function is designed to carry out the fit to several layers in
-    parallel. To this aim it is called by multiprocess.Pool from within the
-    FitCube class. It basically initializes and executes a new instance of
-    the pampelmuse.core.fit_layer.FitLayer class every time it is called.
+    parallel.
+    
+    To this aim it is called by multiprocess.Pool from within the FitCube
+    class. It basically initializes and executes a new instance of the
+    pampelmuse.core.fit_layer.FitLayer class every time it is called.
 
     Parameters
     ----------
@@ -307,7 +310,7 @@ class FitCube(object):
         self.parameters = {}
 
     def __call__(self, layer_range=(0, -1), n_track=10, n_cpu=1, max_iterations=20, use_variances=True, n_bin=1,
-                 analyse_psf=True):
+                 analyse_psf=False):
         """
         Run the fitting process for the requested layers.
 
@@ -346,6 +349,12 @@ class FitCube(object):
             Flag indicating if the radial profiles of the stars used to fit
             the PSF should be returned.
         
+        Returns
+        -------
+        psf_data : astropy.io.fits.HDUList
+            If requested, the HDU list will contain the radial profile and the
+            fitted parameters for every PSF star as a function of wavelength.
+            Otherwise None is returned
         """
         # check which layers should be analysed
         start, stop = layer_range
@@ -400,20 +409,24 @@ class FitCube(object):
                 self.sources.transformation.data.index = self.sources.wave
 
         # Interpolate across wavelength range to ensure the parameters have valid values for all fitted layers.
-        # Afterwards set parameters of omitted layers to NaN. Note that this is not done for polynomial fits to the
-        # parameters
+        # Afterwards - if any of the available parameters is fitted - set all parameters of omitted layers to NaN.
+        # Note that this is not done for polynomial fits to the parameters
         self.psf_attributes.interpolate()
-        self.psf_attributes.data.loc[omitted_indices, (slice(None), 'value')] = np.nan
+        if len(self.position_parameters) > 0:
+            self.psf_attributes.data.loc[omitted_indices, (slice(None), 'value')] = np.nan
+
         if self.sources.transformation.valid:
             self.sources.transformation.interpolate()
-            self.sources.transformation.data.loc[omitted_indices, (slice(None), 'value')] = np.nan
+            if len(self.position_parameters) > 0:
+                self.sources.transformation.data.loc[omitted_indices, (slice(None), 'value')] = np.nan
 
         # Load full coordinate array into memory because doing it per layer is quite slow.
         self.sources.load_ifs_coordinates()
         # replace NaNs to make sure valid coordinates are available for all fitted layers.
         self.sources.ifs_coordinates.fillna(method='pad', inplace=True)
-        # then set values for all omitted layers to NaN
-        self.sources.ifs_coordinates.loc[omitted_indices] = np.nan
+        # then set values for all omitted layers to NaN - only if any parameters are fitted
+        if len(self.position_parameters) > 0:
+            self.sources.ifs_coordinates.loc[omitted_indices] = np.nan
 
         # Check how many CPUs should be used
         if n_cpu is None:
@@ -455,31 +468,33 @@ class FitCube(object):
             sources = self.sources.ids[self.sources.status == 3]
             psf_sources = None
 
-        # collect sources data
+        # initialize fitting process by providing arguments that do not change between layers and creating process pool
+        initial_arguments = (self.psf_attributes.profile,
+                             self.psf_radius,
+                             psf_parameters_to_fit,
+                             position_parameters_to_fit,
+                             self.sources.includes_unresolved,
+                             self.osfactor,
+                             self.osradius,
+                             sources,
+                             psf_sources,
+                             max_iterations,
+                             analyse_psf
+                             )
+        if n_cpu > 1:
+            pool = Pool(n_cpu, initializer=init_worker, initargs=initial_arguments)
+        else:
+            pool = None
+            init_worker(*initial_arguments)
+
+        # collect sources data in catalog
+        # note that the catalog content may change from layer to layer when no coordinate transformation is being used
         stellar = self.sources.status < 4
         series = []
         series.extend([self.sources.x[stellar], self.sources.y[stellar]])
         series.append(self.sources.specrow[stellar])
         series.append(self.sources.weights[stellar])
         catalog = pd.concat(series, axis=1, keys=['x', 'y', 'component', 'magnitude'])
-
-        initargs = (self.psf_attributes.profile,
-                    self.psf_radius,
-                    psf_parameters_to_fit,
-                    position_parameters_to_fit,
-                    self.sources.includes_unresolved,
-                    self.osfactor,
-                    self.osradius,
-                    sources,
-                    psf_sources,
-                    max_iterations,
-                    analyse_psf
-                    )
-        if n_cpu > 1:
-            pool = Pool(n_cpu, initializer=init_worker, initargs=initargs)
-        else:
-            pool = None
-            init_worker(*initargs)
 
         # loop over all layers in cube that should be analysed
         for i, jj in enumerate(indices_to_analyse):
@@ -491,7 +506,7 @@ class FitCube(object):
             handler = logging.getLogger().handlers[0]
             handler.setFormatter(fmt)
 
-            # call fitting routine
+            # collecting data required for fit to layer
             logger.info("Collecting input data for fit to layer with wavelength {0:.4g}m.".format(jj))
 
             # among stored layers of last fits, find those nearest to current layer
@@ -577,8 +592,7 @@ class FitCube(object):
                     else:
                         last_layers = indices_to_analyse[i - 2:max(0, i - 2 - 2 * n_track):-1]
 
-        out = self._make_psf_hdus()
-        out.writeto('psf_test.fits')
+        # if available, return results of detailed PSF analysis
         return self._make_psf_hdus() if analyse_psf else None
 
     def get_layer(self, current, n_bin, use_variances=True, skip_nan=True):

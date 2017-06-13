@@ -37,7 +37,7 @@ defines the methods that are called by Ui_PampelMuseGui.
 
 Latest SVN revision
 -------------------
-429, 2017/06/10
+430, 2017/06/12
 """
 import logging
 import os
@@ -59,11 +59,11 @@ from .exit_dialog import exitUnsavedDialog
 from ..core import Sources
 from ..core.coordinates import Transformation
 from ..psf import Variables
-from ..utils.fits import save_prm
+from ..utils.fits import save_prm, read_config_from_header, make_header_from_config
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 429
+__revision__ = 430
 
 
 class ToolbarWithoutMessage(NavigationToolbar):
@@ -106,6 +106,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
 
     unsavedChanges = False  # flag indicating whether there are unsaved changes
     outfileName = None  # name of the FITS file used to store the results
+    config = None  # may be a dictionary containing the configuration written to the header of the stored FITS file.
 
     plotted_mag_range = [0., 99.]  # the magnitude range of the stars that are currently being displayed
     plotted_statuses = []  # the statuses of the sources that are currently being displayed
@@ -451,11 +452,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         hdu_list = fits.open(filename, mode="update")
 
         # search headers for HIERARCH PAMPELMUSE keywords.
-        if not isinstance(self.namespace, PampelMuseConfig):
-            logging.error("Namespace is not a valid PampelMuseConfig instance.")
-            logging.error("Cannot read configuration from header of primary HDU.")
-        else:
-            self.namespace.readHeader(hdu_list)
+        self.config = read_config_from_header(header=hdu_list[0].header, existing_configuration=self.config)
 
         # for logging only:
         hdu_string = ""
@@ -837,18 +834,17 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         if self.outfileName is None:
             self.on_actionSaveAs_triggered()
 
-        if not isinstance(self.namespace, PampelMuseConfig):
-            logging.error("Namespace is not a valid instance of PampelMuseConfig.")
-            logging.error("Cannot write current configuration to header of primary HDU of outfile.")
-            header = None
+        # if configuration is available, store it in header
+        if self.config is not None:
+            header = make_header_from_config(self.config)
         else:
-            header = self.namespace.makeHeader()
+            header = None
 
         save_prm(sources=self.sources, psf_attributes=self.psf, filename=self.outfileName, header=header)
 
         # update status of GUI.
         logging.info("Wrote results to file {0}.".format(self.outfileName))
-        self.statusBar().showMessage("Saving OK!", 5000)
+        self.statusBar.showMessage("Saving OK!", 5000)
         self.unsavedChanges = False
         self.actionSave.setEnabled(False)
 
@@ -997,9 +993,9 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         if fit is not None and np.isfinite(fit).any():
             valid = np.isfinite(fit)
             self.dataPlot.updateData(name='fit', x_data=fit[valid].index.values, y_data=fit[valid].values,
-                                     update_y_range=False)
+                                     update_y_range=updateYRange)
         else:
-            self.dataPlot.updateData(name='fit', x_data=[], y_data=[], update_y_range=False)
+            self.dataPlot.updateData(name='fit', x_data=[], y_data=[], update_y_range=updateYRange)
 
         # show spectrumMask
         self.plotMask()

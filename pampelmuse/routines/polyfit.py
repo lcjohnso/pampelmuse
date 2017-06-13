@@ -130,9 +130,10 @@ def polyfit(config):
         app = QtWidgets.QApplication(sys.argv)
         ui = PampelMuseGui(sources=sources, ifsData=ifs_data, refImage=config['polyfit'].get('reference', None))
 
-        # for saving results, provide name of PRM-file
+        # for saving results, provide name of PRM-file and the current configuration
         ui.outfileName = '{0}.prm.fits'.format(prefix)
-        
+        ui.config = config
+
         ui.loadSpectra()  # add information about spectra
         ui.loadPositions()  # add information about IFS coordinates
         ui.loadCoordTrans()  # add information about coordinate transformation

@@ -1,7 +1,7 @@
 """
 __init__.py
 ============
-Copyright 2013-2016 Sebastian Kamann
+Copyright 2013-2017 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -30,11 +30,11 @@ The config package handles the default configuration of PampelMuse.
 
 Latest SVN revision
 -------------------
-340, 2016/07/29
+430, 2017/06/12
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 340
+__revision__ = 430
 
 
-changeable = ["verbose", "interact", "cpucount", "maxiter", "polytype", "polydeg", "subunres", "subsky",
-              "usesigma", "layerrng", "layerbin", "psfrad"]
+changeable = ["verbose", "interact", "cpucount", "iterations", "type", "degree", "subtract",
+              "usesigma", "first", "last", "binning", "radius"]
