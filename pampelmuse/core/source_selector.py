@@ -33,7 +33,7 @@ Added
 
 Latest SVN revision
 -------------------
-427, 2017/06/03
+431, 2017/06/13
 """
 import logging
 import sys
@@ -51,7 +51,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)'
-__revision__ = 427
+__revision__ = 431
 
 
 logger = logging.getLogger(__name__)
@@ -1185,25 +1185,32 @@ class SourceSelector(object):
             # add flux of source to Sources instance
             self.sources.data[(self.sources.specrow[source_id], 'flux')].iloc[results.index] = spectrum.values
 
+            # add coordinates if they are fitted
+            if self.sources.ifs_coordinates_free.any():
+                self.sources.ifs_coordinates[source_id] = np.nan
+                self.sources.ifs_coordinates[(source_id, 'x', 'value')].iloc[results.index] = results[(source_id, 'x')].values
+                self.sources.ifs_coordinates[(source_id, 'y', 'value')].iloc[results.index] = results[(source_id, 'y')].values
+
             # NaN pixels are set to zero since DER_SNR skips such pixels
             snr = der_snr(np.ma.array(spectrum.values, mask=np.isnan(spectrum.values), fill_value=0.).filled())
             logger.info("S/N of source #{0} is {1:.1f}".format(source_id, snr))
 
-            # determine profile shape, for the origin of the formulae, check the SExtractor manual
-            x2 = results[(source_id, 'x2')]
-            y2 = results[(source_id, 'y2')]
-            xy = results[(source_id, 'xy')]
+            # for PSF stars, determine profile shape, for the origin of the formulae, check the SExtractor manual
+            if self.sources.status[source_id] == 3:
+                x2 = results[(source_id, 'x2')]
+                y2 = results[(source_id, 'y2')]
+                xy = results[(source_id, 'xy')]
 
-            a = np.sqrt((x2 + y2) / 2. + np.sqrt(((x2 - y2) / 2.) ** 2 + xy ** 2))
-            b = np.sqrt((x2 + y2) / 2. - np.sqrt(((x2 - y2) / 2.) ** 2 + xy ** 2))
+                a = np.sqrt((x2 + y2) / 2. + np.sqrt(((x2 - y2) / 2.) ** 2 + xy ** 2))
+                b = np.sqrt((x2 + y2) / 2. - np.sqrt(((x2 - y2) / 2.) ** 2 + xy ** 2))
 
-            fwhm.append(np.sqrt(8. * np.log(2)) * a)
-            e.append(1. - (b / a))
-            # according to SExtractor manual, theta should have same size as covariance
-            _theta = 0.5 * np.arctan2(2 * xy, (x2 - y2))
-            _theta[(_theta < 0) & (xy > 0)] += np.pi/2.
-            _theta[(_theta > 0) & (xy < 0)] -= np.pi/2.
-            theta.append(_theta)
+                fwhm.append(np.sqrt(8. * np.log(2)) * a)
+                e.append(1. - (b / a))
+                # according to SExtractor manual, theta should have same size as covariance
+                _theta = 0.5 * np.arctan2(2 * xy, (x2 - y2))
+                _theta[(_theta < 0) & (xy > 0)] += np.pi/2.
+                _theta[(_theta > 0) & (xy < 0)] -= np.pi/2.
+                theta.append(_theta)
 
         # calculate (& update) PSF parameters
         logger.info("Estimating PSF properties using measured moments...")
@@ -1238,7 +1245,7 @@ class SourceSelector(object):
                 fixed = {'A': pd.Series(1., index=self.sources.wave),
                          'B': pd.Series(0., index=self.sources.wave),
                          'C': pd.Series(0., index=self.sources.wave),
-                         'D': pd.Series(1., index=self.sources.wave),}
+                         'D': pd.Series(1., index=self.sources.wave), }
             else:
                 fixed = None
             t = Transformation.from_coordinates(self.sources.catalog, results, fixed=fixed)

@@ -57,7 +57,7 @@ parameters are not fitted.
 
 Latest SVN revision
 -------------------
-429, 2017/06/10
+431, 2017/06/13
 """
 import collections
 import contextlib
@@ -72,7 +72,7 @@ from ..core.coordinates import Transformation
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 429
+__revision__ = 431
 
 
 logger = logging.getLogger(__name__)
@@ -432,7 +432,7 @@ class FitLayer(object):
             self.fluxes[included_components] += (best_fit[0] / total_flux)
 
             # Convergence criterion: the average relative change in flux is < 0.5 percent
-            delta_flux = (best_fit[0] / total_flux) / self.fluxes
+            delta_flux = (best_fit[0] / total_flux) / self.fluxes[included_components]
             with printoptions(precision=4, suppress=True):
                 logger.debug("Relative changes in fluxes: {0}".format(delta_flux))
             if np.nanmedian(abs(delta_flux)) < 0.005:
@@ -464,12 +464,11 @@ class FitLayer(object):
                             if np.isfinite(row['xc']) and np.isfinite(row['yc']):
                                 self.psf_instances[index].xc = row['xc']
                                 self.psf_instances[index].yc = row['yc']
-                        # afterwards remove columns from data frame
-                        del single_psf_results['xc']
-                        del single_psf_results['yc']
 
                     # get average values from individual fits as pandas Series
-                    final = self.average_psf_fits(single_psf_results, psf_parameters_to_fit, position_parameters_to_fit)
+                    final = self.average_psf_fits(
+                        single_psf_results, psf_parameters_to_fit,
+                        None if 'xy' in position_parameters_to_fit else position_parameters_to_fit)
 
                 else:
                     final = pd.Series()
@@ -506,9 +505,10 @@ class FitLayer(object):
 
         # estimate uncertainties that are returned with the data
         # note that fit_weights ~ 1/variances
-        inverse_variances = self.source_matrix.multiply(self.source_matrix).T.dot(self.fit_weights)
+        inverse_variances = pd.Series(np.nan, index=self.fluxes.index)
+        inverse_variances[included_components] = self.source_matrix.multiply(self.source_matrix).T.dot(self.fit_weights)
         # invert and take square root to get uncertainties
-        uncertainties = pd.Series(1./np.sqrt(inverse_variances), index=included_components)
+        uncertainties = 1./np.sqrt(inverse_variances)
 
         # collect data that is returned as fit result
         i = self.catalog.index[0]  # extract final parameters from first PSF index
@@ -520,8 +520,7 @@ class FitLayer(object):
         if position_parameters_to_fit is None:
             return_positions = pd.Series()
         elif 'xy' in position_parameters_to_fit:
-            return_positions = pd.DataFrame([[psf.xc, psf.yc] for psf in self.psf_instances], columns=['x', 'y'],
-                                            index=self.catalog.index)
+            return_positions = single_psf_results[['xc', 'yc']]
         else:
             return_positions = pd.Series([getattr(self.psf_instances[i], p) for p in position_parameters_to_fit],
                                          index=position_parameters_to_fit)
@@ -564,15 +563,16 @@ class FitLayer(object):
 
     def residuals_from_fluxes(self, fluxes):
         """
-        This method returns the fit residuals provided inpuut values for the
-        fluxes and background fluxes (if any). The purpose of this method is
-        to have a routine for fast residuals calculation as is required by
-        the SUBTRES routine in PampelMuse.
+        This method returns the fit residuals determined from provided input
+        values for the fluxes.
+        
+        The purpose of this method is to have a routine for fast residuals
+        calculation as is required by the SUBTRES routine in PampelMuse.
 
         Parameters
         ----------
-        fluxes : nd_array
-            The fluxes of the components. The length of this array must match
+        fluxes : pd.Series
+            The fluxes of the components. The length of the Series must match
             the number of components of the instance (including background
             components if any).
 
@@ -587,7 +587,7 @@ class FitLayer(object):
         elif not isinstance(fluxes, pd.Series):
             logger.error('Parameter "fluxes" must be convertible to pandas Series.')
             return
-        elif fluxes.size != (self.n_components * self.n_background):
+        elif fluxes.size != (self.n_components + self.n_background):
             logger.error('No. of provided fluxes does not match number of components.')
             return
         self.fluxes = fluxes
@@ -1330,7 +1330,7 @@ class FitLayer(object):
             final = final.append(_final)
 
         # fit coordinate transformation to provided centroid coordinates
-        if position_parameters is not None:
+        if position_parameters is not None and 'xy' not in position_parameters:
 
             # check if any parameters were not provided. If so, get fixed values from PSF of first source
             index = self.catalog.index[0]
@@ -1352,8 +1352,7 @@ class FitLayer(object):
 
         return final
 
-    @staticmethod
-    def _get_radial_profile(data, radii, weights=None, sampling=None):
+    def _get_radial_profile(self, data, radii, weights=None, sampling=None):
         """
         Internal method to determine the radial profile of the data used in a
         PSF fit.
@@ -1372,7 +1371,7 @@ class FitLayer(object):
             weighting. 
         sampling : array-like
             The edges of the radial bins in which the profile is measured.
-            The default is to use 10 equally spaced bins in linear space. 
+            The default is to use bins of 1 pixel width out to the PSF radius.
 
         Returns
         -------
@@ -1381,7 +1380,7 @@ class FitLayer(object):
         """
         # specify bin edges if they are not provided.
         if sampling is None:
-            sampling = np.linspace(radii.min(), radii.max(), 11)  # need 11 edges for 10 bins!
+            sampling = np.arange(self.psf_radius)
 
         # use unity weights if none provided
         if weights is None:
@@ -1395,7 +1394,11 @@ class FitLayer(object):
             r_max = sampling[i + 1]
 
             in_bin = (radii >= r_min) & (radii <= r_max)
-            output_radii[i] = np.average(radii[in_bin], weights=weights[in_bin])
-            profile[i] = np.average(data[in_bin], weights=weights[in_bin])
+            if in_bin.any():
+                output_radii[i] = np.average(radii[in_bin], weights=weights[in_bin])
+                profile[i] = np.average(data[in_bin], weights=weights[in_bin])
+            else:
+                output_radii[i] = np.nan
+                profile[i] = np.nan
 
         return output_radii, profile

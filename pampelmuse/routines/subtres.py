@@ -79,7 +79,7 @@ def subtres(config):
     ifs_data = open_ifs_data(prefix=prefix)
 
     # Check if PRM-file contains results of successful fit
-    fitstatus = config['cubefit'].get('status', default='Unknown')
+    fitstatus = config['cubefit'].get('status', 'Unknown')
     if fitstatus not in ["SUCCESS", "Unknown"]:
         logging.error("PRM-file does not contain results of successful fit.")
 
@@ -88,16 +88,16 @@ def subtres(config):
     sources, psf_attributes = open_prm('{0}.prm.fits'.format(prefix), ndisp=ifs_data.wave.size)
 
     # adjust numbers of first and last layer to be analysed
-    first_layer = config['layers'].get('first', default=0)
+    first_layer = config['layers'].get('first', 0)
     if first_layer < 0:
         first_layer = ifs_data.nlayer - first_layer
-    last_layer = config['layers'].get('last', default=-1)
+    last_layer = config['layers'].get('last', -1)
     if last_layer < 0:
         last_layer = ifs_data.nlayer - last_layer + 1
 
     # check if only a subset of sources should be subtracted or some sources should NOT be subtracted
-    exclude = config['subtres'].get('exclude', default=None)
-    include = config['subtres'].get('include', default=None)
+    exclude = config['subtres'].get('exclude', None)
+    include = config['subtres'].get('include', None)
     if include is not None and exclude is not None:
         logging.error('Only subtres.include or subtres.exclude may be specified.')
         return
@@ -106,11 +106,11 @@ def subtres(config):
     logging.info("Starting source subtraction...")
 
     fitter = MakeResidualsCube(ifs_data=ifs_data, sources=sources, psf_attributes=psf_attributes,
-                               maxrad=config['psf'].get('radius', default=15))
+                               psf_radius=config['psf'].get('radius', 15))
 
     residuals = fitter(layer_range=(first_layer, last_layer),
-                       n_cpu=config['global'].get('cpucount', default=1),
-                       subtract_background=config['sky'].get('subtract', default=False),
+                       n_cpu=config['global'].get('cpucount', 1),
+                       subtract_background=config['sky'].get('subtract', False),
                        include=include, exclude=exclude)
 
     logging.info("Saving results...")
@@ -131,4 +131,3 @@ def subtres(config):
         logging.warning("Existing residual cube has been overwritten.")
 
     out_hdu.writeto("{0}.res.fits".format(prefix))
-

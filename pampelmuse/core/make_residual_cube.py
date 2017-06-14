@@ -32,7 +32,7 @@ Added
 rev. 343, 2016/08/01
 
 Latest SVN revision
-430, 2017/06/12
+431, 2017/06/13
 """
 import logging
 from multiprocessing import cpu_count, Pool
@@ -43,7 +43,7 @@ from .fit_layer import FitLayer
 
 
 __author__ = 'Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)'
-__revision__ = 430
+__revision__ = 431
 
 
 logger = logging.getLogger(__name__)
@@ -281,7 +281,10 @@ class MakeResidualsCube(FitCube):
         # prepare source catalog of _stellar_ sources
         # note that the catalog content may change from layer to layer when no coordinate transformation is being used
         series = []
-        stellar_ids = selected_ids.drop(self.sources.ids[self.sources.is_background])
+        if subtract_background:
+            stellar_ids = selected_ids.drop(self.sources.ids[self.sources.is_background])
+        else:
+            stellar_ids = selected_ids
         series.extend([self.sources.x[stellar_ids], self.sources.y[stellar_ids]])
         series.append(self.sources.specrow[stellar_ids])
         series.append(self.sources.weights[stellar_ids])
@@ -305,7 +308,7 @@ class MakeResidualsCube(FitCube):
             logger.info("Collecting input data processing layer #{0}.".format(jj))
 
             # get 1D arrays containing valid data pixels
-            data = self.get_layer(self.sources.wave.get_loc(jj), use_variances=False, n_bin=1)
+            data = self.get_layer(self.sources.wave.get_loc(jj), use_variances=False, n_bin=1, skip_nan=False)
             fit_input.append({'data': data})
 
             # update fluxes
@@ -376,6 +379,6 @@ class MakeResidualsCube(FitCube):
         logger.info("Updating fluxes of individual components ...")
 
         if last is None:
-            return self.sources.data.loc[current, (slice(None), 'value')]
+            return self.sources.data.loc[current, (slice(None), 'flux')]
         else:
-            return np.nanmean(self.sources.loc[last, (slice(None), 'value')], axis=0)
+            return np.nanmean(self.sources.loc[last, (slice(None), 'flux')], axis=0)

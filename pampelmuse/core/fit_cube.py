@@ -31,7 +31,7 @@ extraction for a data cube.
 
 Latest SVN revision
 -------------------
-430, 2017/06/12
+431, 2017/06/13
 """
 import logging
 import time
@@ -43,7 +43,7 @@ from .background import BackgroundGrid
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 430
+__revision__ = 431
 
 
 logger = logging.getLogger(__name__)
@@ -779,7 +779,7 @@ class FitCube(object):
         t0 = time.time()
 
         # loop over sources
-        centroids = pd.DataFrame(0, index=self.sources.ids[self.sources.status < 4], columns=['x', 'y'])
+        centroids = pd.DataFrame(0., index=self.sources.ids[self.sources.status < 4], columns=['x', 'y'])
         for index in centroids.index:
 
             # check if polynomial fit exists; if so, use it.
@@ -788,13 +788,15 @@ class FitCube(object):
                 centroids.at[index, 'y'] = self.sources.ifs_coordinates.at[current, (index, 'y', 'fit')]
             else:
                 # find successful fits in provided 'last' layers
-                success = last[np.isfinite(self.sources.ifs_coordinates.loc[last, (index, 'x', 'value')])]
+                success = np.isfinite(self.sources.ifs_coordinates.loc[last, (index, 'x', 'value')])
                 if len(success) > 0:
-                    centroids.at[index, 'x'] = np.mean(self.sources.ifs_coordinates.loc[success, (index, 'x', 'value')])
-                    centroids.at[index, 'y'] = np.mean(self.sources.ifs_coordinates.loc[success, (index, 'y', 'value')])
+                    centroids.at[index, 'x'] = np.mean(
+                        self.sources.ifs_coordinates.loc[last[success], (index, 'x', 'value')])
+                    centroids.at[index, 'y'] = np.mean(
+                        self.sources.ifs_coordinates.loc[last[success], (index, 'y', 'value')])
                 else:
                     centroids.at[index, 'x'] = self.sources.ifs_coordinates.at[current, (index, 'x', 'value')]
-                    centroids.at[index, 'x'] = self.sources.ifs_coordinates.at[current, (index, 'x', 'value')]
+                    centroids.at[index, 'y'] = self.sources.ifs_coordinates.at[current, (index, 'y', 'value')]
 
         logger.debug("Time required to update source coordinates: {0:6.4f}s".format(time.time() - t0))
 
@@ -896,16 +898,15 @@ class FitCube(object):
             contain the columns 'xc' and 'yc' and use the source IDs as
             indices.
         """
-
         if values is None:  # nothing to do
             return
         else:
-            for i, row in values.items():
+            for i, row in values.iterrows():
                 # The assignment assumes that all sources with lower indices have their IFS coordinates loaded
                 assert self.sources.ifs_coordinates_loaded[i]
 
-                self.sources.ifs_coordinates.at[current, (i, 'x')] = row['x']
-                self.sources.ifs_coordinates.at[current, (i, 'y')] = row['y']
+                self.sources.ifs_coordinates.at[current, (i, 'x')] = row['xc']
+                self.sources.ifs_coordinates.at[current, (i, 'y')] = row['yc']
 
     def _write_psf_properties(self, profiles, parameters, current_wavelength):
         """
@@ -959,7 +960,7 @@ class FitCube(object):
 
             # zeroth axis contains parameters, first contains wavelength
             hdu_list.append(fits.ImageHDU(data.values))
-            hdu_list[-1].header['EXTNAME'] = 'PR_{0}'.format(source_id)
+            hdu_list[-1].header['EXTNAME'] = 'PM_{0}'.format(source_id)
 
             # add parameter names to header
             for i, name in enumerate(data.index, start=1):
@@ -976,7 +977,7 @@ class FitCube(object):
 
             # zeroth axis contains profiles, first contains wavelength (python counting, need to swap for FITS)
             hdu_list.append(fits.ImageHDU(data.values))
-            hdu_list[-1].header['EXTNAME'] = 'PM_{0}'.format(source_id)
+            hdu_list[-1].header['EXTNAME'] = 'PR_{0}'.format(source_id)
 
             # add (approximate) dispersion information
             hdu_list[-1].header['CRVAL1'] = data.columns[0]

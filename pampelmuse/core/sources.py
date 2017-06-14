@@ -37,7 +37,7 @@ memory but only on request.
 
 Latest SVN revision
 -------------------
-430, 2017/06/12
+431, 2017/06/13
 """
 import collections
 import logging
@@ -59,7 +59,7 @@ except ImportError:
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 430
+__revision__ = 431
 
 
 logger = logging.getLogger(__name__)
@@ -1280,9 +1280,8 @@ class Sources(object):
         # try to collect data to fill data frame
         # first choice: if available, fill in IFS coordinates using open FITS HDU
         if self.ifs_coordinates_data_hdu is not None:
-            # need to get row indices of source in data HDU
-            indices_in_hdu = np.array(self.ids[~self.is_background].get_loc(source_id) for source_id in ids)
-
+            # need to get row indices of source in data HDU - note that they are store in order of increasing source ID
+            indices_in_hdu = np.searchsorted(sorted(self.ids[~self.is_background]), ids)
             # get required chunk of data from HDU
             data = self.ifs_coordinates_data_hdu.section[layers[0]:layers[-1] + 1][:, indices_in_hdu]
             # data array has shape (n_layers, n_sources, 2)
@@ -1290,7 +1289,7 @@ class Sources(object):
         # second choice: use coordinate transformation if available
         elif self.transformation.valid:
             # collect input coordinates in array of shape (n_sources, 2)
-            xy_in = self.catalog.loc[ids, ['x', 'y']]  # np.vstack((self.x[ids], self.y[ids])).T
+            xy_in = self.catalog.loc[ids, ['x', 'y']]
 
             # coordinate transformation may needs to be resized
             if not np.array_equal(self.transformation.data.index, self.wave):

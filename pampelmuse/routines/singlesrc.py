@@ -36,7 +36,7 @@ improved using the first order moments determined in the calculation.
  
 Latest SVN revision
 -------------------
-407, 2017/04/02
+431, 2017/08/13
 """
 import datetime
 import logging
@@ -46,7 +46,7 @@ from ..utils.fits import open_ifs_data, make_header_from_config, save_prm
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-gooettingen.de)"
-__revision__ = 407
+__revision__ = 431
 
 
 logger = logging.getLogger(__name__)
@@ -69,8 +69,9 @@ def add_parser(parser):
 def singlesrc(config):
     """
     The function prepares the analysis for a field without an astrometry
-    reference catalogue. It is called when the SINGLESRC routine of
-    PampelMuse is called.
+    reference catalogue.
+    
+    It is called when the SINGLESRC routine of PampelMuse is called.
 
     Parameters
     ----------
@@ -80,39 +81,33 @@ def singlesrc(config):
     logging.info("Executing requested routine SINGLESRC [Revision {0:d}].".format(__revision__))
 
     # get prefix of IFS data - note that the calling routine makes sure that the entry exists in the configuration
-    prefix = config['general']['prefix']
+    prefix = config['global'].get('prefix')
 
     # open IFS data
     ifs_data = open_ifs_data(prefix=prefix)
 
     # adjust numbers of first and last layer to be analysed
-    first_layer = config['layers'].get('first', default=0)
+    first_layer = config['layers'].get('first', 0)
     if first_layer < 0:
-        first_layer = ifs_data.nlayer - first_layer
-    last_layer = config['layers'].get('last', default=-1)
+        first_layer = ifs_data.nlayer + first_layer
+    last_layer = config['layers'].get('last', -1)
     if last_layer < 0:
-        last_layer = ifs_data.nlayer - last_layer + 1
+        last_layer = ifs_data.nlayer + last_layer + 1
 
     # a catalog containing IDs, initial guesses for x/y, and statuses of the sources must be provided
-    try:
-        photometry_file = config['catalog']['name']
-    except KeyError:
-        logger.critical('Cannot find catalogue containing sources in configuration.')
-        logger.critical('Configuration parameter "catalog.name" must exist in user configuration file.')
+    photometry_file = config['catalog'].get('name')
+    if not photometry_file:
+        logger.critical('Configuration parameter "catalog.name" cannot be null.')
         return 1
-    else:
-        if not photometry_file:
-            logger.critical('Configuration parameter "catalog.name" cannot be null.')
-            return 1
 
     selector = SourceSelector(photometry_file=photometry_file, ifs_data=ifs_data,
-                              passband=config['catalog'].get('passband', default='F814W'))
+                              passband=config['catalog'].get('passband', 'F814W'))
 
     statuses = list(selector.cfp_results['status'])
 
     # If requested, add background component(s) to source catalogue
-    if config['sky'].get('use', default=True):
-        n_background = selector.background_setup(skysize=config['sky'].get('binsize', default=-1))
+    if config['sky'].get('use', True):
+        n_background = selector.background_setup(skysize=config['sky'].get('binsize', -1))
         statuses.extend([4]*n_background)
 
     selector.make_sources_instance()
@@ -121,13 +116,13 @@ def singlesrc(config):
 
     # Initialize PSF to be used
     # check if valid profile was provided
-    profile = config['psf'].get('profile', default='moffat')
+    profile = config['psf'].get('profile', 'moffat')
     if profile not in Variables.PROFILES.keys():
         logger.error('Unknown PSF profile: {0}'.format(profile))
         logger.error('Supported PSF profiles: {0}'. format(', '.join(Variables.PROFILES.keys())))
 
     # get information about free parameters
-    psffit = config['psf'].get('fit', default=6)
+    psffit = config['psf'].get('fit', 6)
 
     # get initial values for PSF parameters
     psf_parameters = []
@@ -147,20 +142,20 @@ def singlesrc(config):
     # need to load complete array for IFS coordinates before, otherwise it is only loaded
     # for the sources with status=3 and the results are overwritten when loading full array
     # for storing results.
-    selector.sources.load_ifs_coordinates()
-    selector.run_aperture_photometry(ids=selector.sources.ID[selector.sources.status != 4],
-                                     start=first_layer, stop=last_layer,
-                                     radius=config['initfit'].get('aperrad', default=3),
-                                     n_cpu=config['global'].get('cpucount', default=1),
-                                     n_bin=config['layers'].get('binning', default=1))
     selector.sources.ifs_coordinates_free[:] = True
+    selector.sources.load_ifs_coordinates()
+    selector.run_aperture_photometry(ids=selector.sources.ids[selector.sources.status != 4],
+                                     start=first_layer, stop=last_layer,
+                                     radius=config['initfit'].get('aperrad', 3),
+                                     n_cpu=config['global'].get('cpucount', 1),
+                                     n_bin=config['layers'].get('binning', 1))
 
     # write results to file
     logger.info("Saving source properties in file {0}.prm.fits.".format(prefix))
 
     # add information about routine to configuration so that they are copied to the header of the PRM-file
     if 'singlesrc' not in config.keys():
-        config['signlesrc'] = {}
+        config['singlesrc'] = {}
     config['singlesrc']['utc'] = datetime.datetime.utcnow().strftime("%y-%m-%d %H:%M:%S")
     config['singlesrc']['revision'] = __revision__
 
