@@ -57,7 +57,7 @@ parameters are not fitted.
 
 Latest SVN revision
 -------------------
-431, 2017/06/13
+432, 2017/06/14
 """
 import collections
 import contextlib
@@ -72,7 +72,7 @@ from ..core.coordinates import Transformation
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 431
+__revision__ = 432
 
 
 logger = logging.getLogger(__name__)
@@ -481,7 +481,9 @@ class FitLayer(object):
 
                 # update values in PSF instances
                 for parameter in position_parameters_to_fit + psf_parameters_to_fit:
-                    if parameter in final and np.isfinite(final[parameter]):
+                    if parameter == 'xy':
+                        continue
+                    elif parameter in final and np.isfinite(final[parameter]):
                         value = final[parameter]
                         try:
                             [setattr(psf, parameter, value) for psf in self.psf_instances.values()]
@@ -872,8 +874,8 @@ class FitLayer(object):
                 # account for sub-pixels by duplicating data of every pixel containing sub-pixels.
                 os_data = data[psf.osmap]
                 # calculate profile
-                _, profile = self._get_radial_profile(data=os_data, radii=psf.r, weights=weights)
-                radial_data[i] = profile
+                profile = self._get_radial_profile(data=os_data, radii=psf.r, weights=weights)
+                radial_data[i] = profile  # contains radii and values
 
             # # for debugging, show plot with current data
             # import matplotlib.pyplot as plt
@@ -956,7 +958,7 @@ class FitLayer(object):
                 logger.warning("PSF fit failed for source #{0}: {1}".format(i, result[-2]))
 
         # return
-        return results, pd.DataFrame(radial_data)
+        return results, self._combine_psf_profiles(radial_data)
 
     @staticmethod
     def single_psf_optimizer(x0, names, psf, data, sigma):
@@ -1402,3 +1404,32 @@ class FitLayer(object):
                 profile[i] = np.nan
 
         return output_radii, profile
+
+    @staticmethod
+    def _combine_psf_profiles(profiles):
+        """
+        Combine the radial profiles derived for the various PSF stars to a
+        single pandas DataFrame.
+        
+        Parameters
+        ----------
+        profiles : dict
+            The individual PSF profiles, using the source IDs as keys and
+            tuples containing radii and intensities as values.
+
+        Returns
+        -------
+        combined : pandas.DataFrame
+            The combined profiles, one column per source (using source IDs as
+            labels) and using average radii (in pixels) as indices. 
+        """
+        source_ids = []
+        radii = []
+        data = []
+        for key, value in profiles.items():
+            source_ids.append(key)
+            radii.append(value[0])
+            data.append(value[1])
+
+        combined = pd.DataFrame(np.stack(data, axis=1), columns=source_ids, index=np.nanmean(radii, axis=0))
+        return combined

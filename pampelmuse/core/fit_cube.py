@@ -31,7 +31,7 @@ extraction for a data cube.
 
 Latest SVN revision
 -------------------
-431, 2017/06/13
+432, 2017/06/14
 """
 import logging
 import time
@@ -43,7 +43,7 @@ from .background import BackgroundGrid
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 431
+__revision__ = 432
 
 
 logger = logging.getLogger(__name__)
@@ -307,6 +307,7 @@ class FitCube(object):
 
         # prepare containers for storing detailed PSF information if requested
         self.profiles = {}
+        self.profile_radii = []
         self.parameters = {}
 
     def __call__(self, layer_range=(0, -1), n_track=10, n_cpu=1, max_iterations=20, use_variances=True, n_bin=1,
@@ -939,6 +940,8 @@ class FitCube(object):
             else:
                 self.profiles[source_id] = [column, ]
 
+        self.profile_radii.append(profiles.index.values)
+
     def _make_psf_hdus(self):
         """
         Create an astropy.io.fits.HDUList containing the individual PSF
@@ -953,6 +956,10 @@ class FitCube(object):
         """
         from astropy.io import fits
         hdu_list = fits.HDUList()
+
+        # add HDU containing averaged radii valid for all profiles/wavelengths
+        hdu_list.append(fits.ImageHDU(np.nanmean(self.profile_radii, axis=0)))
+        hdu_list[-1].header['EXTNAME'] = 'RADIUS'
 
         for source_id, _data in self.parameters.items():
             data = pd.concat(_data, axis=1)
