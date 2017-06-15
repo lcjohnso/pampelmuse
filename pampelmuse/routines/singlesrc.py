@@ -36,7 +36,7 @@ improved using the first order moments determined in the calculation.
  
 Latest SVN revision
 -------------------
-431, 2017/08/13
+433, 2017/08/14
 """
 import datetime
 import logging
@@ -46,7 +46,7 @@ from ..utils.fits import open_ifs_data, make_header_from_config, save_prm
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-gooettingen.de)"
-__revision__ = 431
+__revision__ = 433
 
 
 logger = logging.getLogger(__name__)
@@ -128,7 +128,7 @@ def singlesrc(config):
     psf_parameters = []
     # loop over parameters for chosen profile, get values and see if the are free or fixed
     for parameter in Variables.PROFILES[profile][::-1]:
-        i = Variables.PROFILES[profile].index(parameter)
+        i = Variables.PROFILES[profile].index(parameter) + 1
         value = config['psf'].get(parameter)
         if psffit >= 2**i:
             free = True

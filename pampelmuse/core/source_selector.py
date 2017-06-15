@@ -33,7 +33,7 @@ Added
 
 Latest SVN revision
 -------------------
-431, 2017/06/13
+433, 2017/06/14
 """
 import logging
 import sys
@@ -51,7 +51,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)'
-__revision__ = 431
+__revision__ = 433
 
 
 logger = logging.getLogger(__name__)
@@ -422,13 +422,13 @@ class SourceSelector(object):
         # prepare data and variability flags for default PSF
         n_parameters = len(Variables.PROFILES[profile])
         data = pd.DataFrame(np.zeros((1, n_parameters), dtype=np.float32), columns=Variables.PROFILES[profile])
-        free = np.ones(n_parameters, dtype=np.bool)
+        free = pd.Series(0, index=Variables.PROFILES[profile])
 
         # update PSF data and variability flags with user-provided data (if any)
         if parameters is not None:
             for p in parameters:
                 data[p['name']] = p['value']
-                free[Variables.PROFILES[profile].index(p['name'])] = p['free']
+                free[p['name']] = p['free']
         # otherwise make sure fwhm (and beta) are >0
         else:
             data['fwhm'] = 2.5
