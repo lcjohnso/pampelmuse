@@ -31,7 +31,7 @@ extraction for a data cube.
 
 Latest SVN revision
 -------------------
-432, 2017/06/14
+434, 2017/06/15
 """
 import logging
 import time
@@ -43,7 +43,7 @@ from .background import BackgroundGrid
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 432
+__revision__ = 434
 
 
 logger = logging.getLogger(__name__)
@@ -936,9 +936,9 @@ class FitCube(object):
             column = profiles[source_id]
             column.name = current_wavelength
             if source_id in self.profiles:
-                self.profiles[source_id].append(column)
+                self.profiles[source_id].append(column.reset_index(drop=True))
             else:
-                self.profiles[source_id] = [column, ]
+                self.profiles[source_id] = [column.reset_index(drop=True), ]
 
         self.profile_radii.append(profiles.index.values)
 
@@ -955,6 +955,7 @@ class FitCube(object):
             containing the fitted PSF parameters.
         """
         from astropy.io import fits
+        from astropy.table import Table
         hdu_list = fits.HDUList()
 
         # add HDU containing averaged radii valid for all profiles/wavelengths
@@ -962,20 +963,16 @@ class FitCube(object):
         hdu_list[-1].header['EXTNAME'] = 'RADIUS'
 
         for source_id, _data in self.parameters.items():
-            data = pd.concat(_data, axis=1)
-            data.sort_index(axis=1, inplace=True)
+            data = pd.concat(_data, axis=1).T
+            data.sort_index(axis=0, inplace=True)
 
-            # zeroth axis contains parameters, first contains wavelength
-            hdu_list.append(fits.ImageHDU(data.values))
+            # create Table containing one column per parameter and the dispersion information in the various rows.
+            hdu_list.append(fits.table_to_hdu(Table.from_pandas(data)))
             hdu_list[-1].header['EXTNAME'] = 'PM_{0}'.format(source_id)
 
-            # add parameter names to header
-            for i, name in enumerate(data.index, start=1):
-                hdu_list[-1].header['PARAM{0:02d}'.format(i)] = name
-
             # add (approximate) dispersion information (python counting, need to swap for FITS)
-            hdu_list[-1].header['CRVAL1'] = data.columns[0]
-            hdu_list[-1].header['CDELT1'] = np.mean(np.diff(data.columns))
+            hdu_list[-1].header['CRVAL1'] = data.index[0]
+            hdu_list[-1].header['CDELT1'] = np.mean(np.diff(data.index))
             hdu_list[-1].header['CRPIX1'] = 1
 
         for source_id, _data in self.profiles.items():
