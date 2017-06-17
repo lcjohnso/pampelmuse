@@ -33,13 +33,14 @@ Added
 
 Latest SVN revision
 -------------------
-433, 2017/06/14
+435, 2017/06/17
 """
 import logging
 import sys
 from multiprocessing import cpu_count, Pool
 import numpy as np
 import pandas as pd
+from astropy.wcs import WCS
 from .aperture import AperPhoto
 from .background import BackgroundGrid
 from .coordinates import Transformation
@@ -51,7 +52,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)'
-__revision__ = 433
+__revision__ = 435
 
 
 logger = logging.getLogger(__name__)
@@ -239,25 +240,36 @@ class SourceSelector(object):
             self.cfp_results.rename(columns={self.passband.lower(): 'mag'}, inplace=True)
 
         # make sure either RA & Dec or x & y are available; if both are available, RA & Dec are preferred over x & y
-        if self.use_wcs:
-            if "ra" not in self.cfp_results.columns or "dec" not in self.cfp_results.columns:
-                self.use_wcs = False
-
-        if self.use_wcs:
+        if "ra" in self.cfp_results.columns and "dec" in self.cfp_results.columns:
             logger.info("Using RA & DEC coordinates as input.")
-
             ra = np.asarray(self.cfp_results["ra"], dtype=np.float64)
             dec = np.asarray(self.cfp_results["dec"], dtype=np.float64)
 
-            # get IFS spaxel coordinates from reference RA and DEC
-            if self.ifs_data.wcs.wcs.naxis == 3:
-                x, y, _ = self.ifs_data.wcs.wcs_world2pix(ra, dec, np.ones(ra.shape), 1)
+            # if we have a WCS instance, use it to convert to pixel coordinates
+            if self.use_wcs:
+                # get IFS spaxel coordinates from reference RA and DEC
+                if self.ifs_data.wcs.wcs.naxis == 3:
+                    x, y, _ = self.ifs_data.wcs.wcs_world2pix(ra, dec, np.ones(ra.shape), 1)
+                else:
+                    x, y = self.ifs_data.wcs.wcs_world2pix(ra, dec, 1)
+
+            # otherwise create mock WCS instance with pixelsize 1arcsec
             else:
-                x, y = self.ifs_data.wcs.wcs_world2pix(ra, dec, 1)
+                wcs = WCS(naxis=2)
+                wcs.wcs.ctype = ['RA---TAN', 'DEC--TAN']
+                wcs.wcs.cdelt = [-1./3600., 1./3600.]
+                wcs.wcs.crval = [ra.max(), dec.min()]
+                wcs.wcs.crpix = [0, 0]
+                x, y = wcs.wcs_world2pix(ra, dec, 1)
+
             self.cfp_results["x"] = x.tolist()
             self.cfp_results["y"] = y.tolist()
 
-        elif "x" not in self.cfp_results.columns or "y" not in self.cfp_results.columns:
+        elif "x" in self.cfp_results.columns or "y" in self.cfp_results.columns:
+            self.use_wcs = False
+            logger.info("using x- and-coordinates as input.")
+
+        else:
             logger.critical("Cannot find input source coordinates.")
             raise IOError("Either x & y or RA & Dec must be provided with photometry.")
 
@@ -1210,7 +1222,13 @@ class SourceSelector(object):
                 _theta = 0.5 * np.arctan2(2 * xy, (x2 - y2))
                 _theta[(_theta < 0) & (xy > 0)] += np.pi/2.
                 _theta[(_theta > 0) & (xy < 0)] -= np.pi/2.
-                theta.append(_theta)
+
+                # IMPORTANT: SExtractor measures angle from x-axis in ccw while PampelMuse uses the y-axis as
+                # zeropoint. The following lines do the conversion.
+                _theta[_theta < 0] += np.pi/2.
+                _theta[_theta > 0] -= np.pi/2.
+
+                theta.append(-_theta)
 
         # calculate (& update) PSF parameters
         logger.info("Estimating PSF properties using measured moments...")
