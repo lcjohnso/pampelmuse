@@ -37,7 +37,7 @@ defines the methods that are called by Ui_PampelMuseGui.
 
 Latest SVN revision
 -------------------
-431, 2017/06/13
+436, 2017/06/17
 """
 import logging
 import os
@@ -63,7 +63,7 @@ from ..utils.fits import save_prm, read_config_from_header, make_header_from_con
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 430
+__revision__ = 436
 
 
 class ToolbarWithoutMessage(NavigationToolbar):
@@ -725,7 +725,9 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             if self.refOffsets is None and self.refPlot.wcs is not None:
                 if self.sources.ra is not None and self.sources.dec is not None:
                     logging.debug('(Re)calculating pixel coordinates for sources on reference image.')
-                    self.refOffsets = self.refPlot.wcs.wcs_world2pix(self.sources.ra, self.sources.dec, 0)
+                    x, y = self.refPlot.wcs.wcs_world2pix(self.sources.ra, self.sources.dec, 0)
+                    self.refOffsets = {'x': pd.Series(x, index=self.sources.ids),
+                                       'y': pd.Series(y, index=self.sources.ids)}
 
             self.plot_sources_on_ref()
             self.refPlot.figure.canvas.mpl_connect("pick_event", self.on_refPick_event)
@@ -788,12 +790,12 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         event : a matplotlib.backend_bases.PickEvent instance
             The mouse event that triggered the method call.
         """
-        if self.refInteractMode is not 'pick' or self.refToolbar._active is not None:
+        if self.refInteractMode != 'pick' or self.refToolbar._active is not None:
             return
 
         # do nothing if more than one source selected
         if len(event.ind) != 1:
-            self.statusBar().showMessage("Multiple sources selected.")
+            self.statusBar.showMessage("Multiple sources selected.")
             return
 
         # get index of selected source.
@@ -1286,16 +1288,14 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         # get source ID
         current_id = self.refPlot.ids[index]
 
-        # get index in source catalogue
-        j = np.flatnonzero(self.sources.ID == current_id)[0]
-
         # source is selected
         if select:
             # show information on selected source
             statusMessage = "Picked source #{0}: ".format(int(current_id))
-            statusMessage += "x={0:.2f}, y={1:.2f}".format(float(self.sources.x[j]), float(self.sources.y[j]))
+            statusMessage += "x={0:.2f}, y={1:.2f}".format(float(self.sources.x[current_id]),
+                                                           float(self.sources.y[current_id]))
             if self.sources.mag is not None:
-                statusMessage += ", mag={0:.2f}".format(float(self.sources.mag[j]))
+                statusMessage += ", mag={0:.2f}".format(float(self.sources.mag[current_id]))
             self.statusBar.showMessage(statusMessage, 5000)
 
             # set face color of selected marker to its edge color, all other sources are transparent
@@ -1343,11 +1343,11 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         """
 
         # update data in ifuViewer
-        if self.identifiedSources == {}:
+        if self.identifiedSources is None:
             self.ifsPlotPreviouslyMarked.set_data([], [])
         else:
-            self.ifsPlotPreviouslyMarked.set_data(np.asarray(self.identifiedSources.values())[:, 0],
-                                                  np.asarray(self.identifiedSources.values())[:, 1])
+            self.ifsPlotPreviouslyMarked.set_data([v[0] for v in self.identifiedSources.values()],
+                                                  [v[1] for v in self.identifiedSources.values()])
         self.ifsPlot.draw()
 
         # mark sources on reference viewer:
@@ -1405,7 +1405,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             self.refPlot.data_plot.remove()
             self.refPlot.data_plot = None
 
-        if len(self.sources.plotted):
+        if len(self.sources.plotted) == 0:
             self.refPlot.draw()
 
         else:
@@ -1432,11 +1432,12 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             # if dedicated pixel coordinates for reference image available, use them, otherwise reference coordinates
             # from Sources class
             if self.refOffsets is not None:
-                self.refPlot.addData(self.refOffsets[0][self.sources.plotted], self.refOffsets[1][self.sources.plotted],
-                                     ids=self.sources.ids[self.sources.plotted], update_axes_limits=False, **kwargs)
+                self.refPlot.addData(self.refOffsets['x'][self.sources.plotted],
+                                     self.refOffsets['y'][self.sources.plotted],
+                                     ids=self.sources.plotted, update_axes_limits=False, **kwargs)
             else:
                 self.refPlot.addData(self.sources.x[self.sources.plotted], self.sources.y[self.sources.plotted],
-                                     ids=self.sources.ids[self.sources.plotted], update_axes_limits=False, **kwargs)
+                                     ids=self.sources.plotted, update_axes_limits=False, **kwargs)
 
             # recover sources previously identified on IFS data (if INITFIT is being used)
             self.updateMarkHistPlot()

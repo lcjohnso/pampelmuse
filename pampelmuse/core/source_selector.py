@@ -33,7 +33,7 @@ Added
 
 Latest SVN revision
 -------------------
-435, 2017/06/17
+436, 2017/06/17
 """
 import logging
 import sys
@@ -52,7 +52,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)'
-__revision__ = 435
+__revision__ = 436
 
 
 logger = logging.getLogger(__name__)
@@ -253,11 +253,11 @@ class SourceSelector(object):
                 else:
                     x, y = self.ifs_data.wcs.wcs_world2pix(ra, dec, 1)
 
-            # otherwise create mock WCS instance with pixelsize 1arcsec
+            # otherwise create mock WCS instance with pixelsize 0.2arcsec
             else:
                 wcs = WCS(naxis=2)
                 wcs.wcs.ctype = ['RA---TAN', 'DEC--TAN']
-                wcs.wcs.cdelt = [-1./3600., 1./3600.]
+                wcs.wcs.cdelt = [-0.2/3600., 0.2/3600.]
                 wcs.wcs.crval = [ra.max(), dec.min()]
                 wcs.wcs.crpix = [0, 0]
                 x, y = wcs.wcs_world2pix(ra, dec, 1)
@@ -668,10 +668,12 @@ class SourceSelector(object):
 
         identifier = PampelMuseGui(sources=self.sources, ifsData=self.ifs_data, refImage=self.identification_image)
 
-        if self.use_wcs:  # overplot positions of sources on IFS as determined via cross-correlation
+        if self.use_wcs:
+            # show approximate location of IFS field of view in reference view
             identifier.addFovToReference(self.ccxoff - self.sources.x.min() + self.ifs_data.shape[1]//2,
                                          self.ccyoff - self.sources.y.min() + self.ifs_data.shape[0]//2)
 
+            # overplot positions of sources on IFS as determined via cross-correlation
             sizes = 10.*(10**(-0.2*(self.sources.mag - mag - 1.)))
             sizes[sizes <= 1] = 0
             select = (self.sources.status < 4) & (
@@ -682,23 +684,27 @@ class SourceSelector(object):
 
         # account for offset between reference image and true coordinates
         (dx, dy) = (self.sources.x.min(), self.sources.y.min())
-        identifier.refOffsets = np.vstack((self.sources.x - dx, self.sources.y - dy))
-        identifier.maxMagSpinBox.setValue(mag)
+        identifier.refOffsets = {'x': pd.Series(self.sources.x - dx, index=self.sources.ids),
+                                 'y': pd.Series(self.sources.y - dy, index=self.sources.ids)}
+        identifier.plot_sources_on_ref()
 
         identifier.show()
         app.exec_()
 
         identified = identifier.identifiedSources
+
         if len(identified) >= 4:
             # TODO: reduce number of required sources to 2 if only offsets should be determined
-            # determine coordinate transformation using identified sources, when providing the IFS coordinates for the
-            # sources that were identified, they need to be provided in the right order (the sources were not
-            # necessarily identified in the same order they appear in the catalogue)
-            sorted_indices = np.argsort([list(self.sources.ID).index(entry) for entry in identified.keys()])
 
-            self.sources.load_ifs_coordinates(ids=identified.keys())
-            self.sources.ifs_coordinates[..., 0] = np.asarray(identified.values())[sorted_indices, :2]
-            self.sources.fit_coordinate_transformation()
+            # collect IFS coordinates in common DataFrame and fit coordinate transformation
+            ifs_coordinates = pd.DataFrame(
+                0., index=[self.sources.wave[0]], columns=pd.MultiIndex.from_product([identified.keys(), ['x', 'y']]))
+            for source_id, values in identified.items():
+                ifs_coordinates.at[self.sources.wave[0], (source_id, 'x')] = values[0]
+                ifs_coordinates.at[self.sources.wave[0], (source_id, 'y')] = values[1]
+
+            self.sources.transformation = Transformation.from_coordinates(self.sources.catalog, ifs_coordinates)
+
             if self.position_fit == 2:
                 self.sources.transformation.free[:] = True
             elif self.position_fit == 1:
@@ -750,7 +756,7 @@ class SourceSelector(object):
 
         # add parameters of coordinate transformation
         for name in self.sources.transformation.names:
-            psf_parameters[name] = self.sources.transformation.data.at[0, (name, 'value')]
+            psf_parameters[name] = self.sources.transformation.data[(name, 'value')].iloc[0]
 
         # Assign sources to CPUs
         to_cpu = np.arange(self.sources.n_sources) % n_cpu
