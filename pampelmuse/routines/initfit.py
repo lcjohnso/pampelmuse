@@ -50,7 +50,7 @@ are saved in the PRM file that is written to disk.
 
 Latest SVN Revision
 -------------------
-421, 2017/04/30
+438, 2017/06/18
 """
 import datetime
 import logging
@@ -61,7 +61,7 @@ from ..utils.fits import open_ifs_data, make_header_from_config, save_prm
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 421
+__revision__ = 438
 
 
 logger = logging.getLogger(__name__)
@@ -165,7 +165,7 @@ def initfit(config):
     psf_parameters = []
     # loop over parameters for chosen profile, get values and see if the are free or fixed
     for parameter in Variables.PROFILES[profile][::-1]:
-        i = Variables.PROFILES[profile].index(parameter)
+        i = Variables.PROFILES[profile].index(parameter) + 1
         value = config['psf'].get(parameter)
         if psffit >= 2**i:
             free = True
