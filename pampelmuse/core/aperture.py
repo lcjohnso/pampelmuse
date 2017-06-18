@@ -44,19 +44,19 @@ function pampelmuse.core.aperture.run_ap
 
 Latest SVN revision
 -------------------
-421, 2017/04/30
+437, 2017/06/17
 """
 import logging
 from multiprocessing import Pool
 import numpy as np
 import pandas as pd
 from scipy import spatial
-from ..utils.statistics import clip_sigma
+from scipy.stats import sigmaclip
 from ..instruments import Instrument, MusePixtable
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 421
+__revision__ = 437
 
 
 logger = logging.getLogger(__name__)
@@ -97,7 +97,7 @@ def init_worker(centroids, background, r_aperture, calc_moments, threshold, *arg
     g_r_aperture = r_aperture
     g_threshold = threshold
     if calc_moments:
-        g_properties = ['flux', 'x', 'y', 'x2', 'y2']
+        g_properties = ['flux', 'x', 'y', 'x2', 'y2', 'xy']
     else:
         g_properties = ['flux']
 
@@ -164,7 +164,7 @@ def run_ap(data):
         logger.warning("Using < 20 pixels to estimate global background.")
 
     # perform kappa-sigma clipping to determine background level and noise
-    back_data = clip_sigma(data.loc[back_pixels, 'flux'], axis=None)
+    back_data, _, _ = sigmaclip(data.loc[back_pixels, 'flux'])
     back_mean = back_data.mean()
     back_std = back_data.std()
     global_background = back_mean
@@ -180,10 +180,10 @@ def run_ap(data):
         if g_background == "local":
             # determine local background pixels, defined as having distances >2*r_aper and <4*r_aper to one source
             back_pixels = (offsets[index] > (2 * g_r_aperture)) & (offsets[index] <= (4 * g_r_aperture))
-
-            back_data = clip_sigma(data.loc[offsets.index[back_pixels], 'flux'], axis=None)
-            back_mean = back_data.mean()
-            back_std = back_data.std()
+            back_data, _, _ = sigmaclip(data.loc[offsets.index[back_pixels], 'flux'])
+            if len(back_data):
+                back_mean = back_data.mean()
+                back_std = back_data.std()
             logger.debug("... local background is {0:.2g}+/-{1:0.2g}".format(back_mean, back_std))
 
         # determine flux pixels, defined a having distances <=r_aper to one source.
