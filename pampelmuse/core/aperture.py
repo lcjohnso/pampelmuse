@@ -44,7 +44,7 @@ function pampelmuse.core.aperture.run_ap
 
 Latest SVN revision
 -------------------
-437, 2017/06/17
+438, 2017/06/17
 """
 import logging
 from multiprocessing import Pool
@@ -56,7 +56,7 @@ from ..instruments import Instrument, MusePixtable
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 437
+__revision__ = 438
 
 
 logger = logging.getLogger(__name__)
@@ -147,7 +147,7 @@ def run_ap(data):
     valid = np.isfinite(data['flux'])
     if not valid.any():
         logger.error("Layer contains only masked pixels.")
-        return results
+        return results, np.nan
 
     # calculate distance of centroid of each source to each spaxel. Note that the shape of the returned array is
     # (N_spaxel, N_sources)
@@ -181,7 +181,7 @@ def run_ap(data):
             # determine local background pixels, defined as having distances >2*r_aper and <4*r_aper to one source
             back_pixels = (offsets[index] > (2 * g_r_aperture)) & (offsets[index] <= (4 * g_r_aperture))
             back_data, _, _ = sigmaclip(data.loc[offsets.index[back_pixels], 'flux'])
-            if len(back_data):
+            if np.isfinite(back_data).sum() > 1:
                 back_mean = back_data.mean()
                 back_std = back_data.std()
             logger.debug("... local background is {0:.2g}+/-{1:0.2g}".format(back_mean, back_std))

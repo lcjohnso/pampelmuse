@@ -57,7 +57,7 @@ parameters are not fitted.
 
 Latest SVN revision
 -------------------
-432, 2017/06/14
+438, 2017/06/18
 """
 import collections
 import contextlib
@@ -72,7 +72,7 @@ from ..core.coordinates import Transformation
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 432
+__revision__ = 438
 
 
 logger = logging.getLogger(__name__)
@@ -90,7 +90,7 @@ def printoptions(*args, **kwargs):
 
 # define namedtuple for returning the results of the fit in a useful structure
 FitResult = collections.namedtuple('FitResult', ['fluxes', 'uncertainties', 'positions', 'psf', 'wave', 'profiles',
-                                                 'parameters'])
+                                                 'parameters', 'residuals'])
 
 
 class FitLayer(object):
@@ -454,7 +454,7 @@ class FitLayer(object):
 
                 # if any sources are provided for the PSF fit, the method for large layers is used
                 if sources is not None:
-                    single_psf_results, profiles = self.fit_sources_consecutively(
+                    single_psf_results, profiles, residuals = self.fit_sources_consecutively(
                         sources=sources, psf_parameters=psf_parameters_to_fit, psf_sources=psf_sources,
                         fit_positions=(position_parameters_to_fit is not None), return_psf_profiles=analyse_psf)
 
@@ -539,7 +539,7 @@ class FitLayer(object):
             return_wave = None
 
         return FitResult(self.fluxes, uncertainties, return_positions, return_psf, return_wave, profiles,
-                         single_psf_results)
+                         single_psf_results, residuals)
 
     @property
     def model(self):
@@ -801,6 +801,9 @@ class FitLayer(object):
             The radial profiles of the stars to which a PSF profile was fitted
             if the parameter 'psf_profiles' was set. Otherwise None is
             returned.
+        residuals : pandas.Series
+            The residuals of the successful PSF fits. Only returned if the
+            parameter 'psf_parameters' was set. Otherwise None is returned.
         """
         # The keyword 'psf_sources' may be used to define a subset of 'sources' that is used to fit the PSF parameters.
         # All 'sources' are used for this purpose if psf_sources=None
@@ -819,8 +822,9 @@ class FitLayer(object):
         results = pd.DataFrame(0., index=sources, columns=columns)
         results[:] = np.nan
 
-        # if PSF profiles should be calculated, prepare empty dictionary for this purpose
+        # if PSF profiles and residuals should be returned, prepare empty dictionaries for this purpose
         radial_data = {} if return_psf_profiles else None
+        residuals = {} if return_psf_profiles else None
 
         # Loop over all sources with free parameters; add source to residuals, fit resulting array and subtract source
         # again.
@@ -852,8 +856,9 @@ class FitLayer(object):
             logger.debug("Initial guesses for fit of source no. {0}: {1}".format(psf.src_id, dict(zip(names, x0))))
 
             # for fit, get residuals and variances for pixels where the current PSF is defined
-            data = self.current[psf.used]
-            variances = 1. / self.fit_weights[psf.used]
+            used = psf.used
+            data = self.current[used]
+            variances = 1. / self.fit_weights[used]
 
             # for following calculations, find pixels inside/outside of circle with radius of FWHM
             pixel = np.unique(psf.osmap, return_index=True)[1]  # this makes sure every subspaxel only counted once
@@ -872,7 +877,7 @@ class FitLayer(object):
                 _, unique_inverse, unique_counts = np.unique(psf.osmap, return_inverse=True, return_counts=True)
                 weights = 1./unique_counts[unique_inverse]
                 # account for sub-pixels by duplicating data of every pixel containing sub-pixels.
-                os_data = data[psf.osmap]
+                os_data = data[self.data.index[psf.osmap]]
                 # calculate profile
                 profile = self._get_radial_profile(data=os_data, radii=psf.r, weights=weights)
                 radial_data[i] = profile  # contains radii and values
@@ -921,6 +926,11 @@ class FitLayer(object):
                 # note that type of exception thrown seems to depend on scipy version
                 logger.error('PSF fit failed for source #{0}: {1}.'.format(i, msg))
                 continue
+            else:
+                if return_psf_profiles:
+                    residuals[i] = pd.DataFrame(
+                        {'data': data, 'residuals': result[2]['fvec']*np.sqrt(variances.values)},
+                        index=self.data.index[used])
             finally:
                 # reset radius und transformation of PSF instance to status before fit
                 psf.transform = self.data[['y', 'x']].values
@@ -958,7 +968,7 @@ class FitLayer(object):
                 logger.warning("PSF fit failed for source #{0}: {1}".format(i, result[-2]))
 
         # return
-        return results, self._combine_psf_profiles(radial_data)
+        return results, self._combine_psf_profiles(radial_data) if return_psf_profiles else None, residuals
 
     @staticmethod
     def single_psf_optimizer(x0, names, psf, data, sigma):
