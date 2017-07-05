@@ -28,13 +28,12 @@ Purpose
 -------
 The config package handles the default configuration of PampelMuse.
 
-Latest SVN revision
--------------------
-430, 2017/06/12
+Last changed
+------------
+2017/07/05
 """
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 430
 
 
 changeable = ["verbose", "interact", "cpucount", "iterations", "type", "degree", "subtract",
-              "usesigma", "first", "last", "binning", "radius"]
+              "usesigma", "first", "last", "binning", "radius", "inspect"]
