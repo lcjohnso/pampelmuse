@@ -485,7 +485,7 @@ class FitLayer(object):
                     if psf_parameters_to_fit is not None:
                         for i, name in enumerate(psf_parameters_to_fit, start=2):  # first two entries are S/N and flux
                             valid = np.isfinite(results[:, i])
-                            if valid.any():
+                            if valid.any() and results[valid, 0].sum() > 0:
                                 new_value = np.average(results[valid, i], weights=results[valid, 0])
                                 try:
                                     [setattr(psf, name, new_value) for psf in self.psf_instances]
