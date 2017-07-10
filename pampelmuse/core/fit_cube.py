@@ -31,7 +31,7 @@ extraction for a data cube.
 
 Latest SVN revision
 -------------------
-434, 2017/06/15
+440, 2017/06/19
 """
 import logging
 import time
@@ -43,7 +43,7 @@ from .background import BackgroundGrid
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 434
+__revision__ = 440
 
 
 logger = logging.getLogger(__name__)
@@ -309,6 +309,7 @@ class FitCube(object):
         self.profiles = {}
         self.profile_radii = []
         self.parameters = {}
+        self.residuals = {}
 
     def __call__(self, layer_range=(0, -1), n_track=10, n_cpu=1, max_iterations=20, use_variances=True, n_bin=1,
                  analyse_psf=False):
@@ -572,6 +573,7 @@ class FitCube(object):
                     # save PSF if requested
                     if analyse_psf and sources is not None:
                         self._write_psf_properties(result.profiles, result.parameters, current_wavelength=current)
+                        self._write_minicubes(current, result.residuals, fit_input[k - 1]['data'])
 
                 # reset list containing input data for parallel fit
                 fit_input = []
@@ -652,7 +654,7 @@ class FitCube(object):
         if self.ifs_data.name == 'MUSE_Pixtable':
             data['wave'] = self.ifs_data.rawwave_for_current_layer[~mask]
         # return
-        return pd.DataFrame(data)
+        return pd.DataFrame(data, index=np.flatnonzero(~mask))
 
     def read_psf_parameters(self, current, last=None):
         """
@@ -790,7 +792,7 @@ class FitCube(object):
             else:
                 # find successful fits in provided 'last' layers
                 success = np.isfinite(self.sources.ifs_coordinates.loc[last, (index, 'x', 'value')])
-                if len(success) > 0:
+                if success.sum() > 0:
                     centroids.at[index, 'x'] = np.mean(
                         self.sources.ifs_coordinates.loc[last[success], (index, 'x', 'value')])
                     centroids.at[index, 'y'] = np.mean(
@@ -798,7 +800,6 @@ class FitCube(object):
                 else:
                     centroids.at[index, 'x'] = self.sources.ifs_coordinates.at[current, (index, 'x', 'value')]
                     centroids.at[index, 'y'] = self.sources.ifs_coordinates.at[current, (index, 'y', 'value')]
-
         logger.debug("Time required to update source coordinates: {0:6.4f}s".format(time.time() - t0))
 
         return centroids
@@ -842,7 +843,6 @@ class FitCube(object):
         # inserting the provided Series consecutively.
         data = np.stack([fluxes, uncertainties, wave] if wave is not None else [fluxes, uncertainties], axis=-1)
         self.sources.data.loc[current] = data.flatten()
-
 
     def write_psf_parameters(self, current, values):
         """
@@ -942,6 +942,35 @@ class FitCube(object):
 
         self.profile_radii.append(profiles.index.values)
 
+    def _write_minicubes(self, layer, data, xy):
+        """
+        Add the 2D maps of the PSF star fluxes and the fit residuals of the
+        current layers to the StarCube instances used to create minicubes of
+        the fluxes and residuals of each PSF star.
+        
+        Parameters
+        ----------
+        layer : float
+            The wavelength of the layer to be added.
+        data : pandas.DataFrame
+            The source and residual flux in each pixel of the layer, provided
+            as columns 'data' and 'residuals' of the data frame.
+        xy : pandas.DataFrame
+            The x- and y-coordinates of the pixels of the current layer,
+            provided as columns 'x' and 'y' of the data frame.         
+        """
+        # loop over sources
+        for source_id, source_data in data.items():
+            # if it is a new source, initialize and add new instance os StarCube class.
+            if source_id not in self.residuals:
+                # spatial shape of minicube will be 2x the PSF radius along x and y
+                shape = (2 * self.psf_radius, 2 * self.psf_radius)
+                self.residuals[source_id] = StarCube(shape, offset=(xy.loc[source_data.index, 'x'].min(),
+                                                                    xy.loc[source_data.index, 'y'].min()))
+            # add current layer to StarCube instance
+            self.residuals[source_id].add_layer(layer, xy.loc[source_data.index, ['x', 'y']].values,
+                                                source_data['data'].values, source_data['residuals'].values)
+
     def _make_psf_hdus(self):
         """
         Create an astropy.io.fits.HDUList containing the individual PSF
@@ -962,6 +991,7 @@ class FitCube(object):
         hdu_list.append(fits.ImageHDU(np.nanmean(self.profile_radii, axis=0)))
         hdu_list[-1].header['EXTNAME'] = 'RADIUS'
 
+        # loop over HDUs containing PSF parameters
         for source_id, _data in self.parameters.items():
             data = pd.concat(_data, axis=1).T
             data.sort_index(axis=0, inplace=True)
@@ -975,6 +1005,7 @@ class FitCube(object):
             hdu_list[-1].header['CDELT1'] = np.mean(np.diff(data.index))
             hdu_list[-1].header['CRPIX1'] = 1
 
+        # loop over HDUs containing radial profiles
         for source_id, _data in self.profiles.items():
             data = pd.concat(_data, axis=1)
             data.sort_index(axis=1, inplace=True)
@@ -988,4 +1019,165 @@ class FitCube(object):
             hdu_list[-1].header['CDELT1'] = np.mean(np.diff(data.columns))
             hdu_list[-1].header['CRPIX1'] = 1
 
+        # loop over HDUs containing 2D maps of the PSF star fluxes and the fit residuals
+        for source_id, minicube in self.residuals.items():
+
+            # data
+            hdu_list.append(fits.ImageHDU(minicube.data_cube))
+            hdu_list[-1].header['EXTNAME'] = 'DAT_{0}'.format(source_id)
+
+            # residuals
+            hdu_list.append(fits.ImageHDU(minicube.residuals_cube))
+            hdu_list[-1].header['EXTNAME'] = 'RES_{0}'.format(source_id)
+
+            # add (approximate) dispersion information
+            for i in [-1, -2]:
+                hdu_list[i].header['CRVAL3'] = minicube.crval3
+                hdu_list[i].header['CDELT3'] = minicube.cdelt3
+                hdu_list[i].header['CRPIX3'] = 1
+
         return hdu_list
+
+
+class StarCube(object):
+    """
+    This class provides an interface to handle 2D data from the PSF fit to
+    individual stars.
+    
+    The idea behind this class is that each layer of the IFS data may be
+    differently sampled, so creating a cube with the source profile or the fit
+    residuals as a function of wavelength is not trivial. StarCube solves this
+    issue by defining a grid upon instance initialization. Each new layer that
+    is added will be resampled to this grid.
+    """
+
+    def __init__(self, shape, offset=(0, 0)):
+        """
+        Initialize a new instance of the StarCube class.
+        
+        Parameters
+        ----------
+        shape : tuple
+            The 2D spatial shape of the data cube that will be generated. The
+            output sampling will be regular within the provided shape.  
+        offset : tuple, optional
+            If the starting values of the grid coordinates should be non-zero,
+            they can be provided through this paramater.
+            
+        Returns
+        -------
+        The newly created instance.
+        """
+        # Initial definitions
+        self.shape = shape
+        self.offset = offset
+
+        # define grid
+        self.x = np.arange(shape[0]) + offset[0]
+        self.y = np.arange(shape[1]) + offset[1]
+
+        # Each instance will contain two dictionaries, storing the data and the fit residuals for each individual
+        # layer. The keys of the dictionaries are supposed to be the wavelengths of the layers.
+        self.data = {}
+        self.residuals = {}
+
+    def add_layer(self, index, xy, data, residuals):
+        """
+        Add a new layer of data to the class.
+        
+        IMPORTANT: Currently this method assumes that the layer data is
+        defined on a subset of the grid pixels defined upon class
+        initialisation, i.e. it does not support resampling of the layers.
+        Therefore it can currently not be used with pixtables.
+        
+        Parameters
+        ----------
+        index : float
+            The wavelength of the new layer. 
+        xy : nd_array, shape (N, 2)
+            The x- and y-coordinates of the N pixels on which the layer is
+            sampled. 
+        data : nd_array, shape (N,)
+            The data values of the layer
+        residuals : nd_array, shape (N,)
+            The residuals of the PSF fit to the layer data.
+        """
+        # check on which pixels of the grid the layer is defined
+        in_image = np.in1d(xy[:, 0], self.x) & np.in1d(xy[:, 1], self.y)
+
+        # account for offsets
+        xy[:, 0] -= self.offset[0]
+        xy[:, 1] -= self.offset[1]
+
+        # define empty layer for data and add input at provided pixels.
+        new_layer = np.zeros(self.shape)
+        new_layer[xy[in_image, 0].astype(np.int32), xy[in_image, 1].astype(np.int32)] = data[in_image]
+        # add new layer to dictionary
+        self.data[index] = new_layer
+
+        # same as above, only for the residuals
+        new_layer = np.zeros(self.shape)
+        new_layer[xy[in_image, 0].astype(np.int32), xy[in_image, 1].astype(np.int32)] = residuals[in_image]
+        self.residuals[index] = new_layer
+
+        # only for testing purposes: plot final 2D image of layer
+        # import matplotlib.pyplot as plt
+        # plt.imshow(new_layer, cmap=plt.cm.Blues)
+        # plt.show()
+
+        # from scipy.interpolate import interp2d
+        # f = interp2d(x, y, data)
+        # self.layers[index] = f(x, y)
+
+    @property
+    def data_cube(self):
+        """
+        Returns
+        -------
+        data_cube : nd_array
+            Creates a data cube by stacking the currently available layers of
+            data in order of increasing wavelength.
+        """
+        return np.stack([self.data[key] for key in sorted(self.data.keys())])
+
+    @property
+    def residuals_cube(self):
+        """
+        Returns
+        -------
+        residuals_cube : nd_array
+            Creates a residuals cube by stacking the currently available
+            layers of residuals in order of increasing wavelength.
+        """
+        return np.stack([self.residuals[key] for key in sorted(self.residuals.keys())])
+
+    @property
+    def wave(self):
+        """
+        Returns
+        -------
+        wave : nd_array
+            Returns the wavelengths of the currently available layers in
+            increasing order.
+        """
+        return np.array([value for value in sorted(self.data.keys())])
+
+    @property
+    def crval3(self):
+        """
+        Returns
+        -------
+        crval3 : float
+            The minimum wavelength of the available layers.
+        """
+        return self.wave[0]
+
+    @property
+    def cdelt3(self):
+        """
+        Returns
+        -------
+        cdelt3 : float
+            The (approximate) dispersion in wavelength direction.
+        """
+        return np.mean(np.diff(self.wave))
