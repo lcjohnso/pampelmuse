@@ -29,9 +29,9 @@ Purpose
 The module implements the class 'FitCube' which performs the PSF-based
 extraction for a data cube.
 
-Latest SVN revision
+Latest GIT revision
 -------------------
-440, 2017/06/19
+2017/07/18
 """
 import logging
 import time
@@ -43,7 +43,7 @@ from .background import BackgroundGrid
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 440
+__revision__ = 20170718
 
 
 logger = logging.getLogger(__name__)
@@ -1015,9 +1015,13 @@ class FitCube(object):
             hdu_list[-1].header['EXTNAME'] = 'PR_{0}'.format(source_id)
 
             # add (approximate) dispersion information
-            hdu_list[-1].header['CRVAL1'] = data.columns[0]
-            hdu_list[-1].header['CDELT1'] = np.mean(np.diff(data.columns))
-            hdu_list[-1].header['CRPIX1'] = 1
+            try:
+                hdu_list[-1].header['CRVAL1'] = data.columns[0]
+                hdu_list[-1].header['CDELT1'] = np.mean(np.diff(data.columns))
+                hdu_list[-1].header['CRPIX1'] = 1
+            except ValueError:
+                logger.error('Failed to save header for source #{0}'.format(source_id))
+                pass
 
         # loop over HDUs containing 2D maps of the PSF star fluxes and the fit residuals
         for source_id, minicube in self.residuals.items():
@@ -1032,9 +1036,13 @@ class FitCube(object):
 
             # add (approximate) dispersion information
             for i in [-1, -2]:
-                hdu_list[i].header['CRVAL3'] = minicube.crval3
-                hdu_list[i].header['CDELT3'] = minicube.cdelt3
-                hdu_list[i].header['CRPIX3'] = 1
+                try:
+                    hdu_list[i].header['CRVAL3'] = minicube.crval3
+                    hdu_list[i].header['CDELT3'] = minicube.cdelt3
+                    hdu_list[i].header['CRPIX3'] = 1
+                except ValueError:
+                    logger.error('Failed to save header for source #{0}'.format(source_id))
+                    pass
 
         return hdu_list
 
