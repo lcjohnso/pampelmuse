@@ -36,9 +36,9 @@ efficiently. For this reason, when the spectra or the IFS coordinates of the
 sources are provided via FITS HDUs, the data are not automatically loaded to
 memory but only on request.
 
-Latest SVN revision
+Latest revision
 -------------------
-397, 2017/02/24
+2017/07/17
 """
 import collections
 import inspect
@@ -61,7 +61,7 @@ except ImportError:
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 394
+__revision__ = 20170717
 
 
 def match_on_id(parent, child):
@@ -962,9 +962,9 @@ class Sources(object):
             self._wave = None
 
         # case 1) wavelength available for each spectrum but average requested
-        if self.data_wave is not None and component is None:
+        if self.data_wave_hdu is not None and component is None:
             if self._wave is None:
-                self._wave = np.nanmean(self.data_wave, axis=1)  # shape (k,)
+                self._wave = np.nanmean(self.data_wave_hdu.data, axis=1)  # shape (k,)
         # case 2) wavelength available for each spectrum and individual component(s) requested
         elif self.data_wave is not None and self.spectrum_loaded[component].all():
             # get index of the spectrum in the Sources.data_wave array
