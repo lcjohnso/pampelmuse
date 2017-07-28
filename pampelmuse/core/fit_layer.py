@@ -251,8 +251,7 @@ class FitLayer(object):
 
         # handle background if any was provided
         if background is not None:
-            assert(isinstance(background, sparse.coo_matrix)), \
-                '"background" must be provided asTransformation.PARAMETERS a scipy.sparse.coo_matrix'
+            assert(isinstance(background, sparse.coo_matrix)), '"background" must be scipy.sparse.coo_matrix'
             self.background = background
             self.n_background = 1 + self.background.col.max() - self.background.col.min()
         else:
@@ -602,7 +601,7 @@ class FitLayer(object):
 
     def residuals_from_fluxes(self, fluxes, background_fluxes=None):
         """
-        This method returns the fit residuals provided inpuut values for the
+        This method returns the fit residuals provided input values for the
         fluxes and background fluxes (if any). The purpose of this method is
         to have a routine for fast residuals calculation as is required by
         the SUBTRES routine in PampelMuse.

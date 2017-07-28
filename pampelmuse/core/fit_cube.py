@@ -521,6 +521,7 @@ class FitCube(object):
                 self.background.transform = transform
                 fit_input[-1]['background'] = self.background.get_sparse_matrix(
                     offset=self.sources.ncmp - self.sources.nbackground)
+                assert fit_input[-1]['background'].shape[1] == self.sources.nbackground, 'Inconsistent shapes: {0} vs. {1}'.format(fit_input[-1]['background'].shape[1], self.sources.nbackground)
             else:
                 fit_input[-1]['background'] = None
 
@@ -788,7 +789,7 @@ class FitCube(object):
             only used with MUSE pixtables.
         """
         assert(len(fluxes) == len(uncertainties)), '"fluxes" and "uncertainties" must have same length'
-        assert(len(fluxes) == self.sources.ncmp), 'Length of "fluxes" must match number of components in fit.'
+        assert(len(fluxes) == self.sources.ncmp), 'Length of "fluxes" ({0}) must match number of components in fit ({1}).'.format(len(fluxes), self.sources.ncmp)
         self.sources.data[current, :, 0] = fluxes
         self.sources.data[current, :, 1] = uncertainties
         if wave is not None:
