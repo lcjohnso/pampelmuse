@@ -521,7 +521,6 @@ class FitCube(object):
                 self.background.transform = transform
                 fit_input[-1]['background'] = self.background.get_sparse_matrix(
                     offset=self.sources.ncmp - self.sources.nbackground)
-                assert fit_input[-1]['background'].shape[1] == self.sources.nbackground, 'Inconsistent shapes: {0} vs. {1}'.format(fit_input[-1]['background'].shape[1], self.sources.nbackground)
             else:
                 fit_input[-1]['background'] = None
 
