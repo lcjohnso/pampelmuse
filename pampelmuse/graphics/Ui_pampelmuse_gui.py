@@ -474,4 +474,4 @@ class Ui_PampelMuseGui(object):
         self.actionLoadImage.setText(_translate("PampelMuseGui", "&Load image"))
         self.actionLoadImage.setToolTip(_translate("PampelMuseGui", "Load FITS image from disk"))
 
-import pampelmuse_gui_rc
+from . import pampelmuse_gui_rc
