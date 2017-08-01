@@ -8,7 +8,7 @@
       <option name="exitCodeBehavior" value="ERROR" />
       <option name="fileExtension" value="ui" />
       <option name="immediateSync" value="true" />
-      <option name="name" value="PyQT UIC" />
+      <option name="name" value="PyQT4 UIC" />
       <option name="output" value="Ui_$FileNameWithoutExtension$.py" />
       <option name="outputFilters">
         <array />
@@ -27,7 +27,7 @@
       <option name="exitCodeBehavior" value="ERROR" />
       <option name="fileExtension" value="xml" />
       <option name="immediateSync" value="true" />
-      <option name="name" value="PyQT RCC" />
+      <option name="name" value="PyQT4 RCC" />
       <option name="output" value="$FileNameWithoutExtension$_rc.py" />
       <option name="outputFilters">
         <array />
