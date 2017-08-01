@@ -8,5 +8,6 @@
     <file>icons/save_as.png</file>
     <file>icons/save.png</file>
     <file>icons/zoom.png</file>
+    <file>icons/open.png</file>
   </qresource>
 </RCC>
