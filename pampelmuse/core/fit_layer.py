@@ -585,15 +585,18 @@ class FitLayer(object):
                 logger.warning('Maximum number of iterations reached.')
 
         # combine fluxes, need to add missing background components again
-        all_fluxes = np.hstack((self.fluxes, np.insert(
-            self.background_fluxes, self.missing_background - self.n_components, np.nan)))
+        # IMPORTANT: when using np.insert, need to lower indices by number of previous missing indices
+        indices = self.missing_background - self.n_components - np.arange(len(self.missing_background))
+        all_fluxes = np.hstack((self.fluxes, np.insert(self.background_fluxes, indices, np.nan)))
 
         # estimate uncertainties that are returned with the data
         # note that fit_weights ~ 1/variances
         inverse_variances = self.source_matrix.multiply(self.source_matrix).T.dot(self.fit_weights)
         # fill missing components (sources and background) with NaN
-        inverse_variances = np.insert(inverse_variances, np.flatnonzero(~included_components), np.nan)
-        inverse_variances = np.insert(inverse_variances, self.missing_background, np.nan)
+        indices = np.flatnonzero(~included_components) - np.arange((~included_components).sum())
+        inverse_variances = np.insert(inverse_variances, indices, np.nan)
+        indices = self.missing_background - np.arange(len(self.missing_background))
+        inverse_variances = np.insert(inverse_variances, indices, np.nan)
         # invert and take square root to get uncertainties
         uncertainties = 1./np.sqrt(inverse_variances)
 
@@ -615,7 +618,8 @@ class FitLayer(object):
             wave_matrix = sparse.dia_matrix((self.fit_weights, [0]), shape=(n, n)) * self.source_matrix
             return_wave = np.asarray(self.wave.dot(wave_matrix)/wave_matrix.sum(axis=0))[0]
             if not included_components.all():
-                return_wave = np.insert(return_wave, np.flatnonzero(~included_components), np.nan)
+                indices = np.flatnonzero(~included_components) - np.arange((~included_components).sum())
+                return_wave = np.insert(return_wave, indices, np.nan)
         else:
             return_wave = None
 
