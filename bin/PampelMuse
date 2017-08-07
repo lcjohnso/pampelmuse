@@ -1,8 +1,8 @@
-#! /usr/bin/env python
+#! /usr/bin/env python2
 """
 PampelMuse
 ==========
-Copyright 2013-2016 Sebastian Kamann
+Copyright 2013-2017 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -60,9 +60,9 @@ As a last step before calling the subroutine, the routine opens and verifies
 the FITS files containing the IFS data. Note that the routine does NOT load
 the data into memory yet but just checks whether the file(s) are valid.
 
-Latest SVN revision
+Latest GIT revision
 -------------------
-411, 2017/04/06
+2017/08/07
 """
 import argparse
 import importlib
@@ -82,10 +82,10 @@ from pampelmuse.routines import initfit, ptsort, singlesrc
 from pampelmuse.utils.fits import open_ifs_data
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__version__ = "0.94.0.3"
-__revision__ = 411
+__version__ = "0.94.1.0"
+__revision__ = 20170807
 
-
+print(sys.version)
 logger = logging.getLogger(__name__)
 
 

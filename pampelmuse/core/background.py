@@ -1,7 +1,7 @@
 """
 background.py
 =============
-Copyright 2013-2016 Sebastian Kamann
+Copyright 2013-2017 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -37,9 +37,9 @@ Added
 -----
 Revision 221, 2014/12/02
 
-Latest SVN revision
+Latest GIT revision
 -------------------
-333, 2016/07/25
+2017/08/07
 """
 import logging
 import numpy as np
@@ -50,7 +50,7 @@ from ..psf import Canvas
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 333
+__revision__ = 20170807
 
 
 class BackgroundGrid(Canvas):
@@ -247,6 +247,13 @@ class BackgroundGrid(Canvas):
 
         i, j = np.nonzero(self.f)
         values = self.f[(i, j)]
+
+        # check if any background components do not contribute
+        missing = np.in1d(np.arange(self.centroids.shape[0]), np.unique(i), assume_unique=True, invert=True)
+        if missing.any():
+            missing_components = np.arange(self.centroids.shape[0])[missing]
+            logging.warning('Background contains components outside FoV: {0}'.format(
+                ', '.join([str(comp) for comp in missing_components])))
 
         # IMPORTANT: to be consistent with the matrix of sources, we need to swap i and j because the source matrix
         # has shape (n_spaxel, n_components)

@@ -90,7 +90,7 @@ def transform_string(thestring, dtype, abort_on_exception=True):
         return int(thestring)
     elif dtype == 'bool':
         # using regular expressions for the transformation to bool
-        return bool(int(re.sub("true", "1", re.sub("false", "0", string.lower(thestring)))))
+        return bool(int(re.sub("true", "1", re.sub("false", "0", str.lower(thestring)))))
     elif dtype in ['list', 'tuple']:
         thenumbers = thestring[1:-1].split(',')
         if thenumbers == [""]:

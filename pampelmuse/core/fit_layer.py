@@ -1,7 +1,7 @@
 """
 fit_array.py
 ============
-Copyright 2013-2016 Sebastian Kamann
+Copyright 2013-2017 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -55,9 +55,9 @@ stars with, it is currently only used if the source positions and PSF
 parameters are not fitted.
 
 
-Latest SVN revision
+Latest GIT revision
 -------------------
-401, 2017/03/03
+2017/08/07
 """
 import contextlib
 import logging
@@ -70,7 +70,7 @@ from ..core.coordinates import Transformation
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 401
+__revision__ = 20170807
 
 
 logger = logging.getLogger(__name__)
@@ -249,13 +249,8 @@ class FitLayer(object):
         self.n_components = self.components.max() + 1
         self.last_component_is_unresolved = last_component_is_unresolved
 
-        # handle background if any was provided
-        if background is not None:
-            assert(isinstance(background, sparse.coo_matrix)), '"background" must be scipy.sparse.coo_matrix'
-            self.background = background
-            self.n_background = 1 + self.background.col.max() - self.background.col.min()
-        else:
-            self.n_background = 0
+        # check and prepare background if any was provided
+        self.background, self.n_background, self.missing_background = self._check_background(background)
 
         # Initialize PSF
         if psf_type.lower() == 'gauss':
@@ -290,6 +285,52 @@ class FitLayer(object):
         self.fit_weights = None
         self.fluxes = np.zeros((self.n_components,), dtype='<f4')
         self.background_fluxes = np.zeros((self.n_background,), dtype='<f4')
+
+    def _check_background(self, background):
+        """
+        Internal method that checks if the provided background is valid and
+        whether it contains any components that do not contribute to the
+        observed flux.
+        
+        Parameters
+        ----------
+        background : scipy.sparse.coo_matrix or None
+            The provided background. Unless no background is being used
+            (None), it must be provided as an instance of a scipy.sparse
+            coo-matrix.
+
+        Returns
+        -------
+        background : scipy.sparse.coo_matrix or None
+            The provided matrix (if any, otherwise None is returned), cleaned
+            for any components that do not contribute to the observed flux.
+        n_background : int
+            The number of (nonzero) background components.
+        missing_background : array_like
+            The list of background components that were found to have no
+            contribution to the observed flux.
+        """
+
+        if background is None:
+            return None, 0, None
+
+        # background must be provided as a sparse matrix
+        assert(isinstance(background, sparse.coo_matrix)), '"background" must be scipy.sparse.coo_matrix'
+
+        # check if all background components actually contribute
+        missing = np.flatnonzero(background.getnnz(axis=0) == 0)
+
+        # need to account for offset because of stellar sources
+        missing = missing[missing >= self.n_components]
+        if missing.any():
+            logger.warning('Provided background contains irrelevant components: {0}'.format(
+                ', '.join([str(m - self.n_components) for m in missing])))
+
+            # remove empty background columns - need to convert to csc matrix for slicing to work
+            to_keep = np.in1d(np.arange(background.shape[1]), missing, assume_unique=True, invert=True)
+            background = sparse.coo_matrix(background.tocsc()[:, to_keep])
+
+        return background, 1 + background.col.max() - background.col.min(), missing
 
     @property
     def variances(self):
@@ -543,13 +584,16 @@ class FitLayer(object):
             else:
                 logger.warning('Maximum number of iterations reached.')
 
-        all_fluxes = np.hstack((self.fluxes, self.background_fluxes))
+        # combine fluxes, need to add missing background components again
+        all_fluxes = np.hstack((self.fluxes, np.insert(
+            self.background_fluxes, self.missing_background - self.n_components, np.nan)))
 
         # estimate uncertainties that are returned with the data
         # note that fit_weights ~ 1/variances
         inverse_variances = self.source_matrix.multiply(self.source_matrix).T.dot(self.fit_weights)
-        # fill missing components with NaN
+        # fill missing components (sources and background) with NaN
         inverse_variances = np.insert(inverse_variances, np.flatnonzero(~included_components), np.nan)
+        inverse_variances = np.insert(inverse_variances, self.missing_background, np.nan)
         # invert and take square root to get uncertainties
         uncertainties = 1./np.sqrt(inverse_variances)
 
@@ -885,7 +929,7 @@ class FitLayer(object):
                             if offset > psf.fwhm:
                                 result = (x0, None, {}, "Offset between fitted centroid and initial guess >FWHM.", 99)
 
-            snratio = result[0][0] / np.sqrt((variances/(psf.f**2)).sum())
+            snratio = result[0][0] * np.sqrt((psf.f**2/variances).sum())
             results[n, 0] = snratio
 
             if 0 < result[-1] <= 4:  # fit successful
