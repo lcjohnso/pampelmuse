@@ -86,10 +86,10 @@ def der_snr(flux):
                 01.01.2007, fst, added more help text
                 28.04.2010, fst, return value is a float now instead of a numpy.float64
     """
-    flux = np.array(flux)
+    flux = np.asarray(flux)
 
     # Values that are exactly zero (padded) or NaN are skipped
-    flux = np.array(flux[np.where(flux != 0.0) & np.isfinite(flux)])
+    flux = flux[(flux != 0.0) & np.isfinite(flux)]
     n = len(flux)
 
     # For spectra shorter than this, no value can be returned
