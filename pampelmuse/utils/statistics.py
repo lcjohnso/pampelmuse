@@ -1,7 +1,7 @@
 """
 statistics.py
 =============
-Copyright 2013-2016 Sebastian Kamann
+Copyright 2013-2017 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -42,14 +42,14 @@ To import a function from this module (e.g. clip_sigma), proceed as follows:
 
 Latest SVN revision
 -------------------
-334, 2016/07/26
+2017/08/09
 """
 import logging
 import numpy as np
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 334
+__revision__ = 20170809
 
 
 def der_snr(flux):
@@ -88,8 +88,8 @@ def der_snr(flux):
     """
     flux = np.array(flux)
 
-    # Values that are exactly zero (padded) are skipped
-    flux = np.array(flux[np.where(flux != 0.0)])
+    # Values that are exactly zero (padded) or NaN are skipped
+    flux = np.array(flux[np.where(flux != 0.0) & np.isfinite(flux)])
     n = len(flux)
 
     # For spectra shorter than this, no value can be returned
