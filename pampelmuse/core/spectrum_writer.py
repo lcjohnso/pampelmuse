@@ -219,7 +219,7 @@ class SpectrumWriter(object):
                 continue
 
             sigma = np.inf
-            while True:
+            for _ in range(5):
                 if np.std(self.dmag[slc]*self.cleanness[slc])/sigma >= 0.99:
                     break
                 sigma = np.std(self.dmag[slc]*self.cleanness[slc])
