@@ -49,6 +49,7 @@ import re
 import numpy as np
 from numpy.polynomial import Chebyshev, Legendre, Hermite, Polynomial
 from astropy.io import fits
+from ..utils.statistics import robust_fit
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
@@ -483,7 +484,7 @@ class Parameters(object):
             mask |= self.mask[:, i, 0]
         else:
             mask = self.mask[:, i, 0]
-        fit = fitfunction.fit(abscissa[~mask], self._data[~mask, i, 0], order)
+        fit = robust_fit(fitfunction, abscissa[~mask], self._data[~mask, i, 0], order)
 
         self._data[:, i, 1] = fit(abscissa)
 

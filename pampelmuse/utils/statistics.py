@@ -168,3 +168,47 @@ def clip_sigma(data, axis=None, kappa=3.):
     # return the output
     return np.ma.array(data, mask=(outmask | np.isnan(data)))
 
+
+def robust_fit(fit_function, x, y, order, domain=None):
+    """
+    Method to implement a fit that is robust against outliers.
+
+    The idea is to implement an iterative weighting scheme in which each
+    point is weighted according to w = 1/[1 + (DY/3*MADY)^4], where DY is
+    the offset between a data point and the current fit and MADY is the
+    median absolute deviation between the data and the current fit.
+
+    This scheme is similar to the one used by P. Stetson for DAOphot, with
+    alpha~2 and beta=4.
+
+    Parameters
+    ----------
+    fit_function : instance of numpy.polynomial.polynomial.Polynomial
+        The function used to fit the data.
+    x : array_like
+        The x values of the data to be fitted.
+    y : array_like
+        The y-values of the data to be fitted.
+    order : int
+        The order of the polynomial fit to be used.
+    domain : tuple, optional
+        The domain for the poynomial fit.
+
+    Returns
+    -------
+    fit : series
+        A series that represents the least squares fit to the data and has
+        the domain specified in the call (taken from the scipy documentation.)
+    """
+    fit = None
+    w = np.ones_like(x)
+
+    for i in range(3):
+        fit = fit_function.fit(x, y, order, domain=domain, w=w)
+
+        dy = y - fit(x)
+        mad_dy = np.median(np.abs(dy - np.median(dy)))
+
+        w = 1./(1. + (np.abs(dy)/(3.*mad_dy))**4)
+
+    return fit

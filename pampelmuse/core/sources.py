@@ -1686,7 +1686,6 @@ class Sources(object):
     ##############################################################################
     #              Source selection methods/properties                           #
     ##############################################################################
-
     def distance_to_brighter(self):
         """
         DEPRECATED - not used anymore since revision 118
