@@ -1,7 +1,7 @@
 """
 image.py
 ========
-Copyright 2013-2016 Sebastian Kamann
+Copyright 2013-2017 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -28,16 +28,16 @@ Added
 -----
 rev. 334, 2016/07/26
 
-Latest SVN revision
+Latest GIT revision
 -------------------
-350, 2016/08/12
+2017/08/10
 """
 import numpy as np
-from scipy import signal
+from scipy import ndimage, signal
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 360
+__revision__ = 20170810
 
 
 def find_offset(reference, comparison, init_guess=(0, 0), max_off=None):
@@ -75,23 +75,25 @@ def find_offset(reference, comparison, init_guess=(0, 0), max_off=None):
         assert max_off > 0, 'search radius must be >0 but is {0}'.format(max_off)
         search_radius = int(max_off)
 
-    # Kernel is normalized to get approx. normalized cross-corr. signal
-    cc_kernel = (reference - np.min(reference)) / np.std(reference)
+    # Data are normalized to get approx. normalized cross-corr. signal
+    cc_kernel = (reference - np.median(reference)) / (np.std(reference)*reference.size)
+    cc_input = (comparison - np.median(comparison)) / np.std(comparison)
 
-    cc_signal = signal.fftconvolve(comparison, cc_kernel[::-1, ::-1], mode="full")
+    cc_signal = signal.fftconvolve(cc_input, cc_kernel[::-1, ::-1], mode='same')
 
     # To avoid that the cc signal is dominated by individual bright pixels, the signal is normalized using the
-    # flux in the comparison image
-    norm = signal.fftconvolve(comparison, np.ones(cc_kernel.shape, dtype=np.float32), mode="full")
+    # peak flux in the overlap region of the comparison image (this used to be the summed flux)
+    # norm = signal.fftconvolve(comparison, np.ones(cc_kernel.shape, dtype=np.float32), mode="full")
+    norm = ndimage.maximum_filter(cc_input, size=cc_kernel.shape, mode='reflect')
     norm[norm <= 0] = np.inf
     cc_signal /= norm
 
     # The maximum is searched in an area with radius 'search_radius' with respect to the location suggested by the
     # by the init_guess parameter
     # Note that if the two arrays share the same origin, the maximum would be at coordinates
-    # (cc_kernel.shape[1] - 1, cc_kernel.shape[1] - 1)
-    x_search_center = cc_kernel.shape[1] - 1 + init_guess[0]
-    y_search_center = cc_kernel.shape[0] - 1 + init_guess[1]
+    # (0.5*(cc_kernel.shape[1] - 1), 0.5*(cc_kernel.shape[1] - 1))
+    x_search_center = 0.5*(cc_kernel.shape[1] - 1) + init_guess[0]
+    y_search_center = 0.5*(cc_kernel.shape[0] - 1) + init_guess[1]
 
     x_slice_start = max(int(x_search_center) - search_radius, 3)
     x_slice_end = min(int(x_search_center) + search_radius, cc_signal.shape[1] - 3)
@@ -133,7 +135,7 @@ def find_offset(reference, comparison, init_guess=(0, 0), max_off=None):
     # ax.add_patch(rect)
     # ax.plot(xc, yc, ls="None",  marker="x",  mew=2.5, c="r",  ms=15)
     # pylab.show()
-    # outhdu = fits.HDUList([fits.PrimaryHDU(cc_signal), fits.ImageHDU(cc_kernel), fits.ImageHDU(comparison)])
+    # outhdu = fits.HDUList([fits.PrimaryHDU(cc_signal), fits.ImageHDU(cc_kernel), fits.ImageHDU(cc_input)])
     # outhdu.writeto("ccsignal.fits", clobber=True)
 
     return x_off, y_off
