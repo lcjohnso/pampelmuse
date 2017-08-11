@@ -52,6 +52,7 @@ from numpy.polynomial import Chebyshev, Legendre, Hermite, Polynomial
 from astropy.io import fits
 from ..core.coordinates import Transformation
 from ..filters import get_filter
+from ..utils.statistics import robust_fit
 
 # check if PyQt is available 
 try:
@@ -1636,8 +1637,8 @@ class Sources(object):
             meanvalid = valid[:, np.newaxis] & ~np.isnan(meancoord)
 
             # fit mean coordinates with requested order
-            xfit = fit_function.fit(self.wave[meanvalid[:, 0]], meancoord[meanvalid[:, 0], 0], order)
-            yfit = fit_function.fit(self.wave[meanvalid[:, 1]], meancoord[meanvalid[:, 1], 1], order)
+            xfit = robust_fit(fit_function, self.wave[meanvalid[:, 0]], meancoord[meanvalid[:, 0], 0], order)
+            yfit = robust_fit(fit_function, self.wave[meanvalid[:, 1]], meancoord[meanvalid[:, 1], 1], order)
 
             order = 0  # all individual coordinates are now "fitted" with zeroth order polynomials
 
@@ -1665,11 +1666,11 @@ class Sources(object):
                     self.ID[j]))
 
             if commonSlope:
-                xfit_i = xfit + fit_function.fit(wave, fx_wave - xfit(wave), order, domain=xfit.domain)
-                yfit_i = yfit + fit_function.fit(wave, fy_wave - yfit(wave), order, domain=yfit.domain)
+                xfit_i = robust_fit(xfit + fit_function, wave, fx_wave - xfit(wave), order, domain=xfit.domain)
+                yfit_i = robust_fit(yfit + fit_function, wave, fy_wave - yfit(wave), order, domain=yfit.domain)
             else:
-                xfit_i = fit_function.fit(wave, fx_wave, order)
-                yfit_i = fit_function.fit(wave, fy_wave, order)
+                xfit_i = robust_fit(fit_function, wave, fx_wave, order)
+                yfit_i = robust_fit(fit_function, wave, fy_wave, order)
 
             self.ifs_coordinates_fit_functions[self.ID[j]] = [xfit_i, yfit_i]
 
