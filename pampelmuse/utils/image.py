@@ -75,18 +75,16 @@ def find_offset(reference, comparison, init_guess=(0, 0), max_off=None):
         assert max_off > 0, 'search radius must be >0 but is {0}'.format(max_off)
         search_radius = int(max_off)
 
+    # To avoid that the cc signal is dominated by individual bright pixels, the comparison image fluxes are
+    # leveled off at the 99th percentile of the fluxes
+    p = np.percentile(comparison, 99)
+    comparison[comparison > p] = p
+
     # Data are normalized to get approx. normalized cross-corr. signal
     cc_kernel = (reference - np.median(reference)) / (np.std(reference)*reference.size)
     cc_input = (comparison - np.median(comparison)) / np.std(comparison)
 
     cc_signal = signal.fftconvolve(cc_input, cc_kernel[::-1, ::-1], mode='same')
-
-    # To avoid that the cc signal is dominated by individual bright pixels, the signal is normalized using the
-    # peak flux in the overlap region of the comparison image (this used to be the summed flux)
-    # norm = signal.fftconvolve(comparison, np.ones(cc_kernel.shape, dtype=np.float32), mode="full")
-    norm = ndimage.maximum_filter(cc_input, size=cc_kernel.shape, mode='reflect')
-    norm[norm <= 0] = np.inf
-    cc_signal /= norm
 
     # The maximum is searched in an area with radius 'search_radius' with respect to the location suggested by the
     # by the init_guess parameter
@@ -123,19 +121,19 @@ def find_offset(reference, comparison, init_guess=(0, 0), max_off=None):
     x_off = xc - x_search_center
     y_off = yc - y_search_center
 
-    # # for testing purposes: plot cross-correlation signal and save as FITS file
-    # import pylab, matplotlib
-    # from astropy.io import fits
-    # fig = pylab.figure(figsize=(7, 7))
-    # ax = fig.add_axes([0.05, 0.05, 0.9, 0.9])
-    # ax.imshow(cc_signal, interpolation="nearest")
-    # ax.plot(x_search_center, y_search_center, ls="None",  marker="x",  mew=2.5, c="g", ms=15)
-    # rect = matplotlib.patches.Rectangle((x_search_center - search_radius, y_search_center - search_radius),
-    #                                     2*search_radius, 2*search_radius, edgecolor="r", facecolor="none")
-    # ax.add_patch(rect)
-    # ax.plot(xc, yc, ls="None",  marker="x",  mew=2.5, c="r",  ms=15)
-    # pylab.show()
-    # outhdu = fits.HDUList([fits.PrimaryHDU(cc_signal), fits.ImageHDU(cc_kernel), fits.ImageHDU(cc_input)])
-    # outhdu.writeto("ccsignal.fits", clobber=True)
+    # for testing purposes: plot cross-correlation signal and save as FITS file
+    import pylab, matplotlib
+    from astropy.io import fits
+    fig = pylab.figure(figsize=(7, 7))
+    ax = fig.add_axes([0.05, 0.05, 0.9, 0.9])
+    ax.imshow(cc_signal, interpolation="nearest")
+    ax.plot(x_search_center, y_search_center, ls="None",  marker="x",  mew=2.5, c="g", ms=15)
+    rect = matplotlib.patches.Rectangle((x_search_center - search_radius, y_search_center - search_radius),
+                                        2*search_radius, 2*search_radius, edgecolor="r", facecolor="none")
+    ax.add_patch(rect)
+    ax.plot(xc, yc, ls="None",  marker="x",  mew=2.5, c="r",  ms=15)
+    pylab.show()
+    outhdu = fits.HDUList([fits.PrimaryHDU(cc_signal), fits.ImageHDU(cc_kernel), fits.ImageHDU(cc_input)])
+    outhdu.writeto("ccsignal.fits", clobber=True)
 
     return x_off, y_off
