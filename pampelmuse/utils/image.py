@@ -30,14 +30,14 @@ rev. 334, 2016/07/26
 
 Latest GIT revision
 -------------------
-2017/08/10
+2017/08/17
 """
 import numpy as np
 from scipy import ndimage, signal
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 20170810
+__revision__ = 20170817
 
 
 def find_offset(reference, comparison, init_guess=(0, 0), max_off=None):
@@ -121,19 +121,19 @@ def find_offset(reference, comparison, init_guess=(0, 0), max_off=None):
     x_off = xc - x_search_center
     y_off = yc - y_search_center
 
-    # for testing purposes: plot cross-correlation signal and save as FITS file
-    import pylab, matplotlib
-    from astropy.io import fits
-    fig = pylab.figure(figsize=(7, 7))
-    ax = fig.add_axes([0.05, 0.05, 0.9, 0.9])
-    ax.imshow(cc_signal, interpolation="nearest")
-    ax.plot(x_search_center, y_search_center, ls="None",  marker="x",  mew=2.5, c="g", ms=15)
-    rect = matplotlib.patches.Rectangle((x_search_center - search_radius, y_search_center - search_radius),
-                                        2*search_radius, 2*search_radius, edgecolor="r", facecolor="none")
-    ax.add_patch(rect)
-    ax.plot(xc, yc, ls="None",  marker="x",  mew=2.5, c="r",  ms=15)
-    pylab.show()
-    outhdu = fits.HDUList([fits.PrimaryHDU(cc_signal), fits.ImageHDU(cc_kernel), fits.ImageHDU(cc_input)])
-    outhdu.writeto("ccsignal.fits", clobber=True)
+    # # for testing purposes: plot cross-correlation signal and save as FITS file
+    # import pylab, matplotlib
+    # from astropy.io import fits
+    # fig = pylab.figure(figsize=(7, 7))
+    # ax = fig.add_axes([0.05, 0.05, 0.9, 0.9])
+    # ax.imshow(cc_signal, interpolation="nearest")
+    # ax.plot(x_search_center, y_search_center, ls="None",  marker="x",  mew=2.5, c="g", ms=15)
+    # rect = matplotlib.patches.Rectangle((x_search_center - search_radius, y_search_center - search_radius),
+    #                                     2*search_radius, 2*search_radius, edgecolor="r", facecolor="none")
+    # ax.add_patch(rect)
+    # ax.plot(xc, yc, ls="None",  marker="x",  mew=2.5, c="r",  ms=15)
+    # pylab.show()
+    # outhdu = fits.HDUList([fits.PrimaryHDU(cc_signal), fits.ImageHDU(cc_kernel), fits.ImageHDU(cc_input)])
+    # outhdu.writeto("ccsignal.fits", clobber=True)
 
     return x_off, y_off
