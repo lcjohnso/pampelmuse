@@ -35,9 +35,9 @@ the class pampelmuse.graphics.Ui_pampelmuse_gui.Ui_PampelMuseGui. This module
 contains the dialogue code for Ui_pampelmuse_gui, in the sense that it
 defines the methods that are called by Ui_PampelMuseGui.
 
-Latest SVN revision
+Latest Git revision
 -------------------
-436, 2017/06/17
+2017/08/23
 """
 import logging
 import os
@@ -63,7 +63,7 @@ from ..utils.fits import save_prm, read_config_from_header, make_header_from_con
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 436
+__revision__ = 20170823
 
 
 class ToolbarWithoutMessage(NavigationToolbar):
@@ -328,6 +328,9 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             if self.sources.ndisp != self.sources.transformation.n_dispersion == 1:
                 self.sources.transformation.resize(self.sources.ndisp)
 
+            # make sure the same dispersion axis is used
+            self.sources.transformation.data.index = self.sources.wave
+
         # create entries for positions and coord. transf. in QComboBox if not existent
         if self.sources.transformation.valid:
             for entry in ["x Positions", "y Positions", "Coord. Transf."]:
@@ -386,6 +389,9 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         # make sure PSF parameters have same dispersion axis as Sources instance
         if self.sources.n_dispersion != self.psf.n_dispersion == 1:
             self.psf.resize(self.sources.ndisp)
+
+        # make sure the same dispersion axis is used
+        self.psf.data.index = self.sources.wave
 
         # update QComboBox for newly loaded data
         if self.spectrumShowHduComboBox.findText("PSF") == -1:
