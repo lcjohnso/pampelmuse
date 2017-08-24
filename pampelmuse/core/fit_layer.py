@@ -222,8 +222,13 @@ class FitLayer(object):
 
         # define PSF profile for each source, check if direct positions were provided for some sources
         self.psf_instances = {}
+
+        # Important: Extract transformation out of following loop as otherwise a new copy will be
+        # created for each PSF!
+        transform = self.data[['y', 'x']].values
+
         for index, row in self.catalog.iterrows():
-            new_psf = psf_class(transform=self.data[['y', 'x']].values, uc=row['x'], vc=row['y'], mag=row['magnitude'],
+            new_psf = psf_class(transform=transform, uc=row['x'], vc=row['y'], mag=row['magnitude'],
                                 src_id=index, maxrad=self.psf_radius, osfactor=osfactor, osradius=osradius)
             # initialize the PSF parameters:
             for key, value in psf_parameters.items():

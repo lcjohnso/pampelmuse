@@ -31,9 +31,9 @@ Added
 -----
 2016/08/09, rev. 353
 
-Latest SVN revision
+Latest Git revision
 -------------------
-436, 2017/06/17
+2017/08/23
 """
 import logging
 import sys
@@ -51,8 +51,8 @@ from ..utils.image import find_offset
 from ..utils.statistics import der_snr
 
 
-__author__ = 'Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)'
-__revision__ = 436
+__author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
+__revision__ = 20170823
 
 
 logger = logging.getLogger(__name__)
@@ -166,7 +166,7 @@ def estimate_snr(sources_data):
             logger.error("Sigma image contains invalid pixels with values <=0.")
 
         # measure S/N
-        snratios[index] = np.sqrt(((psf.f / np.sqrt(g_variance[psf.used])) ** 2).sum())
+        snratios[index] = np.sqrt(np.nansum((psf.f / np.sqrt(g_variance[psf.used])) ** 2))
 
         logger.debug("Estimated S/N for source #{0} [{0}/{1}]: {2}.".format(index, i, n_sources, snratios[index]))
 

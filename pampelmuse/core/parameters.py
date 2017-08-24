@@ -30,9 +30,9 @@ The module provides a general framework for dealing with fit parameters, such
 as the parameters that define the PSF profile or the parameters of the
 coordinate transformation from reference to IFS coordinates.
 
-Latest SVN revision
+Latest Git revision
 -------------------
-428, 2017/06/05
+2017/08/23
 """
 import logging
 import numpy as np
@@ -41,8 +41,8 @@ from numpy.polynomial import Chebyshev, Legendre, Hermite, Polynomial
 from astropy.io import fits
 
 
-__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 428
+__author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
+__revision__ = 20170823
 
 
 logger = logging.getLogger(__name__)
@@ -128,7 +128,7 @@ class Parameters(object):
         # check: http://pandas.pydata.org/pandas-docs/stable/advanced.html#using-slicers
         if not self.data.columns.is_lexsorted():
             logger.warning('Data frame containing parameters not sorted. Reordering ...')
-            self.data = self.data.sortlevel(0, axis=1)  # axis=1 = columns
+            self.data = self.data.sort_index(level=0, axis=1)  # axis=1 = columns
 
     @classmethod
     def from_hdu(cls, hdu, **kwargs):
