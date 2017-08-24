@@ -31,7 +31,7 @@ extraction for a data cube.
 
 Latest GIT revision
 -------------------
-2017/07/18
+2017/08/23
 """
 import logging
 import time
@@ -42,8 +42,8 @@ from .fit_layer import FitLayer
 from .background import BackgroundGrid
 
 
-__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 20170718
+__author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
+__revision__ = 20170823
 
 
 logger = logging.getLogger(__name__)
@@ -143,6 +143,8 @@ def parallel_fit_layer(fit_parameters):
                               transformation parameters.
         background - the matrix containing the footprints of the individual
                      background components.
+        background_index - the index/indices used for the background
+                           components.
 
     Returns
     -------
@@ -162,6 +164,7 @@ def parallel_fit_layer(fit_parameters):
     psf_parameters = fit_parameters['psf_parameters']
     position_parameters = fit_parameters['position_parameters']
     background = fit_parameters['background']
+    background_index = fit_parameters['background_index']
 
     global g_psf_type, g_psf_radius, g_psf_parameters_to_fit, g_position_parameters_to_fit
     global g_last_component_is_unresolved, g_osfactor, g_osradius, g_sources, g_psf_sources, g_max_iterations
@@ -170,7 +173,7 @@ def parallel_fit_layer(fit_parameters):
     layerfit = FitLayer(data=data, catalog=catalog, psf_type=g_psf_type, psf_parameters=psf_parameters,
                         psf_radius=g_psf_radius, position_parameters=position_parameters,
                         last_component_is_unresolved=g_last_component_is_unresolved, background=background,
-                        osfactor=g_osfactor, osradius=g_osradius)
+                        osfactor=g_osfactor, osradius=g_osradius, background_index=background_index)
 
     results = layerfit(fluxes=None, psf_parameters_to_fit=g_psf_parameters_to_fit,
                        position_parameters_to_fit=g_position_parameters_to_fit,
@@ -544,10 +547,12 @@ class FitCube(object):
             # add background if requested
             if self.background is not None:
                 self.background.transform = data[['x', 'y']].values
-                fit_input[-1]['background'] = self.background.get_sparse_matrix(
+                background_matrix, background_components = self.background.get_sparse_matrix(
                     offset=self.sources.n_components - self.sources.n_background)
             else:
-                fit_input[-1]['background'] = None
+                background_matrix = background_components = None
+            fit_input[-1]['background'] = background_matrix
+            fit_input[-1]['background_index'] = background_components
 
             # The first two layers are fitted sequentially in order to obtain useful initial guesses for the
             # following ones. Otherwise a parallel fit is triggered every n_cpu's layer
@@ -563,7 +568,7 @@ class FitCube(object):
                     # recover layer for which the results were obtained
                     current = indices_to_analyse[i - len(results) + k]
                     # for each layer, the fit returns: fluxes, uncertainties, positions, and PSF parameters, wave
-                    self.write_fluxes(current, result.fluxes, result.uncertainties, result.wave, ignore_index=True)
+                    self.write_fluxes(current, result.fluxes, result.uncertainties, result.wave)
                     if position_parameters_to_fit is not None and 'xy' in position_parameters_to_fit:
                         self.write_ifs_coordinates(current, result.positions)
                     else:
@@ -804,7 +809,7 @@ class FitCube(object):
 
         return centroids
 
-    def write_fluxes(self, current, fluxes, uncertainties, wave=None, ignore_index=False):
+    def write_fluxes(self, current, fluxes, uncertainties, wave=None):
         """
         This method writes the fitted fluxes back to the instance of
         pampelmuse.core.Sources that was provided when initialising the
@@ -823,21 +828,17 @@ class FitCube(object):
             The average wavelength values for the components. Currently
             only used with MUSE pixtables. If provided, the Series must use
             the same indices as the fluxes.
-        ignore_index : bool, optional
-            Set this flag to skip the checks that the provided Series have the
-            same indices as the spectrum catalog.
         """
         # perform consistency checks
-        if not ignore_index:
-            if not np.array_equal(fluxes.index, self.sources.data.columns.levels[0]):
-                logger.error('Input series "fluxes" has incompatible index.')
-                return
-            if not np.array_equal(uncertainties.index, self.sources.data.columns.levels[0]):
-                logger.error('Input series "uncertainties" has incompatible index.')
-                return
-            if wave is not None and not np.array_equal(wave.index, self.sources.data.columns.levels[0]):
-                logger.error('Input series "wave" has incompatible index.')
-                return
+        if not np.array_equal(fluxes.index, self.sources.data.columns.levels[0]):
+            logger.warning('Input series "fluxes" has incompatible index.')
+            fluxes = fluxes.reindex(self.sources.data.columns.levels[0])
+        if not np.array_equal(uncertainties.index, self.sources.data.columns.levels[0]):
+            logger.warning('Input series "uncertainties" has incompatible index.')
+            uncertainties = uncertainties.reindex(self.sources.data.columns.levels[0])
+        if wave is not None and not np.array_equal(wave.index, self.sources.data.columns.levels[0]):
+            logger.warning('Input series "wave" has incompatible index.')
+            wave = wave.reindex(self.sources.data.columns.levels[0])
 
         # it is faster to convert input data into a single 1D numpy array that is inserted at the given index than
         # inserting the provided Series consecutively.

@@ -1,7 +1,7 @@
 """
 background.py
 =============
-Copyright 2013-2016 Sebastian Kamann
+Copyright 2013-2017 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -37,9 +37,9 @@ Added
 -----
 Revision 221, 2014/12/02
 
-Latest SVN revision
+Latest Git revision
 -------------------
-333, 2016/07/25
+2017/08/23
 """
 import logging
 import numpy as np
@@ -49,8 +49,8 @@ from scipy.sparse import coo_matrix
 from ..psf import Canvas
 
 
-__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 333
+__author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
+__revision__ = 20170823
 
 
 class BackgroundGrid(Canvas):
@@ -243,189 +243,53 @@ class BackgroundGrid(Canvas):
         """
         return self.spaxel[self.used[i]], self.f[i, self.used[i]]
 
-    def get_sparse_matrix(self, offset=0):
+    def get_sparse_matrix(self, offset=0, purge_empty=False):
+        """
+        The method prepares a sparse maxtrix from the background components
+        that can be used in optimization process.
 
+        The number of columns in the matrix can be increased so that it can
+        be easily combined with a second sparse matrix containing the
+        contributions of the stellar sources.
+
+        Parameters
+        ----------
+        offset : int, optional
+            The offset applied to all background columns. Typically the
+            number of stellar components in the source matrix.
+        purge_empty : bool, optional
+           Flag indicating if background components that do not contribute to
+           should be removed from the matrix.
+
+        Returns
+        -------
+        background_matrix : scipy.linalg.sparse.coo_matrix
+            The sparse matrix containing the background components, one per
+            column. The matrix contain one row for each available spaxel and
+            one column for each requested background component (omitting
+            empty one if purge_empty was set). The column indices are offset
+            as requested by the offset parameter.
+        included_components : nd_array
+            The indices of the background components that are returned (i.e.
+            omitting the empty ones if purge_empty was set).
+        """
         i, j = np.nonzero(self.f)
         values = self.f[(i, j)]
 
+        # check if any empty components should be removed
+        if purge_empty and self.gridsize > len(np.unique(i)):
+            empty_components = np.flatnonzero(np.isin(np.arange(self.gridsize), i, invert=True))
+            for component in empty_components[::-1]:
+                i[i > component] -= 1
+        else:
+            empty_components = []
+
+        included_components = np.flatnonzero(np.isin(np.arange(self.gridsize), empty_components, invert=True))
+        included_components += offset
+
         # IMPORTANT: to be consistent with the matrix of sources, we need to swap i and j because the source matrix
         # has shape (n_spaxel, n_components)
-        return coo_matrix((values, (j, i + offset)), shape=(self.transform.shape[0], self.gridsize + offset))
+        n_rows = self.transform.shape[0]
+        n_columns = self.gridsize + offset - len(empty_components)
 
-
-# following code outdated. - SK 14/12/01
-# def __call__(self, u, v):
-#        """
-#        The __call__ method of the Background class is intended to be provided
-#        to the call of the scipy.distance.cdist routine. The idea is that this
-#        routine is used to calculate weights instead of distances between two
-#        points u and v.
-#
-#        Parameters
-#        ----------
-#        u : array_like
-#            The coordinates of the first datapoint, can be N dimensional.
-#        v : array_like
-#            The coordinates of the second datapoint. Note than len(v)==len(u)
-#            is required.
-#
-#        Returns
-#        -------
-#        weight : float
-#            The weight of point v with respect to point u.
-#        """
-#        if self.rscale <= 0:
-#            return 1
-#        else:
-#            return np.exp(-0.5*((u-v)**self.n).sum()/self.rscale**self.n) if np.sqrt(((u-v)**2).sum())<self.rcut else 0
-#
-#
-#    def get_weights(self, data):
-#        """
-#        This method performs a call to scipy.distance.cdist using the funtion
-#        defined by Background.__call__ as 'metric'.
-#
-#        Parameters
-#        ----------
-#        data : array_like, shape (m, 2)
-#            The coordinates for which the weights in each background patch
-#            should be calculated. `m' is the number of sources.
-#
-#        Returns
-#        -------
-#        weights : nd_array, shape (gridsize, m)
-#            The weight of each provided datapoint on each background patch.
-#        """
-#        return distance.cdist(self.centroids, data, self)
-#
-#    def calculate_weights(self, data):
-#        """
-#        Basically a wrapper around the Background.get_weights method, but
-#        instead of returning the weights, they are stored in a class
-#        attribute. In contrast to the Background.get_weights method, the
-#        weights are also normalized by this method.
-#        """
-#        self.weights  = self.get_weights(data)
-#        self.weights /= self.weights.sum(axis=0)
-#
-#    def prepare_sparse(self, spectrumMask=None):
-#        """
-#        This method prepares a sparse matrix using the weights as values and
-#        the spaxel and patch indices as column and row indices. Note that the
-#        weights must have been calculated with the Background.calculate_weights
-#        method before.
-#
-#        Parameters
-#        ----------
-#        spectrumMask : nd_array, optional
-#            A spectrumMask indicating invalid spaxels/coordinates. Must have a length
-#            equal to the number of spaxels for which weights were calculated.
-#            The idea is that a single call to Background.calculate_weights -
-#            which can be quite time-consuming for large arrays - can be
-#            followed by many calls to this method even if some spaxels are
-#            flagged as invalid. If None, it is assumed that all spaxels are
-#            valid.
-#
-#        Returns
-#        -------
-#        A : sparse coo-matrix
-#            The sparse matrix containing the weights.
-#        """
-#        assert hasattr(self, "weights"), "Need to calculate weights first."
-#
-#        if spectrumMask==None:
-#            used = np.ones(self.weights.shape[1], dtype=np.bool)
-#        else:
-#            assert len(spectrumMask)==self.weights.shape[1], "Invalid spectrumMask size."
-#            used = (spectrumMask==False)
-#
-#        coeffs   = []
-#        indices0 = []
-#        indices1 = []
-#
-#        for i in xrange(self.gridsize):
-#            slc = used&(self.weights[i]>0)
-#            coeffs.append(self.weights[i][slc])
-#            indices0.append(np.cumsum(used)[slc]-1)
-#            indices1.append(i*np.ones(slc.sum(), dtype=np.int32))
-#
-#        return sparse.coo_matrix((np.hstack(coeffs), (np.hstack(indices0), np.hstack(indices1))),
-#                                 shape=(used.sum(), self.gridsize))
-#
-#
-# class BackgroundPatch(Canvas):
-#    
-#    def __init__(self, xc, yc, rscale, maxrad, **kwargs):
-#        # initialize parent class
-#        super(BackgroundPatch, self).__init__(**kwargs)
-#
-#        # initialize basic properties
-#        self.xc = xc
-#        self.yc = yc
-#        self.rscale = rscale
-#        self.maxrad = maxrad
-#            
-#        self._x = None
-#        self._y = None
-#        self._r = None
-#        self._used = None
-#        self._f = None
-#        
-#        # All the arrays must eventually be recalculated if certain parameters are changed.
-#        self.profile_properties = ["_used", "_x", "_y", "_r", "_f"]
-#        
-#    def reset(self, omit=[]):
-#        """
-#        When parameters of the profile are updated, all arrays that are affected
-#        by the parameter must eventually be recalculated. To assure this, they
-#        can be set to None using this method.
-#        
-#        Parameters
-#        ----------
-#        omit : list, optional
-#            A list containing the arrays that should not be reset because they are
-#            still valid with the updated profile parameters.
-#        """
-#        for prop in self.profile_properties:
-#            if not prop in omit:
-#                setattr(self, prop, None)
-#
-#    @property
-#    def r(self):
-#        """
-#        Returns
-#        -------
-#        r : nd_array
-#            A one dimensional array containing the distance of each spaxel
-#            used in the calculation to the profile centroid.
-#        """
-#        if self._r == None:
-#            self._r = np.sqrt((self.x-self.xc)**2 + (self.y-self.yc)**2)
-#            self._r[self._r==0] = 1e-5
-#        return self._r
-#        
-#    def get_f(self, **kwargs):
-#        """
-#        Method that calculates the actual intensity profile. Note that because
-#        this class is not designed to compute an actual intensity profile, the
-#        method is mainly a place-holder for the `get_f`-methods of the
-#        individual sub-classes.
-#
-#        Parameters:
-#        -----------
-#
-#        Returns:
-#        --------
-#        result : zero value integer
-#            The return value is only used so that the method is fully
-#            compatible with the `make_array`-methods of the individual
-#            sub-classes.
-#        """
-#        if self._f == None:
-#            self._f = 10**(-0.4*self.mag)/(2.*np.pi*self.std**2*(1.-self.e))*np.exp(-self.r**2/(2.*self.std**2)) \
-#                + super(Gaussian, self).get_f(integrate=False)
-#        else:
-#            return self._f
-#
-#    f = property(get_f, None, None, "A place-holder for the intensity distribution of the PSF.")
-
+        return coo_matrix((values, (j, i + offset)), shape=(n_rows, n_columns)), included_components

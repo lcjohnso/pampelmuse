@@ -55,9 +55,9 @@ stars with, it is currently only used if the source positions and PSF
 parameters are not fitted.
 
 
-Latest SVN revision
+Latest Git revision
 -------------------
-440, 2017/06/19
+2017/08/23
 """
 import collections
 import contextlib
@@ -71,8 +71,8 @@ from ..psf import Gaussian, Moffat, DoubleGaussian
 from ..core.coordinates import Transformation
 
 
-__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 440
+__author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
+__revision__ = 20170823
 
 
 logger = logging.getLogger(__name__)
@@ -105,7 +105,7 @@ class FitLayer(object):
     _unresolved_matrix = None
 
     def __init__(self, data, catalog, psf_type, psf_parameters, psf_radius=np.inf, position_parameters=None,
-                 last_component_is_unresolved=False, background=None, osfactor=1, osradius=0):
+                 last_component_is_unresolved=False, background=None, osfactor=1, osradius=0, background_index=None):
         """
         Initialize a new instance of the FitLayer class.
 
@@ -152,6 +152,9 @@ class FitLayer(object):
             calculation of the core shape of the PSF profiles.
         osradius : float, optional
             The radius in pixels out to which the oversampling is being used.
+        background_index : pandas.Index, optional
+           The index/indices of the background component(s). If None (default)
+           the background components are indexed descendingly from -1.
         """
         self.psf_radius = psf_radius
 
@@ -194,12 +197,17 @@ class FitLayer(object):
         if background is not None and not isinstance(background, sparse.coo_matrix):
             logger.error('Parameter "background" must be a scipy.sparse.coo_matrix, not {0}'.format(type(background)))
             return
-        elif background is not None:
+        elif background is not None and background.shape[0] > 0:
             self.background = background
             self.n_background = 1 + self.background.col.max() - self.background.col.min()
         else:
             self.background = None
             self.n_background = 0
+
+        # check if a fit will be possible
+        if self.n_components + self.n_background > self.n_pixel:
+            logger.error('Number of fit components exceeds number of pixels.')
+            logger.error('Any fit will be unconstrained.')
 
         # Initialize PSF
         if psf_type.lower() == 'gauss':
@@ -237,7 +245,10 @@ class FitLayer(object):
         # prepare array for fluxes of all components (including background components if any)
         self.fluxes = pd.Series(0., index=np.arange(self.n_components))
         if self.n_background > 0:
-            self.fluxes = self.fluxes.append(pd.Series(0., index=np.arange(-1, -(self.n_background + 1), -1)))
+            # check if valid indices for background components were provided
+            if background_index is None and len(background_index) != self.n_background:
+                background_index = np.arange(-1, -(self.n_background + 1), -1)
+            self.fluxes = self.fluxes.append(pd.Series(0., index=background_index))
 
     @property
     def variances(self):
@@ -377,6 +388,28 @@ class FitLayer(object):
             The parameters of the individual PSF fits it requested. Otherwise
             None.
         """
+        # sanity check if fit is possible
+        if self.n_components + self.n_background > self.n_pixel:
+            logger.error('Encountered ill-defined data. Returning NanNs ...')
+
+            if position_parameters_to_fit is None:
+                return_positions = pd.Series()
+            elif 'xy' in position_parameters_to_fit:
+                return_positions = pd.DataFrame(np.nan, columns=['xc', 'yc'], index=sources)
+            else:
+                return_positions = pd.Series(np.nan, index=position_parameters_to_fit)
+
+            if psf_parameters_to_fit is not None:
+                return_psf = pd.Series(np.nan, index=psf_parameters_to_fit)
+            else:
+                return_psf = pd.Series()
+
+            return FitResult(pd.Series(np.nan, index=self.fluxes.index),
+                             pd.Series(np.nan, index=self.fluxes.index),
+                             return_positions, return_psf,
+                             None if self.wave is None else pd.Series(np.nan, index=self.fluxes.index),
+                             None, None, None)
+
         if fluxes is not None:
             if isinstance(fluxes, (list, np.ndarray)):
                 fluxes = pd.Series(fluxes, index=self.fluxes.index)
@@ -390,6 +423,7 @@ class FitLayer(object):
 
         profiles = None
         single_psf_results = None
+        residuals = None
         included_components = None
 
         # Determine initial weights for each pixel in the fit.
@@ -397,6 +431,7 @@ class FitLayer(object):
 
         # start iterations
         for iteration in range(1, max_iterations + 1):
+
             if max_iterations > 1:
                 logger.info("Iteration {0} (of max. {1})".format(iteration, max_iterations))
 
