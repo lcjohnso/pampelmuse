@@ -32,9 +32,9 @@ contribution of the resolved sources from the IFS data. To this aim, a valid
 PampelMuse PRM-file must exist along with the data.  This function is called
 if PampelMuse is started with the 'SUBTRES' option.
 
-Latest SVN revision
+Latest Git revision
 -------------------
-407, 2017/04/02
+2017/08/25
 """
 import datetime
 import logging
@@ -45,7 +45,7 @@ from ..utils.fits import open_prm, open_ifs_data
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 407
+__revision__ = 20170825
 
 
 def add_parser(parser):
@@ -90,10 +90,10 @@ def subtres(config):
     # adjust numbers of first and last layer to be analysed
     first_layer = config['layers'].get('first', 0)
     if first_layer < 0:
-        first_layer = ifs_data.nlayer - first_layer
+        first_layer = ifs_data.nlayer + first_layer
     last_layer = config['layers'].get('last', -1)
     if last_layer < 0:
-        last_layer = ifs_data.nlayer - last_layer + 1
+        last_layer = ifs_data.nlayer + last_layer + 1
 
     # check if only a subset of sources should be subtracted or some sources should NOT be subtracted
     exclude = config['subtres'].get('exclude', None)
