@@ -1,7 +1,7 @@
 """
 statistics.py
 =============
-Copyright 2013-2016 Sebastian Kamann
+Copyright 2013-2017 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -40,16 +40,16 @@ Currently, the following functions are defined:
 To import a function from this module (e.g. clip_sigma), proceed as follows:
 >>> from pampelmuse.utils.statistics import clip_sigma
 
-Latest SVN revision
+Latest Git revision
 -------------------
-334, 2016/07/26
+2017/08/25
 """
 import logging
 import numpy as np
 
 
-__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 334
+__author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
+__revision__ = 20170825
 
 
 def der_snr(flux):
@@ -86,7 +86,7 @@ def der_snr(flux):
                 01.01.2007, fst, added more help text
                 28.04.2010, fst, return value is a float now instead of a numpy.float64
     """
-    flux = np.array(flux)
+    flux = np.array(flux[np.isfinite(flux)])
 
     # Values that are exactly zero (padded) are skipped
     flux = np.array(flux[np.where(flux != 0.0)])

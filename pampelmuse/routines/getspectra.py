@@ -39,17 +39,17 @@ Added
 -----
 2014/06/26
 
-Latest SVN revision
+Latest Git revision
 -------------------
-407 # 2017/04/02
+2017/08/25
 """
 import logging
 from ..core.spectrum_writer import SpectrumWriter
 from ..utils.fits import open_prm, open_ifs_data
 
 
-__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 407
+__author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
+__revision__ = 20170825
 
 
 def add_parser(parser):
@@ -90,20 +90,21 @@ def getspectra(config):
     logging.info("Obtaining information on sources in the field...")
 
     # get prefix of IFS data - note that the calling routine makes sure that the entry exists in the configuration
-    prefix = config.get('general', 'prefix')
+    prefix = config['global']['prefix']
 
     # open IFS data
     ifs_data = open_ifs_data(prefix=prefix)
 
-    sources, psf_attributes = open_prm(filename='{0}.prm.fits'.format(prefix), ndisp=ifs_data.wave.size)
+    # Get source catalogue from PRM-file
+    sources, psf = open_prm('{0}.prm.fits'.format(prefix), ndisp=ifs_data.wave.size)
 
     # If no filters are provided for calculating magnitudes, just use the one from
     # the source selection.
-    if not config['getspectra'].get('passbands', default=None):
-        config['getspectra']['passbands'] = config['catalog'].get('passband')
+    if not config['getspectra']['passbands']:
+        config['getspectra']['passbands'] = [config['catalog']['passband'], ]
 
     # prepare instance for writing spectra to disk
-    writer = SpectrumWriter(sources=sources, ifs_data=ifs_data, psf_attributes=psf_attributes)
+    writer = SpectrumWriter(sources=sources, ifs_data=ifs_data, psf_attributes=psf)
 
     # identify possibly contaminated spectra (note that this may also flag variable stars)
     _, _ = writer.identify_contaminated(passband=config['catalog'].get('passband'))
