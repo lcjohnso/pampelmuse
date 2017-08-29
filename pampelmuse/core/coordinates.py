@@ -65,7 +65,7 @@ This results in the inverse transformation:
 
 Latest SVN revision
 -------------------
-425, 2017/05/28
+2017/08/29
 """
 import logging
 import numpy as np
@@ -73,8 +73,8 @@ import pandas as pd
 from ..core.parameters import Parameters
 
 
-__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 425
+__author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
+__revision__ = 20170829
 
 
 logger = logging.getLogger(__name__)
@@ -365,6 +365,9 @@ class Transformation(Parameters):
                 use_column[i] = False
 
         # for linear fit, the dispersion axis of b must be the last axis, so b needs to be transposed
+        logger.debug('Fitting transformation to to following data:')
+        logger.debug('Input: {0}'.format(in_matrix[:, use_column]))
+        logger.debug('Output: {0}'.format(b.T))
         best_fit = np.linalg.lstsq(in_matrix[:, use_column], b.T)[0]  # -> returns array with shape (6 - n_fixed, K)
 
         # create residuals
