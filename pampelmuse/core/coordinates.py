@@ -368,6 +368,10 @@ class Transformation(Parameters):
         logger.debug('Fitting transformation to to following data:')
         logger.debug('Input: {0}'.format(in_matrix[:, use_column]))
         logger.debug('Output: {0}'.format(b.T))
+        from astropy.io import fits
+        out = fits.HDUList([fits.PrimaryHDU(), fits.ImageHDU(in_matrix[:, use_column]), fits.ImageHDU(b.T)])
+        out.writeto('coordinate_fit_data.fits', overwrite=True)
+
         best_fit = np.linalg.lstsq(in_matrix[:, use_column], b.T)[0]  # -> returns array with shape (6 - n_fixed, K)
 
         # create residuals

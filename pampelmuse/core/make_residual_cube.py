@@ -31,8 +31,8 @@ Added
 -----
 rev. 343, 2016/08/01
 
-Latest SVN revision
-431, 2017/06/13
+Latest Git revision
+2017/08/30
 """
 import logging
 from multiprocessing import cpu_count, Pool
@@ -42,8 +42,8 @@ from .fit_cube import FitCube
 from .fit_layer import FitLayer
 
 
-__author__ = 'Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)'
-__revision__ = 431
+__author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
+__revision__ = 20170830
 
 
 logger = logging.getLogger(__name__)
