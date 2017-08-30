@@ -305,7 +305,7 @@ class MakeResidualsCube(FitCube):
             handler.setFormatter(fmt)
 
             # collect input data for processing of current layer
-            logger.info("Collecting input data processing layer #{0}.".format(jj))
+            logger.info("Processing layer with wavelength/index {0:.4g}.".format(jj))
 
             # get 1D arrays containing valid data pixels
             data = self.get_layer(self.sources.wave.get_loc(jj), use_variances=False, n_bin=1, skip_nan=False)
@@ -313,7 +313,7 @@ class MakeResidualsCube(FitCube):
 
             # update fluxes
             fluxes = self.read_fluxes(jj)
-            fit_input[-1]['fluxes'] = fluxes[selected_components]
+            fit_input[-1]['fluxes'] = fluxes[fluxes.index <= selected_components.max()]
 
             # update PSF parameters
             fit_input[-1]['psf_parameters'] = self.read_psf_parameters(jj)
@@ -334,8 +334,7 @@ class MakeResidualsCube(FitCube):
             # add background if requested
             if subtract_background and self.background is not None:
                 self.background.transform = data[['x', 'y']].values
-                fit_input[-1]['background'] = self.background.get_sparse_matrix(
-                    offset=self.sources.n_components - self.sources.n_background)
+                fit_input[-1]['background'] = self.background.get_sparse_matrix(offset=selected_components.max())
             else:
                 fit_input[-1]['background'] = None
 
@@ -379,6 +378,9 @@ class MakeResidualsCube(FitCube):
         logger.info("Updating fluxes of individual components ...")
 
         if last is None:
-            return self.sources.data.loc[current, (slice(None), 'flux')]
+            fluxes = self.sources.data.loc[current, (slice(None), 'flux')]
         else:
-            return np.nanmean(self.sources.loc[last, (slice(None), 'flux')], axis=0)
+            fluxes = np.nanmean(self.sources.loc[last, (slice(None), 'flux')], axis=0)
+
+        # remove second level from MultiIndex which is not needed any more.
+        return fluxes.reset_index(level=1, drop=True)
