@@ -63,9 +63,9 @@ This results in the inverse transformation:
 (iii) x_ref = A'*x_spaxel + C'*y_spaxel + x0'
 (iv)  y_ref = D'*y_spaxel - B'*x_spaxel + y0'
 
-Latest SVN revision
+Latest Git revision
 -------------------
-2017/08/29
+2017/08/30
 """
 import logging
 import numpy as np
@@ -74,7 +74,7 @@ from ..core.parameters import Parameters
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20170829
+__revision__ = 20170830
 
 
 logger = logging.getLogger(__name__)
@@ -364,14 +364,14 @@ class Transformation(Parameters):
                 b -= value[:, np.newaxis]*in_matrix[:, i]
                 use_column[i] = False
 
-        # for linear fit, the dispersion axis of b must be the last axis, so b needs to be transposed
-        logger.debug('Fitting transformation to to following data:')
-        logger.debug('Input: {0}'.format(in_matrix[:, use_column]))
-        logger.debug('Output: {0}'.format(b.T))
-        from astropy.io import fits
-        out = fits.HDUList([fits.PrimaryHDU(), fits.ImageHDU(in_matrix[:, use_column]), fits.ImageHDU(b.T)])
-        out.writeto('coordinate_fit_data.fits', overwrite=True)
+        # some versions of numpy seem to have issues if the input to np.linalg.lstsq contains NaNs.
+        if np.__version__ < '1.13' and np.isnan(b).any():
+            logger.warning('Replacing {0} NaNs using linear interpolation.'.format(np.isnan(b).sum()))
+            for i in range(b.shape[1]):
+                mask = np.isnan(b[:, i])
+                b[mask, i] = np.interp(np.flatnonzero(mask), np.flatnonzero(~mask), b[~mask, i])
 
+        # for linear fit, the dispersion axis of b must be the last axis, so b needs to be transposed
         best_fit = np.linalg.lstsq(in_matrix[:, use_column], b.T)[0]  # -> returns array with shape (6 - n_fixed, K)
 
         # create residuals
