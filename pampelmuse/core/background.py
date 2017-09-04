@@ -284,7 +284,9 @@ class BackgroundGrid(Canvas):
         else:
             empty_components = []
 
-        included_components = np.flatnonzero(np.isin(np.arange(self.gridsize), empty_components, invert=True))
+        # check if numpy.isin is available, otherwise fall back to np.in1d
+        isin = np.isin if np.__version__ >= "1.13.0" else np.in1d
+        included_components = np.flatnonzero(isin(np.arange(self.gridsize), empty_components, invert=True))
         included_components += offset
 
         # IMPORTANT: to be consistent with the matrix of sources, we need to swap i and j because the source matrix
