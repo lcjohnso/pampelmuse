@@ -65,7 +65,7 @@ This results in the inverse transformation:
 
 Latest Git revision
 -------------------
-2017/08/30
+2017/10/06
 """
 import logging
 import numpy as np
@@ -74,7 +74,7 @@ from ..core.parameters import Parameters
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20170830
+__revision__ = 20171006
 
 
 logger = logging.getLogger(__name__)
@@ -138,6 +138,7 @@ class Transformation(Parameters):
             self.data[('D', 'value')] = self.data[('A', 'value')]
 
             # update information on free parameters
+            self.free.rename(index={'C': 'x0', 'D': 'y0'}, inplace=True)
             self.free['C'] = self.free['B']
             self.free['D'] = self.free['A']
 

@@ -58,7 +58,7 @@ the data into memory yet but just checks whether the file(s) are valid.
 
 Latest Git revision
 -------------------
-2017/08/25
+2017/10/06
 """
 import argparse
 import importlib
@@ -76,8 +76,8 @@ from pampelmuse.utils.fits import read_config_from_header
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__version__ = "0.94.0.2"
-__revision__ = 20170825
+__version__ = "0.94.0.3"
+__revision__ = 20171006
 
 
 logger = logging.getLogger(__name__)
@@ -164,6 +164,7 @@ if __name__ == "__main__":
     if 'global' not in user_config.keys() or 'prefix' not in user_config['global'].keys():
         logging.critical('User configuration file does not contain prefix of IFS data.')
         exit(1)
+    config['global']['prefix'] = user_config['global']['prefix']
 
     # if prm file exists, update the configuration using the primary header hierarch keys. The naming scheme of the
     # keys is PAMPELMUSE <section> <key>. The code checks for each configuration parameter, if the corresponding
