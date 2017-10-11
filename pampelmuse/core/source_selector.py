@@ -1000,6 +1000,7 @@ class SourceSelector(object):
         # set properties in sources class
         self.sources.primary = primary
         self.sources.status = status
+        self.sources.load_spectra()
 
     def search_psf_stars(self, saturated=None, max_mag=None, psf_radius=10, aperture_noise=0.1):
         """
