@@ -33,7 +33,7 @@ Added
 
 Latest Git revision
 -------------------
-2017/08/23
+2017/11/11
 """
 import logging
 import sys
@@ -52,7 +52,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20170823
+__revision__ = 20171011
 
 
 logger = logging.getLogger(__name__)
@@ -392,6 +392,9 @@ class SourceSelector(object):
                 self.sources.crval = self.ifs_data.wave[0]
                 self.sources.crpix = 1
                 self.sources.cdelt = np.diff(self.ifs_data.wave).mean()
+
+        # make sure instance has correct dispersion information
+        self.sources.n_dispersion = self.ifs_data.nlayer
 
     def prepare_psf(self, profile='moffat', parameters=None):
         """

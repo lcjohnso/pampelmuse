@@ -37,7 +37,7 @@ defines the methods that are called by Ui_PampelMuseGui.
 
 Latest Git revision
 -------------------
-2017/08/23
+2017/10/11
 """
 import logging
 import os
@@ -63,7 +63,7 @@ from ..utils.fits import save_prm, read_config_from_header, make_header_from_con
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 20170823
+__revision__ = 20171011
 
 
 class ToolbarWithoutMessage(NavigationToolbar):
@@ -388,7 +388,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
 
         # make sure PSF parameters have same dispersion axis as Sources instance
         if self.sources.n_dispersion != self.psf.n_dispersion == 1:
-            self.psf.resize(self.sources.ndisp)
+            self.psf.resize(self.sources.wave)
 
         # make sure the same dispersion axis is used
         self.psf.data.index = self.sources.wave

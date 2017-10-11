@@ -57,7 +57,7 @@ parameters are not fitted.
 
 Latest Git revision
 -------------------
-2017/08/23
+2017/10/11
 """
 import collections
 import contextlib
@@ -72,7 +72,7 @@ from ..core.coordinates import Transformation
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20170823
+__revision__ = 20171011
 
 
 logger = logging.getLogger(__name__)
@@ -1125,14 +1125,15 @@ class FitLayer(object):
 
         # as additional input arguments of the initialization, source indices and the fluxes of the associated
         # components are needed
-        args = (parameters, sources, self.fluxes[self.catalog.loc[sources, 'component']])
+        components = np.unique(self.catalog.loc[sources, 'component'])
+        args = (parameters, sources, self.fluxes[components])
 
         # call Levenberg-Marquardt solver from scipy.optimize (& provide Jacobian)
         try:
             best_fit = optimize.leastsq(self.multi_psf_optimizer, x0=np.asarray(x0), Dfun=self.multi_psf_jacobi,
                                         col_deriv=True, epsfcn=0.0, args=args)[0]
         # error handler to avoid code that code crashes
-        except Exception as msg:  # optimize.minpack.error:
+        except optimize.minpack.error as msg:  # optimize.minpack.error:
             # seems to depend on numpy version which error is actually thrown
             logger.error("PSF fit failed: {0}".format(msg))
             #  fill results array with NaNs
@@ -1186,7 +1187,9 @@ class FitLayer(object):
         psf_matrix, included_components = self.build_matrix(update_unresolved=False, sources=sources)
 
         # inverse variance weighting of each pixel
-        psf_matrix.data *= np.take(np.sqrt(self.fit_weights), psf_matrix.indices)
+        n = psf_matrix.shape[0]
+        psf_matrix = sparse.dia_matrix((np.sqrt(self.fit_weights), [0]), shape=(n, n)) * psf_matrix
+        # psf_matrix.data *= np.take(np.sqrt(self.fit_weights), psf_matrix.indices)
 
         # remove fluxes of components that do not contribute
         if len(included_components) < len(fluxes.index):
@@ -1197,7 +1200,7 @@ class FitLayer(object):
         model = psf_matrix * sparse.dia_matrix((fluxes, [0]), shape=(n_comp, n_comp))
 
         # return residuals
-        return (self.data * np.sqrt(self.fit_weights)) - model.sum(axis=1).getA1()
+        return (self.data['value'] * np.sqrt(self.fit_weights) - model.sum(axis=1).getA1()).values
 
     def multi_psf_jacobi(self, x0, names, sources, fluxes):
         """
@@ -1220,7 +1223,7 @@ class FitLayer(object):
             in 'x0'.
         """
         t0 = time.time()
-        jacob = np.zeros((len(x0), self.data.size), dtype=np.float64)
+        jacob = np.zeros((len(x0), self.data.shape[0]), dtype=np.float64)
 
         # The influence of the unresolved sources (if any) is currently ignored when calculating the Jacobi matrix,
         # any sky component has no influence anyway.
@@ -1234,12 +1237,15 @@ class FitLayer(object):
         for i in used_sources:
             # get PSF instance
             psf = self.psf_instances[i]
+
             #  get component
-            ii = self.catalog.at['component', i]
-            # for each parameter, subtract partial derivative of PSF profile (x flux) from Jaobi matrix
+            ii = self.catalog.at[i,  'component']
+
+            # for each parameter, subtract partial derivative of PSF profile (x flux) from Jacobi matrix
             for j in range(len(x0)):
+
                 diff_i = getattr(psf, "diff_{0}".format(names[j]))
-                jacob[j, psf.used] -= fluxes[ii] * (diff_i * np.sqrt(self.fit_weights[psf.used]))
+                jacob[j, psf.used] -= fluxes[ii] * (diff_i * np.sqrt(self.fit_weights[psf.used].values))
 
         t1 = time.time()
         logger.debug("Time needed to create Jacobi matrix: {0:.3f}s".format(t1 - t0))
