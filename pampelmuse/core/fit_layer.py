@@ -57,7 +57,7 @@ parameters are not fitted.
 
 Latest Git revision
 -------------------
-2017/10/11
+2017/10/12
 """
 import collections
 import contextlib
@@ -72,7 +72,7 @@ from ..core.coordinates import Transformation
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20171011
+__revision__ = 20171012
 
 
 logger = logging.getLogger(__name__)
@@ -1133,7 +1133,7 @@ class FitLayer(object):
             best_fit = optimize.leastsq(self.multi_psf_optimizer, x0=np.asarray(x0), Dfun=self.multi_psf_jacobi,
                                         col_deriv=True, epsfcn=0.0, args=args)[0]
         # error handler to avoid code that code crashes
-        except optimize.minpack.error as msg:  # optimize.minpack.error:
+        except np.linalg.linalg.LinAlgError as msg:  # optimize.minpack.error:
             # seems to depend on numpy version which error is actually thrown
             logger.error("PSF fit failed: {0}".format(msg))
             #  fill results array with NaNs
