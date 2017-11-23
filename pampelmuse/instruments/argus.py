@@ -1,7 +1,7 @@
 """
 PampelMuse
 ==========
-Copyright 2013-2016 Sebastian Kamann
+Copyright 2013-2017 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -25,9 +25,9 @@ Purpose
 This module provides the class 'Argus" that is designed to facilitate the
 analysis of data observed with FLAMES/ARGUS at the VLT.
 
-Latest SVN revision
+Latest Git revision
 -------------------
-360, 2016/08/12
+2017/11/23
 """
 import re
 import logging
@@ -37,7 +37,7 @@ from .instrument import Instrument
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 360
+__revision__ = 20171123
 
 
 class Argus(Instrument):
@@ -94,7 +94,7 @@ class Argus(Instrument):
                      11, 12, 13, 13, 12, 11, 10, 9, 8, 8, 9, 10, 11, 12, 13, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1,
                      0, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 0, 1, 2, 3, 4, 5, 6, 7, 7, 6, 5, 4, 3, 2, 2, 3, 4, 5, 6,
                      7, 8, 9, 10, 11, 12, 13, 13, 12, 0, 1, 1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 12, 11, 10, 9, 8],
-                    dtype=np.int16), np.array(
+                    dtype=np.float32), np.array(
                     [1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 2, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
                      2, 1, 1, 1, 1, 1, 1, 4, 4, 4, 4, 4, 4, 4, 4, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 5, 5, 5, 5, 5, 5,
                      5, 5, 5, 5, 5, 5, 5, 5, 4, 4, 4, 4, 4, 4, 7, 7, 7, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
@@ -105,7 +105,7 @@ class Argus(Instrument):
                      15, 15, 15, 15, 15, 15, 14, 14, 14, 14, 14, 14, 17, 17, 17, 17, 17, 17, 16, 16, 16, 16, 16, 16, 16,
                      16, 16, 16, 16, 16, 16, 16, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 18, 17, 17, 17, 17, 17, 17,
                      17, 17, 20, 20, 20, 20, 20, 20, 19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 18, 18, 19, 19, 20,
-                     21, 21, 21, 21, 21, 21, 21, 21, 21, 21, 21, 21, 20, 20, 20, 20, 20], dtype=np.int16))).T
+                     21, 21, 21, 21, 21, 21, 21, 21, 21, 21, 21, 21, 20, 20, 20, 20, 20], dtype=np.float32))).T
 
         # all pixels at the edge of the fov - not used anymore: edge is determined automatically
         # if "edge" not in kwargs.keys():
@@ -148,7 +148,7 @@ class Argus(Instrument):
         # use 'RECTRACTOR' information from table to identify fibers
         sky_match = re.compile(r"P2\-AR[NC][0-9]+\-([0-9]+|Sky)")
 
-        for i in xrange(hdu.header["NAXIS2"]):  # loop over all rows in HDU
+        for i in range(hdu.header["NAXIS2"]):  # loop over all rows in HDU
 
             match = sky_match.match(hdu.data.field("RETRACTOR")[i])
 
@@ -167,7 +167,7 @@ class Argus(Instrument):
         logging.info("                        calibration: {0:3d}".format(len(_cal_fibers)))
 
         # initialize new class instance
-        kwargs['transform'] = np.vstack((_y, _x)).T
+        kwargs['transform'] = np.vstack((_y, _x)).astype(np.float32).T
         argus = cls(**kwargs)
         argus._sky_fibers = _sky_fibers
         argus._cal_fibers = _cal_fibers

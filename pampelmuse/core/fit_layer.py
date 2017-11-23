@@ -57,7 +57,7 @@ parameters are not fitted.
 
 Latest Git revision
 -------------------
-2017/10/12
+2017/11/23
 """
 import collections
 import contextlib
@@ -72,7 +72,7 @@ from ..core.coordinates import Transformation
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20171012
+__revision__ = 20171123
 
 
 logger = logging.getLogger(__name__)
@@ -478,15 +478,15 @@ class FitLayer(object):
             if np.nanmedian(abs(delta_flux)) < 0.005:
                 break
 
-            # # for testing, show scatter plot with current residuals and model
+            # for testing, show scatter plot with current residuals and model
             # import matplotlib.pyplot as plt
             # fig = plt.figure(figsize=(8, 10))
             # ax = fig.add_axes([0.04, 0.52, 0.92, 0.46])
             # ax.scatter(self.data.loc[:, 'x'], self.data.loc[:, 'y'], marker='s', s=300, c=self.current,
-            #            cmap=plt.cm.hot, edgecolors='face', vmin=-1000, vmax=10000)
+            #            cmap=plt.cm.hot, edgecolors='face', vmin=-100, vmax=1000)
             # ax2 = fig.add_axes([0.04, 0.02, 0.92, 0.46])
             # ax2.scatter(self.data.loc[:, 'x'], self.data.loc[:, 'y'], marker='s', s=300,
-            #             c=self.model.sum(axis=1).getA1(), cmap=plt.cm.hot, edgecolors='face', vmin=-1000, vmax=10000)
+            #             c=self.model.sum(axis=1).getA1(), cmap=plt.cm.hot, edgecolors='face', vmin=-100, vmax=1000)
             # plt.show()
 
             # carry out optimization of PSF and/or source positions
@@ -783,11 +783,14 @@ class FitLayer(object):
 
         t3 = time.time()
         logger.debug("Time required to create matrix: {0:.3f}s".format(t3 - t2))
-        logger.debug("Full source matrix creation took {0:.2f}s.".format(t3-t0))
+        logger.debug("Full source matrix creation took {0:.2f}s.".format(t3 - t0))
 
         # return CSC matrix and indices of components that contribute
         source_indices = total_fluxes[total_fluxes > 0].index
-        return _psf_matrix.tocsc(), source_indices.append(self.fluxes.index[-self.n_background:])
+        if self.n_background > 0:
+            source_indices = source_indices.append(self.fluxes.index[-self.n_background:])
+
+        return _psf_matrix.tocsc(), source_indices
 
     def fit_sources_consecutively(self, sources, psf_parameters=None, fit_positions=True, psf_sources=None,
                                   local_background=True, return_psf_profiles=True):
@@ -1123,10 +1126,8 @@ class FitLayer(object):
         # collect initial guesses, using PSF instance of first provided source
         x0 = [getattr(self.psf_instances[sources[0]], name) for name in parameters]
 
-        # as additional input arguments of the initialization, source indices and the fluxes of the associated
-        # components are needed
-        components = np.unique(self.catalog.loc[sources, 'component'])
-        args = (parameters, sources, self.fluxes[components])
+        # as additional input argument for the fitting routine, source indices are needed
+        args = (parameters, sources)
 
         # call Levenberg-Marquardt solver from scipy.optimize (& provide Jacobian)
         try:
@@ -1148,7 +1149,7 @@ class FitLayer(object):
         # return
         return pd.Series(best_fit, index=parameters)
 
-    def multi_psf_optimizer(self, x0, names, sources, fluxes):
+    def multi_psf_optimizer(self, x0, names, sources):
         """
         The optimization routine that is passed to the 'leastsq'-routine of
         the 'scipy.optimize'-package.
@@ -1166,8 +1167,6 @@ class FitLayer(object):
             as 'x0' of course.
         sources : pandas.Index
             The indices of the sources included in the fit.
-        fluxes : pandas.Series
-            The fluxes of the components included in the fit.
 
         Returns
         -------
@@ -1192,8 +1191,8 @@ class FitLayer(object):
         # psf_matrix.data *= np.take(np.sqrt(self.fit_weights), psf_matrix.indices)
 
         # remove fluxes of components that do not contribute
-        if len(included_components) < len(fluxes.index):
-            fluxes = fluxes[included_components]
+        # if len(included_components) < len(fluxes.index):
+        fluxes = self.fluxes[included_components]
 
         # calculate model matrix
         n_comp = included_components.size
@@ -1202,7 +1201,7 @@ class FitLayer(object):
         # return residuals
         return (self.data['value'] * np.sqrt(self.fit_weights) - model.sum(axis=1).getA1()).values
 
-    def multi_psf_jacobi(self, x0, names, sources, fluxes):
+    def multi_psf_jacobi(self, x0, names, sources):
         """
         Routine that calculates the Jacobi matrix of the residuals. This method
         is parsed to the Levenberg-Marquard solver scipy.optimize.leastsq a
@@ -1213,7 +1212,6 @@ class FitLayer(object):
         x0
         names
         sources
-        fluxes
             The method takes the same arguments as StarFit.optimize_multi_psf
 
         Returns
@@ -1245,7 +1243,7 @@ class FitLayer(object):
             for j in range(len(x0)):
 
                 diff_i = getattr(psf, "diff_{0}".format(names[j]))
-                jacob[j, psf.used] -= fluxes[ii] * (diff_i * np.sqrt(self.fit_weights[psf.used].values))
+                jacob[j, psf.used] -= self.fluxes[ii] * (diff_i * np.sqrt(self.fit_weights[psf.used].values))
 
         t1 = time.time()
         logger.debug("Time needed to create Jacobi matrix: {0:.3f}s".format(t1 - t0))

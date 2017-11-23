@@ -37,7 +37,7 @@ defines the methods that are called by Ui_PampelMuseGui.
 
 Latest Git revision
 -------------------
-2017/10/11
+2017/11/23
 """
 import logging
 import os
@@ -63,7 +63,7 @@ from ..utils.fits import save_prm, read_config_from_header, make_header_from_con
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 20171011
+__revision__ = 20171123
 
 
 class ToolbarWithoutMessage(NavigationToolbar):
@@ -1417,7 +1417,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         else:
             # if sources also overplotted on IFS data, copy properties from there
             kwargs = {'picker': 5}
-            if self.ifsPlot.data_plot:
+            if self.ifsPlot.data_plot and self.ifsInteractMode == 'pick':
                 kwargs['edgecolors'] = self.ifsPlot.data_plot.get_edgecolors()
                 kwargs['facecolors'] = self.ifsPlot.data_plot.get_facecolors()
                 kwargs['s'] = self.ifsPlot.data_plot.get_sizes()

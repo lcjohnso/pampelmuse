@@ -33,7 +33,7 @@ Added
 
 Latest Git revision
 -------------------
-2017/11/11
+2017/11/23
 """
 import logging
 import sys
@@ -52,7 +52,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20171011
+__revision__ = 20171123
 
 
 logger = logging.getLogger(__name__)
@@ -671,6 +671,12 @@ class SourceSelector(object):
 
         identifier = PampelMuseGui(sources=self.sources, ifsData=self.ifs_data, refImage=self.identification_image)
 
+        # account for offset between reference image and true coordinates
+        (dx, dy) = (self.sources.x.min(), self.sources.y.min())
+        identifier.refOffsets = {'x': pd.Series(self.sources.x - dx, index=self.sources.ids),
+                                 'y': pd.Series(self.sources.y - dy, index=self.sources.ids)}
+        identifier.plot_sources_on_ref()
+
         if self.use_wcs:
             # show approximate location of IFS field of view in reference view
             identifier.addFovToReference(self.ccxoff - self.sources.x.min() + self.ifs_data.shape[1]//2,
@@ -684,12 +690,6 @@ class SourceSelector(object):
                 self.ifs_data.infov(np.vstack((self.sources.x - self.ccxoff, self.sources.y - self.ccyoff)).T))
             identifier.ifsPlot.addData(self.sources.x[select] - self.ccxoff, self.sources.y[select] - self.ccyoff,
                                        s=sizes[select], marker="o", edgecolor="g", facecolor="None")
-
-        # account for offset between reference image and true coordinates
-        (dx, dy) = (self.sources.x.min(), self.sources.y.min())
-        identifier.refOffsets = {'x': pd.Series(self.sources.x - dx, index=self.sources.ids),
-                                 'y': pd.Series(self.sources.y - dy, index=self.sources.ids)}
-        identifier.plot_sources_on_ref()
 
         identifier.show()
         app.exec_()
