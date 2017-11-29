@@ -39,7 +39,7 @@ Revision 221, 2014/12/02
 
 Latest Git revision
 -------------------
-2017/08/23
+2017/11/28
 """
 import logging
 import numpy as np
@@ -118,6 +118,10 @@ class BackgroundGrid(Canvas):
         self._used = None
         self.background_properties = ["_r", "_f", "_used"]
 
+        # initialise arrays containing information about slice-dependent background
+        self.nifu = 0
+        self.nslice = 0
+
     @classmethod
     def from_shape(cls, shape, rscale, **kwargs):
         """
@@ -160,6 +164,17 @@ class BackgroundGrid(Canvas):
         """
         return cls(np.array([[0, 0], ], dtype=np.float32))
 
+    def add_slices(self, nifu, nslice):
+        self.nifu = nifu
+        self.nslice = nslice
+
+        # use x-coordinates as IFU numbers and y-coordinates as slice numbers
+        _x, _y = np.mgrid[1:self.nslice+1, 1:self.nifu+1]
+        _centroids = np.vstack((_x.flatten(), _y.flatten())).T
+        self.centroids = np.concatenate((self.centroids, _centroids), axis=0)
+
+        self.reset()
+
     def reset(self, omit=None):
         """
         The method resets the current arrays containing the properties of the
@@ -187,6 +202,9 @@ class BackgroundGrid(Canvas):
                 logging.critical("Spaxel locations must be defined before calculating distances.")
             assert self._transform is not None, "Spaxel locations not known."
             self._r = distance.cdist(self.centroids, self.transform)  # resulting array has size (gridsize, nspaxel)
+
+            # if per-slice background is used, set their centroid distances to infinity for all pixels
+            self._r[self.gridsize - self.nifu*self.nslice] = np.inf
         return self._r
 
     @property
@@ -206,7 +224,7 @@ class BackgroundGrid(Canvas):
     # the setter method is modified.
     def get_used(self):
         if self._used is None:  # only calculate if not already available
-            self._used = (self.r <= self.maxrad)
+            self._used = (self.r < self.maxrad)
         return self._used
 
     def set_used(self, value):

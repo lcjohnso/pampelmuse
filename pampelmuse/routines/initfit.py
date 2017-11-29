@@ -48,9 +48,9 @@ including an initial estimate of the PSF and the coordinate transformation,
 are saved in the PRM file that is written to disk.
 
 
-Latest SVN Revision
+Latest GIT Revision
 -------------------
-438, 2017/06/18
+2017/11/28
 """
 import datetime
 import logging
@@ -60,8 +60,8 @@ from ..psf import Variables
 from ..utils.fits import open_ifs_data, make_header_from_config, save_prm
 
 
-__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 438
+__author__ = "Sebastian Kamann (skamann@ljmu.ac.uk)"
+__revision__ = 20171128
 
 
 logger = logging.getLogger(__name__)
@@ -149,7 +149,7 @@ def initfit(config):
 
     # If requested, add background component(s) to source catalogue
     if config['sky'].get('use', True):
-        selector.background_setup(skysize=config['sky'].get('binsize', -1))
+        selector.background_setup(skysize=config['sky']['binsize'], slices=config['sky']['slices'])
 
     # Initialize PSF to be used
     # check if valid profile was provided

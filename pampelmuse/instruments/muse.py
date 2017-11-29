@@ -1,7 +1,7 @@
 """
 muse.py
 =======
-Copyright 2013-2016 Sebastian Kamann
+Copyright 2013-2017 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -28,9 +28,9 @@ muse_scipost and muse_exp_combine recipes of the MUSE pipeline. The class
 'MusePixtable' enables the analysis of pixtables as they are produced by the
 muse_scipost recipe.
 
-Latest SVN revision
+Latest GIT revision
 -------------------
-393, 2017/01/27
+2017/11/29
 """
 import logging
 import warnings
@@ -44,7 +44,7 @@ from .generic_ifs import GenericIFS
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 393
+__revision__ = 20171129
 
 
 class Muse(GenericIFS):
@@ -136,14 +136,14 @@ class Muse(GenericIFS):
         # first scan through the spaxels along the y and the x axis, find the spaxel with the lowest and the highest
         # x resp. y value. Their indices are combined in the list 'ind'.
         ind = []
-        for yi in xrange(int(self.y.min()), int(self.y.max())):
+        for yi in range(int(self.y.min()), int(self.y.max())):
             select = np.flatnonzero(valid & (self.y >= yi) & (self.y < (yi + 1)))
             if not select.any():
                 continue
             j1 = self.x[select].argmin()
             j2 = self.x[select].argmax()
             ind.extend([select[j1], select[j2]])
-        for xi in xrange(int(self.x.min()), int(self.x.max())):
+        for xi in range(int(self.x.min()), int(self.x.max())):
             select = np.flatnonzero(valid & (self.x >= xi) & (self.x < (xi + 1)))
             if not select.any():
                 continue
@@ -175,8 +175,10 @@ class MusePixtable(Instrument):
     _layer_limits = None  # place-holders for indices defining individual layers
     _limit_indices = None
 
-    xhdu = None  # place-holders for HDUs containing x- & y-positions.
+    xhdu = None  # place-holders for HDUs containing x- & y-positions (& optionally the IFU and slice number).
     yhdu = None
+    ifuhdu = None
+    slicehdu = None
 
     dqmax = 4
     deg2rad = np.pi/180.
@@ -247,6 +249,54 @@ class MusePixtable(Instrument):
             logging.info('Loaded y-coordinates from HDU <{0}> of file {1}'.format(
                 self.yhdu.name, self.yhdu.fileinfo()['file'].name))
 
+    def _set_ifuhdu(self, hdu):
+        """
+        This method sets the HDU with the IFU number of every pixel for the
+        MusePixtable instance, i.e. it loads an HDU containing the IFU numbers
+        for the observed data into the current instance. Note that it should
+        be loaded AFTER the data itself.
+
+        IMPORTANT: This method should not be used directly, instead, use the
+        MusePixtable.open() method for loading data.
+
+        Parameters
+        ----------
+        hdu : a FITS ImageHDU containing the IFU numbers.
+        """
+        if self.datahdu is None:  # HDU containing data must be loaded first
+            logging.error('Can only load HDU containing IFU numbers after data HDU has been loaded.')
+        elif not self.is_valid(hdu):
+            logging.error('IFU-number HDU [{0}] of file {1} has invalid format.'.format(
+                    hdu.name, hdu.fileinfo()['file'].name))
+        else:
+            self.ifuhdu = hdu
+            logging.info('Loaded IFU numbers from HDU <{0}> of file {1}'.format(
+                self.ifuhdu.name, self.ifuhdu.fileinfo()['file'].name))
+
+    def _set_slicehdu(self, hdu):
+        """
+        This method sets the HDU with the slice number of every pixel for the
+        MusePixtable instance, i.e. it loads an HDU containing the slice
+        numbers for the observed data into the current instance. Note that it
+        should be loaded AFTER the data itself.
+
+        IMPORTANT: This method should not be used directly, instead, use the
+        MusePixtable.open() method for loading data.
+
+        Parameters
+        ----------
+        hdu : a FITS ImageHDU containing the slice numbers.
+        """
+        if self.datahdu is None:  # HDU containing data must be loaded first
+            logging.error('Can only load HDU containing slice numbers after data HDU has been loaded.')
+        elif not self.is_valid(hdu):
+            logging.error('Slice-number HDU [{0}] of file {1} has invalid format.'.format(
+                    hdu.name, hdu.fileinfo()['file'].name))
+        else:
+            self.slicehdu = hdu
+            logging.info('Loaded slice numbers from HDU <{0}> of file {1}'.format(
+                self.slicehdu.name, self.slicehdu.fileinfo()['file'].name))
+
     def open(self, filename, isresiduals=False, **kwargs):
         """
         This method opens a FITS file containing a MUSE pixtable. Note that
@@ -287,7 +337,7 @@ class MusePixtable(Instrument):
         self.wcs.wcs.crpix = [self.wcs.wcs.crpix[0] - pt[0].header['ESO DRS MUSE PIXTABLE PREDAR LIMITS XLO'],
                               self.wcs.wcs.crpix[1] - pt[0].header['ESO DRS MUSE PIXTABLE PREDAR LIMITS YLO']]
 
-        # a pixtable has no fixed transformation from spaxels to spatial coordinates, it changes for every layer
+        # a pixel table has no fixed transformation from spaxels to spatial coordinates, it changes for every layer
         # that is defined. To obtain an initial estimate of the FoV, we use some HIERARCH keywords:
         xsize = int(pt[0].header['ESO DRS MUSE PIXTABLE PREDAR LIMITS XHI'] - pt[0].header[
             'ESO DRS MUSE PIXTABLE PREDAR LIMITS XLO'])
@@ -320,6 +370,10 @@ class MusePixtable(Instrument):
         self._set_maskhdu(pt['dq'])
         self._set_xhdu(pt['xpos'])
         self._set_yhdu(pt['ypos'])
+        if 'ifu' in pt:
+            self._set_ifuhdu(pt['ifu'])
+        if 'slice' in pt:
+            self._set_slicehdu(pt['slice'])
 
         # define default layers for this cube. This may be changed by the user later on
         layers = np.linspace(self.rawwave.min(), self.rawwave.max(),
@@ -331,7 +385,7 @@ class MusePixtable(Instrument):
         This method is mainly a python version of the c-routine written by
         P. Weilbacher for the MUSE pipeline (muse_wcs_position_celestial in
         muse_wcs.c). It converts the native spherical coordinates found in
-        the pixtable to RA and DEC coordinates using a TAN projection.
+        the pixel table to RA and DEC coordinates using a TAN projection.
 
         Parameters
         ----------
@@ -512,9 +566,13 @@ class MusePixtable(Instrument):
         else:
             mask = np.ones(imax - imin, dtype=np.bool)
 
-        ra, dec = self._convert_coordinates(self.xhdu.section[imin:imax+1][mask, 0],
-                                            self.yhdu.section[imin:imax+1][mask, 0])
-        x, y = self.wcs.wcs_world2pix(ra, dec, 1)
+        # make sure any valid pixels exist
+        if not mask.any():
+            x = y = []
+        else:
+            ra, dec = self._convert_coordinates(self.xhdu.section[imin:imax+1][mask, 0],
+                                                self.yhdu.section[imin:imax+1][mask, 0])
+            x, y = self.wcs.wcs_world2pix(ra, dec, 1)
         self.transform = np.vstack((y, x)).T
 
     def integrate(self, imin, imax, apply_variances=False, weights=None, nbin=1, **kwargs):
@@ -609,9 +667,17 @@ class MusePixtable(Instrument):
         outdata : ndarray
             The transformed 2dim. data.
         """
+        # perform consistency checks on provided data
         if data.size != self.nspaxel:
             logging.error('Unable to create image: Size of data ({0} differs from no. of spaxels ({1}).'.format(
                 data.size, self.nspaxel))
+            return None
+        elif self.nspaxel == 0:
+            if grid is None:
+                logging.error('Cannot create image from empty pixel grid.')
+                return None
+            else:
+                return np.nan*np.ones_like(grid[0], dtype=np.float32)
 
         if grid is None:
             grid = np.mgrid[int(self.y.min()):int(self.y.max()+1):int(self.y.max() - self.y.min() + 1)*1j,

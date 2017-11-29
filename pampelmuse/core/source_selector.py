@@ -33,7 +33,7 @@ Added
 
 Latest Git revision
 -------------------
-2017/11/23
+2017/11/28
 """
 import logging
 import sys
@@ -319,7 +319,7 @@ class SourceSelector(object):
             except AttributeError:
                 return (self.ifs_data.wcs.wcs.cdelt[:2] != 0).all()
 
-    def background_setup(self, skysize=-1):
+    def background_setup(self, skysize=-1, slices=False):
         """
         Method to add one or more background components.
 
@@ -336,13 +336,26 @@ class SourceSelector(object):
 
         Returns
         -------
-        n_background : int
+        n_background : int, optional
             The number of background components used.
+        slices : boolean, optional
+            Set this flag to create a separate background component for each
+            IFU/slice. This is only used for MUSE data.
         """
         if skysize <= 0:
             background = BackgroundGrid.constant()
         else:
             background = BackgroundGrid.from_shape(shape=self.ifs_data.shape, rscale=skysize/2.)
+
+        if slices:
+            logger.warning('Assigning background components to slices not supported yet.')
+            if isinstance(self.ifs_data, MusePixtable):
+                if self.ifs_data.ifuhdu is not None and self.ifs_data.slicehdu is not None:
+                    background.add_slices(nifu=24, nslice=48)
+                else:
+                    logger.error('Need extensions "ifu" and "slice" for assigning background components to slices.')
+            else:
+                logger.error('Assigning background components to slices only supported for MUSE pixel tables.')
 
         # prepare data frame for background data
         n_centroids = len(background.centroids)

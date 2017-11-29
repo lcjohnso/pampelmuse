@@ -30,17 +30,18 @@ Added
 -----
 rev. 334, 2016/07/26
 
-Latest SVN revision
+Latest GIT revision
 -------------------
-407, 2017/04/02
+2017/11/29
 """
+import os
 import logging
 import numpy as np
 from astropy.io import fits
 
 
-__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 407
+__author__ = "Sebastian Kamann (skamann@ljmu.ac.uk)"
+__revision__ = 20171129
 
 
 logger = logging.getLogger(__name__)
@@ -76,16 +77,34 @@ def ptsort(config):
     logger.info('Opening input pixtable {0}.fits ...'.format(prefix))
     pt = fits.open("{0}.fits".format(prefix), memmap=False)
 
+    # check if additional file exists containing IFU and slice numbers exist
+    if os.path.exists('{0}.slices.fits'.format(prefix)):
+        slices = fits.open('{0}.slices.fits'.format(prefix))
+    else:
+        slices = None
+
     logger.info('Sorting pixtable data by increasing wavelength ...')
     wave = pt['lambda'].data[:, 0]
     indices = np.argsort(wave)
 
     for i in range(1, len(pt)):
-        logger.info('... handling extension {0} ...'.format(
-            pt[i].header['EXTNAME'] if 'EXTNAME' in pt[i].header else i))
-        pt[i].data = pt[i].data[indices, :]
+        extname = pt[i].header['EXTNAME'] if 'EXTNAME' in pt[i].header else i
+        logger.info('... handling extension {0} ...'.format(extname))
+        try:
+            pt[i].data = pt[i].data[indices, :]
+        except IndexError:
+            logger.warning('... shape is invalid, extension skipped.')
 
-    outfilename = config['ptsort'].get('outfilename', default='{0}_sorted.fits'.format(prefix))
+    if slices is not None:
+        for i in range(1, len(slices)):
+            extname = slices[i].header['EXTNAME'] if 'EXTNAME' in slices[i].header else i
+            logger.info('... handling extension {0} ...'.format(extname))
+            pt.append(slices[i])
+            pt[-1].data = pt[-1].data[indices, :]
+
+    outfilename = config['ptsort']['outfilename']
+    if outfilename is None:
+        outfilename = '{0}_sorted.fits'.format(prefix)
     logger.info('Saving converted pixtable as {0} ...'.format(outfilename))
 
     pt.writeto(outfilename, clobber=True)

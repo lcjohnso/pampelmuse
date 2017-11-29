@@ -29,7 +29,8 @@
   "sky": {
     "use": true,
     "binsize": -1,
-    "subtract": false
+    "subtract": false,
+    "slices": false
   },
   "unresolved": {
     "use": false,
