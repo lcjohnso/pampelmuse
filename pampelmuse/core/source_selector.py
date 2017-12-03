@@ -284,6 +284,7 @@ class SourceSelector(object):
         if self.cfp_results.index.duplicated().any():
             logger.error('Catalog contains duplicate source IDs.')
 
+        self.background = None
         self.position_fit = position_fit
         self.sources = None
         self.psf_class = None
@@ -333,47 +334,45 @@ class SourceSelector(object):
         skysize : int, optional
             The size of each cell of the background grid in pixels. Set to -1
             for a constant background across the field of view.
+        slices : boolean, optional
+            Set this flag to create a separate background component for each
+            IFU/slice. This is only used for MUSE data.
 
         Returns
         -------
         n_background : int, optional
             The number of background components used.
-        slices : boolean, optional
-            Set this flag to create a separate background component for each
-            IFU/slice. This is only used for MUSE data.
         """
         if skysize <= 0:
-            background = BackgroundGrid.constant()
+            self.background = BackgroundGrid.constant()
         else:
-            background = BackgroundGrid.from_shape(shape=self.ifs_data.shape, rscale=skysize/2.)
+            self.background = BackgroundGrid.from_shape(shape=self.ifs_data.shape, rscale=skysize/2.)
 
         if slices:
             logger.warning('Assigning background components to slices not supported yet.')
             if isinstance(self.ifs_data, MusePixtable):
                 if self.ifs_data.ifuhdu is not None and self.ifs_data.slicehdu is not None:
-                    background.add_slices(nifu=24, nslice=48)
+                    self.background.add_slices(nifu=24, nslice=48)
                 else:
                     logger.error('Need extensions "ifu" and "slice" for assigning background components to slices.')
             else:
                 logger.error('Assigning background components to slices only supported for MUSE pixel tables.')
 
         # prepare data frame for background data
-        n_centroids = len(background.centroids)
+        n_centroids = len(self.background.centroids)
         index = pd.Index(np.arange(-1, -n_centroids-1, -1))  # sky components have negative index
         background_data = pd.DataFrame({'x': pd.Series(np.zeros(n_centroids, dtype=np.float32), index=index),
                                         'y': pd.Series(np.zeros(n_centroids, dtype=np.float32), index=index),
                                         'valid': pd.Series(np.ones(n_centroids, dtype=np.bool), index=index)})
 
         # loop over background components, fill data frame
-        current_index = -1
-        for [y, x] in background.centroids:
+        for current_index, [y, x] in enumerate(self.background.centroids, start=1):
             # ignore sky components outside FoV
             if self.ifs_data.distance_to_edge([[x, y]])[0] < -skysize and skysize > 0:
                 continue
 
-            background_data.at[current_index, "x"] = x
-            background_data.at[current_index, "y"] = y
-            current_index -= 1
+            background_data.at[-current_index, "x"] = x
+            background_data.at[-current_index, "y"] = y
 
         self.cfp_results = self.cfp_results.append(background_data, verify_integrity=True)
 
@@ -888,6 +887,8 @@ class SourceSelector(object):
         # and are fitted as a single component)
         status = pd.Series(-1, index=self.sources.ids)
         status[self.sources.ids < 0] = 4  # handle background components
+        if self.background.nifu > 0 and self.background.nslice > 0:
+            status[-(self.background.nifu*self.background.nslice):] = 5
         primary = pd.Series(0, index=self.sources.ids)
         primary[self.sources.ids < 0] = self.sources.ids[self.sources.ids < 0]  # handle background components
 

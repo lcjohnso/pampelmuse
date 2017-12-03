@@ -308,6 +308,9 @@ class FitCube(object):
         else:
             self.background = None
 
+        # check if background-per-slice option used for MUSE pixel tables
+
+
         # prepare containers for storing detailed PSF information if requested
         self.profiles = {}
         self.profile_radii = []

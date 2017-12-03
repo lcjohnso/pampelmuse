@@ -618,7 +618,7 @@ class Sources(object):
             A boolean series of len(Spectrum.n_sources) indicating whether a
             source is part of the background.
             """
-        return self.status == 4
+        return self.status > 3
 
     # A flag on whether a unresolved stellar component is included in the catalogue.
     @property
