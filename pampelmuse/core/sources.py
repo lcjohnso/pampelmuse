@@ -37,7 +37,7 @@ memory but only on request.
 
 Latest Git revision
 -------------------
-2017/08/25
+2017/12/04
 """
 import collections
 import logging
@@ -59,7 +59,7 @@ except ImportError:
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20170825
+__revision__ = 20171204
 
 
 logger = logging.getLogger(__name__)
@@ -500,8 +500,8 @@ class Sources(object):
             # if unresolved component exists, make sure its spectrum comes before any sky spectrum
             if self.n_background > 0:
                 if (status == 0).any():
-                    specrow[status == 4] += 1
-                unresolved_row = specrow[status == 4].min() - 1
+                    specrow[status >= 4] += 1
+                unresolved_row = specrow[status >= 4].min() - 1
             else:
                 unresolved_row = specrow.max() + 1
 
@@ -874,7 +874,8 @@ class Sources(object):
                     wave = self.data_wave_hdu.section[layers[0]:layers[-1] + 1][:, components]
                 # otherwise use global wavelength array
                 else:
-                    wave = np.repeat(self.wave[layers][:, np.newaxis], columns.size, axis=-1)
+                    wave = np.repeat(self.wave[layers].values[:, np.newaxis], components.size, axis=-1)
+
                 data = np.dstack((data, wave.byteswap().newbyteorder()))
                 # -> array shape (n_layers, n_components, 3)
         else:

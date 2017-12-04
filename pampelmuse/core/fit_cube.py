@@ -31,7 +31,7 @@ extraction for a data cube.
 
 Latest GIT revision
 -------------------
-2017/08/23
+2017/12/04
 """
 import logging
 import time
@@ -40,10 +40,11 @@ import pandas as pd
 from multiprocessing import cpu_count, Pool
 from .fit_layer import FitLayer
 from .background import BackgroundGrid
+from ..instruments.muse import MusePixtable
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20170823
+__revision__ = 20171204
 
 
 logger = logging.getLogger(__name__)
@@ -304,12 +305,17 @@ class FitCube(object):
             self.background = BackgroundGrid.constant()
         elif self.sources.is_background.sum() > 1:
             self.background = BackgroundGrid(
-                np.vstack((self.sources.y[self.sources.is_background], self.sources.x[self.sources.is_background])).T)
+                np.vstack((self.sources.y[self.sources.status == 4], self.sources.x[self.sources.status == 4])).T)
         else:
             self.background = None
 
         # check if background-per-slice option used for MUSE pixel tables
-
+        if (self.sources.status == 5).any():
+            logger.warning('Background-per-slice option not supported yet.')
+            n_ifu = self.sources.x[self.sources.status == 5].max()
+            n_slice = self.sources.y[self.sources.status == 5].max()
+            print(n_ifu, n_slice)
+            self.background.add_slices(n_ifu=n_ifu, n_slice=n_slice)
 
         # prepare containers for storing detailed PSF information if requested
         self.profiles = {}
@@ -400,7 +406,7 @@ class FitCube(object):
 
         # begin loading data required for fitting process into memory
         # whole array with spectra needs to be loaded
-        self.sources.load_spectra()
+        self.sources.load_spectra(init_wave=isinstance(self.ifs_data, MusePixtable))
         # fluxes of omitted layers are set to NaN
         self.sources.data.loc[omitted_indices] = np.nan
 
@@ -528,7 +534,8 @@ class FitCube(object):
             logger.debug("Layers used to update initial guesses: {0}".format(nearest_layers))
 
             # get 1D arrays containing valid data pixels, also sigma-values if requested
-            data = self.get_layer(self.sources.wave.get_loc(jj), n_bin=n_bin, use_variances=use_variances)
+            data = self.get_layer(self.sources.wave.get_loc(jj), n_bin=n_bin, use_variances=use_variances,
+                                  use_slices=(self.sources.status == 5).any())
             fit_input.append({'data': data})
 
             # update PSF parameters
@@ -550,6 +557,9 @@ class FitCube(object):
             # add background if requested
             if self.background is not None:
                 self.background.transform = data[['x', 'y']].values
+                if 'ifu' in data.columns and 'slice' in data.columns:
+                    self.background.ifus = data['ifu'].values
+                    self.background.slices = data['slice'].values
                 background_matrix, background_components = self.background.get_sparse_matrix(
                     offset=self.sources.n_components - self.sources.n_background)
             else:
@@ -606,7 +616,7 @@ class FitCube(object):
         # if available, return results of detailed PSF analysis
         return self._make_psf_hdus() if analyse_psf else None
 
-    def get_layer(self, current, n_bin, use_variances=True, skip_nan=True):
+    def get_layer(self, current, n_bin, use_variances=True, skip_nan=True, use_slices=False):
         """
         Returns a single layer of the IFS data as a pandas DataFrame.
 
@@ -620,11 +630,15 @@ class FitCube(object):
             The index of the layer that should be obtained.
         n_bin : integer
             The binning factor, i.e. the number of adjacent layers included.
-        use_variances : boolean
+        use_variances : boolean, optional
             Flag indicating if the variances of the data should be returned.
         skip_nan : boolean, optional
            Flag indicating if NaN pixels should be included in the data that
            is returned.
+        use_slices : boolean, optional
+           Flag indicating if the IFU and slice numbers should be returned for
+           a MUSE pixel table (when available). If so, they will be stored in
+           columns 'ifu' and 'slice'.
 
         Returns
         -------
@@ -633,7 +647,8 @@ class FitCube(object):
             'y', providing the data value and the spatial coordinates of each
             pixel. If requested, a column 'variance' will be included. If a
             pixel table is used, a column 'wave' will contain the wavelength
-            of each pixel.
+            of each pixel and optional columns 'ifu' and 'slice' the IFU and
+            slice numbers of each pixel.
         """
         # Get data layer, also variance layer if requested; bin data if requested
         if self.ifs_data.name == 'MUSE_Pixtable' or n_bin == 1:
@@ -661,8 +676,19 @@ class FitCube(object):
         # add wavelength information for pixel table
         if self.ifs_data.name == 'MUSE_Pixtable':
             data['wave'] = self.ifs_data.rawwave_for_current_layer[~mask]
-        # return
-        return pd.DataFrame(data, index=np.flatnonzero(~mask))
+            if use_slices:
+                if self.ifs_data.ifus_for_current_layer is not None:
+                    data['ifu'] = self.ifs_data.ifus_for_current_layer[~mask]
+                else:
+                    logger.error('Cannot get IFU numbers for layer because HDU not available.')
+                if self.ifs_data.ifus_for_current_layer is not None:
+                    data['slice'] = self.ifs_data.slices_for_current_layer[~mask]
+                else:
+                    logger.error('Cannot get slice numbers for layer because HDU not available.')
+
+        # return, make sure byte-ordering is correct, see
+        # https://pandas.pydata.org/pandas-docs/stable/gotchas.html#byte-ordering-issues
+        return pd.DataFrame(data, index=np.flatnonzero(~mask), dtype='<f4')
 
     def read_psf_parameters(self, current, last=None):
         """
