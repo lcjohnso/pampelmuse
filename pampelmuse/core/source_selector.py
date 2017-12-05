@@ -1222,7 +1222,7 @@ class SourceSelector(object):
         # loop over sources, insert their spectra, calculate FWHM, ellipticity, and pos. angle of profile
         # note that removed source IDs are still in the columns, property, see discussion here:
         # https://github.com/pandas-dev/pandas/issues/2770
-        for source_id in pd.MultiIndex.remove_unused_levels(results.columns).levels[0]:
+        for source_id in np.unique(results.columns.get_level_values(0)):
 
             # get spectrum
             spectrum = results[(source_id, 'flux')]
