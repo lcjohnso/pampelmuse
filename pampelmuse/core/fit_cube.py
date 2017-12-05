@@ -314,7 +314,6 @@ class FitCube(object):
             logger.warning('Assigning background components to slices still in testing phase.')
             n_ifu = self.sources.x[self.sources.status == 5].max()
             n_slice = self.sources.y[self.sources.status == 5].max()
-            print(n_ifu, n_slice)
             self.background.add_slices(n_ifu=n_ifu, n_slice=n_slice)
 
         # prepare containers for storing detailed PSF information if requested

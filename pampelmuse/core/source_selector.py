@@ -1206,6 +1206,13 @@ class SourceSelector(object):
         results, background = aperture(r_aper=radius, layer_range=(start, stop), background="local", n_cpu=n_cpu,
                                        n_bin=n_bin)
 
+        # make sure no source returned only NaN
+        mean_results = results.mean(axis=0)
+        for source_id, values in mean_results.groupby(level=0):
+            if np.isnan(values).any():
+                logger.warning('Excluding source #{0} as calculation returned only NaNs.'.format(source_id))
+                results.drop(source_id, axis=1, inplace=True)
+
         # initialize containers for storing profile shape parameters
         fwhm = []
         e = []
