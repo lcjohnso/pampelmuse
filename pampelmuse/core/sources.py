@@ -37,7 +37,7 @@ memory but only on request.
 
 Latest Git revision
 -------------------
-2017/12/04
+2017/12/05
 """
 import collections
 import logging
@@ -59,7 +59,7 @@ except ImportError:
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20171204
+__revision__ = 20171205
 
 
 logger = logging.getLogger(__name__)
@@ -744,22 +744,23 @@ class Sources(object):
         hdu : instance of astropy.io.fits.ImageHDU
             The HDU containing the spectra and their uncertainties. The shape
             of the data array must be [python counting]:
-            (Sources.n_disp, Sources.n_components, 2)
+            (Sources.n_dispersion, Sources.n_components, 2)
             The HDU is accessible via attribute Sources.data_hdu afterwards.
         data_wave_hdu : instance of astropy.io.fits.ImageHDU, optional
             This parameter can be used to provide a separate wavelength array
             for each spectrum in 'hdu'. If provided, must have a shape of
-            (Sources.n_disp, Sources.n_components).
+            (Sources.n_dispersion, Sources.n_components).
         """
         # sanity checks on provided HDUs
         for name, value in {'DATA': hdu, 'WAVE': data_wave_hdu}.items():
             if value is None:
                 continue
             elif not isinstance(value, fits.hdu.image._ImageBaseHDU):
-                logger.error("{0}-HDU has invalid type '{1}'.".format(name, type(value)))
+                logger.error('{0}-HDU has invalid type "{1}".'.format(name, type(value)))
                 return
-            elif value.header["NAXIS"] != 3:
-                logger.error("{0}-HDU must be 3D array, not {1}D.".format(name, value.header["NAXIS"]))
+            elif value.header['NAXIS'] not in [2, 3]:
+                logger.error('{0}-HDU must be (2/3)D array, not {1}D.'.format(name, value.header['NAXIS']))
+            n_dim = value.header['NAXIS']
 
             if 'EXTNAME' in value.header:
                 logger.info('Reading data from HDU {0} ...'.format(value.header['EXTNAME']))
@@ -767,13 +768,13 @@ class Sources(object):
 
             # check if dispersion information is valid
             if self.n_dispersion == 1:
-                self.n_dispersion = hdu.header['NAXIS3']
-            elif value.header['NAXIS3'] != self.n_dispersion:
+                self.n_dispersion = hdu.header['NAXIS{0}'.format(n_dim)]
+            elif value.header['NAXIS{0}'.format(n_dim)] != self.n_dispersion:
                 logger.error('HDU {0} has invalid dispersion information.'.format(name))
                 return
 
             # check if number of spectra is valid
-            if value.header['NAXIS2'] != self.n_components:
+            if value.header['NAXIS{0}'.format(n_dim - 1)] != self.n_components:
                 logger.error('HDU {0} has invalid number of components.'.format(name))
                 return
 
@@ -1061,7 +1062,7 @@ class Sources(object):
         if self.data_wave_hdu is None:
             return self.data[(i, 'flux')]
         else:
-            return pd.Series(self.data[(i, 'wave')].values, index=self.data[(i, 'flux')].values)
+            return pd.Series(self.data[(i, 'flux')].values, index=self.data[(i, 'wave')].values)
 
     #############################################################################
     #            Methods dealing with IFU coordinates of the sources            #

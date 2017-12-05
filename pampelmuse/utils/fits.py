@@ -30,9 +30,9 @@ Purpose
 -------
 The provided functions facilitate working with FITS data.
 
-Latest SVN revision
+Latest Git revision
 -------------------
-430, 2017/06/12
+2017/12/05
 """
 import os
 import logging
@@ -46,8 +46,8 @@ from ..instruments import available_instruments
 from ..psf import Variables
 
 
-__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 430
+__author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
+__revision__ = 20171205
 
 
 def open_ifs_data(prefix, **kwargs):
@@ -198,14 +198,16 @@ def open_prm(filename, ndisp=-1):
     # Spectra
     try:
         i = hdulist.index_of("SPECTRA")
-        try:
-            j = hdulist.index_of("WAVE")
-            wave_hdu = hdulist[j]
-        except KeyError:
-            wave_hdu = None
-        sources.open_spectra_hdu(hdulist[i], data_wave_hdu=wave_hdu)
     except KeyError:
         logging.critical("No spectra (HDU 'SPECTRA') have been provided.")
+    else:
+        try:
+            j = hdulist.index_of("WAVE")
+        except KeyError:
+            wave_hdu = None
+        else:
+            wave_hdu = hdulist[j]
+        sources.open_spectra_hdu(hdulist[i], data_wave_hdu=wave_hdu)
 
     if 0 < ndisp != sources.n_dispersion:
         logging.error("PRM-file and IFS data have incompatible dispersion dimensions.")

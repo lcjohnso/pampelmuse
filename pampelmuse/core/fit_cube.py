@@ -31,7 +31,7 @@ extraction for a data cube.
 
 Latest GIT revision
 -------------------
-2017/12/04
+2017/12/05
 """
 import logging
 import time
@@ -44,7 +44,7 @@ from ..instruments.muse import MusePixtable
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20171204
+__revision__ = 20171205
 
 
 logger = logging.getLogger(__name__)
@@ -311,7 +311,7 @@ class FitCube(object):
 
         # check if background-per-slice option used for MUSE pixel tables
         if (self.sources.status == 5).any():
-            logger.warning('Background-per-slice option not supported yet.')
+            logger.warning('Assigning background components to slices still in testing phase.')
             n_ifu = self.sources.x[self.sources.status == 5].max()
             n_slice = self.sources.y[self.sources.status == 5].max()
             print(n_ifu, n_slice)

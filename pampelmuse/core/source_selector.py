@@ -33,7 +33,7 @@ Added
 
 Latest Git revision
 -------------------
-2017/12/04
+2017/12/05
 """
 import logging
 import sys
@@ -52,7 +52,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20171204
+__revision__ = 20171205
 
 
 logger = logging.getLogger(__name__)
@@ -355,7 +355,7 @@ class SourceSelector(object):
             background = BackgroundGrid.from_shape(shape=self.ifs_data.shape, rscale=skysize/2.)
 
         if slices:
-            logger.warning('Assigning background components to slices not supported yet.')
+            logger.warning('Assigning background components to slices still in testing phase.')
             if isinstance(self.ifs_data, MusePixtable):
                 if self.ifs_data.ifuhdu is not None and self.ifs_data.slicehdu is not None:
                     background.add_slices(n_ifu=24, n_slice=48)
