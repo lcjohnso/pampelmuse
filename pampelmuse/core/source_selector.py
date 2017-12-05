@@ -1212,6 +1212,7 @@ class SourceSelector(object):
             if np.isnan(values).any():
                 logger.warning('Excluding source #{0} as calculation returned only NaNs.'.format(source_id))
                 results.drop(source_id, axis=1, inplace=True)
+                self.sources.status[source_id] = 2
 
         # initialize containers for storing profile shape parameters
         fwhm = []
@@ -1219,7 +1220,9 @@ class SourceSelector(object):
         theta = []
 
         # loop over sources, insert their spectra, calculate FWHM, ellipticity, and pos. angle of profile
-        for source_id in results.columns.levels[0]:
+        # note that removed source IDs are still in the columns, property, see discussion here:
+        # https://github.com/pandas-dev/pandas/issues/2770
+        for source_id in pd.MultiIndex.remove_unused_levels(results.columns).levels[0]:
 
             # get spectrum
             spectrum = results[(source_id, 'flux')]
