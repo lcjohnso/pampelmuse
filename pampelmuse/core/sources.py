@@ -37,7 +37,7 @@ memory but only on request.
 
 Latest Git revision
 -------------------
-2017/12/05
+2017/12/06
 """
 import collections
 import logging
@@ -59,7 +59,7 @@ except ImportError:
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20171205
+__revision__ = 20171206
 
 
 logger = logging.getLogger(__name__)
@@ -167,7 +167,6 @@ class Sources(object):
         # place-holders for data arrays
         self._wave = None  # The internal variable for the (global) wavelength array
         self.data = None  # The spectra of the components and their uncertainties
-        self.data_wave = None  # If available, the wavelength information for the spectrum of each component
         self.ifs_coordinates = None  # The x/y coordinates of the sources on the IFS spaxel array
 
         # place-holders for HDUs containing fluxes or IFS coordinates
