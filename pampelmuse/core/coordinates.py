@@ -65,7 +65,7 @@ This results in the inverse transformation:
 
 Latest Git revision
 -------------------
-2017/10/06
+2017/12/05
 """
 import logging
 import numpy as np
@@ -74,7 +74,7 @@ from ..core.parameters import Parameters
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20171006
+__revision__ = 20171205
 
 
 logger = logging.getLogger(__name__)
@@ -195,7 +195,7 @@ class Transformation(Parameters):
             return
 
         # find sources that overlap between input and output coordinates
-        common_ids = np.intersect1d(xy_in.index, xy_out.columns.levels[0], assume_unique=True)
+        common_ids = np.intersect1d(xy_in.index, np.unique(xy_out.columns.get_level_values(0)), assume_unique=True)
         if len(common_ids) < 4:
             logger.error('Need at least 4 sources to fit coordinate transformation.')
             return

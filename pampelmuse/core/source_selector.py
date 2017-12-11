@@ -33,7 +33,7 @@ Added
 
 Latest Git revision
 -------------------
-2017/11/28
+2017/12/05
 """
 import logging
 import sys
@@ -52,7 +52,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20171123
+__revision__ = 20171205
 
 
 logger = logging.getLogger(__name__)
@@ -284,7 +284,13 @@ class SourceSelector(object):
         if self.cfp_results.index.duplicated().any():
             logger.error('Catalog contains duplicate source IDs.')
 
-        self.background = None
+        # unless already present, add columns for storing status of a source and whether it is in a combined
+        # component with a different primary source
+        if 'status' not in self.cfp_results.columns:
+            self.cfp_results['status'] = -1
+        if 'primary' not in self.cfp_results.columns:
+            self.cfp_results['primary'] = 0
+
         self.position_fit = position_fit
         self.sources = None
         self.psf_class = None
@@ -344,36 +350,38 @@ class SourceSelector(object):
             The number of background components used.
         """
         if skysize <= 0:
-            self.background = BackgroundGrid.constant()
+            background = BackgroundGrid.constant()
         else:
-            self.background = BackgroundGrid.from_shape(shape=self.ifs_data.shape, rscale=skysize/2.)
+            background = BackgroundGrid.from_shape(shape=self.ifs_data.shape, rscale=skysize/2.)
 
         if slices:
-            logger.warning('Assigning background components to slices not supported yet.')
+            logger.warning('Assigning background components to slices still in testing phase.')
             if isinstance(self.ifs_data, MusePixtable):
                 if self.ifs_data.ifuhdu is not None and self.ifs_data.slicehdu is not None:
-                    self.background.add_slices(nifu=24, nslice=48)
+                    background.add_slices(n_ifu=24, n_slice=48)
                 else:
                     logger.error('Need extensions "ifu" and "slice" for assigning background components to slices.')
             else:
                 logger.error('Assigning background components to slices only supported for MUSE pixel tables.')
 
-        # prepare data frame for background data
-        n_centroids = len(self.background.centroids)
+        # create data frame for background data
+        n_centroids = len(background.centroids)
         index = pd.Index(np.arange(-1, -n_centroids-1, -1))  # sky components have negative index
-        background_data = pd.DataFrame({'x': pd.Series(np.zeros(n_centroids, dtype=np.float32), index=index),
-                                        'y': pd.Series(np.zeros(n_centroids, dtype=np.float32), index=index),
-                                        'valid': pd.Series(np.ones(n_centroids, dtype=np.bool), index=index)})
+        background_data = pd.DataFrame(True, columns=['valid', ], index=index)
+        background_data['x'] = background.centroids[:, 0]
+        background_data['y'] = background.centroids[:, 1]
+        background_data['status'] = 4
+        # ignore sky components outside FoV (if any)
+        if skysize > 0:
+            outside_fov = (self.ifs_data.distance_to_edge(background.centroids) < -skysize)
+            background_data.loc[outside_fov, 'status'] = -1
+        # change status of slice-only backgrounds (if any) to 5
+        if slices:
+            last_indices = background_data.tail(background.n_ifu*background.n_slice).index
+            background_data.loc[last_indices, 'status'] = 5
+        background_data['primary'] = index
 
-        # loop over background components, fill data frame
-        for current_index, [y, x] in enumerate(self.background.centroids, start=1):
-            # ignore sky components outside FoV
-            if self.ifs_data.distance_to_edge([[x, y]])[0] < -skysize and skysize > 0:
-                continue
-
-            background_data.at[-current_index, "x"] = x
-            background_data.at[-current_index, "y"] = y
-
+        # attach background components to source catalog
         self.cfp_results = self.cfp_results.append(background_data, verify_integrity=True)
 
         return n_centroids
@@ -882,16 +890,6 @@ class SourceSelector(object):
             logger.error('Need to define PSF before source selection can be performed.')
             return
 
-        # define arrays that keep track of the status of each source and the ID of the brightest source in its component
-        # (that is identical to the source ID unless a brighter source is so close that the two cannot be separated
-        # and are fitted as a single component)
-        status = pd.Series(-1, index=self.sources.ids)
-        status[self.sources.ids < 0] = 4  # handle background components
-        if self.background.nifu > 0 and self.background.nslice > 0:
-            status[-(self.background.nifu*self.background.nslice):] = 5
-        primary = pd.Series(0, index=self.sources.ids)
-        primary[self.sources.ids < 0] = self.sources.ids[self.sources.ids < 0]  # handle background components
-
         # for larger fields of view, such as the MUSE WFM, the stellar density can vary significantly across its extent.
         # To deal with this, the confusion limit is estimated locally in an area of radius 10xFWHM around each star
         density = np.zeros(self.ifs_data.nspaxel, dtype=np.int16)
@@ -911,7 +909,7 @@ class SourceSelector(object):
         # (brightest sources first)
         for source_id, mag in self.sources.mag.sort_values().items():
 
-            if status[source_id] == 4:  # ignore background components
+            if source_id < 0:  # ignore background components
                 continue
 
             # stop loop if current source falls below (fixed) confusion limit
@@ -951,7 +949,7 @@ class SourceSelector(object):
                 density[distance_to_pixels.argmin()] += 1
 
             # calculate distance to next brighter source
-            brighter = status == 2
+            brighter = self.cfp_results.index[self.cfp_results['status'] == 2]
             if brighter.any():
                 dr = np.sqrt((xi - xy.loc[brighter, 'x'])**2 + (yi - xy.loc[brighter, 'y'])**2)
                 id_near = dr.idxmin()
@@ -965,21 +963,21 @@ class SourceSelector(object):
                     snr *= (1.+0.9*np.log10(dr[id_near]/self.fwhm))
 
                     if dr[id_near] < (binrad*self.fwhm) or snr < sncut:
-                        status[source_id] = 1
-                        primary[source_id] = id_near
+                        self.cfp_results.at[source_id, 'status'] = 1
+                        self.cfp_results.at[source_id, 'primary'] = id_near
                         logger.info("{0:9d}  {1:4.1f}  {2:6.1f}  {3:8.2f}  {4:6.2f}       1".format(
                             source_id, mag, snr, dr[id_near], distance_to_edge))
                         continue
 
-            status[source_id] = 2
-            primary[source_id] = source_id
+            self.cfp_results.at[source_id, 'status'] = 2
+            self.cfp_results.at[source_id, 'primary'] = source_id
             logger.info("{0:9d}  {1:4.1f}  {2:6.1f}            {3:6.2f}       2".format(
                 source_id, mag, snr, distance_to_edge))
 
         logger.info("Results of source selection: {0} resolved, {1} nearby sources.".format(
-            np.sum(status == 2), np.sum(status == 1)))
+            np.sum(self.cfp_results['status'] == 2), np.sum(self.cfp_results['status'] == 1)))
 
-        if not (status == 2).any():
+        if not (self.cfp_results['status'] == 2).any():
             logger.error("Did not find any resolved sources. Aborting...")
             return
 
@@ -987,7 +985,7 @@ class SourceSelector(object):
         # prm-file may contain two different values for "RESLIM": the initial one provided by the user and the one
         # just determined from the source list.
         if reslim is None:
-            reslim = self.sources.mag[status == 2].max()
+            reslim = self.sources.mag[self.cfp_results.index[self.cfp_results['status'] == 2]].max()
             logger.info("Estimated confusion limit is m_{0}={1:.1f}".format(self.passband, reslim))
 
         # if requested, add a component of unresolved stars
@@ -999,7 +997,7 @@ class SourceSelector(object):
 
             for source_id, mag in self.sources.mag.sort_values().items():
 
-                if status[source_id] > 0:
+                if self.cfp_results.at[source_id, 'status'] > 0:
                     continue
 
                 if mag > unreslim:
@@ -1007,17 +1005,18 @@ class SourceSelector(object):
 
                 distance_to_edge = self.ifs_data.distance_to_edge(xy[source_id].values)[0]
                 if distance_to_edge > -1:
-                    status[source_id] = 0
+                    self.cfp_results.at[source_id, 'status'] = 0
 
             # use brightest unresolved source as "primary"
-            primary[status == 0] = self.sources.mag[status == 1].idxmin()
+            idx = self.sources.mag[self.cfp_results.index[self.cfp_results['status'] == 1]].idxmin()
+            self.cfp_results.loc[self.cfp_results['status'] == 0, 'primary'] = idx
 
-            logger.info("Unresolved component contains {0} sources.".format(np.sum(status == 0)))
+            logger.info("Unresolved component contains {0} sources.".format((self.cfp_results['status'] == 0).sum()))
 
         # set properties in sources class
-        self.sources.primary = primary
-        self.sources.status = status
-        self.sources.load_spectra()
+        self.sources.primary = self.cfp_results.loc[self.sources.ids, 'primary']
+        self.sources.status = self.cfp_results.loc[self.sources.ids, 'status']
+        self.sources.load_spectra(init_wave=isinstance(self.ifs_data, MusePixtable))
 
     def search_psf_stars(self, saturated=None, max_mag=None, psf_radius=10, aperture_noise=0.1):
         """
@@ -1108,7 +1107,7 @@ class SourceSelector(object):
             # calculate shoulder drop
             dr = np.sqrt((xy.at[source_id, 'x'] - xy['x'])**2 * (xy.at[source_id, 'y'] - xy['y'])**2)
             dr[source_id] = np.inf  # handle the source itself
-            dr[self.sources.status == 4] = np.inf  # handle background components
+            dr[self.sources.status >= 4] = np.inf  # handle background components
 
             if dr.min() < psf_radius:
                 dmag = (self.sources.mag[dr[dr < psf_radius].index] - mag).min()
@@ -1207,13 +1206,23 @@ class SourceSelector(object):
         results, background = aperture(r_aper=radius, layer_range=(start, stop), background="local", n_cpu=n_cpu,
                                        n_bin=n_bin)
 
+        # make sure no source returned only NaN
+        mean_results = results.mean(axis=0)
+        for source_id, values in mean_results.groupby(level=0):
+            if np.isnan(values).any():
+                logger.warning('Excluding source #{0} as calculation returned only NaNs.'.format(source_id))
+                results.drop(source_id, axis=1, inplace=True)
+                self.sources.status[source_id] = 2
+
         # initialize containers for storing profile shape parameters
         fwhm = []
         e = []
         theta = []
 
         # loop over sources, insert their spectra, calculate FWHM, ellipticity, and pos. angle of profile
-        for source_id in results.columns.levels[0]:
+        # note that removed source IDs are still in the columns, property, see discussion here:
+        # https://github.com/pandas-dev/pandas/issues/2770
+        for source_id in np.unique(results.columns.get_level_values(0)):
 
             # get spectrum
             spectrum = results[(source_id, 'flux')]

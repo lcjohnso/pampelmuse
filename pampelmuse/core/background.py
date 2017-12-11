@@ -39,7 +39,7 @@ Revision 221, 2014/12/02
 
 Latest Git revision
 -------------------
-2017/11/28
+2017/12/04
 """
 import logging
 import numpy as np
@@ -50,7 +50,7 @@ from ..psf import Canvas
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20170823
+__revision__ = 20171204
 
 
 class BackgroundGrid(Canvas):
@@ -119,11 +119,13 @@ class BackgroundGrid(Canvas):
         self.background_properties = ["_r", "_f", "_used"]
 
         # initialise arrays containing information about slice-dependent background
-        self.nifu = 0
-        self.nslice = 0
+        self.n_ifu = 0
+        self.n_slice = 0
+        self.ifus = None
+        self.slices = None
 
     @classmethod
-    def from_shape(cls, shape, rscale, **kwargs):
+    def from_shape(cls, shape, rscale=None, **kwargs):
         """
         This method initializes an instance of the Background class using an
         array shape and a scale radius. The centroids of the background
@@ -134,13 +136,19 @@ class BackgroundGrid(Canvas):
         ----------
         shape : tuple
             The spatial size of the array to work on, provided as (dy, dx)
-        rscale : float
+        rscale : float, optional
             The effective radius of a background patch in units of spaxels.
             The distance between neighbouring patches will be 2 x rscale.
         kwargs : optional
             All remaining arguments are passed on to the call of the
             Background.__init__ method.
         """
+        if rscale is None:
+            rscale = np.inf
+
+        if not np.isfinite(rscale):
+            return cls(np.array([[0, 0], ], dtype=np.float32))
+
         # create the grid with the centroids of the background patches
         # first get centroids along x and y
         xshape, yshape = shape
@@ -164,17 +172,6 @@ class BackgroundGrid(Canvas):
         """
         return cls(np.array([[0, 0], ], dtype=np.float32))
 
-    def add_slices(self, nifu, nslice):
-        self.nifu = nifu
-        self.nslice = nslice
-
-        # use x-coordinates as IFU numbers and y-coordinates as slice numbers
-        _x, _y = np.mgrid[1:self.nslice+1, 1:self.nifu+1]
-        _centroids = np.vstack((_x.flatten(), _y.flatten())).T
-        self.centroids = np.concatenate((self.centroids, _centroids), axis=0)
-
-        self.reset()
-
     def reset(self, omit=None):
         """
         The method resets the current arrays containing the properties of the
@@ -191,56 +188,124 @@ class BackgroundGrid(Canvas):
 
     @property
     def gridsize(self):
-        # get number of patches across field of view
+        """
+        Returns number of sky patches across field of view.
+        """
         return self.centroids.shape[0]
 
     @property
     def r(self):
-        # get distance of each spaxel to each gridpoint, returned array has size (gridsize, nspaxel)
+        """
+        Returns distance of each pixel to each gridpoint. The returned array
+        has a size of (BackgroundGrid.gridsize, BackgroundGrid.n_pixel)
+        """
         if self._r is None:  # only calculate if not already available
             if self._transform is None:
                 logging.critical("Spaxel locations must be defined before calculating distances.")
             assert self._transform is not None, "Spaxel locations not known."
-            self._r = distance.cdist(self.centroids, self.transform)  # resulting array has size (gridsize, nspaxel)
+            self._r = distance.cdist(self.centroids, self.transform)  # resulting array has size (gridsize, n_pixel)
 
             # if per-slice background is used, set their centroid distances to infinity for all pixels
-            self._r[self.gridsize - self.nifu*self.nslice] = np.inf
+            self._r[self.gridsize - self.n_ifu * self.n_slice:] = np.inf
         return self._r
 
     @property
     def f(self):
-        # get weight of each spaxel in each background patch, returned array has size (gridsize, nspaxel)
+        """
+        Returns the weight of each background patch in each pixel. The array
+        has a size of (BackgroundGrid.gridsize, BackgrounGrid.n_pixel)
+        """
         if self._f is None:  # only calculate if not already available
-            self._f = np.exp(-0.5 * (self.r / self.rscale) ** self.n)
+            self._f = np.where(np.isfinite(self.r), np.exp(-0.5 * (self.r / self.rscale) ** self.n), 0)
             self._f[~self.used] = 0
             self._f /= self._f.sum(axis=0)  # normalize weights
+
+            # handle slice/ifu-dependent components if any
+            if self.n_ifu > 0 or self.n_slice > 0:
+                if self.ifus is not None and self.slices is not None:
+                    n = self.n_ifu * self.n_slice
+                    self._f[-n:] = (self.centroids[-n:, [1]] == self.slices) & (self.centroids[-n:, [0]] == self.ifus)
+                else:
+                    logging.error('Cannot properly set background values because IFU/slice numbers are missing.')
+
         return self._f
 
-    # 'used' is an array that indicates for each background patch which spaxels contribute
-    # There are two possibilities that lead to spaxels spaxels being excluded from one or more patches:
-    #  a) They are located at distances >'maxrad' to a gridpoint
-    #  b) They are included in a user-provided bad-pixel spectrumMask
-    # To make sure that spaxels excluded based on criterion (a) are not included again when the user provides a mask,
-    # the setter method is modified.
-    def get_used(self):
+    @property
+    def used(self):
+        """
+        An array indicating for each background patch which pixels contribute.
+
+        Note that there are two possibilities that lead to pixels being
+        excluded from one or more patches:
+        a) They are located at distances >'maxrad' to a grid point
+        b) They are included in a user-provided bad-pixel mask
+
+        Returns
+        -------
+        used : nd_array
+            Boolean mask indicating for each background component which pixels
+            contribute.The shape of the array is (gridsize, n_pixel)
+        """
         if self._used is None:  # only calculate if not already available
             self._used = (self.r < self.maxrad)
+
+            # handle slice/ifu-dependent components if any
+            if self.n_ifu > 0 or self.n_slice > 0:
+                if self.ifus is not None and self.slices is not None:
+                    n = self.n_ifu * self.n_slice
+                    self._used[-n:] = (self.centroids[-n:, [1]] == self.slices) & (
+                        self.centroids[-n:, [0]] == self.ifus)
+                else:
+                    logging.error('Cannot properly set background pixels because IFU/slice numbers are missing.')
+
         return self._used
 
-    def set_used(self, value):
-        self._used = None  # remove possibly existing spectrumMask
+    @used.setter
+    def used(self, value):
+        """
+        Setter method for the BackgroundGrid.used property.
+
+        A dedicated setter method is required to make sure that pixels
+        excluded because of their distance to a grid point are not
+        included again when the user provides a new mask.
+
+        Parameters
+        ----------
+        value : array_like
+            The array
+
+        Returns
+        -------
+
+        """
         try:
             value = np.asarray(value, dtype=np.bool)
-        except:
+        except ValueError:
             logging.critical("Invalid input for background pixel mask: {0}".format(value))
-        if value.size != self.used.shape[-1]:
-            logging.critical(
-                "Provided background spaxels spectrumMask has invalid size ({0} instead of {1}).".format(value.size,
-                                                                                                 self.used.shape[-1]))
-        self._used = self.used & value  # note call to 'self.used' leads to recalculation of included pixels based
-        # on distance wrt. 'maxrad'
+        if value.size != self.n_pixel:
+            logging.critical("Provided background pixel mask has invalid size ({0} instead of {1}).".format(
+                value.size, self.n_pixel))
 
-    used = property(get_used, set_used, None, "The mask indicating which spaxels are used to measure the background.")
+        self._used = value & (self.r < self.maxrad)
+
+        # handle slice/ifu-dependent components if any
+        if self.n_ifu and self.n_slice:
+            if self.ifus is not None and self.slices is not None:
+                n = self.n_ifu * self.n_slice
+                self._used[-n:] = (self.centroids[-n:, [1]] == self.slices) & (self.centroids[-n:, [0]] == self.ifus)
+            else:
+                logging.error('Cannot properly set background pixels because IFU/slice numbers are missing.')
+
+    def add_slices(self, n_ifu, n_slice):
+        self.n_ifu = int(n_ifu)
+        self.n_slice = int(n_slice)
+
+        # use y-coordinates as IFU numbers and x-coordinates as slice numbers
+        _x, _y = np.mgrid[1:self.n_slice + 1, 1:self.n_ifu + 1]
+        _centroids = np.vstack((_x.flatten(), _y.flatten())).T
+        self.centroids = np.concatenate((self.centroids, _centroids), axis=0)
+
+        self.reset()
 
     def get_flux(self, i):
         """
@@ -250,20 +315,20 @@ class BackgroundGrid(Canvas):
         Parameters
         ----------
         i : integer
-            The index of the background patch for which spaxels and weights
-            should be returned
+            The index of the background patch for which pixel and weights
+            should be returned.
         
         Returns
         -------
         data : tuple
-            A tuple of length 2 containing the indices of the used spaxels 
+            A tuple of length 2 containing the indices of the used pixel
             and the corresponding fluxes.
         """
-        return self.spaxel[self.used[i]], self.f[i, self.used[i]]
+        return self.pixel[self.used[i]], self.f[i, self.used[i]]
 
     def get_sparse_matrix(self, offset=0, purge_empty=False):
         """
-        The method prepares a sparse maxtrix from the background components
+        The method prepares a sparse matrix from the background components
         that can be used in optimization process.
 
         The number of columns in the matrix can be increased so that it can

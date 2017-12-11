@@ -31,7 +31,7 @@ Added
 
 Latest Git revision
 -------------------
-2017/08/25
+2017/12/06
 """
 import datetime
 import logging
@@ -47,7 +47,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20170825
+__revision__ = 20171206
 
 
 logger = logging.getLogger(__name__)
@@ -346,7 +346,7 @@ class SpectrumWriter(object):
                     sigma_hdu.header[key] = self.header[key]
 
             # check if dedicated wavelength array exists, if so, create new image HDU for it
-            if self.sources.data_wave is not None:
+            if self.sources.data_wave_hdu is not None:
                 wave_hdu = fits.ImageHDU(data['wave'].iloc[self.start:self.stop], name='WAVE')
             else:
                 wave_hdu = None
@@ -411,58 +411,55 @@ class SpectrumWriter(object):
                     poststamp_image = SpectrumWriter._extract_poststamp(x_c=xi, y_c=yi, image=image, radius=radius)
                     image_hdus.append(fits.ImageHDU(poststamp_image, name=filter_name.upper(), header=image_header))
 
-            elif self.sources.status[source_id] == 4:
+                # calculate S/N of the spectrum
+                snr = der_snr(data['flux'].iloc[self.start:self.stop])
+                if snr < 10:
+                    flag += 2
+                if not np.isnan(snr):
+                    primary_hdu.header["HIERARCH SPECTRUM SNRATIO"] = (snr, "Estimated signal-to-noise")
+                else:
+                    logger.error("S/N estimation returned NaN - Spectrum of source #{0} corrupted.".format(source_id))
+
+                if np.mean(data['flux'].iloc[self.start:self.stop]) < 0:
+                    flag += 4
+
+                # calculate magnitude(s) from spectrum if requested
+                for filter_name in filter_names:
+                    mag = self.sources.get_magnitude(components=i, passband=filter_name)
+                    if np.isfinite(mag.iloc[0]):
+                        primary_hdu.header["HIERARCH SPECTRUM MAG {0}".format(filter_name.upper())] = (
+                            mag.iloc[0], "AB magnitude from spectrum")
+                    else:
+                        logger.error('{0}-magnitude calculation for source #{1} returned NaN.'.format(
+                            filter_name, source_id))
+                if self.dmag is not None and np.isfinite(self.dmag[source_id]):
+                    primary_hdu.header['HIERARCH SPECTRUM MAG DELTA'] = (self.dmag[source_id],
+                                                                         'Magnitude difference to input.')
+                if self.cleanness is not None and np.isfinite(self.dmag[source_id]):
+                    primary_hdu.header['HIERARCH SPECTRUM MAG ACCURACY'] = self.cleanness[source_id]
+
+                name = "id{0:09d}".format(source_id)
+                primary_hdu.header["HIERARCH SPECTRUM TYPE"] = "star"
+                primary_hdu.header["OBJNAME"] = "{0} {1} {2}".format(prefix.upper(), self.ifs_data.name,
+                                                                     abs(source_id))
+            elif self.sources.status[source_id] in [4, 5]:
                 # for sky component, add x- and y-position of patch centroid in cube
                 primary_hdu.header["HIERARCH SPECTRUM XCUBE"] = (self.sources.x[source_id],
                                                                  "[spaxel] x-centroid in cube")
                 primary_hdu.header["HIERARCH SPECTRUM YCUBE"] = (self.sources.y[source_id],
                                                                  "[spaxel] y-centroid in cube")
 
-            # calculate S/N of the spectrum
-            snr = der_snr(data['flux'].iloc[self.start:self.stop])
-            if snr < 10:
-                flag += 2
-            if not np.isnan(snr):
-                primary_hdu.header["HIERARCH SPECTRUM SNRATIO"] = (snr, "Estimated signal-to-noise")
-            else:
-                logger.error("S/N estimation returned NaN - Spectrum of source #{0} corrupted.".format(source_id))
-
-            if np.mean(data['flux'].iloc[self.start:self.stop]) < 0:
-                flag += 4
-
-            # calculate magnitude(s) from spectrum if requested
-            for filter_name in filter_names:
-                mag = self.sources.get_magnitude(components=i, passband=filter_name)
-                if np.isfinite(mag.iloc[0]):
-                    primary_hdu.header["HIERARCH SPECTRUM MAG {0}".format(filter_name.upper())] = (
-                        mag.iloc[0], "AB magnitude from spectrum")
-                else:
-                    logger.error('{0}-magnitude calculation for source #{1} returned NaN.'.format(
-                        filter_name, source_id))
-            if self.sources.status[source_id] < 4 and self.dmag is not None and np.isfinite(self.dmag[source_id]):
-                primary_hdu.header['HIERARCH SPECTRUM MAG DELTA'] = (self.dmag[source_id],
-                                                                     'Magnitude difference to input.')
-            if self.sources.status[source_id] < 4 and self.cleanness is not None and np.isfinite(self.dmag[source_id]):
-                primary_hdu.header['HIERARCH SPECTRUM MAG ACCURACY'] = self.cleanness[source_id]
-                # if self.cleanness[j] < ?:
-                #     flag += 8
-
-            primary_hdu.header["HIERARCH SPECTRUM QLTFLAG"] = (flag, "Quality flag of source")
-
-            if self.sources.status[source_id] == 0:
-                name = "unresolved"
-                primary_hdu.header["HIERARCH SPECTRUM TYPE"] = name
-                primary_hdu.header["OBJNAME"] = "{0} {1} UNRES".format(prefix.upper(), self.ifs_data.name)
-            elif self.sources.status[source_id] == 4:
                 name = "sky{0:08d}".format(abs(source_id))
                 primary_hdu.header["HIERARCH SPECTRUM TYPE"] = "sky"
                 primary_hdu.header["OBJNAME"] = "{0} {1} SKY{2:d}".format(prefix.upper(), self.ifs_data.name,
                                                                           abs(source_id))
-            else:
-                name = "id{0:09d}".format(source_id)
-                primary_hdu.header["HIERARCH SPECTRUM TYPE"] = "star"
-                primary_hdu.header["OBJNAME"] = "{0} {1} {2}".format(prefix.upper(), self.ifs_data.name,
-                                                                     abs(source_id))
+
+            elif self.sources.status[source_id] == 0:
+                name = "unresolved"
+                primary_hdu.header["HIERARCH SPECTRUM TYPE"] = name
+                primary_hdu.header["OBJNAME"] = "{0} {1} UNRES".format(prefix.upper(), self.ifs_data.name)
+
+            primary_hdu.header["HIERARCH SPECTRUM QLTFLAG"] = (flag, "Quality flag of source")
 
             outfile_prefix = "{0}{1}{2}".format(prefix, name, self.date_string)
             if add_flag_to_filename:

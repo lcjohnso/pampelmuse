@@ -30,7 +30,7 @@ muse_scipost recipe.
 
 Latest GIT revision
 -------------------
-2017/11/29
+2017/12/04
 """
 import logging
 import warnings
@@ -44,7 +44,7 @@ from .generic_ifs import GenericIFS
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 20171129
+__revision__ = 20171204
 
 
 class Muse(GenericIFS):
@@ -186,6 +186,9 @@ class MusePixtable(Instrument):
     rawwave = None
     rawwave_for_current_layer = None
     wstep = 1.25  # Dispersion in Angstrom/pixel
+
+    ifus_for_current_layer = None
+    slices_for_current_layer = None
 
     def __init__(self, **kwargs):
         """
@@ -501,6 +504,11 @@ class MusePixtable(Instrument):
             If return_var was set, this array will contain the variances of
             the data values in the requested layer. It has the same shape as
             the data array.
+        ifu : ndarray or None
+            If return_slice was set abd the IFU and slice numbers of the
+            individual pixels are available, an array with the same size as
+            values will be returned containing the IFU numbers. Otherwise
+            None is returned.
         """
         imin, imax = self.layer_indices[i]
 
@@ -518,8 +526,12 @@ class MusePixtable(Instrument):
 
         var = self.varhdu.section[imin:imax + 1][mask, 0] if return_var else None
 
-        # store information about the wavelength of each pixel returned
+        # store information about the wavelength of each pixel returned (& IFU, slice if HDUs available)
         self.rawwave_for_current_layer = self.rawwave[imin:imax + 1][mask]
+        if self.ifuhdu:
+            self.ifus_for_current_layer = self.ifuhdu.section[imin:imax + 1][mask, 0]
+        if self.slicehdu:
+            self.slices_for_current_layer = self.slicehdu.section[imin:imax + 1][mask, 0]
 
         if not return_grid:
             return data, var

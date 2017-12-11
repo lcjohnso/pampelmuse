@@ -32,7 +32,7 @@ Added
 rev. 343, 2016/08/01
 
 Latest Git revision
-2017/08/30
+2017/12/05
 """
 import logging
 from multiprocessing import cpu_count, Pool
@@ -43,7 +43,7 @@ from .fit_layer import FitLayer
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20170830
+__revision__ = 20171205
 
 
 logger = logging.getLogger(__name__)
@@ -110,6 +110,8 @@ def parallel_process_layers(fit_parameters):
                               parameters.
         background - the matrix containing the footprints of the individual
                      background components.
+        background_index - the index/indices used for the background
+                           components.
         fluxes - the fluxes of all components
 
     Returns
@@ -126,13 +128,14 @@ def parallel_process_layers(fit_parameters):
     psf_parameters = fit_parameters['psf_parameters']
     position_parameters = fit_parameters['position_parameters']
     background = fit_parameters['background']
+    background_index = fit_parameters['background_index']
     fluxes = fit_parameters['fluxes']
 
     global g_psf_type, g_psf_radius, g_osfactor, g_osradius
 
     layerfit = FitLayer(data=data, catalog=catalog, psf_type=g_psf_type, psf_parameters=psf_parameters,
                         psf_radius=g_psf_radius, position_parameters=position_parameters, background=background,
-                        osfactor=g_osfactor, osradius=g_osradius)
+                        osfactor=g_osfactor, osradius=g_osradius, background_index=background_index)
 
     results = layerfit.residuals_from_fluxes(fluxes=fluxes)
 
@@ -308,7 +311,8 @@ class MakeResidualsCube(FitCube):
             logger.info("Processing layer with wavelength/index {0:.4g}.".format(jj))
 
             # get 1D arrays containing valid data pixels
-            data = self.get_layer(self.sources.wave.get_loc(jj), use_variances=False, n_bin=1, skip_nan=False)
+            data = self.get_layer(self.sources.wave.get_loc(jj), use_variances=False, n_bin=1, skip_nan=False,
+                                  use_slices=(self.sources.status == 5).any())
             fit_input.append({'data': data})
 
             # update fluxes
@@ -334,9 +338,15 @@ class MakeResidualsCube(FitCube):
             # add background if requested
             if subtract_background and self.background is not None:
                 self.background.transform = data[['x', 'y']].values
-                fit_input[-1]['background'] = self.background.get_sparse_matrix(offset=selected_components.max())
+                if 'ifu' in data.columns and 'slice' in data.columns:
+                    self.background.ifus = data['ifu'].values
+                    self.background.slices = data['slice'].values
+                background_matrix, background_components = self.background.get_sparse_matrix(
+                    offset=self.sources.n_components - self.sources.n_background)
             else:
-                fit_input[-1]['background'] = None
+                background_matrix = background_components = None
+            fit_input[-1]['background'] = background_matrix
+            fit_input[-1]['background_index'] = background_components
 
             # A parallel processing is triggered every n_cpu's layer
             if np.mod(i + 1, n_cpu) == 0 or jj == indices_to_analyse[-1]:

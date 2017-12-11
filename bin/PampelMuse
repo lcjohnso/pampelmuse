@@ -58,7 +58,7 @@ the data into memory yet but just checks whether the file(s) are valid.
 
 Latest Git revision
 -------------------
-2017/12/11
+2017/12/05
 """
 import argparse
 import importlib
@@ -66,7 +66,6 @@ import json
 import logging
 import os
 import pkgutil
-import pkg_resources
 import sys
 from astropy.io import fits
 
@@ -77,8 +76,8 @@ from pampelmuse.utils.fits import read_config_from_header
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__version__ = "0.94.3.0"
-__revision__ = 20171211
+__version__ = "0.96.0.0"
+__revision__ = 20171205
 
 
 logger = logging.getLogger(__name__)
@@ -90,7 +89,7 @@ if __name__ == "__main__":
        (::;;)   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   (::;;)
         `;:'                                             `;:'
 
-    (c) 2013-2017 {1}
+    (c) 2013-2016 {1}
     """.format(__version__, __author__))
 
     sys.stdout.write("""
@@ -150,7 +149,8 @@ if __name__ == "__main__":
 
     # read default configuration
     # get path to file containing configuration
-    __configpath__ = pkg_resources.resource_filename('pampelmuse.config', 'data')
+    __currentdir__ = os.path.dirname(__file__)
+    __configpath__ = os.path.join(__currentdir__, os.pardir, "pampelmuse", "config", "data")
 
     # initialize & read default configuration
     with open(os.path.join(__configpath__, 'pampelmuse.json')) as f:
@@ -208,12 +208,11 @@ if __name__ == "__main__":
                         format="%(asctime)s[%(levelname)-8s]: %(message)s",  # - %(pathname)s[%(lineno)s]",
                         datefmt='%m/%d/%Y %H:%M:%S')
 
-    # Used as a test: an additional logger that gives the file and line where a warning message was triggered
-    # if config['general'].getint('verbose', fallback=2) == 4:
-    #     ch = logging.StreamHandler()
-    #     ch.setLevel(logging.WARNING)
-    #     ch.setFormatter(logging.Formatter("%(pathname)s [%(lineno)-4s]: %(message)s"))
-    #     logging.getLogger().addHandler(ch)
+    # For error/critical messages, use an additional logger that gives the file and line where the message was triggered
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.ERROR)
+    ch.setFormatter(logging.Formatter("%(levelname)s triggered in %(pathname)s [%(lineno)-4s]"))
+    logging.getLogger().addHandler(ch)
 
     # check whether dependencies for graphical backends are fulfilled
     graphics = True

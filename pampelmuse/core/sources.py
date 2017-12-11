@@ -37,7 +37,7 @@ memory but only on request.
 
 Latest Git revision
 -------------------
-2017/08/25
+2017/12/06
 """
 import collections
 import logging
@@ -59,7 +59,7 @@ except ImportError:
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20170825
+__revision__ = 20171206
 
 
 logger = logging.getLogger(__name__)
@@ -167,7 +167,6 @@ class Sources(object):
         # place-holders for data arrays
         self._wave = None  # The internal variable for the (global) wavelength array
         self.data = None  # The spectra of the components and their uncertainties
-        self.data_wave = None  # If available, the wavelength information for the spectrum of each component
         self.ifs_coordinates = None  # The x/y coordinates of the sources on the IFS spaxel array
 
         # place-holders for HDUs containing fluxes or IFS coordinates
@@ -500,8 +499,8 @@ class Sources(object):
             # if unresolved component exists, make sure its spectrum comes before any sky spectrum
             if self.n_background > 0:
                 if (status == 0).any():
-                    specrow[status == 4] += 1
-                unresolved_row = specrow[status == 4].min() - 1
+                    specrow[status >= 4] += 1
+                unresolved_row = specrow[status >= 4].min() - 1
             else:
                 unresolved_row = specrow.max() + 1
 
@@ -744,22 +743,23 @@ class Sources(object):
         hdu : instance of astropy.io.fits.ImageHDU
             The HDU containing the spectra and their uncertainties. The shape
             of the data array must be [python counting]:
-            (Sources.n_disp, Sources.n_components, 2)
+            (Sources.n_dispersion, Sources.n_components, 2)
             The HDU is accessible via attribute Sources.data_hdu afterwards.
         data_wave_hdu : instance of astropy.io.fits.ImageHDU, optional
             This parameter can be used to provide a separate wavelength array
             for each spectrum in 'hdu'. If provided, must have a shape of
-            (Sources.n_disp, Sources.n_components).
+            (Sources.n_dispersion, Sources.n_components).
         """
         # sanity checks on provided HDUs
         for name, value in {'DATA': hdu, 'WAVE': data_wave_hdu}.items():
             if value is None:
                 continue
             elif not isinstance(value, fits.hdu.image._ImageBaseHDU):
-                logger.error("{0}-HDU has invalid type '{1}'.".format(name, type(value)))
+                logger.error('{0}-HDU has invalid type "{1}".'.format(name, type(value)))
                 return
-            elif value.header["NAXIS"] != 3:
-                logger.error("{0}-HDU must be 3D array, not {1}D.".format(name, value.header["NAXIS"]))
+            elif value.header['NAXIS'] not in [2, 3]:
+                logger.error('{0}-HDU must be (2/3)D array, not {1}D.'.format(name, value.header['NAXIS']))
+            n_dim = value.header['NAXIS']
 
             if 'EXTNAME' in value.header:
                 logger.info('Reading data from HDU {0} ...'.format(value.header['EXTNAME']))
@@ -767,13 +767,13 @@ class Sources(object):
 
             # check if dispersion information is valid
             if self.n_dispersion == 1:
-                self.n_dispersion = hdu.header['NAXIS3']
-            elif value.header['NAXIS3'] != self.n_dispersion:
+                self.n_dispersion = hdu.header['NAXIS{0}'.format(n_dim)]
+            elif value.header['NAXIS{0}'.format(n_dim)] != self.n_dispersion:
                 logger.error('HDU {0} has invalid dispersion information.'.format(name))
                 return
 
             # check if number of spectra is valid
-            if value.header['NAXIS2'] != self.n_components:
+            if value.header['NAXIS{0}'.format(n_dim - 1)] != self.n_components:
                 logger.error('HDU {0} has invalid number of components.'.format(name))
                 return
 
@@ -874,7 +874,8 @@ class Sources(object):
                     wave = self.data_wave_hdu.section[layers[0]:layers[-1] + 1][:, components]
                 # otherwise use global wavelength array
                 else:
-                    wave = np.repeat(self.wave[layers][:, np.newaxis], columns.size, axis=-1)
+                    wave = np.repeat(self.wave[layers].values[:, np.newaxis], components.size, axis=-1)
+
                 data = np.dstack((data, wave.byteswap().newbyteorder()))
                 # -> array shape (n_layers, n_components, 3)
         else:
@@ -1060,7 +1061,7 @@ class Sources(object):
         if self.data_wave_hdu is None:
             return self.data[(i, 'flux')]
         else:
-            return pd.Series(self.data[(i, 'wave')].values, index=self.data[(i, 'flux')].values)
+            return pd.Series(self.data[(i, 'flux')].values, index=self.data[(i, 'wave')].values)
 
     #############################################################################
     #            Methods dealing with IFU coordinates of the sources            #
