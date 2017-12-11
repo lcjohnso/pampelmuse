@@ -58,7 +58,7 @@ the data into memory yet but just checks whether the file(s) are valid.
 
 Latest Git revision
 -------------------
-2017/10/11
+2017/12/11
 """
 import argparse
 import importlib
@@ -66,6 +66,7 @@ import json
 import logging
 import os
 import pkgutil
+import pkg_resources
 import sys
 from astropy.io import fits
 
@@ -76,8 +77,8 @@ from pampelmuse.utils.fits import read_config_from_header
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__version__ = "0.94.2.0"
-__revision__ = 20171123
+__version__ = "0.94.3.0"
+__revision__ = 20171211
 
 
 logger = logging.getLogger(__name__)
@@ -89,7 +90,7 @@ if __name__ == "__main__":
        (::;;)   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   (::;;)
         `;:'                                             `;:'
 
-    (c) 2013-2016 {1}
+    (c) 2013-2017 {1}
     """.format(__version__, __author__))
 
     sys.stdout.write("""
@@ -149,8 +150,7 @@ if __name__ == "__main__":
 
     # read default configuration
     # get path to file containing configuration
-    __currentdir__ = os.path.dirname(__file__)
-    __configpath__ = os.path.join(__currentdir__, os.pardir, "pampelmuse", "config", "data")
+    __configpath__ = pkg_resources.resource_filename('pampelmuse.config', 'data')
 
     # initialize & read default configuration
     with open(os.path.join(__configpath__, 'pampelmuse.json')) as f:
