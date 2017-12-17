@@ -894,8 +894,8 @@ class SourceSelector(object):
         # To deal with this, the confusion limit is estimated locally in an area of radius 10xFWHM around each star
         density = np.zeros(self.ifs_data.nspaxel, dtype=np.int16)
 
-        # load IFS coordinates for all stars
-        self.sources.load_ifs_coordinates()
+        # load IFS coordinates for all stars (using first layer as reference)
+        self.sources.load_ifs_coordinates(layers=0)
         #  get IFS coordinates as DataFrame with source IDs as indices and x & y as columns
         _x = self.sources.ifs_coordinates.loc[:, (slice(None), 'x', 'value')]
         _y = self.sources.ifs_coordinates.loc[:, (slice(None), 'y', 'value')]
