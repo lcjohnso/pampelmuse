@@ -1074,8 +1074,8 @@ class SourceSelector(object):
         else:
             saturated = []
 
-        # load IFS coordinates for all stars
-        self.sources.load_ifs_coordinates()
+        # load IFS coordinates for all stars (again using first layer as reference)
+        self.sources.load_ifs_coordinates(layers=0)
         #  get IFS coordinates as DataFrame with source IDs as indices and x & y as columns
         _x = self.sources.ifs_coordinates.loc[:, (slice(None), 'x', 'value')]
         _y = self.sources.ifs_coordinates.loc[:, (slice(None), 'y', 'value')]
