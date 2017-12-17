@@ -65,7 +65,7 @@ This results in the inverse transformation:
 
 Latest Git revision
 -------------------
-2017/12/05
+2017/12/17
 """
 import logging
 import numpy as np
@@ -74,7 +74,7 @@ from ..core.parameters import Parameters
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20171205
+__revision__ = 20171217
 
 
 logger = logging.getLogger(__name__)
@@ -417,7 +417,7 @@ class Transformation(Parameters):
 
         return f
 
-    def __call__(self, xy_in):
+    def __call__(self, xy_in, layers=None):
         """
         Transform a set of reference coordinates to IFS coordinates using the
         current values of the coordinate transformation.
@@ -428,6 +428,10 @@ class Transformation(Parameters):
             The input coordinates. The rows of the data frame must use the
             source identifiers as indices and the x- and y-coordinates as
             should be available as columns 'x' and 'y'.
+        layers : array-like or integer, optional
+            The indices of the layers for which the IFS coordinates should be
+            loaded. If none are provided, the coordinates are loaded for the
+            whole wavelength range.
 
         Returns
         -------
@@ -444,15 +448,27 @@ class Transformation(Parameters):
             logger.error('Cannot find coordinates in input coordinates ("xy_in" misses column "x" or "y").')
             return
 
+        # check if requested layers are valid
+        if layers is not None and not isinstance(layers, (int, np.integer, list, np.ndarray)):
+            logger.error('Parameter "layers" must be integer or array-like, not {0}.'.format(type(layers)))
+            return
+        elif layers is None:
+            layers = np.arange(self.n_dispersion)
+        else:
+            layers = np.atleast_1d(layers)
+            # layer selection must be consecutive
+            if (np.diff(layers) != 1).any():
+                logger.error('Layer selection must be consecutive.')
+
         _xy_in = xy_in[['x', 'y']].values  # -> has shape (N, 2)
-        _xy_out = np.dot(self.z_matrix, np.ones(_xy_in.T.shape)) + np.dot(self.f_matrix, _xy_in.T)
+        _xy_out = np.dot(self.z_matrix[layers], np.ones(_xy_in.T.shape)) + np.dot(self.f_matrix[layers], _xy_in.T)
         # -> creates array of shape (K, 2, N)
 
         # when creating data frame, need to swap last to axes.
         _xy_out = _xy_out.swapaxes(-2, -1)
 
         # finally, x- and y-axes need to be merged again
-        return pd.DataFrame(_xy_out.reshape((_xy_out.shape[0], -1)), index=self.data.index,
+        return pd.DataFrame(_xy_out.reshape((_xy_out.shape[0], -1)), index=self.data.index[layers],
                             columns=pd.MultiIndex.from_product([xy_in.index, ['x', 'y']]))
 
     def info(self, names=None):

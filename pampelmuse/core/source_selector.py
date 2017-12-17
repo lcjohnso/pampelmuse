@@ -33,7 +33,7 @@ Added
 
 Latest Git revision
 -------------------
-2017/12/05
+2017/12/17
 """
 import logging
 import sys
@@ -52,7 +52,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20171205
+__revision__ = 20171217
 
 
 logger = logging.getLogger(__name__)

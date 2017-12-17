@@ -37,7 +37,7 @@ memory but only on request.
 
 Latest Git revision
 -------------------
-2017/12/06
+2017/12/17
 """
 import collections
 import logging
@@ -59,7 +59,7 @@ except ImportError:
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20171206
+__revision__ = 20171217
 
 
 logger = logging.getLogger(__name__)
@@ -1302,7 +1302,7 @@ class Sources(object):
 
             # function returns pandas DataFrame, need to get values and reshape
             # TODO: directly use DataFrame
-            _data = self.transformation(xy_in).loc[self.wave[layers]]
+            _data = self.transformation(xy_in, layers=layers)
             data = _data.values.reshape((_data.shape[0], -1, 2))
             # data array has shape (n_layers, n_sources, 2)
 
