@@ -156,7 +156,7 @@ def polyfit(config):
         if mask is not None:
             # loop over areas to mask, assume odd/even list entries contain start/end of masked range
             for i in range(0, len(mask), 2):
-                ui.modifyMask((mask[i], mask[i+1]), True)
+                ui.modifyMask(mask[i], mask[i+1], True)
                 logging.info("Added wavelength range to spectrumMask: {0}--{1}".format(mask[i], mask[i+1]))
         ui.show()
     
