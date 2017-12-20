@@ -911,6 +911,10 @@ class Sources(object):
         if self._wave is None:
             if self.data_wave_hdu is not None:
                 self._wave = np.nanmean(self.data_wave_hdu.data, axis=1)
+                if np.isnan(self._wave).any():
+                    # need to replace NaNs because wavelength is used as an index
+                    x = np.arange(self._wave.size)
+                    self._wave = np.interp(x, x[np.isfinite(self._wave)], self._wave[np.isfinite(self._wave)])
             else:
                 self._wave = np.arange(self.n_dispersion, dtype=np.float64)  # shape (k,)
                 self._wave -= (self.crpix - 1)
