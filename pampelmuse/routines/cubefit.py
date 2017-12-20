@@ -36,16 +36,16 @@ which performs the actual analysis.
 
 Latest SVN revision
 -------------------
-430, 2017/06/12
+2017/12/20
 """
 import datetime
 import logging
 from ..core.fit_cube import FitCube
-from ..utils.fits import make_header_from_config, open_ifs_data, open_prm, save_prm
+from ..utils.fits import make_header_from_config, open_ifs_data, open_prm, save_prm, get_history
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 430
+__revision__ = 20171220
 
 
 def add_parser(parser):
@@ -80,21 +80,24 @@ def cubefit(config):
     logging.info("Obtaining information on sources in the field...")
 
     # get prefix of IFS data - note that the calling routine makes sure that the entry exists in the configuration
-    prefix = config['global'].get('prefix')
+    prefix = config['global']['prefix']
 
     # open IFS data
     ifs_data = open_ifs_data(prefix=prefix)
 
     # adjust numbers of first and last layer to be analysed
-    first_layer = config['layers'].get('first', 0)
+    first_layer = config['layers']['first']
     if first_layer < 0:
         first_layer = ifs_data.nlayer + first_layer
-    last_layer = config['layers'].get('last', -1)
+    last_layer = config['layers']['last']
     if last_layer < 0:
         last_layer = ifs_data.nlayer + last_layer + 1
 
     # Source catalogue
     sources, psf_attributes = open_prm(filename='{0}.prm.fits'.format(prefix), ndisp=ifs_data.wave.size)
+
+    # get history of PRM file
+    history = get_history(filename='{0}.prm.fits'.format(prefix))
 
     # start fitting process:
     logging.info("Starting fit process...")
@@ -113,12 +116,13 @@ def cubefit(config):
     if psf_data is not None:
         psf_data.writeto('{0}.psf.fits'.format(prefix), overwrite=True)
 
-    # log status of analysis
-    config['cubefit']['utc'] = datetime.datetime.utcnow().strftime("%y-%m-%d %H:%M:%S")
-    config['cubefit']['revision'] = __revision__
-    config['cubefit']['status'] = "SUCCESS"
-
     # create header containing configuration
     header = make_header_from_config(config=config)
+
+    # add history to header
+    for entry in history:
+        header['HISTORY'] = entry
+    now = datetime.datetime.utcnow().strftime("%y-%m-%d %H:%M:%S")
+    header['HISTORY'] = 'CUBEFIT [r{0}] finished at {1}'.format(__revision__, now)
 
     save_prm(sources, psf_attributes, filename='{0}.prm.fits'.format(prefix), header=header)

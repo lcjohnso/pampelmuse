@@ -39,6 +39,7 @@ Latest Git revision
 -------------------
 2017/12/20
 """
+import datetime
 import logging
 import os
 import matplotlib
@@ -59,7 +60,7 @@ from .exit_dialog import exitUnsavedDialog
 from ..core import Sources
 from ..core.coordinates import Transformation
 from ..psf import Variables
-from ..utils.fits import save_prm, read_config_from_header, make_header_from_config
+from ..utils.fits import save_prm, read_config_from_header, make_header_from_config, get_history
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
@@ -168,6 +169,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         # Start working on source catalog (if any provided)
         self.sources = None
         self.psf = None
+        self.history = []
 
         # check if valid instance of Sources provided
         if sources:
@@ -459,6 +461,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
 
         # search headers for HIERARCH PAMPELMUSE keywords.
         self.config = read_config_from_header(header=hdu_list[0].header, existing_configuration=self.config)
+        self.history = get_history(filename=filename)
 
         # for logging only:
         hdu_string = ""
@@ -846,7 +849,13 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         if self.config is not None:
             header = make_header_from_config(self.config)
         else:
-            header = None
+            header = fits.Header()
+
+        # add history to header (if any)
+        for entry in self.history:
+            header['HISTORY'] = entry
+        now = datetime.datetime.utcnow().strftime("%y-%m-%d %H:%M:%S")
+        header['HISTORY'] = 'Saved via GUI [r{0}] at {1}'.format(__revision__, now)
 
         save_prm(sources=self.sources, psf_attributes=self.psf, filename=self.outfileName, header=header)
 

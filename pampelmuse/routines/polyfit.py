@@ -43,7 +43,7 @@ import datetime
 import logging
 import sys
 import numpy as np
-from ..utils.fits import make_header_from_config, open_ifs_data, open_prm, save_prm
+from ..utils.fits import make_header_from_config, open_ifs_data, open_prm, save_prm, get_history
 # note: PyQt4 modules import below only if interaction enabled
 # note: pampelmuse.graphics.PampelMuseGui imported below only if interaction enabled
 
@@ -94,6 +94,9 @@ def polyfit(config):
 
     # Get source catalogue from PRM-file
     sources, psf = open_prm('{0}.prm.fits'.format(prefix), ndisp=ifs_data.wave.size)
+
+    # get history of PRM file
+    history = get_history(filename='{0}.prm.fits'.format(prefix))
 
     # add information about caller routine to configuration for adding them to FITS-header
     if 'polyfit' not in config.keys():
@@ -185,6 +188,11 @@ def polyfit(config):
 
         # create header containing configuration
         header = make_header_from_config(config=config)
+        # add history to header
+        for entry in history:
+            header['HISTORY'] = entry
+        now = datetime.datetime.utcnow().strftime("%y-%m-%d %H:%M:%S")
+        header['HISTORY'] = 'POLYFIT [r{0}] finished at {1}'.format(__revision__, now)
 
         # save changes to prm file
         save_prm(sources=sources, psf_attributes=psf, filename='{0}.prm.fits'.format(prefix), header=header)

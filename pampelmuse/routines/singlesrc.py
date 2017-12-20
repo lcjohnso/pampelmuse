@@ -36,7 +36,7 @@ improved using the first order moments determined in the calculation.
  
 Latest SVN revision
 -------------------
-433, 2017/08/14
+2017/12/20
 """
 import datetime
 import logging
@@ -45,8 +45,8 @@ from ..psf import Variables
 from ..utils.fits import open_ifs_data, make_header_from_config, save_prm
 
 
-__author__ = "Sebastian Kamann (skamann@astro.physik.uni-gooettingen.de)"
-__revision__ = 433
+__author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
+__revision__ = 20171220
 
 
 logger = logging.getLogger(__name__)
@@ -153,18 +153,16 @@ def singlesrc(config):
     # write results to file
     logger.info("Saving source properties in file {0}.prm.fits.".format(prefix))
 
-    # add information about routine to configuration so that they are copied to the header of the PRM-file
-    if 'singlesrc' not in config.keys():
-        config['singlesrc'] = {}
-    config['singlesrc']['utc'] = datetime.datetime.utcnow().strftime("%y-%m-%d %H:%M:%S")
-    config['singlesrc']['revision'] = __revision__
-
     # create header containing configuration
     header = make_header_from_config(config=config)
     if selector.use_wcs:
         wcs_header = ifs_data.wcs.to_header()
         for key in wcs_header:
-            header["hierarch PAMPELMUSE WCS {0}".format(key)] = wcs_header[key]
+            header["HIERARCH PAMPELMUSE WCS {0}".format(key)] = wcs_header[key]
+
+    # add history entry for INITFIT run
+    now = datetime.datetime.utcnow().strftime("%y-%m-%d %H:%M:%S")
+    header['HISTORY'] = 'SINGLESRC [r{0}] finished at {1}'.format(__revision__, now)
 
     # save PRM file
     save_prm(sources=selector.sources, psf_attributes=selector.psf_attributes, filename='{0}.prm.fits'.format(prefix),

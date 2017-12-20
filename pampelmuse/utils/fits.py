@@ -412,3 +412,26 @@ def make_header_from_config(config, **kwargs):
 
     # return header
     return header
+
+
+def get_history(filename):
+    """
+    Get HISTORY keywords from the primary HDU header of a FITS file as a list.
+
+    Parameters
+    ----------
+    filename : str
+        The name of the FITS-file.
+
+    Returns
+    -------
+    history : list
+        The list of HISTORY entries. If no HISTORY keys exist, an empty list
+        is returned.
+    """
+    header = fits.getheader(filename, ext=0)
+    if 'HISTORY' in header:
+        history = list(header['HISTORY'])
+    else:
+        history = []
+    return history
