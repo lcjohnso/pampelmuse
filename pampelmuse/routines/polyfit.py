@@ -35,9 +35,9 @@ uses the PampelMuse GUI. As the GUI is written in PyQt, the function can only
 be run in interactive mode if PyQt4 is available on the system. Otherwise, the
 routine will automatically fit the coordinates and PSF parameters.
 
-Latest SVN revision
+Latest Git revision
 -------------------
-426, 2017/06/01
+2017/12/20
 """
 import datetime
 import logging
@@ -49,7 +49,7 @@ from ..utils.fits import make_header_from_config, open_ifs_data, open_prm, save_
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 426
+__revision__ = 20171220
 
 
 def add_parser(parser):
@@ -102,25 +102,25 @@ def polyfit(config):
     config['polyfit']['revision'] = __revision__
 
     # for type of polynomial, need to make first letter uppercase for identification in GUI
-    polytype = config['polynom'].get('type', 'plain')
+    polytype = config['polynom']['type']
     polytype = polytype[0].upper() + polytype[1:]
 
     # get degree of polynomial
-    polydeg = config['polynom'].get('degree', 0)
+    polydeg = config['polynom']['degree']
 
     # if common slope used for all coordinates along one axis
-    common = config['polynom'].get('common', False)
+    common = config['polynom']['common']
 
     # prepare mask to exclude requested wavelength ranges (if any)
-    mask = config['polynom'].get('mask', None)
+    mask = config['polynom']['mask']
     # mask must be iterable and have even length
     if mask is not None:
-        if not hasattr(mask, '__iter__') or not np.mod(len(mask), 2):
+        if not hasattr(mask, '__iter__') or np.mod(len(mask), 2):
             logging.error('Provided mask has invalid shape.')
             mask = None
 
     # Prepare GUI if interactive mode enabled
-    if config['global'].get('interact', False):
+    if config['global']['interact']:
 
         # load modules required to display GUI
         from PyQt5 import QtWidgets

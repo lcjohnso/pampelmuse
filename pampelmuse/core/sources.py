@@ -37,7 +37,7 @@ memory but only on request.
 
 Latest Git revision
 -------------------
-2017/12/17
+2017/12/20
 """
 import collections
 import logging
@@ -59,7 +59,7 @@ except ImportError:
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20171217
+__revision__ = 20171220
 
 
 logger = logging.getLogger(__name__)
@@ -823,7 +823,7 @@ class Sources(object):
             dedicated wavelength HDU is available.
         """
         # sanity checks on provided IDs and layers
-        if components is not None and not isinstance(components, (int, np.integer, list, np.ndarray)):
+        if components is not None and not isinstance(components, (int, np.integer, list, np.ndarray, pd.Index)):
             logger.error("Parameter 'components' must be integer or array-like, not {0}.".format(type(components)))
             return
         # load all components if None was provided
