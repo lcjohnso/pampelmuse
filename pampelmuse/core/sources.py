@@ -767,7 +767,7 @@ class Sources(object):
 
             # check if dispersion information is valid
             if self.n_dispersion == 1:
-                self.n_dispersion = hdu.header['NAXIS{0}'.format(n_dim)]
+                self.n_dispersion = value.header['NAXIS{0}'.format(n_dim)]
             elif value.header['NAXIS{0}'.format(n_dim)] != self.n_dispersion:
                 logger.error('HDU {0} has invalid dispersion information.'.format(name))
                 return

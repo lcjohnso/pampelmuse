@@ -169,8 +169,6 @@ def polyfit(config):
             logging.info("Masked wavelength ranges: {0}".format([mask[i:i+2] for i in range(0, len(mask), 2)]))
             _mask = [(sources.wave >= mask[i]) & (sources.wave <= mask[i+1]) for i in range(0, len(mask), 2)]
             mask = np.any(_mask, axis=0)
-        else:
-            mask = None
 
         # fit PSF parameters
         for i in range(psf.n_parameters):
