@@ -37,7 +37,7 @@ defines the methods that are called by Ui_PampelMuseGui.
 
 Latest Git revision
 -------------------
-2017/11/23
+2017/12/20
 """
 import logging
 import os
@@ -63,7 +63,7 @@ from ..utils.fits import save_prm, read_config_from_header, make_header_from_con
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 20171123
+__revision__ = 20171220
 
 
 class ToolbarWithoutMessage(NavigationToolbar):
