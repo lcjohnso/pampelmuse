@@ -895,6 +895,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             (if True) or excluded from it (if False).
         """
         if self.spectrumMask is None:
+            logging.warning('Missing spectrum mask. Mask modification has no effect.')
             return
 
         i_min = np.nanargmin(abs(self.sources.wave - lower))

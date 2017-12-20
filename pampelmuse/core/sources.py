@@ -909,11 +909,13 @@ class Sources(object):
             self._wave = None
 
         if self._wave is None:
-            self._wave = np.arange(self.n_dispersion, dtype=np.float64)  # shape (k,)
-            self._wave -= (self.crpix - 1)
-            self._wave *= self.cdelt
-            self._wave += self.crval
-
+            if self.data_wave_hdu is not None:
+                self._wave = np.nanmean(self.data_wave_hdu.data, axis=1)
+            else:
+                self._wave = np.arange(self.n_dispersion, dtype=np.float64)  # shape (k,)
+                self._wave -= (self.crpix - 1)
+                self._wave *= self.cdelt
+                self._wave += self.crval
         return pd.Float64Index(self._wave)
 
     def get_magnitude(self, components, passband=None):
