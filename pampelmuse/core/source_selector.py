@@ -33,7 +33,7 @@ Added
 
 Latest Git revision
 -------------------
-2017/12/17
+2017/12/21
 """
 import logging
 import sys
@@ -52,7 +52,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20171217
+__revision__ = 20171221
 
 
 logger = logging.getLogger(__name__)
@@ -412,6 +412,10 @@ class SourceSelector(object):
                 self.sources.crval = self.ifs_data.wave[0]
                 self.sources.crpix = 1
                 self.sources.cdelt = np.diff(self.ifs_data.wave).mean()
+        else:
+            self.sources.crval = self.ifs_data.wave[0]
+            self.sources.crpix = 1
+            self.sources.cdelt = np.diff(self.ifs_data.wave).mean()
 
         # make sure instance has correct dispersion information
         self.sources.n_dispersion = self.ifs_data.nlayer

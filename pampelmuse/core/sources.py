@@ -37,7 +37,7 @@ memory but only on request.
 
 Latest Git revision
 -------------------
-2017/12/20
+2017/12/21
 """
 import collections
 import logging
@@ -59,7 +59,7 @@ except ImportError:
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20171220
+__revision__ = 20171221
 
 
 logger = logging.getLogger(__name__)
@@ -866,21 +866,22 @@ class Sources(object):
             # https://github.com/astropy/astropy/issues/1156
             logger.debug('Reading spectrum data HDU ...')
             data = self.data_hdu.section[layers[0]:layers[-1] + 1][:, components].byteswap().newbyteorder()
-            # -> array shape (n_layers, n_components, 2)
-            if init_wave:
-                # add wavelength information if available
-                if self.data_wave_hdu is not None:
-                    logger.debug('Reading wavelength HDU ...')
-                    wave = self.data_wave_hdu.section[layers[0]:layers[-1] + 1][:, components]
-                # otherwise use global wavelength array
-                else:
-                    wave = np.repeat(self.wave[layers].values[:, np.newaxis], components.size, axis=-1)
-
-                data = np.dstack((data, wave.byteswap().newbyteorder()))
-                # -> array shape (n_layers, n_components, 3)
         else:
             # create empty array that can be used to initialize data frame
-            data = np.zeros((index.size, components.size, len(properties)), dtype=np.float32)
+            data = np.zeros((index.size, components.size, 2), dtype=np.float32)
+        # -> array shape (n_layers, n_components, 2)
+
+        if init_wave:
+            # add wavelength information if available
+            if self.data_wave_hdu is not None:
+                logger.debug('Reading wavelength HDU ...')
+                wave = self.data_wave_hdu.section[layers[0]:layers[-1] + 1][:, components].byteswap().newbyteorder()
+            # otherwise use global wavelength array
+            else:
+                wave = np.repeat(self.wave[layers].values[:, np.newaxis], components.size, axis=-1)
+
+            data = np.dstack((data, wave))
+            # -> array shape (n_layers, n_components, 3)
 
         # initialize data frame
         self.data = pd.DataFrame(data.reshape(data.shape[0], -1), index=index, columns=columns)
