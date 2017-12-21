@@ -37,7 +37,7 @@ routine will automatically fit the coordinates and PSF parameters.
 
 Latest Git revision
 -------------------
-2017/12/20
+2017/12/21
 """
 import datetime
 import logging
@@ -49,7 +49,7 @@ from ..utils.fits import make_header_from_config, open_ifs_data, open_prm, save_
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 20171220
+__revision__ = 20171221
 
 
 def add_parser(parser):
@@ -98,12 +98,6 @@ def polyfit(config):
     # get history of PRM file
     history = get_history(filename='{0}.prm.fits'.format(prefix))
 
-    # add information about caller routine to configuration for adding them to FITS-header
-    if 'polyfit' not in config.keys():
-        config['polyfit'] = {}
-    config['polyfit']['utc'] = datetime.datetime.utcnow().strftime("%y-%m-%d %H:%M:%S")
-    config['polyfit']['revision'] = __revision__
-
     # for type of polynomial, need to make first letter uppercase for identification in GUI
     polytype = config['polynom']['type']
     polytype = polytype[0].upper() + polytype[1:]
@@ -132,6 +126,7 @@ def polyfit(config):
         # initialize GUI
         app = QtWidgets.QApplication(sys.argv)
         ui = PampelMuseGui(sources=sources, ifsData=ifs_data, refImage=config['polyfit'].get('reference', None))
+        ui.history = history
 
         # for saving results, provide name of PRM-file and the current configuration
         ui.outfileName = '{0}.prm.fits'.format(prefix)
