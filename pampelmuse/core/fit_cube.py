@@ -31,7 +31,7 @@ extraction for a data cube.
 
 Latest GIT revision
 -------------------
-2017/12/21
+2017/12/27
 """
 import logging
 import time
@@ -44,7 +44,7 @@ from ..instruments.muse import MusePixtable
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20171221
+__revision__ = 20171227
 
 
 logger = logging.getLogger(__name__)
@@ -260,6 +260,11 @@ class FitCube(object):
         self.psf_radius = psf_radius
         self.osfactor = osfactor
         self.osradius = osradius
+
+        # check if dispersion information in cube and sources compatible, make sure wavelength information agrees
+        if self.sources.n_dispersion != self.ifs_data.nlayer:
+            logger.error('IFS data and Sources instance have incompatible dispersion information')
+        self.sources.wave = self.ifs_data.wave
 
         # The following two dictionaries will contain the name of ALL parameters needed to define the source
         # positions and the PSF. The keys are flags indicating if the should be optimized during the fit
@@ -533,7 +538,7 @@ class FitCube(object):
             logger.debug("Layers used to update initial guesses: {0}".format(nearest_layers))
 
             # get 1D arrays containing valid data pixels, also sigma-values if requested
-            data = self.get_layer(self.sources.wave.get_loc(jj), n_bin=n_bin, use_variances=use_variances,
+            data = self.get_layer(layers_to_analyse[i], n_bin=n_bin, use_variances=use_variances,
                                   use_slices=(self.sources.status == 5).any())
             fit_input.append({'data': data})
 

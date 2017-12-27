@@ -37,7 +37,7 @@ memory but only on request.
 
 Latest Git revision
 -------------------
-2017/12/21
+2017/12/27
 """
 import collections
 import logging
@@ -59,7 +59,7 @@ except ImportError:
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20171221
+__revision__ = 20171227
 
 
 logger = logging.getLogger(__name__)
@@ -922,6 +922,24 @@ class Sources(object):
                 self._wave *= self.cdelt
                 self._wave += self.crval
         return pd.Float64Index(self._wave)
+
+    @wave.setter
+    def wave(self, value):
+        """
+        Sets the wavelength array for the current instance of Sources.
+        
+        Parameters
+        ----------
+        value: list, ndarray or pandas.Index
+            The new value for the wavelength array. Its length must match the
+            number of dispersion elements in the instance.
+        """
+        if not isinstance(value, (list, np.ndarray, pd.Index)):
+            logger.error('Parameter "wave" must be one of list, array, or pandas Index.')
+        elif not len(value) == self.n_dispersion:
+            logger.error('Provided parameter "wave" has incompatible shape.')
+        else:
+            self._wave = pd.Index(value)
 
     def get_magnitude(self, components, passband=None):
         """
