@@ -2,7 +2,7 @@
 """
 pampelmuse_gui.py
 =================
-Copyright 2013-2017 Sebastian Kamann
+Copyright 2013-2018 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -37,7 +37,7 @@ defines the methods that are called by Ui_PampelMuseGui.
 
 Latest Git revision
 -------------------
-2017/12/20
+2018/01/04
 """
 import datetime
 import logging
@@ -64,7 +64,7 @@ from ..utils.fits import save_prm, read_config_from_header, make_header_from_con
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 20171220
+__revision__ = 20180104
 
 
 class ToolbarWithoutMessage(NavigationToolbar):
@@ -1116,12 +1116,13 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
 
         Parameters
         ----------
-        p0 : The new value of the spinbox
+        p0 : int
+            The new value of the spinbox
         """
         # synchronize slider
         self.ifuLayerSelectSlider.setValue(p0)
 
-        # show new layer if IFU data
+        # show new layer if IFU data loaded
         if self.ifsLoaded:
             self.ifsPlot.loadLayer(p0, residuals=self.actionResiduals.isChecked(), update_axlims=False,
                                    reset_history=False)
@@ -1130,13 +1131,10 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             if self.ifuCutsComboBox.currentText() != "User":
                 self.on_ifuCutsComboBox_currentIndexChanged(self.ifuCutsComboBox.currentText())
 
-            # #  also update position of pointer if it is currently animated
-            # if self.data_plot.vLine.get_animated():
-            #     self.data_plot.vLine.set_data([self.ifsPlot.wave, self.ifsPlot.wave], self.data_plot.axes.get_ylim())
-            #
-            #     self.data_plot.figure.canvas.restore_region(self.data_plot.background)
-            #     self.data_plot.axes.draw_artist(self.data_plot.vLine)
-            #     self.data_plot.figure.canvas.blit(self.data_plot.axes.bbox)
+        # also update position of vertical line in spectrum viewer
+        if 'data' in self.dataPlot.thePlots and len(self.dataPlot.thePlots['data'].get_xdata()) > p0:
+            self.dataPlot.vline.set_xdata([self.dataPlot.thePlots['data'].get_xdata()[p0]])
+            self.dataPlot.draw()
 
     @pyqtSlot(str)
     def on_ifuCutsComboBox_currentIndexChanged(self, p0):

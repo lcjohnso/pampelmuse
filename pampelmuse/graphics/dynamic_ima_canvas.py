@@ -1,7 +1,7 @@
 """
 dynamic_ima_canvas.py
 =====================
-Copyright 2013-2017 Sebastian Kamann
+Copyright 2013-2018 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -33,9 +33,9 @@ The class is used by the PampelMuse GUI to display IFS data and reference
 data. In order to handle 2dim. IFS data, the Cube class is loaded from
 pampelmuse.core.cube
 
-Latest SVN revision
+Latest Git revision
 -------------------
-428, 2017/06/05
+2018/01/04
 """
 import logging
 import numpy as np
@@ -47,8 +47,8 @@ from ..instruments import Instrument
 from ..utils.fits import open_ifs_data
 
 
-__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 428
+__author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
+__revision__ = 20180104
 
 
 class DynamicImaCanvas(FigureCanvasQTAgg):
@@ -149,7 +149,11 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
         if self.image is None:
             self.image_plot = self.axes.imshow(image, **kwargs)
         else:
-            self.image_plot.set_data(image)
+            try:
+                self.image_plot.set_data(image)
+            except TypeError:
+                logging.error('Cannot display data.')
+                return
 
         self.image = image
         logging.debug('Size of image to be loaded: {0}x{1} pixels'.format(
