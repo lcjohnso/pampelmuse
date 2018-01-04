@@ -145,19 +145,19 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
             method are passed on to the call of matplotlib.pyplot.imshow
             that is used to display the data.
         """
+        # sanity check
+        if not isinstance(image, (list, np.array)):
+            logging.error('Cannot display data: {0}'.format(image))
+            return
+
         # Check if an imshow instance does exist, if so, update its data
         if self.image is None:
             self.image_plot = self.axes.imshow(image, **kwargs)
         else:
-            try:
-                self.image_plot.set_data(image)
-            except TypeError:
-                logging.error('Cannot display data.')
-                return
+            self.image_plot.set_data(image)
 
         self.image = image
-        logging.debug('Size of image to be loaded: {0}x{1} pixels'.format(
-            self.image.shape[1], self.image.shape[0]))
+        logging.debug('Size of image to be loaded: {0}x{1} pixels'.format(self.image.shape[1], self.image.shape[0]))
 
         self.changeCuts()  # adapt cuts to the new data
 
