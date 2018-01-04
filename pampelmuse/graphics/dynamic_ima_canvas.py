@@ -146,7 +146,7 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
             that is used to display the data.
         """
         # sanity check
-        if not isinstance(image, (list, np.array)):
+        if not isinstance(image, (list, np.ndarray)):
             logging.error('Cannot display data: {0}'.format(image))
             return
 
