@@ -149,7 +149,8 @@ def initfit(config):
 
     # If requested, add background component(s) to source catalogue
     if config['sky'].get('use', True):
-        selector.background_setup(skysize=config['sky']['binsize'], slices=config['sky']['slices'])
+        selector.background_setup(skysize=config['sky']['binsize'], slices=config['sky']['slices'],
+                                  oversampling=config['sky']['oversampling'])
 
     # Initialize PSF to be used
     # check if valid profile was provided
