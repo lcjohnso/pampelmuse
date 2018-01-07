@@ -30,7 +30,8 @@
     "use": true,
     "binsize": -1,
     "subtract": false,
-    "slices": false
+    "slices": false,
+    "oversampling": 1
   },
   "unresolved": {
     "use": false,

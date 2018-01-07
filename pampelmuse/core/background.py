@@ -56,12 +56,12 @@ __revision__ = 20171204
 class BackgroundGrid(Canvas):
     """
     The purpose of this class is to define a background that is spatially
-    variable. To this aim, it defines a background grid. For each gridpoint,
+    variable. To this aim, it defines a background grid. For each grid point,
     a weighting function w(r) of the form
 
         w(r) ~ EXP(-0.5*(r/Rs)^n)
 
-    is defined. r measures the distance to the gridpoint, Rs is the scale
+    is defined. r measures the distance to the grid point, Rs is the scale
     radius which is equal to half the distance between to adjacent gridpoints.
     In this way, a smooth but variable background is created across the field
     of view.
@@ -89,18 +89,34 @@ class BackgroundGrid(Canvas):
 
         # check if input is valid
         self.centroids = np.asarray(centroids)
-        assert self.centroids.ndim == 2 and self.centroids.shape[-1] == 2,\
-            "Centroids must be a 2dim. array of shape (N,2)."
+        if self.centroids.ndim != 2 or self.centroids.shape[-1] != 2:
+            logging.error("Centroids must be a 2dim. array of shape (N,2).")
 
-        # make sure centroids are on a homogeneous grid: calculate distance to nearest neighbour, must be the same for
-        # each grid point
-        if self.centroids.shape[0] > 1:
-            distances = distance.cdist(self.centroids, self.centroids)
+        # for following checks, need to get distance between gridpoints
+        distances = distance.cdist(self.centroids, self.centroids)
+
+        # check if spectral oversampling is used
+        nearby = (distances < 1e-5).sum(axis=0)
+        if np.unique(nearby).size > 1:
+            logging.error('Cannot determine spectral oversampling factor.')
+            self.oversampling = 1
+            self.spectral_component = np.ones(self.centroids.shape[0], dtype=np.int16)
+        else:
+            self.oversampling = nearby[0]
+            self.spectral_component = np.diag(np.cumsum((distances < 1e-5), axis=0)) - 1
+            print(self.spectral_component)
+
+        logging.info('Preparing background with {0} component(s) and an oversampling factor of {1}.'.format(
+            self.centroids.shape[0]//self.oversampling, self.oversampling))
+
+        # check if centroids are on a homogeneous grid: calculate distance to nearest neighbour, this should be the
+        # same for every grid point
+        if self.centroids.shape[0] > self.oversampling:
             distances.sort(axis=0)
-            assert np.unique(distances[1]).size == 1, "Centroids must form homogeneous grid."
-
-            self.rscale = distances[1][0] / 2.
+            if np.unique(distances[self.oversampling]).size > 1:
+                logging.error("Centroids must form homogeneous grid.")
             # scale radius is set to half the distance between two adjacent centroids.
+            self.rscale = distances[self.oversampling][0] / 2.
         else:
             self.rscale = np.inf
 
@@ -118,6 +134,9 @@ class BackgroundGrid(Canvas):
         self._used = None
         self.background_properties = ["_r", "_f", "_used"]
 
+        # initialize array containing spectral bin of every pixel in case oversampling is used
+        self._spectral_bins = None
+
         # initialise arrays containing information about slice-dependent background
         self.n_ifu = 0
         self.n_slice = 0
@@ -125,7 +144,7 @@ class BackgroundGrid(Canvas):
         self.slices = None
 
     @classmethod
-    def from_shape(cls, shape, rscale=None, **kwargs):
+    def from_shape(cls, shape, rscale=None, oversampling=1, **kwargs):
         """
         This method initializes an instance of the Background class using an
         array shape and a scale radius. The centroids of the background
@@ -139,6 +158,13 @@ class BackgroundGrid(Canvas):
         rscale : float, optional
             The effective radius of a background patch in units of spaxels.
             The distance between neighbouring patches will be 2 x rscale.
+        oversampling : int, optional
+            The oversampling factor of the background. If >1, as many copies
+            of each centroid will be created. After initialisation of a new
+            instance, the property BackgroundGrid.spectral_bins can be used
+            to assign each pixel to an oversampling component. The purpose of
+            this approach is to improve the background modeling for MUSE pixel
+            tables by using a wavelength dependent background in each layer.
         kwargs : optional
             All remaining arguments are passed on to the call of the
             Background.__init__ method.
@@ -158,19 +184,33 @@ class BackgroundGrid(Canvas):
         _xcentroids += 0.5 * (xshape - 1 - _xcentroids.max())
         _ycentroids += 0.5 * (yshape - 1 - _ycentroids.max())
         # combine x and y centroids to array of shape (2, gridsize)
-        xcentroids = np.resize(_xcentroids, _xcentroids.size * _ycentroids.size)
-        xcentroids.sort()
+        xcentroids = np.repeat(_xcentroids, _ycentroids.size)
         ycentroids = np.resize(_ycentroids, _xcentroids.size * _ycentroids.size)
 
-        return cls(np.vstack((xcentroids, ycentroids)).T, **kwargs)
+        centroids = np.vstack((xcentroids, ycentroids)).T
+        if oversampling > 1:
+            centroids = np.repeat(centroids, oversampling, axis=0)
+
+        return cls(centroids, **kwargs)
 
     @classmethod
-    def constant(cls):
+    def constant(cls, oversampling=1):
         """
         This method initializes a constant background across an arbitrary field
         of view.
+
+        Parameters
+        ----------
+        oversampling : int
+            The oversampling factor of the background. If >1, as many copies
+            of each centroid will be created. After initialisation of a new
+            instance, the property BackgroundGrid.spectral_bins can be used
+            to assign each pixel to an oversampling component. The purpose of
+            this approach is to improve the background modeling for MUSE pixel
+            tables by using a wavelength dependent background in each layer.
         """
-        return cls(np.array([[0, 0], ], dtype=np.float32))
+        centroids = np.zeros((oversampling, 2), dtype=np.float32)
+        return cls(centroids)
 
     def reset(self, omit=None):
         """
@@ -194,6 +234,25 @@ class BackgroundGrid(Canvas):
         return self.centroids.shape[0]
 
     @property
+    def spectral_bins(self):
+        return self._spectral_bins
+
+    @spectral_bins.setter
+    def spectral_bins(self, value):
+        if self._transform is None:
+            logging.critical('Coordinates for pixel grid must be defined before initialising spectral bins.')
+        assert self._transform is not None, 'Coordinates for pixel grid not known.'
+
+        if not isinstance(value, (list, np.ndarray)):
+            logging.error('Property BackgroundGrid.spectral_bins cannot be converted to array.')
+            return
+        elif len(value) != self.n_pixel:
+            logging.error('Length of BackgroundGrid.spectral_bins does not match number of pixels.')
+            return
+
+        self._spectral_bins = np.asarray(value)
+
+    @property
     def r(self):
         """
         Returns distance of each pixel to each gridpoint. The returned array
@@ -201,9 +260,16 @@ class BackgroundGrid(Canvas):
         """
         if self._r is None:  # only calculate if not already available
             if self._transform is None:
-                logging.critical("Spaxel locations must be defined before calculating distances.")
-            assert self._transform is not None, "Spaxel locations not known."
+                logging.critical('Coordinates for pixel grid must be defined before calculating distances.')
+            assert self._transform is not None, 'Coordinates for pixel grid not known.'
             self._r = distance.cdist(self.centroids, self.transform)  # resulting array has size (gridsize, n_pixel)
+
+            # if oversampling is used, set distances of pixels in other spectral bins to np.inf
+            if self.oversampling > 1:
+                if self.spectral_bins is None:
+                    logging.error('Cannot apply oversampling because spectral bins of pixels are missing.')
+                else:
+                    self._r[self.spectral_component[:, np.newaxis] != self.spectral_bins] = np.inf
 
             # if per-slice background is used, set their centroid distances to infinity for all pixels
             self._r[self.gridsize - self.n_ifu * self.n_slice:] = np.inf
@@ -297,13 +363,30 @@ class BackgroundGrid(Canvas):
                 logging.error('Cannot properly set background pixels because IFU/slice numbers are missing.')
 
     def add_slices(self, n_ifu, n_slice):
+        """
+
+        Parameters
+        ----------
+        n_ifu
+        n_slice
+
+        Returns
+        -------
+
+        """
         self.n_ifu = int(n_ifu)
         self.n_slice = int(n_slice)
 
         # use y-coordinates as IFU numbers and x-coordinates as slice numbers
         _x, _y = np.mgrid[1:self.n_slice + 1, 1:self.n_ifu + 1]
         _centroids = np.vstack((_x.flatten(), _y.flatten())).T
+
+        if self.oversampling > 1:
+            _centroids = np.repeat(_centroids, self.oversampling, axis=0)
+
         self.centroids = np.concatenate((self.centroids, _centroids), axis=0)
+        self.spectral_component = np.concatenate((
+            self.spectral_component, np.mod(np.arange(self.n_ifu*self.n_slice), self.oversampling)), axis=0)
 
         self.reset()
 
