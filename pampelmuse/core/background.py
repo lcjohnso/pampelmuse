@@ -104,7 +104,6 @@ class BackgroundGrid(Canvas):
         else:
             self.oversampling = nearby[0]
             self.spectral_component = np.diag(np.cumsum((distances < 1e-5), axis=0)) - 1
-            print(self.spectral_component)
 
         logging.info('Preparing background with {0} component(s) and an oversampling factor of {1}.'.format(
             self.centroids.shape[0]//self.oversampling, self.oversampling))
