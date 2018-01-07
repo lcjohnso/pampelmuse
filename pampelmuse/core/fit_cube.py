@@ -561,6 +561,9 @@ class FitCube(object):
             # add background if requested
             if self.background is not None:
                 self.background.transform = data[['x', 'y']].values
+                if self.background.oversampling > 1:
+                    bins = np.linspace(data['wave'].min(), data['wave'].max(), self.background.oversampling+1)[1:-1]
+                    self.background.spectral_bins = np.digitize(data['wave'], bins)
                 if 'ifu' in data.columns and 'slice' in data.columns:
                     self.background.ifus = data['ifu'].values
                     self.background.slices = data['slice'].values
@@ -640,9 +643,9 @@ class FitCube(object):
            Flag indicating if NaN pixels should be included in the data that
            is returned.
         use_slices : boolean, optional
-           Flag indicating if the IFU and slice numbers should be returned for
-           a MUSE pixel table (when available). If so, they will be stored in
-           columns 'ifu' and 'slice'.
+            Flag indicating if the IFU and slice numbers should be returned
+            for a MUSE pixel table (when available). If so, they will be
+            stored in columns 'ifu' and 'slice'.
 
         Returns
         -------
