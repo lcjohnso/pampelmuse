@@ -326,7 +326,7 @@ class SourceSelector(object):
             except AttributeError:
                 return (self.ifs_data.wcs.wcs.cdelt[:2] != 0).all()
 
-    def background_setup(self, skysize=-1, slices=False, oversampling=1):
+    def background_setup(self, skysize=-1, slices=False):
         """
         Method to add one or more background components.
 
@@ -343,10 +343,6 @@ class SourceSelector(object):
         slices : boolean, optional
             Set this flag to create a separate background component for each
             IFU/slice. This is only used for MUSE data.
-        oversampling : int, optional
-            To improve the sky subtraction for MUSE pixel tables, the spectral
-            sampling of the background components can be increased by the
-            provided factor.
 
         Returns
         -------
@@ -354,10 +350,9 @@ class SourceSelector(object):
             The number of background components used.
         """
         if skysize <= 0:
-            background = BackgroundGrid.constant(oversampling=oversampling)
+            background = BackgroundGrid.constant()
         else:
-            background = BackgroundGrid.from_shape(shape=self.ifs_data.shape, rscale=skysize/2.,
-                                                   oversampling=oversampling)
+            background = BackgroundGrid.from_shape(shape=self.ifs_data.shape, rscale=skysize/2.)
 
         if slices:
             logger.warning('Assigning background components to slices still in testing phase.')
