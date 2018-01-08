@@ -1,7 +1,7 @@
 """
 background.py
 =============
-Copyright 2013-2017 Sebastian Kamann
+Copyright 2013-2018 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -39,7 +39,7 @@ Revision 221, 2014/12/02
 
 Latest Git revision
 -------------------
-2017/12/04
+2018/01/08
 """
 import logging
 import numpy as np
@@ -50,7 +50,7 @@ from ..psf import Canvas
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20171204
+__revision__ = 20180108
 
 
 class BackgroundGrid(Canvas):
@@ -234,10 +234,25 @@ class BackgroundGrid(Canvas):
 
     @property
     def spectral_bins(self):
+        """
+        Returns the spectral bin of each pixel of the transformation if
+        defined, otherwise None is returned.
+        """
         return self._spectral_bins
 
     @spectral_bins.setter
     def spectral_bins(self, value):
+        """
+        Sets the spectral bin for each pixel of the transformation.
+        
+        Parameters
+        ----------
+        value : array-like
+            The spectral bin of each pixel. The data should be provided as a
+            one-dimensional array of integers (between 0 and the selected
+            oversampling factor) with a length equal to the number of pixels
+            in the instance.
+        """
         if self._transform is None:
             logging.critical('Coordinates for pixel grid must be defined before initialising spectral bins.')
         assert self._transform is not None, 'Coordinates for pixel grid not known.'
@@ -363,15 +378,18 @@ class BackgroundGrid(Canvas):
 
     def add_slices(self, n_ifu, n_slice):
         """
+        Add information about the number of IFUs and slices to the instance. 
+        
+        The method will add one additional background component per IFU/slice
+        combination to the instance. These components are unrelated to the
+        components that have been defined upon initialisation of the instance.
 
         Parameters
         ----------
-        n_ifu
-        n_slice
-
-        Returns
-        -------
-
+        n_ifu : int
+            The number of IFUs to be used.
+        n_slice : int
+            The number of slices to be used.
         """
         self.n_ifu = int(n_ifu)
         self.n_slice = int(n_slice)

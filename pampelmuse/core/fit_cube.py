@@ -1,7 +1,7 @@
 """
 fit_cube.py
 ===========
-Copyright 2013-2017 Sebastian Kamann
+Copyright 2013-2018 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -31,7 +31,7 @@ extraction for a data cube.
 
 Latest GIT revision
 -------------------
-2017/12/27
+2018/01/08
 """
 import logging
 import time
@@ -44,7 +44,7 @@ from ..instruments.muse import MusePixtable
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20171227
+__revision__ = 20180108
 
 
 logger = logging.getLogger(__name__)
@@ -561,9 +561,12 @@ class FitCube(object):
             # add background if requested
             if self.background is not None:
                 self.background.transform = data[['x', 'y']].values
+                # if oversampling of background should be used, split up wavelength values into requested number of
+                # equi-distant bins
                 if self.background.oversampling > 1:
                     bins = np.linspace(data['wave'].min(), data['wave'].max(), self.background.oversampling+1)[1:-1]
                     self.background.spectral_bins = np.digitize(data['wave'], bins)
+                # if IFU/slice-dependent background components should be used, add values to background instance
                 if 'ifu' in data.columns and 'slice' in data.columns:
                     self.background.ifus = data['ifu'].values
                     self.background.slices = data['slice'].values

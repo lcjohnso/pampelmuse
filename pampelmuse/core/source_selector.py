@@ -2,7 +2,7 @@
 source_selector.py
 ==================
 
-Copyright 2013-2017 Sebastian Kamann
+Copyright 2013-2018 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -33,7 +33,7 @@ Added
 
 Latest Git revision
 -------------------
-2017/12/21
+2018/01/08
 """
 import logging
 import sys
@@ -52,7 +52,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20171221
+__revision__ = 20180108
 
 
 logger = logging.getLogger(__name__)
