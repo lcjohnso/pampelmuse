@@ -1,7 +1,7 @@
 """
 generic_ifs.py
 ==============
-Copyright 2013-2016 Sebastian Kamann
+Copyright 2013-2018 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -27,9 +27,9 @@ coming from an arbitrary integral field spectrograph. To this aim, the data
 must be provided as 3dim. cubes, with the zeroth axis (in python counting,
 i.e. NAXIS3 in FITS counting) being the spectral axis.
 
-Latest SVN revision
+Latest Git revision
 -------------------
-388, 2017/01/24
+2018/01/12
 """
 import logging
 import numpy as np
@@ -37,8 +37,8 @@ from astropy.wcs import WCS
 from .instrument import Instrument
 
 
-__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 388
+__author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
+__revision__ = 20180112
 
 
 class GenericIFS(Instrument):
@@ -130,6 +130,13 @@ class GenericIFS(Instrument):
         super(GenericIFS, self)._set_datahdu(hdu)
 
         self.wcs = WCS(header=self.datahdu.header)
+
+        # sometimes the CD matrix in the header is only 2D (i.e. contains only RA and DEC) and the CDELT3 key is
+        # present, but not used by astropy.
+        if self.wcs.wcs.has_cd() and self.wcs.wcs.cd.size == 9:
+            if 'CDELT3' in self.datahdu.header and 'CD3_3' not in self.datahdu.header:
+                self.wcs.wcs.cd[2, 2] *= self.datahdu.header['CDELT3']  # use *= to include possible earlier conversion
+
         self._shape = (self.datahdu.header['NAXIS2'], self.datahdu.header['NAXIS1'])
         self.nlayer = self.datahdu.header['NAXIS3']
 

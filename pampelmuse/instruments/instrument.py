@@ -1,7 +1,7 @@
 """
 instrument.py
 =============
-Copyright 2013-2017 Sebastian Kamann
+Copyright 2013-2018 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -26,9 +26,9 @@ This module provides the base class for all instrument classes defined in
 PampelMuse. It should not be used to handle any real IFS data. Instead, it
 defines generic methods that are inherited by all its subclasses.
 
-Latest SVN revision
+Latest Git revision
 -------------------
-421, 2017/04/30
+2018/01/12
 """
 import logging
 import matplotlib
@@ -42,7 +42,7 @@ from ..utils.distance import dist2path, point_in_poly
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 421
+__revision__ = 20180112
 
 
 class Instrument(object):
@@ -471,12 +471,12 @@ class Instrument(object):
             else:
                 self.wave *= self.wcs.wcs.cdelt[2]
             self._wave += self.wcs.wcs.crval[2]
-            if self.wcs.wcs.cunit[2] == 'um':
-                self._wave *= 1e4
-            elif self.wcs.wcs.cunit[2] == 'nm':
-                self._wave *= 10
-            elif self.wcs.wcs.cunit[2] == 'm':
-                self._wave *= 10**10
+            # if self.wcs.wcs.cunit[2] == 'um':
+            #     self._wave *= 1e4
+            # elif self.wcs.wcs.cunit[2] == 'nm':
+            #     self._wave *= 10
+            # elif self.wcs.wcs.cunit[2] == 'm':
+            #     self._wave *= 10**10
         return self._wave
 
     @wave.setter
@@ -880,11 +880,11 @@ class Instrument(object):
         # open filtercurve, check if it overlaps with IFs data
         fct = get_filter(passband)
 
-        # note that both IFS data and filter curve should be in Angstrom
-        wmin = fct.get_knots().min()  # min. of defined wavelength range
+        # note that IFS data are in m while filter curves are currently in Angstrom
+        wmin = 1e-10*fct.get_knots().min()  # min. of defined wavelength range
         imin = np.argmax(self.wave > wmin)
 
-        wmax = fct.get_knots().max()  # max. of defined wavelength range
+        wmax = 1e-10*fct.get_knots().max()  # max. of defined wavelength range
         imax = self.wave.size - 1 - np.argmax(self.wave[::-1] < wmax)
 
         if imin >= imax or self.wave.max() < wmin or self.wave.min() > wmax:
