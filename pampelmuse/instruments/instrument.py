@@ -28,7 +28,7 @@ defines generic methods that are inherited by all its subclasses.
 
 Latest Git revision
 -------------------
-2018/01/12
+2018/01/15
 """
 import logging
 import matplotlib
@@ -42,7 +42,7 @@ from ..utils.distance import dist2path, point_in_poly
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 20180112
+__revision__ = 20180115
 
 
 class Instrument(object):
@@ -891,7 +891,7 @@ class Instrument(object):
             logging.error("No overlap between provided wavelength range and passband {0}.".format(passband))
             return (None, None), None
         else:
-            weights = fct(self.wave[imin:imax])
+            weights = fct(1e10*self.wave[imin:imax])
             assert not np.isnan(weights).any()
             return self.integrate(imin, imax, weights=weights, **kwargs), weights
 
