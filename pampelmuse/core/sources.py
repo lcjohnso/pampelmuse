@@ -1,7 +1,7 @@
 """
 sources.py
 ==========
-Copyright 2013-2017 Sebastian Kamann
+Copyright 2013-2018 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -37,7 +37,7 @@ memory but only on request.
 
 Latest Git revision
 -------------------
-2017/12/27
+2018/01/17
 """
 import collections
 import logging
@@ -59,7 +59,7 @@ except ImportError:
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20171227
+__revision__ = 20180117
 
 
 logger = logging.getLogger(__name__)
@@ -1149,9 +1149,12 @@ class Sources(object):
         if isinstance(hdu, fits.hdu.table.BinTableHDU):
             logger.info('Reading polynomial fits to coordinates from HDU {0} ...'.format(hdu.header.get('EXTNAME', '')))
 
+            # for compatibility with older versions, still accept previous column names
+            old_names = {'x_function': 'xfct', 'y_function': 'yfct', 'x_coefficients': 'xprm', 'y_coefficients': 'yprm'}
+
             # check if required columns are present in header
             for name in ["id", "x_function", "x_coefficients", "y_function", "y_coefficients"]:
-                if name not in hdu.columns.names:
+                if name not in hdu.columns.names and old_names[name] not in hdu.columns.names:
                     logger.error("Missing required column '{0}' in positions table HDU.".format(name))
                     return
 
@@ -1175,15 +1178,19 @@ class Sources(object):
 
             # Set up the polynomials for all sources that have data available in the HDU
             for i, row in enumerate(hdu.data):
-                xfctname = ident[row["x_function"]]  # the name of the polynomial as a string
-                yfctname = ident[row["y_function"]]
+                # the name of the polynomial as a string:
+                xfctname = ident[row['x_function'] if 'x_function' in hdu.columns.names else row['xfct']]
+                yfctname = ident[row['y_function'] if 'y_function' in hdu.columns.names else row['yfct']]
 
                 xfct = self.available_polynoms[xfctname]  # the actual polynomial class
                 yfct = self.available_polynoms[yfctname]
 
                 # save polynomials for current source
-                self.ifs_coordinates_fit_functions[row["id"]] = [xfct(row["x_coefficients"], domain=domain),
-                                                                 yfct(row["y_coefficients"], domain=domain)]
+                self.ifs_coordinates_fit_functions[row["id"]] = [
+                    xfct(row['x_coefficients'] if 'x_coefficients' in hdu.columns.names else row['xprm'],
+                         domain=domain),
+                    yfct(row['y_coefficients'] if 'y_coefficients' in hdu.columns.names else row['yprm'],
+                         domain=domain)]
                 # keep track of which sources have fits available
                 self.ifs_coordinates_fitted[row['id']] = True
 
