@@ -1,7 +1,7 @@
 """
 PampelMuse
 ==========
-Copyright 2013-2017 Sebastian Kamann
+Copyright 2013-2018 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -27,7 +27,7 @@ analysis of data observed with FLAMES/ARGUS at the VLT.
 
 Latest Git revision
 -------------------
-2017/11/23
+2018/01/18
 """
 import re
 import logging
@@ -36,8 +36,8 @@ import numpy as np
 from .instrument import Instrument
 
 
-__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 20171123
+__author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
+__revision__ = 20180118
 
 
 class Argus(Instrument):
@@ -338,6 +338,10 @@ class Argus(Instrument):
             self.wcs.wcs.crpix[-1] = hdu.header['CRPIX2']
         if 'CUNIT2' in hdu.header:
             self.wcs.wcs.cunit[-1] = hdu.header['CUNIT2']
+
+        # make sure wavelength units are converted to meters
+        self.wcs.fix()
+
         if 'ESO ADA POSANG' in hdu.header:  # check if information on position angle that was used can be found.
             self.angle = hdu.header['ESO ADA POSANG'] + 90
         if 'ESO INS1 OPTI1 POS' in hdu.header:  # check if information on scale that was used can be found

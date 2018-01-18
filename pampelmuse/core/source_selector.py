@@ -580,7 +580,7 @@ class SourceSelector(object):
 
         logger.info("Creating mock {0}-band image from IFS data...".format(self.passband))
         (self.data_image, self.var_image), weights = self.ifs_data.integrate_over_filtercurve(
-                self.passband, apply_variances=True, nbin=n_bin)
+                self.passband, apply_variances=True, nbin=n_bin, layer_range=(5, self.ifs_data.nlayer - 5))
 
         # The sigma values are valid for the broadband image and must be increased to be representative for a typical
         # layer. As the image was obtained by integrating over a filter curve, the sigma values are multiplied by

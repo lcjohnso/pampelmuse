@@ -37,7 +37,7 @@ memory but only on request.
 
 Latest Git revision
 -------------------
-2018/01/17
+2018/01/18
 """
 import collections
 import logging
@@ -59,7 +59,7 @@ except ImportError:
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180117
+__revision__ = 20180118
 
 
 logger = logging.getLogger(__name__)
@@ -782,9 +782,14 @@ class Sources(object):
 
         # if no dedicated wavelength HDU was provided, try to update dispersion information from header of data HDU
         if self.data_wave_hdu is None:
-            for key in ["CRVAL", "CDELT", "CRPIX", "CTYPE", "CUNIT"]:
+            for key in ["CRVAL", "CDELT", "CRPIX"]:
                 if "{0}3".format(key) in self.data_hdu.header:
                     setattr(self, key.lower(), self.data_hdu.header["{0}3".format(key)])
+
+        # to to infer type and unit of wavelength scale in any case
+        for key in ["CTYPE", "CUNIT"]:
+            if "{0}3".format(key) in self.data_hdu.header:
+                setattr(self, key.lower(), self.data_hdu.header["{0}3".format(key)])
 
         # create boolean series that keeps track of which sources have spectra loaded
         self.spectrum_loaded = pd.Series(np.zeros((self.n_components,), dtype=np.bool),

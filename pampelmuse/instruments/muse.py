@@ -185,7 +185,7 @@ class MusePixtable(Instrument):
 
     rawwave = None
     rawwave_for_current_layer = None
-    wstep = 1.25  # Dispersion in Angstrom/pixel
+    wstep = 1.25e-10  # Dispersion in m/pixel
 
     ifus_for_current_layer = None
     slices_for_current_layer = None
@@ -350,9 +350,10 @@ class MusePixtable(Instrument):
                                     np.mod(np.arange(xsize*ysize, dtype=np.int32), xsize))).T
 
         # Note that for the MUSE pixtables two wavelength ranges are defined; MusePixtable.rawwave contains one value
-        # per pixel while MusePixtable.wave contains one value per layer
+        # per pixel while MusePixtable.wave contains one value per layer. As the pixel tables are provided in units of
+        # Angstrom, we need to convert to meters
         logging.info('Reading wavelength array ...')
-        self.rawwave = pt['lambda'].data[:, 0]
+        self.rawwave = 1e-10*pt['lambda'].data[:, 0]
         logging.info('... done.')
 
         # check if wavelength array is strictly increasing
@@ -493,7 +494,7 @@ class MusePixtable(Instrument):
         Returns
         -------
         values : ndarray
-            The data values (ore residuals) in the requested layer. Note that
+            The data values (or residuals) in the requested layer. Note that
             if a bad-pixel mask is provided, bad pixels are filtered out from
             the data before it is returned. This is different from the
             behaviour for the other instruments where those pixels are set to

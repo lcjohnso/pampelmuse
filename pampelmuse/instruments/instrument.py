@@ -28,7 +28,7 @@ defines generic methods that are inherited by all its subclasses.
 
 Latest Git revision
 -------------------
-2018/01/15
+2018/01/18
 """
 import logging
 import matplotlib
@@ -42,7 +42,7 @@ from ..utils.distance import dist2path, point_in_poly
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 20180115
+__revision__ = 20180118
 
 
 class Instrument(object):
@@ -73,8 +73,9 @@ class Instrument(object):
 
     # define very basic WCS instance
     wcs = WCS(naxis=3)
-    wcs.wcs.cd = np.diagflat([1, 1, 1])
+    wcs.wcs.cd = np.diagflat([1, 1, 1e-10])
     wcs.wcs.ctype = ['RA---TAN', 'DEC--TAN', 'AWAV']
+    wcs.wcs.cunit = ['deg', 'deg', 'm']
 
     _sky_fibers = []  # The indices of the sky fibers
     _cal_fibers = []  # The indices of the calibration fibers
@@ -460,7 +461,8 @@ class Instrument(object):
     @property
     def wave(self):
         """
-        This property contains the wavelength for every layer of the IFS data.
+        This property contains the wavelength in meters for every layer of the
+        IFS data.
         """
         if self._wave is None:
             if self.nlayer is None or self.wcs.naxis < 3:
@@ -484,11 +486,15 @@ class Instrument(object):
         """
         Set the wavelength value for each layer of the IFS data.
 
+        Note that the wavelength scale is always assumed to be in meters,
+        because astropy does automatically convert to meters when creating a
+        WCS instance from the header of a FITS file.
+
         Parameters
         ----------
         value : array_like
-            The wavelength values, the length of the array must match the
-            number of layers in the IFS data.
+            The wavelength values in meters.  The length of the array must
+            match the number of layers in the IFS data.
         """
         self._wave = np.asarray(value, dtype=np.float64)
         self.nlayer = self._wave.size
@@ -851,7 +857,7 @@ class Instrument(object):
         wsum[wsum == 0] = np.nan
         return data/wsum, 1./wsum
 
-    def integrate_over_filtercurve(self, passband, **kwargs):
+    def integrate_over_filtercurve(self, passband, layer_range=None, **kwargs):
         """
         This method is designed to integrate this IFS data over a filter curve
         to create a mock photometric image in that filter.
@@ -862,6 +868,10 @@ class Instrument(object):
             The name of the filter over which to integrate. Note that it must
             be available in the set of filters available to PampelMuse. Check
             the PampelMuse manual for details.
+        layer_range : tuple, optional
+            The min. and max layer of the IFS data that should be considered.
+            This is helpful in cases when the first/last layer of the data is
+            corrupted.
         kwargs
             Any additional keyword argument is passed on to the call of
             Instrument.integrate() that performs the actual integration.
@@ -872,6 +882,9 @@ class Instrument(object):
             The array containing the integrated data.
         variances : ndarray
             An estimate of the variance in each data pixel.
+        weights : ndarray
+            The throughput values of the filter at the wavelength sampling of
+            the IFS data.
         """
         if self.wave is None:
             logging.error("Missing wavelength information for IFS data.")
@@ -886,6 +899,10 @@ class Instrument(object):
 
         wmax = 1e-10*fct.get_knots().max()  # max. of defined wavelength range
         imax = self.wave.size - 1 - np.argmax(self.wave[::-1] < wmax)
+
+        if layer_range is not None:
+            imin = max([imin, layer_range[0]])
+            imax = min([imax, layer_range[1]])
 
         if imin >= imax or self.wave.max() < wmin or self.wave.min() > wmax:
             logging.error("No overlap between provided wavelength range and passband {0}.".format(passband))

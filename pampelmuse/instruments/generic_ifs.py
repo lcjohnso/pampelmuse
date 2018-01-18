@@ -29,7 +29,7 @@ i.e. NAXIS3 in FITS counting) being the spectral axis.
 
 Latest Git revision
 -------------------
-2018/01/12
+2018/01/18
 """
 import logging
 import numpy as np
@@ -38,7 +38,7 @@ from .instrument import Instrument
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180112
+__revision__ = 20180118
 
 
 class GenericIFS(Instrument):
@@ -135,7 +135,8 @@ class GenericIFS(Instrument):
         # present, but not used by astropy.
         if self.wcs.wcs.has_cd() and self.wcs.wcs.cd.size == 9:
             if 'CDELT3' in self.datahdu.header and 'CD3_3' not in self.datahdu.header:
-                self.wcs.wcs.cd[2, 2] *= self.datahdu.header['CDELT3']  # use *= to include possible earlier conversion
+                self.wcs.wcs.cd[2, 2] *= self.datahdu.header['CDELT3']
+                # use *= to include possible earlier conversion from e.g. Angstrom to meters
 
         self._shape = (self.datahdu.header['NAXIS2'], self.datahdu.header['NAXIS1'])
         self.nlayer = self.datahdu.header['NAXIS3']

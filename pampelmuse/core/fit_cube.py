@@ -31,7 +31,7 @@ extraction for a data cube.
 
 Latest GIT revision
 -------------------
-2018/01/08
+2018/01/18
 """
 import logging
 import time
@@ -44,7 +44,7 @@ from ..instruments.muse import MusePixtable
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180108
+__revision__ = 20180118
 
 
 logger = logging.getLogger(__name__)
@@ -261,11 +261,6 @@ class FitCube(object):
         self.osfactor = osfactor
         self.osradius = osradius
 
-        # check if dispersion information in cube and sources compatible, make sure wavelength information agrees
-        if self.sources.n_dispersion != self.ifs_data.nlayer:
-            logger.error('IFS data and Sources instance have incompatible dispersion information')
-        self.sources.wave = self.ifs_data.wave
-
         # The following two dictionaries will contain the name of ALL parameters needed to define the source
         # positions and the PSF. The keys are flags indicating if the should be optimized during the fit
         self.position_parameters = {}
@@ -320,6 +315,22 @@ class FitCube(object):
             n_ifu = self.sources.x[self.sources.status == 5].max()
             n_slice = self.sources.y[self.sources.status == 5].max()
             self.background.add_slices(n_ifu=n_ifu, n_slice=n_slice)
+
+        # check if dispersion information are compatible everywhere
+        if self.sources.n_dispersion != self.ifs_data.nlayer:
+            logger.error('IFS data and Sources instance have incompatible dispersion information')
+
+        # ensure that the instances of the PSF and the coordinate transformation (if any) use the same indices as the
+        # Sources instance
+        if self.psf_attributes.n_dispersion != self.sources.n_dispersion:
+            self.psf_attributes.resize(self.sources.wave)
+        else:
+            self.psf_attributes.data.index = self.sources.wave
+        if self.sources.transformation.valid:
+            if self.sources.transformation.n_dispersion != self.sources.n_dispersion:
+                self.sources.transformation.resize(self.sources.wave)
+            else:
+                self.sources.transformation.data.index = self.sources.wave
 
         # prepare containers for storing detailed PSF information if requested
         self.profiles = {}
@@ -414,23 +425,12 @@ class FitCube(object):
         # fluxes of omitted layers are set to NaN
         self.sources.data.loc[omitted_indices] = np.nan
 
-        # if parameters (of the PSF or the coordinate transformation) are fitted, it must be ensured that the instances
-        # have correct dispersion information
-        if self.psf_attributes.n_dispersion != self.sources.n_dispersion:
-            self.psf_attributes.resize(self.sources.wave)
-        else:
-            self.psf_attributes.data.index = self.sources.wave
-        if self.sources.transformation.valid:
-            if self.sources.transformation.n_dispersion != self.sources.n_dispersion:
-                self.sources.transformation.resize(self.sources.wave)
-            else:
-                self.sources.transformation.data.index = self.sources.wave
-
-        # Interpolate across wavelength range to ensure the parameters have valid values for all fitted layers.
-        # Afterwards - if any of the available parameters is fitted - set all parameters of omitted layers to NaN.
-        # Note that this is not done for polynomial fits to the parameters
+        # Source coordinates, parameters of the coordinate transformation, or PSF parameters are first interpolated
+        # across the wavelength range to ensure valid values for all fitted layers. Afterwards - if any of the
+        # positions/parameters are fitted - all parameters of omitted layers to NaN. his is not done for any polynomial
+        # fits to the positions/parameters that may exist
         self.psf_attributes.interpolate()
-        if len(self.position_parameters) > 0:
+        if len(self.psf_parameters) > 0:
             self.psf_attributes.data.loc[omitted_indices, (slice(None), 'value')] = np.nan
 
         if self.sources.transformation.valid:
@@ -525,7 +525,7 @@ class FitCube(object):
             handler.setFormatter(fmt)
 
             # collecting data required for fit to layer
-            logger.info("Collecting input data for fit to layer with wavelength {0:.1f}AA.".format(jj))
+            logger.info("Collecting input data for fit to layer with wavelength {0:.4g}m.".format(jj))
 
             # among stored layers of last fits, find those nearest to current layer
             if len(last_layers) > n_track:
@@ -712,9 +712,9 @@ class FitCube(object):
 
         Parameters
         ----------
-        current : integer
+        current : float
             The index of the layer for which the parameters should be obtained
-        last : list of integers, optional
+        last : list of floats, optional
             A list containing the indices of the layers that are averaged to
             get the new value.
 
@@ -759,9 +759,9 @@ class FitCube(object):
 
         Parameters
         ----------
-        current : integer
+        current : float
             The index of the layer for which the parameters should be obtained
-        last : list of integers, optional
+        last : list of floats, optional
             A list containing the indices of the layers that are averaged to
             get the new value.
 
@@ -806,9 +806,9 @@ class FitCube(object):
 
         Parameters
         ----------
-        current : integer
+        current : float
             The index of the layer for which the centroids should be obtained
-        last : list of integers, optional
+        last : list of floats, optional
             A list containing the indices of the layers that are averaged to
             get the new value.
 
@@ -856,7 +856,7 @@ class FitCube(object):
 
         Parameters
         ----------
-        current : integer
+        current : float
             The index of the layer for which the fluxes were fitted.
         fluxes : pandas.Series
             The fitted fluxes of the components.
@@ -892,7 +892,7 @@ class FitCube(object):
 
         Parameters
         ----------
-        current : int
+        current : float
             The index of the layer for which the fluxes were fitted.
         values : pandas.Series
             The fitted values of the PSF parameters. The indices of the Series
@@ -912,7 +912,7 @@ class FitCube(object):
 
         Parameters
         ----------
-        current : int
+        current : float
             The index of the layer for which the fluxes were fitted.
         values : pandas.Series
             The fitted values of the transformation parameters. The indices of
@@ -932,7 +932,7 @@ class FitCube(object):
 
         Parameters
         ----------
-        current : int
+        current : float
             The index of the layer for which the fluxes were fitted.
         values : pandas.DataFrame
             The fitted values of the source centroids. The data frame should

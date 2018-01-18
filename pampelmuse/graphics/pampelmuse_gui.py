@@ -37,7 +37,7 @@ defines the methods that are called by Ui_PampelMuseGui.
 
 Latest Git revision
 -------------------
-2018/01/04
+2018/01/18
 """
 import datetime
 import logging
@@ -64,7 +64,7 @@ from ..utils.fits import save_prm, read_config_from_header, make_header_from_con
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 20180104
+__revision__ = 20180118
 
 
 class ToolbarWithoutMessage(NavigationToolbar):
@@ -1189,7 +1189,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         """
         # show spectrum in spectrum viewer
         self.dataPlot.updateData(name='data', x_data=self.ifsPlot.cube.wave, y_data=self.ifsPlot.getNearestSpaxel(x, y),
-                                 x_label=r"$\lambda$", y_label=r"$f_\lambda\,[\mathrm{counts}]$")
+                                 x_label=r"$\lambda\,[{\rm m}]$", y_label=r"$f_\lambda\,[\mathrm{counts}]$")
 
         # indicate position where grab event took place in IFU viewer
         self.ifsPlotCurrentlyMarked.set_data(x, y)
