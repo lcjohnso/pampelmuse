@@ -29,7 +29,7 @@ i.e. NAXIS3 in FITS counting) being the spectral axis.
 
 Latest Git revision
 -------------------
-2018/01/18
+2018/01/24
 """
 import logging
 import numpy as np
@@ -38,7 +38,7 @@ from .instrument import Instrument
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180118
+__revision__ = 20180124
 
 
 class GenericIFS(Instrument):
@@ -210,7 +210,7 @@ class GenericIFS(Instrument):
             array.
         """
         if self.maskhdu is not None:
-            valid = (self.maskhdu.section[i] > 0)
+            valid = (self.maskhdu.section[i] == 0)
         else:
             valid = None
 
