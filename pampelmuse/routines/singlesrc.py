@@ -1,7 +1,7 @@
 """
 singlesrc.py
 ============
-Copyright 2013-2017 Sebastian Kamann
+Copyright 2013-2018 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -36,17 +36,18 @@ improved using the first order moments determined in the calculation.
  
 Latest SVN revision
 -------------------
-2017/12/20
+2018/01/24
 """
 import datetime
 import logging
 from ..core.source_selector import SourceSelector
+from ..instruments import MusePixtable
 from ..psf import Variables
 from ..utils.fits import open_ifs_data, make_header_from_config, save_prm
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20171220
+__revision__ = 20180124
 
 
 logger = logging.getLogger(__name__)
@@ -142,13 +143,14 @@ def singlesrc(config):
     # need to load complete array for IFS coordinates before, otherwise it is only loaded
     # for the sources with status=3 and the results are overwritten when loading full array
     # for storing results.
+    selector.sources.load_spectra(init_wave=isinstance(ifs_data, MusePixtable))
     selector.sources.ifs_coordinates_free[:] = True
     selector.sources.load_ifs_coordinates()
     selector.run_aperture_photometry(ids=selector.sources.ids[selector.sources.status != 4],
                                      start=first_layer, stop=last_layer,
-                                     radius=config['initfit'].get('aperrad', 3),
-                                     n_cpu=config['global'].get('cpucount', 1),
-                                     n_bin=config['layers'].get('binning', 1))
+                                     radius=config['initfit']['aperrad'],
+                                     n_cpu=config['global']['cpucount'],
+                                     n_bin=config['layers']['binning'])
 
     # write results to file
     logger.info("Saving source properties in file {0}.prm.fits.".format(prefix))

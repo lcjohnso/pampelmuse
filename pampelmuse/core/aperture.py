@@ -1,7 +1,7 @@
 """
 aperture.py
 ===========
-Copyright 2013-2017 Sebastian Kamann
+Copyright 2013-2018 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -42,12 +42,12 @@ Provides
 --------
 function pampelmuse.core.aperture.run_ap
 
-Latest SVN revision
+Latest Git revision
 -------------------
-438, 2017/06/17
+2018/01/24
 """
 import logging
-from multiprocessing import Pool
+from multiprocessing import Pool, cpu_count
 import numpy as np
 import pandas as pd
 from scipy import spatial
@@ -56,7 +56,7 @@ from ..instruments import Instrument, MusePixtable
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 438
+__revision__ = 20180124
 
 
 logger = logging.getLogger(__name__)
@@ -352,7 +352,8 @@ class AperPhoto:
 
         self.thresh = thresh
         self.calc_moments = calc_moments
-        self.n_cpu = n_cpu
+        if n_cpu is None or n_cpu == -1:
+            n_cpu = cpu_count()
 
         if background not in ["local", "global"]:
             logger.error("Unknown value '{0}' for parameter 'background'. Must be 'local' or 'global'.".format(
@@ -373,8 +374,8 @@ class AperPhoto:
 
         # initialize parallelisation
         init_arguments = (self.centroids, background, r_aper, calc_moments, thresh)
-        if self.n_cpu > 1:
-            pool = Pool(self.n_cpu, initializer=init_worker, initargs=init_arguments)
+        if n_cpu > 1:
+            pool = Pool(n_cpu, initializer=init_worker, initargs=init_arguments)
         else:
             pool = None
             init_worker(*init_arguments)
@@ -399,7 +400,7 @@ class AperPhoto:
             input_data.append(pd.DataFrame(np.append(self.cube.transform, data[:, None], axis=1),
                                            columns=['y', 'x', 'flux']))
 
-            if not i % self.n_cpu or layer_index == self.layers_to_analyse[-1]:
+            if not i % n_cpu or layer_index == self.layers_to_analyse[-1]:
                 if n_cpu > 1:
                     mapper = pool.map_async(run_ap, input_data)
                     _results.extend(mapper.get())

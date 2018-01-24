@@ -1,7 +1,7 @@
 """
 fits.py
 =======
-Copyright 2013-2017 Sebastian Kamann
+Copyright 2013-2018 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -32,7 +32,7 @@ The provided functions facilitate working with FITS data.
 
 Latest Git revision
 -------------------
-2017/12/05
+2018/01/24
 """
 import os
 import logging
@@ -47,7 +47,7 @@ from ..psf import Variables
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20171205
+__revision__ = 20180124
 
 
 def open_ifs_data(prefix, **kwargs):
@@ -146,7 +146,7 @@ def open_ifs_data(prefix, **kwargs):
     if instrument.varhdu is None:
         logging.error('Did not find variances for IFS data.')
 
-    # open (optional) HDU with spectrumMask
+    # open (optional) HDU with mask
     if os.path.exists("{0}.msk.fits".format(prefix)):
         instrument.open("{0}.msk.fits".format(prefix), extno=0, ismask=True, **kwargs)
     else:

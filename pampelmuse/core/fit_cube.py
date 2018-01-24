@@ -31,7 +31,7 @@ extraction for a data cube.
 
 Latest GIT revision
 -------------------
-2018/01/18
+2018/01/24
 """
 import logging
 import time
@@ -44,7 +44,7 @@ from ..instruments.muse import MusePixtable
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180118
+__revision__ = 20180124
 
 
 logger = logging.getLogger(__name__)
@@ -447,7 +447,7 @@ class FitCube(object):
             self.sources.ifs_coordinates.loc[omitted_indices] = np.nan
 
         # Check how many CPUs should be used
-        if n_cpu is None:
+        if n_cpu is None or n_cpu == -1:
             n_cpu = cpu_count()
         logger.info("Starting analysis using {0} CPU(s).".format(n_cpu))
 

@@ -600,13 +600,16 @@ class SourceSelector(object):
         self.var_image[mask] = np.inf
         self.data_image[mask] = 0
 
+        # take care of data cubes wih over-subtraction of background
         if self.data_image.sum() <= 0:
             self.data_image -= np.median(self.data_image)
             if self.data_image.sum() > 0:
                 logger.warning('Flux sum in {0}-image was negative. Subtracted (negative) median flux.'.format(
                     self.passband))
             else:
-                logger.error("Flux sum in {0}-image is negative.".format(self.passband))
+                self.data_image -= self.data_image.min()
+                logger.warning("Flux sum in {0}-image was negative. Subtracted (negative) minimum flux".format(
+                    self.passband))
 
     def cross_correlate_images(self, ccmaxoff=None, init_guess=None):
         """
@@ -1229,7 +1232,7 @@ class SourceSelector(object):
         theta = []
 
         # loop over sources, insert their spectra, calculate FWHM, ellipticity, and pos. angle of profile
-        # note that removed source IDs are still in the columns, property, see discussion here:
+        # note that removed source IDs are still in the columns property, see discussion here:
         # https://github.com/pandas-dev/pandas/issues/2770
         for source_id in np.unique(results.columns.get_level_values(0)):
 
@@ -1242,8 +1245,10 @@ class SourceSelector(object):
             # add coordinates if they are fitted
             if self.sources.ifs_coordinates_free.any():
                 self.sources.ifs_coordinates[source_id] = np.nan
-                self.sources.ifs_coordinates[(source_id, 'x', 'value')].iloc[results.index] = results[(source_id, 'x')].values
-                self.sources.ifs_coordinates[(source_id, 'y', 'value')].iloc[results.index] = results[(source_id, 'y')].values
+                self.sources.ifs_coordinates[
+                    (source_id, 'x', 'value')].iloc[results.index] = results[(source_id, 'x')].values
+                self.sources.ifs_coordinates[
+                    (source_id, 'y', 'value')].iloc[results.index] = results[(source_id, 'y')].values
 
             # NaN pixels are set to zero since DER_SNR skips such pixels
             snr = der_snr(np.ma.array(spectrum.values, mask=np.isnan(spectrum.values), fill_value=0.).filled())

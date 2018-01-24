@@ -1,7 +1,7 @@
 """
 make_residuals_cube.py
 ======================
-Copyright 2013-2017 Sebastian Kamann
+Copyright 2013-2018 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -32,7 +32,7 @@ Added
 rev. 343, 2016/08/01
 
 Latest Git revision
-2017/12/05
+2018/01/24
 """
 import logging
 from multiprocessing import cpu_count, Pool
@@ -43,7 +43,7 @@ from .fit_layer import FitLayer
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20171205
+__revision__ = 20180124
 
 
 logger = logging.getLogger(__name__)
@@ -265,7 +265,7 @@ class MakeResidualsCube(FitCube):
         self.sources.ifs_coordinates.fillna(method='pad', inplace=True)
 
         # Check how many CPUs should be used
-        if n_cpu is None:
+        if n_cpu is None or n_cpu == -1:
             n_cpu = cpu_count()
         logger.info("Starting processing using {0} CPU(s).".format(n_cpu))
 

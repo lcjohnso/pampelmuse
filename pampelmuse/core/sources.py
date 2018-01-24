@@ -37,7 +37,7 @@ memory but only on request.
 
 Latest Git revision
 -------------------
-2018/01/18
+2018/01/24
 """
 import collections
 import logging
@@ -59,7 +59,7 @@ except ImportError:
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180118
+__revision__ = 20180124
 
 
 logger = logging.getLogger(__name__)
@@ -112,7 +112,7 @@ class Sources(object):
             self.catalog = catalog
 
         # assert that data frame is NOT a view of another one.
-        if self.catalog.values.base.size != self.catalog.values.size:
+        if self.catalog.values.base.size != self.catalog.values.size or self.catalog.is_copy:
             logger.warning('Need to copy catalog as it is a view to another pandas.DataFrame.')
             self.catalog = self.catalog.copy()
 
