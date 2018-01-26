@@ -1,7 +1,7 @@
 """
 cubefit.py
 ==========
-Copyright 2013-2017 Sebastian Kamann
+Copyright 2013-2018 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -36,7 +36,7 @@ which performs the actual analysis.
 
 Latest SVN revision
 -------------------
-2017/12/20
+2018/01/26
 """
 import datetime
 import logging
@@ -45,7 +45,7 @@ from ..utils.fits import make_header_from_config, open_ifs_data, open_prm, save_
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 20171220
+__revision__ = 20180126
 
 
 def add_parser(parser):

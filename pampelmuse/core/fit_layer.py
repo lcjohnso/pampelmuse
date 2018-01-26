@@ -1,7 +1,7 @@
 """
 fit_array.py
 ============
-Copyright 2013-2017 Sebastian Kamann
+Copyright 2013-2018 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -57,7 +57,7 @@ parameters are not fitted.
 
 Latest Git revision
 -------------------
-2017/11/23
+2018/01/26
 """
 import collections
 import contextlib
@@ -72,7 +72,7 @@ from ..core.coordinates import Transformation
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20171123
+__revision__ = 20180126
 
 
 logger = logging.getLogger(__name__)
@@ -520,7 +520,12 @@ class FitLayer(object):
                         final = final.append(self.fit_sources_simultaneously(psf_parameters_to_fit))
 
                 # update values in PSF instances
-                for parameter in position_parameters_to_fit + psf_parameters_to_fit:
+                parameters = position_parameters_to_fit
+                if parameters is None:
+                    parameters = psf_parameters_to_fit
+                elif psf_parameters_to_fit is not None:
+                    parameters += psf_parameters_to_fit
+                for parameter in parameters:
                     if parameter == 'xy':
                         continue
                     elif parameter in final and np.isfinite(final[parameter]):
