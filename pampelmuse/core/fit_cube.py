@@ -31,7 +31,7 @@ extraction for a data cube.
 
 Latest GIT revision
 -------------------
-2018/01/24
+2018/02/01
 """
 import logging
 import time
@@ -44,7 +44,7 @@ from ..instruments.muse import MusePixtable
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180124
+__revision__ = 20180201
 
 
 logger = logging.getLogger(__name__)
@@ -545,15 +545,15 @@ class FitCube(object):
             # update PSF parameters
             fit_input[-1]['psf_parameters'] = self.read_psf_parameters(jj, last=nearest_layers)
 
-            # update parameters of coordinate transformation (if available and needed)
-            if self.sources.transformation.valid:
-                if not self.sources.ifs_coordinates_fitted[~self.sources.is_background].all():
-                    fit_input[-1]['position_parameters'] = self.read_coordinate_transformation(jj, last=nearest_layers)
-
             # update direct coordinates if required
             if self.sources.ifs_coordinates_fitted.any() or self.sources.ifs_coordinates_free.any():
                 catalog[['x', 'y']] = self.read_ifs_coordinates(jj, last=nearest_layers)
                 fit_input[-1]['position_parameters'] = None
+            # otherwise try to update parameters of coordinate transformation
+            elif self.sources.transformation.valid:
+                fit_input[-1]['position_parameters'] = self.read_coordinate_transformation(jj, last=nearest_layers)
+            else:
+                logger.critical('Cannot determine IFS coordinates of sources.')
 
             # add sources catalog to fit input
             fit_input[-1]['catalog'] = catalog

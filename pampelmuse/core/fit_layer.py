@@ -57,7 +57,7 @@ parameters are not fitted.
 
 Latest Git revision
 -------------------
-2018/01/26
+2018/02/01
 """
 import collections
 import contextlib
@@ -72,7 +72,7 @@ from ..core.coordinates import Transformation
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180126
+__revision__ = 20180201
 
 
 logger = logging.getLogger(__name__)
@@ -520,9 +520,9 @@ class FitLayer(object):
                         final = final.append(self.fit_sources_simultaneously(psf_parameters_to_fit))
 
                 # update values in PSF instances
-                parameters = position_parameters_to_fit
+                parameters = position_parameters_to_fit.copy()
                 if parameters is None:
-                    parameters = psf_parameters_to_fit
+                    parameters = psf_parameters_to_fit.copy()
                 elif psf_parameters_to_fit is not None:
                     parameters += psf_parameters_to_fit
                 for parameter in parameters:
