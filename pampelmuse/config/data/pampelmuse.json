@@ -45,7 +45,9 @@
     "common":  false
   },
   "initfit": {
+    "usesigma": true,
     "zeromag": null,
+    "psfmag": null,
     "ccmaxoff": -1,
     "aperrad": 3,
     "apernois": 0.1,

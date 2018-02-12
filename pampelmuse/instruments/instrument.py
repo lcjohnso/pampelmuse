@@ -28,7 +28,7 @@ defines generic methods that are inherited by all its subclasses.
 
 Latest Git revision
 -------------------
-2018/01/18
+2018/02/12
 """
 import logging
 import matplotlib
@@ -42,7 +42,7 @@ from ..utils.distance import dist2path, point_in_poly
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 20180118
+__revision__ = 20180212
 
 
 class Instrument(object):
@@ -888,7 +888,7 @@ class Instrument(object):
         """
         if self.wave is None:
             logging.error("Missing wavelength information for IFS data.")
-            return (None, None), None
+            return None, None, None
 
         # open filtercurve, check if it overlaps with IFs data
         fct = get_filter(passband)
@@ -906,11 +906,12 @@ class Instrument(object):
 
         if imin >= imax or self.wave.max() < wmin or self.wave.min() > wmax:
             logging.error("No overlap between provided wavelength range and passband {0}.".format(passband))
-            return (None, None), None
+            return None, None, None
         else:
             weights = fct(1e10*self.wave[imin:imax])
             assert not np.isnan(weights).any()
-            return self.integrate(imin, imax, weights=weights, **kwargs), weights
+            images = self.integrate(imin, imax, weights=weights, **kwargs)
+            return images[0], images[1], weights
 
     def slice_for_layer(self, i):
         """

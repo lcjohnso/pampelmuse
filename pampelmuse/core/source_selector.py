@@ -559,7 +559,7 @@ class SourceSelector(object):
         self.identification_image = np.zeros(shape, dtype=np.float32)
         self.identification_image[psf.y.astype('<i4'), psf.x.astype('<i4')] = _image
 
-    def create_image_from_ifs(self, n_bin=10):
+    def create_image_from_ifs(self, n_bin=10, apply_variances=True):
         """
         This method creates a two-dimensional image from the IFS data.
 
@@ -576,11 +576,14 @@ class SourceSelector(object):
         n_bin : int, optional
             The binning factor; if >1, only every n_bin'th layer will be used
             to create the image.
+        apply_variances : bool, optional
+            Boolean flag indicating whether the variances of the IFS should be
+            used when creating the image.
         """
 
         logger.info("Creating mock {0}-band image from IFS data...".format(self.passband))
-        (self.data_image, self.var_image), weights = self.ifs_data.integrate_over_filtercurve(
-                self.passband, apply_variances=True, nbin=n_bin, layer_range=(5, self.ifs_data.nlayer - 5))
+        self.data_image, self.var_image, weights = self.ifs_data.integrate_over_filtercurve(
+                self.passband, apply_variances=apply_variances, nbin=n_bin, layer_range=(5, self.ifs_data.nlayer - 5))
 
         # The sigma values are valid for the broadband image and must be increased to be representative for a typical
         # layer. As the image was obtained by integrating over a filter curve, the sigma values are multiplied by

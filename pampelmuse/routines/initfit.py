@@ -50,7 +50,7 @@ are saved in the PRM file that is written to disk.
 
 Latest GIT Revision
 -------------------
-2018/02/01
+2018/02/12
 """
 import datetime
 import logging
@@ -61,7 +61,7 @@ from ..utils.fits import open_ifs_data, make_header_from_config, save_prm
 
 
 __author__ = "Sebastian Kamann (skamann@ljmu.ac.uk)"
-__revision__ = 20180201
+__revision__ = 20180212
 
 
 logger = logging.getLogger(__name__)
@@ -181,7 +181,7 @@ def initfit(config):
     selector.create_mock_image(n_cpu=n_cpu)
 
     # Create image from IFS data in provided passband
-    selector.create_image_from_ifs()
+    selector.create_image_from_ifs(apply_variances=config['initfit']['usesigma'])
 
     # if WCS information is available for both the IFS data and the catalog, estimate position in sky via
     # cross correlation
@@ -208,8 +208,12 @@ def initfit(config):
         # check if saturated stars exist that should be excluded from PSF search
         saturated = config['catalog'].get('saturated', None)
 
-        # maximum allowed magnitude of PSF star is 3mag brighter than faintest resolved star
-        max_mag = selector.sources.mag[selector.sources.status == 2].max() - 3.
+        # maximum allowed magnitude of PSF star is 3mag brighter than faintest resolved star unless specified in
+        # user configuration file
+        if config['initfit']['psfmag'] is not None:
+            max_mag = config['initfit']['psfmag']
+        else:
+            max_mag = selector.sources.mag[selector.sources.status == 2].max() - 3.
 
         selector.search_psf_stars(saturated=saturated,
                                   max_mag=max_mag,
