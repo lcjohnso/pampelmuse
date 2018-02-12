@@ -899,6 +899,8 @@ class Instrument(object):
 
         wmax = 1e-10*fct.get_knots().max()  # max. of defined wavelength range
         imax = self.wave.size - 1 - np.argmax(self.wave[::-1] < wmax)
+        logging.debug('Wavelength range of filter: {0:.3g}-{1:.3g}, of cube: {2:.3g}-{3:.3g}'.format(
+            wmin, wmax, self.wave.min(), self.wave.max()))
 
         if layer_range is not None:
             imin = max([imin, layer_range[0]])
