@@ -1,7 +1,7 @@
 """
 spectrum_writer.py
 ==================
-Copyright 2013-2017 Sebastian Kamann
+Copyright 2013-2018 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -31,7 +31,7 @@ Added
 
 Latest Git revision
 -------------------
-2017/12/06
+2018/02/13
 """
 import datetime
 import logging
@@ -47,7 +47,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20171206
+__revision__ = 20180213
 
 
 logger = logging.getLogger(__name__)
@@ -101,15 +101,16 @@ class SpectrumWriter(object):
         # from an observation
         self.header = fits.Header()
 
-        # add dispersion information to header
+        # add dispersion information to header; note that internal wavelength unit is meter, but spectra are stored
+        # in units of Angstrom.
         if self.sources.data_wave_hdu is None:
             self.header["CRPIX1"] = self.sources.crpix - start
-            self.header["CRVAL1"] = self.sources.crval
-            self.header["CDELT1"] = self.sources.cdelt
+            self.header["CRVAL1"] = 1e10*self.sources.crval
+            self.header["CDELT1"] = 1e10*self.sources.cdelt
             self.header["CTYPE1"] = self.sources.ctype
-            self.header["CUNIT1"] = self.sources.cunit
-            self.header["WSTART"] = (self.sources.crval - (self.sources.crpix - start - 1)*self.sources.cdelt)
-            self.header["WSTEP"] = self.sources.cdelt
+            self.header["CUNIT1"] = 'Angstrom'
+            self.header["WSTART"] = 1e10*(self.sources.crval - (self.sources.crpix - start - 1)*self.sources.cdelt)
+            self.header["WSTEP"] = 1e10*self.sources.cdelt
         else:
             self.header['WAVE'] = 'WAVE'  # if dedicated HDU with wavelength information exists
 
@@ -348,8 +349,9 @@ class SpectrumWriter(object):
                     sigma_hdu.header[key] = self.header[key]
 
             # check if dedicated wavelength array exists, if so, create new image HDU for it
+            # wavelength units are transformed from meter to Angstrom before
             if self.sources.data_wave_hdu is not None:
-                wave_hdu = fits.ImageHDU(data['wave'].iloc[self.start:self.stop], name='WAVE')
+                wave_hdu = fits.ImageHDU(1e10*data['wave'].iloc[self.start:self.stop], name='WAVE')
             else:
                 wave_hdu = None
 

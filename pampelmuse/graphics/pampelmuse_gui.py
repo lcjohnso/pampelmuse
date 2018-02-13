@@ -896,9 +896,9 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         Parameters:
         -----------
         lower : float
-            The min. value of the range to be masked.
+            The min. value of the range to be masked, provided in Angstrom.
         upper : float
-            The max. value of the range to be masked.
+            The max. value of the range to be masked, provided in Angstrom.
         spectrumMask : bool
             Whether the selected region should be included in the spectrumMask
             (if True) or excluded from it (if False).
@@ -907,9 +907,12 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             logging.warning('Missing spectrum mask. Mask modification has no effect.')
             return
 
-        i_min = np.nanargmin(abs(self.sources.wave - lower))
-        i_max = np.nanargmin(abs(self.sources.wave - upper))
+        # note that internally wavelengths are stored in meters
+        i_min = np.nanargmin(abs(self.sources.wave - 1e-10*lower))
+        i_max = np.nanargmin(abs(self.sources.wave - 1e-10*upper))
 
+        logging.info('(Un)masked range: {0:.1f} - {1:.1f} Angstrom ({2:d} pixels)'.format(
+            lower, upper, i_max - i_min))
         self.spectrumMask[i_min:i_max] = not mask
         self.plotMask()
 
@@ -919,8 +922,8 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         the Spectrum Viewer.
         """
         searchMask = np.diff(np.r_[1, self.spectrumMask, 1])
-        maskStart = self.sources.wave[np.where(searchMask == -1)[0]]
-        maskEnd = self.sources.wave[np.where(searchMask == 1)[0]]
+        maskStart = 1e10*self.sources.wave[np.where(searchMask == -1)[0]]
+        maskEnd = 1e10*self.sources.wave[np.where(searchMask == 1)[0]]
 
         # add/update one rectangle for each range that is masked out
         # the 'addRectangle' method of 'data_plot' will know from
@@ -996,21 +999,14 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             return
 
         # update plot
-        if self.sources.cunit == "m":
-            x_label = r"$\lambda\,[\mathrm{m}]$"
-        elif self.sources.cunit == "um":
-            x_label = r"$\lambda\,[\mathrm{\mu m}]$"
-        elif self.sources.cunit == "nm":
-            x_label = r"$\lambda\,[\mathrm{nm}]$"
-        else:
-            x_label = r"$\lambda\,[\mathrm{\AA}]$"
+        x_label = r"$\lambda\,[\mathrm{\AA}]$"
 
         valid = np.isfinite(data)
-        self.dataPlot.updateData(name='data', x_data=data[valid].index.values, y_data=data[valid].values,
+        self.dataPlot.updateData(name='data', x_data=1e10*data[valid].index.values, y_data=data[valid].values,
                                  x_label=x_label, y_label=label, update_y_range=updateYRange)
         if fit is not None and np.isfinite(fit).any():
             valid = np.isfinite(fit)
-            self.dataPlot.updateData(name='fit', x_data=fit[valid].index.values, y_data=fit[valid].values,
+            self.dataPlot.updateData(name='fit', x_data=1e10*fit[valid].index.values, y_data=fit[valid].values,
                                      update_y_range=updateYRange)
         else:
             self.dataPlot.updateData(name='fit', x_data=[], y_data=[], update_y_range=updateYRange)
@@ -1188,8 +1184,10 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             The y-coordinate of the grab event.
         """
         # show spectrum in spectrum viewer
-        self.dataPlot.updateData(name='data', x_data=self.ifsPlot.cube.wave, y_data=self.ifsPlot.getNearestSpaxel(x, y),
-                                 x_label=r"$\lambda\,[{\rm m}]$", y_label=r"$f_\lambda\,[\mathrm{counts}]$")
+        self.dataPlot.updateData(name='data', x_data=1e10*self.ifsPlot.cube.wave,
+                                 y_data=self.ifsPlot.getNearestSpaxel(x, y),
+                                 x_label=r"$\lambda\,[{\rm \AA}]$",
+                                 y_label=r"$f_\lambda\,[\mathrm{counts}]$")
 
         # indicate position where grab event took place in IFU viewer
         self.ifsPlotCurrentlyMarked.set_data(x, y)

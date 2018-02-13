@@ -1,7 +1,7 @@
 """
 polyfit.py
 ==========
-Copyright 2013-2017 Sebastian Kamann
+Copyright 2013-2018 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -37,7 +37,7 @@ routine will automatically fit the coordinates and PSF parameters.
 
 Latest Git revision
 -------------------
-2017/12/21
+2018/02/13
 """
 import datetime
 import logging
@@ -48,8 +48,8 @@ from ..utils.fits import make_header_from_config, open_ifs_data, open_prm, save_
 # note: pampelmuse.graphics.PampelMuseGui imported below only if interaction enabled
 
 
-__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 20171221
+__author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
+__revision__ = 20180213
 
 
 def add_parser(parser):
@@ -62,11 +62,6 @@ def add_parser(parser):
     accuracy of an individual layer. To this aim, polynomials fits of the parameters
     can be performed. In a subsequent analysis with the sub-routine CUBEFIT, the
     routine will then use the parameters obtain in the fits and leave them unchanged.""")
-    p.add_argument("-x", "--exclude", type=float, nargs=2, action="append", help="""
-    To exclude a wavelength range from the polynomial fits, provide the min. and max.
-    wavelength of it. The provided wavelengths must be given in the same units as the
-    data. Note that this option can be used multiple times to exclude more than one
-    range.""")
     p.set_defaults(func=polyfit)
 
 
@@ -155,7 +150,7 @@ def polyfit(config):
             # loop over areas to mask, assume odd/even list entries contain start/end of masked range
             for i in range(0, len(mask), 2):
                 ui.modifyMask(mask[i], mask[i+1], True)
-                logging.info("Added wavelength range to mask: {0}-{1}AA".format(mask[i], mask[i+1]))
+                logging.info("Added wavelength range to mask: {0} - {1} Angstrom".format(mask[i], mask[i+1]))
         ui.show()
     
         sys.exit(app.exec_())

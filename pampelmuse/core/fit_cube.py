@@ -31,7 +31,7 @@ extraction for a data cube.
 
 Latest GIT revision
 -------------------
-2018/02/01
+2018/02/13
 """
 import logging
 import time
@@ -44,7 +44,7 @@ from ..instruments.muse import MusePixtable
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180201
+__revision__ = 20180213
 
 
 logger = logging.getLogger(__name__)
@@ -525,7 +525,8 @@ class FitCube(object):
             handler.setFormatter(fmt)
 
             # collecting data required for fit to layer
-            logger.info("Collecting input data for fit to layer with wavelength {0:.4g}m.".format(jj))
+            # when logging, note that internal wavelength unit is meter
+            logger.info("Collecting input data for fit to layer with wavelength {0:.1f} Angstrom.".format(1e10*jj))
 
             # among stored layers of last fits, find those nearest to current layer
             if len(last_layers) > n_track:

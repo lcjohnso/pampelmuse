@@ -1,7 +1,7 @@
 """
 getspectra.py
 =============
-Copyright 2013-2017 Sebastian Kamann
+Copyright 2013-2018 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -41,7 +41,7 @@ Added
 
 Latest Git revision
 -------------------
-2017/08/25
+2018/02/13
 """
 import logging
 from ..core.spectrum_writer import SpectrumWriter
@@ -49,28 +49,12 @@ from ..utils.fits import open_prm, open_ifs_data
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20170825
+__revision__ = 20180213
 
 
 def add_parser(parser):
     p = parser.add_parser("GETSPECTRA", help="""
     Store all spectra extracted from a datacube as individual FITS files.""")
-    # p.add_argument("specprefix", type=str, help="""
-    # The common prefix of all generated FITS filenames, typically the name of
-    # the target that has been observed.""")
-    # p.add_argument("--folder", type=str, default="spectra",  help="""
-    # The folder in which the spectra will be stored. Note that the folder will
-    # be created if it does not exist.""")
-    # p.add_argument("--passbands", type=str, nargs='+', help="""
-    # A list of filter names for which magnitudes are estimated from the
-    # spectra.""")
-    # p.add_argument("--poststamps", action='store_true', default=False, help="""
-    # Set this flag to store an image showing the region of the IFS data from
-    # which it was extracted. Note that a separate FITS-image is stored for
-    # each filter provided via --passbands.""")
-    # p.add_argument("--skipflag", action='store_true', default=False, help="""
-    # If this flag is used, the quality flags assigned to the individual spectra
-    # are not included in the names used to store the FITS-files.""")
     p.set_defaults(func=getspectra)
 
 

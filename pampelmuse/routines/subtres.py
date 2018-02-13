@@ -1,7 +1,7 @@
 """
 subtres.py
 ==========
-Copyright 2013-2017 Sebastian Kamann
+Copyright 2013-2018 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -34,7 +34,7 @@ if PampelMuse is started with the 'SUBTRES' option.
 
 Latest Git revision
 -------------------
-2017/08/25
+2018/02/13
 """
 import datetime
 import logging
@@ -44,8 +44,8 @@ from ..core.make_residual_cube import MakeResidualsCube
 from ..utils.fits import open_prm, open_ifs_data
 
 
-__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 20170825
+__author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
+__revision__ = 20170213
 
 
 def add_parser(parser):

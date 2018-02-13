@@ -32,7 +32,7 @@ Added
 rev. 343, 2016/08/01
 
 Latest Git revision
-2018/01/24
+2018/02/13
 """
 import logging
 from multiprocessing import cpu_count, Pool
@@ -43,7 +43,7 @@ from .fit_layer import FitLayer
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20180124
+__revision__ = 20180213
 
 
 logger = logging.getLogger(__name__)
@@ -308,7 +308,7 @@ class MakeResidualsCube(FitCube):
             handler.setFormatter(fmt)
 
             # collect input data for processing of current layer
-            logger.info("Processing layer with wavelength/index {0:.4g}.".format(jj))
+            logger.info("Processing layer with wavelength {0:.1f} Angstrom.".format(1e10*jj))
 
             # get 1D arrays containing valid data pixels
             data = self.get_layer(self.sources.wave.get_loc(jj), use_variances=False, n_bin=1, skip_nan=False,
