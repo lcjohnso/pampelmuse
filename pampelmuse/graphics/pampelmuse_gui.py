@@ -110,7 +110,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
     config = None  # may be a dictionary containing the configuration written to the header of the stored FITS file.
 
     plotted_mag_range = [0., 99.]  # the magnitude range of the stars that are currently being displayed
-    plotted_statuses = []  # the statuses of the sources that are currently being displayed
+    plotted_statuses = [-1, ]  # the statuses of the sources that are currently being displayed
 
     # define custom signals
     ifs_interact_mode_changed = pyqtSignal(str, name='ifsInteractModeChanged')

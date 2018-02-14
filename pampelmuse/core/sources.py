@@ -37,7 +37,7 @@ memory but only on request.
 
 Latest Git revision
 -------------------
-2018/01/24
+2018/02/14
 """
 import collections
 import logging
@@ -59,7 +59,7 @@ except ImportError:
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180124
+__revision__ = 20180214
 
 
 logger = logging.getLogger(__name__)
@@ -916,11 +916,17 @@ class Sources(object):
 
         if self._wave is None:
             if self.data_wave_hdu is not None:
-                self._wave = np.nanmean(self.data_wave_hdu.data, axis=1)
-                if np.isnan(self._wave).any():
+                # ignore warnings about taking mean of empty slice
+                with warnings.catch_warnings():
+                    warnings.simplefilter('ignore')
+                    self._wave = np.nanmean(self.data_wave_hdu.data, axis=1)
+                valid = np.isfinite(self._wave)
+                if (~valid).any():
                     # need to replace NaNs because wavelength is used as an index
+                    # note that interpolation does not work because extrapolation at edges can cause non-unique indices
                     x = np.arange(self._wave.size)
-                    self._wave = np.interp(x, x[np.isfinite(self._wave)], self._wave[np.isfinite(self._wave)])
+                    p = np.polyfit(x[valid], self._wave[valid], 1)
+                    self._wave[~valid] = np.polyval(p, x[~valid])
             else:
                 self._wave = np.arange(self.n_dispersion, dtype=np.float64)  # shape (k,)
                 self._wave -= (self.crpix - 1)

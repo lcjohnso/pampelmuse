@@ -57,7 +57,7 @@ parameters are not fitted.
 
 Latest Git revision
 -------------------
-2018/02/01
+2018/02/14
 """
 import collections
 import contextlib
@@ -72,7 +72,7 @@ from ..core.coordinates import Transformation
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180201
+__revision__ = 20180214
 
 
 logger = logging.getLogger(__name__)
@@ -578,8 +578,8 @@ class FitLayer(object):
             n = self.source_matrix.shape[0]
             weight_matrix = sparse.dia_matrix((self.fit_weights, [0]), shape=(n, n)) * self.source_matrix
             # multiply wavelength information with weight matrix and divide by total weight to get final wavelength
-            return_wave = pd.Series(np.asarray(self.wave.dot(weight_matrix)/weight_matrix.sum(axis=0))[0],
-                                    index=included_components)
+            return_wave = pd.Series(np.nan, index=self.fluxes.index)
+            return_wave[included_components] = np.asarray(self.wave.dot(weight_matrix)/weight_matrix.sum(axis=0))[0]
         else:
             return_wave = None
 
