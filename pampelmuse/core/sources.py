@@ -984,7 +984,7 @@ class Sources(object):
 
         # wavelength must be calculated in Angstrom
         factor = 1e10
-        if not self.cunit or self.cunit == 'm':
+        if self.cunit and self.cunit != 'm':
             logger.error('Wavelength unit for magnitude calculation must be meter, not {0}.'.format(self.cunit))
 
         # if passband is provided, prepare resampling to wavelengths of spectra
