@@ -28,7 +28,7 @@ defines generic methods that are inherited by all its subclasses.
 
 Latest Git revision
 -------------------
-2018/02/12
+2018/02/15
 """
 import logging
 import matplotlib
@@ -41,8 +41,8 @@ from ..filters import get_filter
 from ..utils.distance import dist2path, point_in_poly
 
 
-__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 20180212
+__author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
+__revision__ = 20180215
 
 
 class Instrument(object):

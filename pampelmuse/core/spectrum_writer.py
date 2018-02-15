@@ -31,7 +31,7 @@ Added
 
 Latest Git revision
 -------------------
-2018/02/13
+2018/02/15
 """
 import datetime
 import logging
@@ -47,7 +47,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20180213
+__revision__ = 20180215
 
 
 logger = logging.getLogger(__name__)
@@ -302,7 +302,7 @@ class SpectrumWriter(object):
             else:
                 for name in filter_names:
                     logger.info('Creating {0}-band from IFS data ...'.format(name))
-                    new_image = self.ifs_data.integrate_over_filtercurve(name, nbin=10, return_grid=True)[0][0]
+                    new_image = self.ifs_data.integrate_over_filtercurve(name, nbin=10, return_grid=True)[0]
                     if new_image is not None:
                         images[name] = new_image
 
@@ -518,7 +518,7 @@ class SpectrumWriter(object):
         y_c = int(round(y_c))
 
         # prepare output array & fill with NaNs
-        outdata = np.zeros((2*radius+1, 2*radius + 1), dtype=image.dtype)
+        outdata = np.zeros((2*radius + 1, 2*radius + 1), dtype=image.dtype)
         outdata[:] = np.nan
 
         # determine minimum and maximum pixels for which data is available (for sources near edge of FoV)
