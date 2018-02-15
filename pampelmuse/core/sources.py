@@ -37,7 +37,7 @@ memory but only on request.
 
 Latest Git revision
 -------------------
-2018/02/14
+2018/02/15
 """
 import collections
 import logging
@@ -59,7 +59,7 @@ except ImportError:
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180214
+__revision__ = 20180215
 
 
 logger = logging.getLogger(__name__)
@@ -983,12 +983,9 @@ class Sources(object):
             self.load_spectra(components=components)
 
         # wavelength must be calculated in Angstrom
-        if self.cunit == 'm':
-            factor = 1e10
-        elif self.cunit == 'nm':
-            factor = 10
-        else:
-            factor = 1
+        factor = 1e10
+        if not self.cunit or self.cunit == 'm':
+            logger.error('Wavelength unit for magnitude calculation must be meter, not {0}.'.format(self.cunit))
 
         # if passband is provided, prepare resampling to wavelengths of spectra
         throughput_curve = get_filter(passband) if passband else None
