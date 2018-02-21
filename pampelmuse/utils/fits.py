@@ -47,7 +47,7 @@ from ..psf import Variables
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180124
+__revision__ = 20180221
 
 
 def open_ifs_data(prefix, **kwargs):
@@ -150,8 +150,9 @@ def open_ifs_data(prefix, **kwargs):
     if os.path.exists("{0}.msk.fits".format(prefix)):
         instrument.open("{0}.msk.fits".format(prefix), extno=0, ismask=True, **kwargs)
     else:
-        if 'MASK' in fitsdata:
-            instrument.open(datafile, extno=fitsdata.index_of('MASK'), ismask=True, **kwargs)
+        for hduname in ['MASK', 'data_quality']:
+            if hduname in fitsdata:
+                instrument.open(datafile, extno=fitsdata.index_of(hduname), ismask=True, **kwargs)
     if instrument.maskhdu is None:
         logging.warning('Did not find bad-pixel mask for IFS data.')
 
