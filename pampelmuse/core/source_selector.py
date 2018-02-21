@@ -52,7 +52,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20180201
+__revision__ = 20180221
 
 
 logger = logging.getLogger(__name__)
@@ -407,10 +407,7 @@ class SourceSelector(object):
             if self.ifs_data.wcs.naxis > 2:
                 self.sources.crval = self.ifs_data.wcs.wcs.crval[2]
                 self.sources.crpix = self.ifs_data.wcs.wcs.crpix[2]
-                if self.ifs_data.wcs.wcs.has_cd():
-                    self.sources.cdelt = self.ifs_data.wcs.wcs.cd[2, 2]
-                else:
-                    self.sources.cdelt = self.ifs_data.wcs.wcs.cdelt[2]
+                self.sources.cdelt = self.ifs_data.wcs.pixel_scale_matrix[-1, -1]
                 self.sources.ctype = self.ifs_data.wcs.wcs.ctype[2]
                 self.sources.cunit = self.ifs_data.wcs.wcs.cunit[2].name
             else:
