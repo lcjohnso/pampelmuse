@@ -467,18 +467,13 @@ class Instrument(object):
         if self._wave is None:
             if self.nlayer is None or self.wcs.naxis < 3:
                 return None
-            self._wave = np.arange(self.nlayer, dtype=np.float64)
-            if self.wcs.wcs.has_cd():
-                self._wave *= self.wcs.wcs.cd[2, 2]
-            else:
-                self.wave *= self.wcs.wcs.cdelt[2]
-            self._wave += self.wcs.wcs.crval[2]
-            # if self.wcs.wcs.cunit[2] == 'um':
-            #     self._wave *= 1e4
-            # elif self.wcs.wcs.cunit[2] == 'nm':
-            #     self._wave *= 10
-            # elif self.wcs.wcs.cunit[2] == 'm':
-            #     self._wave *= 10**10
+            _, _, self._wave = self.wcs.wcs_pix2world(1, 1, np.arange(self.nlayer, dtype=np.float64), 0)
+            # if self.wcs.wcs.has_cd():
+            #     self._wave *= self.wcs.wcs.cd[2, 2]
+            # else:
+            #     self.wave *= self.wcs.wcs.cdelt[2]
+            # self._wave += self.wcs.wcs.crval[2]
+
         return self._wave
 
     @wave.setter
