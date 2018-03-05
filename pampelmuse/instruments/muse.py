@@ -1,7 +1,7 @@
 """
 muse.py
 =======
-Copyright 2013-2017 Sebastian Kamann
+Copyright 2013-2018 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -30,7 +30,7 @@ muse_scipost recipe.
 
 Latest GIT revision
 -------------------
-2017/12/04
+2018/03/05
 """
 import logging
 import warnings
@@ -44,7 +44,7 @@ from .generic_ifs import GenericIFS
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 20171204
+__revision__ = 20180305
 
 
 class Muse(GenericIFS):
@@ -340,15 +340,6 @@ class MusePixtable(Instrument):
         self.wcs.wcs.crpix = [self.wcs.wcs.crpix[0] - pt[0].header['ESO DRS MUSE PIXTABLE PREDAR LIMITS XLO'],
                               self.wcs.wcs.crpix[1] - pt[0].header['ESO DRS MUSE PIXTABLE PREDAR LIMITS YLO']]
 
-        # a pixel table has no fixed transformation from spaxels to spatial coordinates, it changes for every layer
-        # that is defined. To obtain an initial estimate of the FoV, we use some HIERARCH keywords:
-        xsize = int(pt[0].header['ESO DRS MUSE PIXTABLE PREDAR LIMITS XHI'] - pt[0].header[
-            'ESO DRS MUSE PIXTABLE PREDAR LIMITS XLO'])
-        ysize = int(pt[0].header['ESO DRS MUSE PIXTABLE PREDAR LIMITS YHI'] - pt[0].header[
-            'ESO DRS MUSE PIXTABLE PREDAR LIMITS YLO'])
-        self.transform = np.vstack((np.arange(xsize*ysize, dtype=np.int32) // xsize,
-                                    np.mod(np.arange(xsize*ysize, dtype=np.int32), xsize))).T
-
         # Note that for the MUSE pixtables two wavelength ranges are defined; MusePixtable.rawwave contains one value
         # per pixel while MusePixtable.wave contains one value per layer. As the pixel tables are provided in units of
         # Angstrom, we need to convert to meters
@@ -383,6 +374,10 @@ class MusePixtable(Instrument):
         layers = np.linspace(self.rawwave.min(), self.rawwave.max(),
                              int((self.rawwave.max() - self.rawwave.min())/self.wstep), dtype=np.float32)
         self.layer_limits = np.vstack((layers[:-1], layers[1:])).T
+
+        # a pixel table has no fixed transformation from spaxels to spatial coordinates, it changes for every layer
+        # that is defined. Get coordinate transformation for central layer to have useful idea of edges of FoV.
+        self.set_transform_for_layer(len(layers)//2)
 
     def _convert_coordinates(self, xpos, ypos):
         """
