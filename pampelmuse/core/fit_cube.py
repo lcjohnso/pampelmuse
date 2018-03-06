@@ -31,7 +31,7 @@ extraction for a data cube.
 
 Latest GIT revision
 -------------------
-2018/02/13
+2018/03/06
 """
 import logging
 import time
@@ -44,7 +44,7 @@ from ..instruments.muse import MusePixtable
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180213
+__revision__ = 20180306
 
 
 logger = logging.getLogger(__name__)
@@ -966,6 +966,9 @@ class FitCube(object):
         current_wavelength : float
             The wavelength of the layer for which the results were obtained. 
         """
+        if parameters is None:
+            return
+
         for source_id, row in parameters.iterrows():
             row.name = current_wavelength
             if source_id in self.parameters:
@@ -1000,6 +1003,9 @@ class FitCube(object):
             The x- and y-coordinates of the pixels of the current layer,
             provided as columns 'x' and 'y' of the data frame.         
         """
+        if data is None:
+            return
+
         # loop over sources
         for source_id, source_data in data.items():
             # if it is a new source, initialize and add new instance os StarCube class.
