@@ -31,7 +31,7 @@ extraction for a data cube.
 
 Latest GIT revision
 -------------------
-2018/03/06
+2018/03/12
 """
 import logging
 import time
@@ -44,14 +44,15 @@ from ..instruments.muse import MusePixtable
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180306
+__revision__ = 20180312
 
 
 logger = logging.getLogger(__name__)
 
 
-def init_worker(psf_type, psf_radius, psf_parameters_to_fit, position_parameters_to_fit, last_component_is_unresolved,
-                osfactor, osradius, sources, psf_sources, max_iterations, analyse_psf, *args):
+def init_worker(catalog, psf_type, psf_radius, psf_parameters_to_fit, position_parameters_to_fit,
+                last_component_is_unresolved, osfactor, osradius, sources, psf_sources, max_iterations, analyse_psf,
+                *args):
     """
     This function defines the global parameters for the parallel part of the
     analysis.
@@ -61,6 +62,9 @@ def init_worker(psf_type, psf_radius, psf_parameters_to_fit, position_parameters
 
     Parameters
     ----------
+    catalog : pandas.DataFrame
+        The pixel coordinates, statuses, components, and relative magnitudes
+        of all sources to be used in fit.
     psf_type : string
         The name of the PSF profile in use.
     psf_radius : int
@@ -96,6 +100,7 @@ def init_worker(psf_type, psf_radius, psf_parameters_to_fit, position_parameters
     Nothing is returned, only the global variables are set. Their names are
     derived from the names of the parameters by adding a prefix 'g_'
     """
+    global g_catalog
     global g_psf_type
     global g_psf_radius
     global g_psf_parameters_to_fit
@@ -108,6 +113,7 @@ def init_worker(psf_type, psf_radius, psf_parameters_to_fit, position_parameters
     global g_max_iterations
     global g_analyse_psf
 
+    g_catalog = catalog
     g_psf_type = psf_type
     g_psf_radius = psf_radius
     g_psf_parameters_to_fit = psf_parameters_to_fit
@@ -136,12 +142,13 @@ def parallel_fit_layer(fit_parameters):
         A dictionary containing the parameters necessary to launch the fit:
         data - the value, variance, x-, and y-positions, and wavelength
                (optional) of each pixel of the layer.
-        catalog - the pixel coordinates, statuses, components, and relative
-                  magnitudes of all sources to be used in fit.
         psf_parameters - the initial guesses/fixed values of the PSF
                          parameters.
+        coordinates - the initial guesses/fixed values of the pixel
+                      coordinates if no coordinate transformation is being
+                      used.
         position_parameters - the initial guesses/fixed values of the coord.
-                              transformation parameters.
+                              transformation parameters (if used).
         background - the matrix containing the footprints of the individual
                      background components.
         background_index - the index/indices used for the background
@@ -161,15 +168,20 @@ def parallel_fit_layer(fit_parameters):
     # fit parameters is a dictionary that must contain the following keys:
     # data, variances, transformation, xy, psf_parameters, position_parameters
     data = fit_parameters['data']
-    catalog = fit_parameters['catalog']
     psf_parameters = fit_parameters['psf_parameters']
+    coordinates = fit_parameters['coordinates']
     position_parameters = fit_parameters['position_parameters']
     background = fit_parameters['background']
     background_index = fit_parameters['background_index']
 
-    global g_psf_type, g_psf_radius, g_psf_parameters_to_fit, g_position_parameters_to_fit
+    global g_catalog, g_psf_type, g_psf_radius, g_psf_parameters_to_fit, g_position_parameters_to_fit
     global g_last_component_is_unresolved, g_osfactor, g_osradius, g_sources, g_psf_sources, g_max_iterations
     global g_analyse_psf
+
+    if coordinates is not None:
+        catalog = pd.merge(coordinates, g_catalog[['component', 'magnitude']], left_index=True, right_index=True)
+    else:
+        catalog = g_catalog
 
     layerfit = FitLayer(data=data, catalog=catalog, psf_type=g_psf_type, psf_parameters=psf_parameters,
                         psf_radius=g_psf_radius, position_parameters=position_parameters,
@@ -420,6 +432,15 @@ class FitCube(object):
             logger.info("No iteration on individual layers performed.")
 
         # begin loading data required for fitting process into memory
+        # collect sources data in catalog
+        # note that the source positions may be overwritten later if no coordinate transformation is being used
+        stellar = self.sources.status < 4
+        series = []
+        series.extend([self.sources.x[stellar], self.sources.y[stellar]])
+        series.append(self.sources.specrow[stellar])
+        series.append(self.sources.weights[stellar])
+        catalog = pd.concat(series, axis=1, keys=['x', 'y', 'component', 'magnitude'])
+
         # whole array with spectra needs to be loaded
         self.sources.load_spectra(init_wave=isinstance(self.ifs_data, MusePixtable))
         # fluxes of omitted layers are set to NaN
@@ -487,7 +508,8 @@ class FitCube(object):
             psf_sources = None
 
         # initialize fitting process by providing arguments that do not change between layers and creating process pool
-        initial_arguments = (self.psf_attributes.profile,
+        initial_arguments = (catalog,
+                             self.psf_attributes.profile,
                              self.psf_radius,
                              psf_parameters_to_fit,
                              position_parameters_to_fit,
@@ -499,20 +521,13 @@ class FitCube(object):
                              max_iterations,
                              analyse_psf
                              )
+
+        # initialize processes pool
         if n_cpu > 1:
             pool = Pool(n_cpu, initializer=init_worker, initargs=initial_arguments)
         else:
             pool = None
             init_worker(*initial_arguments)
-
-        # collect sources data in catalog
-        # note that the catalog content may change from layer to layer when no coordinate transformation is being used
-        stellar = self.sources.status < 4
-        series = []
-        series.extend([self.sources.x[stellar], self.sources.y[stellar]])
-        series.append(self.sources.specrow[stellar])
-        series.append(self.sources.weights[stellar])
-        catalog = pd.concat(series, axis=1, keys=['x', 'y', 'component', 'magnitude'])
 
         # loop over all layers in cube that should be analysed
         for i, jj in enumerate(indices_to_analyse):
@@ -548,16 +563,14 @@ class FitCube(object):
 
             # update direct coordinates if required
             if self.sources.ifs_coordinates_fitted.any() or self.sources.ifs_coordinates_free.any():
-                catalog[['x', 'y']] = self.read_ifs_coordinates(jj, last=nearest_layers)
+                fit_input[-1]['coordinates'] = self.read_ifs_coordinates(jj, last=nearest_layers)
                 fit_input[-1]['position_parameters'] = None
             # otherwise try to update parameters of coordinate transformation
             elif self.sources.transformation.valid:
+                fit_input[-1]['coordinates'] = None
                 fit_input[-1]['position_parameters'] = self.read_coordinate_transformation(jj, last=nearest_layers)
             else:
                 logger.critical('Cannot determine IFS coordinates of sources.')
-
-            # add sources catalog to fit input
-            fit_input[-1]['catalog'] = catalog
 
             # add background if requested
             if self.background is not None:

@@ -36,7 +36,7 @@ which performs the actual analysis.
 
 Latest SVN revision
 -------------------
-2018/03/06
+2018/03/12
 """
 import datetime
 import logging
@@ -44,8 +44,8 @@ from ..core.fit_cube import FitCube
 from ..utils.fits import make_header_from_config, open_ifs_data, open_prm, save_prm, get_history
 
 
-__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 20180306
+__author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
+__revision__ = 20180312
 
 
 def add_parser(parser):

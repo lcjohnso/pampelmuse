@@ -57,7 +57,7 @@ parameters are not fitted.
 
 Latest Git revision
 -------------------
-2018/02/14
+2018/03/12
 """
 import collections
 import contextlib
@@ -72,7 +72,7 @@ from ..core.coordinates import Transformation
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180214
+__revision__ = 20180312
 
 
 logger = logging.getLogger(__name__)
@@ -482,10 +482,10 @@ class FitLayer(object):
             # import matplotlib.pyplot as plt
             # fig = plt.figure(figsize=(8, 10))
             # ax = fig.add_axes([0.04, 0.52, 0.92, 0.46])
-            # ax.scatter(self.data.loc[:, 'x'], self.data.loc[:, 'y'], marker='s', s=300, c=self.current,
+            # ax.scatter(self.data.loc[:, 'x'], self.data.loc[:, 'y'], marker='s', s=3, c=self.current,
             #            cmap=plt.cm.hot, edgecolors='face', vmin=-100, vmax=1000)
             # ax2 = fig.add_axes([0.04, 0.02, 0.92, 0.46])
-            # ax2.scatter(self.data.loc[:, 'x'], self.data.loc[:, 'y'], marker='s', s=300,
+            # ax2.scatter(self.data.loc[:, 'x'], self.data.loc[:, 'y'], marker='s', s=3,
             #             c=self.model.sum(axis=1).getA1(), cmap=plt.cm.hot, edgecolors='face', vmin=-100, vmax=1000)
             # plt.show()
 
