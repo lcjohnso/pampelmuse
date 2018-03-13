@@ -915,7 +915,7 @@ class FitLayer(object):
             # if requested, include local background in fit, get initial guess as median of residuals outside FWHM
             if local_background:
                 x0.append(np.median(data[~in_fwhm]))
-                names.append(pd.Index(['back']))
+                names = names.append(pd.Index(['back']))
 
             # add best-fit PSF-profile to residuals to get data used in fit
             data += x0[0] * psf.f
