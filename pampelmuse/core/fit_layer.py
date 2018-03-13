@@ -57,7 +57,7 @@ parameters are not fitted.
 
 Latest Git revision
 -------------------
-2018/03/12
+2018/03/13
 """
 import collections
 import contextlib
@@ -72,7 +72,7 @@ from ..core.coordinates import Transformation
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180312
+__revision__ = 20180313
 
 
 logger = logging.getLogger(__name__)
@@ -912,9 +912,10 @@ class FitLayer(object):
             pixel = np.unique(psf.osmap, return_index=True)[1]  # this makes sure every subspaxel only counted once
             in_fwhm = (psf.r[pixel] < psf.fwhm)
 
-            # if requested, subtract local background, defined as median of residuals outside FWHM
+            # if requested, include local background in fit, get initial guess as median of residuals outside FWHM
             if local_background:
-                data -= np.median(data[~in_fwhm])
+                x0.append(np.median(data[~in_fwhm]))
+                names.append(pd.Index(['back']))
 
             # add best-fit PSF-profile to residuals to get data used in fit
             data += x0[0] * psf.f
@@ -1050,8 +1051,11 @@ class FitLayer(object):
             The sigma-weighted residuals after subtracting the PSF from the
             data.
         """
+        # get local background if provided
+        back = x0[-1] if names[-1] == 'back' else 0
+
         # update PSF using current parameter estimates
-        for i in range(1, len(x0)):
+        for i in range(1, (len(x0) - 1) if names[-1] == 'back' else len(x0)):
             try:
                 # the attribute is only set in the 'psf'-instance of the class, not in all instances! This is different
                 # from the behaviour of getattr(self.PSF, "set_<PAR>")(<VALUE>)
@@ -1060,7 +1064,7 @@ class FitLayer(object):
                 logger.error("Encountered AssertionError: {0}".format(error))
                 raise np.linalg.linalg.LinAlgError("Invalid value '{0}' for parameter '{1}'.".format(x0[i], names[i]))
 
-        return data / sigma - x0[0] * (psf.f / sigma)
+        return data / sigma - x0[0] * (psf.f / sigma) - back/sigma
 
     @staticmethod
     def single_psf_jacobi(x0, names, psf, data, sigma):

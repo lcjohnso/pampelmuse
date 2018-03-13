@@ -31,7 +31,7 @@ extraction for a data cube.
 
 Latest GIT revision
 -------------------
-2018/03/12
+2018/03/13
 """
 import logging
 import time
@@ -44,7 +44,7 @@ from ..instruments.muse import MusePixtable
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180312
+__revision__ = 20180313
 
 
 logger = logging.getLogger(__name__)
