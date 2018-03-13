@@ -798,7 +798,7 @@ class FitLayer(object):
         return _psf_matrix.tocsc(), source_indices
 
     def fit_sources_consecutively(self, sources, psf_parameters=None, fit_positions=True, psf_sources=None,
-                                  local_background=True, return_psf_profiles=True):
+                                  local_background=False, return_psf_profiles=True):
         """
         Perform the PSF fit for one or more sources individually after
         subtracting all other sources using their current best fit.
