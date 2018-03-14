@@ -57,7 +57,7 @@ parameters are not fitted.
 
 Latest Git revision
 -------------------
-2018/03/13
+2018/03/14
 """
 import collections
 import contextlib
@@ -72,7 +72,7 @@ from ..core.coordinates import Transformation
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180313
+__revision__ = 20180314
 
 
 logger = logging.getLogger(__name__)
@@ -865,6 +865,8 @@ class FitLayer(object):
             columns.extend(psf_parameters)
         if fit_positions:
             columns.extend(['xc', 'yc'])
+        if local_background:
+            columns.append('back')
 
         # prepare empty data frame & fill with NaNs
         results = pd.DataFrame(0., index=sources, columns=columns)
@@ -915,7 +917,6 @@ class FitLayer(object):
             # if requested, include local background in fit, get initial guess as median of residuals outside FWHM
             if local_background:
                 x0.append(np.median(data[~in_fwhm]))
-                names = names.append(pd.Index(['back']))
 
             # add best-fit PSF-profile to residuals to get data used in fit
             data += x0[0] * psf.f
@@ -1052,10 +1053,11 @@ class FitLayer(object):
             data.
         """
         # get local background if provided
-        back = x0[-1] if names[-1] == 'back' else 0
+        fit_background = names[-1] == 'back'
+        back = x0[-1] if fit_background else 0
 
         # update PSF using current parameter estimates
-        for i in range(1, (len(x0) - 1) if names[-1] == 'back' else len(x0)):
+        for i in range(1, len(x0) - int(fit_background)):
             try:
                 # the attribute is only set in the 'psf'-instance of the class, not in all instances! This is different
                 # from the behaviour of getattr(self.PSF, "set_<PAR>")(<VALUE>)
@@ -1090,11 +1092,16 @@ class FitLayer(object):
             The Jacobi matrix with respect to the model parameters included
             in 'x0'.
         """
+        fit_background = names[-1] == 'back'
+
         jacob = np.zeros((len(x0), psf.used.sum()), dtype=np.float64)
         jacob[0] -= psf.f
-        for i in range(1, len(x0)):
+        for i in range(1, len(x0) - int(fit_background)):
             diff_i = getattr(psf, "diff_{0}".format(names[i]))
             jacob[i] -= x0[0] * diff_i
+        if fit_background:
+            jacob[-1] = x0[-1]
+
         return jacob / sigma
 
     def fit_sources_simultaneously(self, parameters, sources=None):
