@@ -32,7 +32,7 @@ Added
 rev. 343, 2016/08/01
 
 Latest Git revision
-2018/02/13
+2018/03/15
 """
 import logging
 from multiprocessing import cpu_count, Pool
@@ -43,7 +43,7 @@ from .fit_layer import FitLayer
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20180213
+__revision__ = 20180315
 
 
 logger = logging.getLogger(__name__)
@@ -357,7 +357,7 @@ class MakeResidualsCube(FitCube):
                     results = [parallel_process_layers(fit_input[0])]
 
                 for k, result in enumerate(results, start=1):
-                    self.residuals[self.ifs_data.slice_for_layer(layers_to_analyse[i] - n_cpu + k)] = result
+                    self.residuals[self.ifs_data.slice_for_layer(layers_to_analyse[i] - len(results) + k)] = result
 
                 fit_input = []
 

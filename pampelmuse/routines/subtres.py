@@ -34,7 +34,7 @@ if PampelMuse is started with the 'SUBTRES' option.
 
 Latest Git revision
 -------------------
-2018/02/13
+2018/03/15
 """
 import datetime
 import logging
@@ -45,7 +45,7 @@ from ..utils.fits import open_prm, open_ifs_data
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20170213
+__revision__ = 20170315
 
 
 def add_parser(parser):
