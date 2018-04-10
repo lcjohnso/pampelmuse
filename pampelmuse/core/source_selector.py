@@ -33,7 +33,7 @@ Added
 
 Latest Git revision
 -------------------
-2018/02/01
+2018/04/10
 """
 import logging
 import sys
@@ -52,7 +52,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20180221
+__revision__ = 20180410
 
 
 logger = logging.getLogger(__name__)
@@ -710,6 +710,7 @@ class SourceSelector(object):
         (dx, dy) = (self.sources.x.min(), self.sources.y.min())
         identifier.refOffsets = {'x': pd.Series(self.sources.x - dx, index=self.sources.ids),
                                  'y': pd.Series(self.sources.y - dy, index=self.sources.ids)}
+        identifier.sources.plotted = self.sources.ids[self.sources.ids >= 0]
         identifier.plot_sources_on_ref()
 
         if self.use_wcs:
