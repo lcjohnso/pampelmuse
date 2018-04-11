@@ -37,7 +37,7 @@ defines the methods that are called by Ui_PampelMuseGui.
 
 Latest Git revision
 -------------------
-2018/04/10
+2018/04/11
 """
 import datetime
 import logging
@@ -63,8 +63,8 @@ from ..psf import Variables
 from ..utils.fits import save_prm, read_config_from_header, make_header_from_config, get_history
 
 
-__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 20180410
+__author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
+__revision__ = 20180411
 
 
 class ToolbarWithoutMessage(NavigationToolbar):
@@ -1128,9 +1128,8 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
                 self.on_ifuCutsComboBox_currentIndexChanged(self.ifuCutsComboBox.currentText())
 
         # also update position of vertical line in spectrum viewer
-        if 'data' in self.dataPlot.thePlots and len(self.dataPlot.thePlots['data'].get_xdata()) > p0:
-            self.dataPlot.vline.set_xdata([self.dataPlot.thePlots['data'].get_xdata()[p0]])
-            self.dataPlot.draw()
+        self.dataPlot.vline.set_xdata([1e10*self.ifsPlot.cube.wave[p0]])
+        self.dataPlot.draw()
 
     @pyqtSlot(str)
     def on_ifuCutsComboBox_currentIndexChanged(self, p0):

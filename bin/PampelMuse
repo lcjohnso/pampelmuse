@@ -77,8 +77,8 @@ from pampelmuse.utils.fits import read_config_from_header
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__version__ = "0.98.4.1"
-__revision__ = 20180410
+__version__ = "0.98.4.2"
+__revision__ = 20180411
 
 
 logger = logging.getLogger(__name__)
