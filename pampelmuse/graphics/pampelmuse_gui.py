@@ -37,7 +37,7 @@ defines the methods that are called by Ui_PampelMuseGui.
 
 Latest Git revision
 -------------------
-2018/04/11
+2018/04/20
 """
 import datetime
 import logging
@@ -64,7 +64,7 @@ from ..utils.fits import save_prm, read_config_from_header, make_header_from_con
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180411
+__revision__ = 20180420
 
 
 class ToolbarWithoutMessage(NavigationToolbar):
@@ -535,8 +535,8 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         self.ifuMinCutLineEdit.setValidator(QDoubleValidator())
         self.ifuMaxCutLineEdit.setValidator(QDoubleValidator())
 
-        # default cut level is 100%
-        self.ifuCutsComboBox.setCurrentIndex(0)
+        # default cut level is 99.5%
+        self.ifuCutsComboBox.setCurrentIndex(2)
         logging.debug("Successfully loaded IFS data into GUI.")
 
         # log current position of mouse cursor in status bar
@@ -585,8 +585,8 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         self.refMinCutLineEdit.setValidator(QDoubleValidator())
         self.refMaxCutLineEdit.setValidator(QDoubleValidator())
 
-        # default cut level is 100%
-        self.refCutsComboBox.setCurrentIndex(0)
+        # default cut level is 99.5%
+        self.refCutsComboBox.setCurrentIndex(2)
 
         logging.debug("Successfully loaded reference image into GUI.")
         self.dataLoaded()

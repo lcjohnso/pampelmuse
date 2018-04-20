@@ -30,7 +30,7 @@ muse_scipost recipe.
 
 Latest GIT revision
 -------------------
-2018/03/05
+2018/04/20
 """
 import logging
 import warnings
@@ -43,8 +43,8 @@ from .instrument import Instrument
 from .generic_ifs import GenericIFS
 
 
-__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 20180305
+__author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
+__revision__ = 20180420
 
 
 class Muse(GenericIFS):
@@ -98,7 +98,9 @@ class Muse(GenericIFS):
             return
 
         chull = ConvexHull(self.transform[np.asarray(value, dtype=np.bool)])
-        self._edge = chull.vertices
+
+        # need to find indices in original transformation (i.e. before excluding NaNs)
+        self._edge = np.searchsorted(np.cumsum(value) - 1, chull.vertices)
 
     def find_edge(self, valid):
         """
