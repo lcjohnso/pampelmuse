@@ -1,7 +1,7 @@
 """
 variables.py
 ============
-Copyright 2013-2017 Sebastian Kamann
+Copyright 2013-2018 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -32,9 +32,9 @@ to load, update, provide, and store the PSF parameters. 'Variables' inherits
 from the class pampelmuse.core.parameters.Parameters that defines a more
 general framework for dealing with parameters within PampelMuse.
 
-Latest SVN revision
+Latest Git revision
 -------------------
-421, 2017/04/30
+2018/04/24
 """
 import logging
 import numpy as np
@@ -42,8 +42,8 @@ import pandas as pd
 from ..core.parameters import Parameters
 
 
-__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 421
+__author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
+__revision__ = 20180424
 
 
 logger = logging.getLogger(__name__)
@@ -66,7 +66,8 @@ class Variables(Parameters):
     # define a dictionary containing the parameter names for each PSF profile supported by PampelMuse
     PROFILES = {"moffat": ["beta", "fwhm", "e", "theta"],
                 "gauss": ["fwhm", "e", "theta"],
-                "double_gauss": ["f12", "fwhm1", "fwhm2", "e", "theta"]}
+                "double_gauss": ["f12", "fwhm1", "fwhm2", "e", "theta"],
+                "moffat_gauss": ["f12", "beta", "fwhm1", "fwhm2", "e", "theta"]}
 
     #  define dictionary providing tex-style representations of each parameter name for plotting
     LABELS = {"fwhm": r"$\mathrm{FWHM}\ [\mathrm{spaxel}]$", "beta": r"$\beta$", "e": r"$e$",

@@ -33,7 +33,7 @@ Added
 
 Latest Git revision
 -------------------
-2018/04/10
+2018/04/24
 """
 import logging
 import sys
@@ -46,13 +46,14 @@ from .background import BackgroundGrid
 from .coordinates import Transformation
 from .sources import Sources
 from ..instruments import Instrument, Muse, MusePixtable
-from ..psf import *
+from ..psf import Variables
+from ..psf.profiles import *
 from ..utils.image import find_offset
 from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20180410
+__revision__ = 20180424
 
 
 logger = logging.getLogger(__name__)
@@ -168,7 +169,7 @@ def estimate_snr(sources_data):
         # measure S/N
         snratios[index] = np.sqrt(np.nansum((psf.f / np.sqrt(g_variance[psf.used])) ** 2))
 
-        logger.debug("Estimated S/N for source #{0} [{0}/{1}]: {2}.".format(index, i, n_sources, snratios[index]))
+        logger.debug("Estimated S/N for source #{0} [{1}/{2}]: {3}.".format(index, i, n_sources, snratios[index]))
 
         # add the flux contribution of this source in the FoV
         totfluxes += psf.f.sum()
@@ -456,6 +457,8 @@ class SourceSelector(object):
             self.psf_class = Gaussian
         elif profile == "double_gauss":
             self.psf_class = DoubleGaussian
+        elif profile == "moffat_gauss":
+            self.psf_class = MoffatGaussian
         else:
             logger.error('Unknown PSF type: "{0}"'.format(profile))
             return
@@ -847,7 +850,7 @@ class SourceSelector(object):
     def fwhm(self):
         if self.psf_class is None:
             return np.nan
-        elif isinstance(self.psf_class, DoubleGaussian):
+        elif self.psf_class in [DoubleGaussian, MoffatGaussian]:
             f12 = np.nanmean(self.psf_attributes.data[('f12', 'value')])
             fwhm1 = np.nanmean(self.psf_attributes.data[('fwhm1', 'value')])
             fwhm2 = np.nanmean(self.psf_attributes.data[('fwhm2', 'value')])

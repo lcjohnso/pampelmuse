@@ -1,7 +1,7 @@
 """
 __init__.py
 ===========
-Copyright 2013-2016 Sebastian Kamann
+Copyright 2013-2018 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -18,8 +18,6 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with PampelMuse. If not, see <http://www.gnu.org/licenses/>.
 """
-from .profiles import Canvas, Profile, Gaussian, Moffat, DoubleGaussian
+from .canvas import Canvas
 from .variables import Variables
 
-# define what should be imported upon 'from psf import *':
-__all__ = ["Canvas", "Profile", "Gaussian", "Moffat", "DoubleGaussian", "Variables"]

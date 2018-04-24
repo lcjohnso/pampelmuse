@@ -57,7 +57,7 @@ parameters are not fitted.
 
 Latest Git revision
 -------------------
-2018/03/14
+2018/04/24
 """
 import collections
 import contextlib
@@ -67,12 +67,12 @@ import numpy as np
 import pandas as pd
 from scipy import optimize, sparse
 from scipy.sparse import linalg
-from ..psf import Gaussian, Moffat, DoubleGaussian
+from ..psf.profiles import Gaussian, Moffat, DoubleGaussian, MoffatGaussian
 from ..core.coordinates import Transformation
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180314
+__revision__ = 20180424
 
 
 logger = logging.getLogger(__name__)
@@ -214,8 +214,10 @@ class FitLayer(object):
             psf_class = Gaussian
         elif psf_type.lower() == 'moffat':
             psf_class = Moffat
-        elif psf_type.lower == 'double_gauss':
+        elif psf_type.lower() == 'double_gauss':
             psf_class = DoubleGaussian
+        elif psf_type.lower() == 'moffat_gauss':
+            psf_class = MoffatGaussian
         else:
             logger.error('Unknown PSF type provided: {0}'.format(psf_type))
             psf_class = None
@@ -890,6 +892,25 @@ class FitLayer(object):
             else:
                 names = results.columns[1]
 
+            # set boundaries for the PSF parameters
+            bounds = ([], [])
+            for name in names:
+                if name == 'beta':
+                    bounds[0].append(1)
+                    bounds[1].append(np.inf)
+                elif name[:4] == 'fwhm':
+                    bounds[0].append(0)
+                    bounds[1].append(np.inf)
+                elif name in ['e', 'f12']:
+                    bounds[0].append(0)
+                    bounds[1].append(1)
+                elif name == 'theta':
+                    bounds[0].append(0)
+                    bounds[1].append(np.pi)
+                else:
+                    bounds[0].append(-np.inf)
+                    bounds[1].append(np.inf)
+
             # (b) the initial guesses for the parameter fit
             # (1) flux
             x0 = [self.fluxes[self.catalog.at[i, 'component']], ]
@@ -968,10 +989,10 @@ class FitLayer(object):
 
             # fit
             try:
-                result = optimize.leastsq(self.single_psf_optimizer, x0=np.asarray(x0), Dfun=self.single_psf_jacobi,
-                                          col_deriv=True, args=(names, psf, data.values, np.sqrt(variances.values)),
-                                          full_output=True, epsfcn=0.0)
-            except Exception as msg:  # optimize.minpack.error as error:
+                result = optimize.least_squares(
+                    self.single_psf_optimizer, x0=np.asarray(x0), jac=self.single_psf_jacobi, bounds=bounds,
+                    args=(names, psf, data.values, np.sqrt(variances.values)))
+            except Exception as msg:
                 # error handler to avoid code crashes completely
                 # note that type of exception thrown seems to depend on scipy version
                 logger.error('PSF fit failed for source #{0}: {1}.'.format(i, msg))
@@ -979,7 +1000,7 @@ class FitLayer(object):
             else:
                 if return_psf_profiles:
                     residuals[i] = pd.DataFrame(
-                        {'data': data, 'residuals': result[2]['fvec']*np.sqrt(variances.values)},
+                        {'data': data, 'residuals': result['fun']*np.sqrt(variances.values)},
                         index=self.data.index[used])
             finally:
                 # reset radius und transformation of PSF instance to status before fit
@@ -987,35 +1008,35 @@ class FitLayer(object):
                 psf.maxrad = self.psf_radius
 
             # check if result of a successful fit makes any sense:
-            if 0 < result[-1] <= 4:
+            if 0 < result['status'] <= 4:
                 # fitted flux must be positive
-                if result[0][0] <= 0:
+                if result['x'][0] <= 0:
                     logger.error('PSF fit for source #{0} returned negative flux.'.format(i))
                     continue
                 # offset between fitted centroid and initial guess must be <= FWHM
                 elif 'xc' in names:
                     ix = names.get_loc("xc")
                     iy = names.get_loc("yc")
-                    offset = np.sqrt((result[0][ix]-x0[ix])**2 + (result[0][iy]-x0[iy])**2)
+                    offset = np.sqrt((result['x'][ix]-x0[ix])**2 + (result['x'][iy]-x0[iy])**2)
                     if offset > psf.fwhm:
                         logger.error('PSF fit for source #{0} yielded offset > FWHM wrt. initial guess.'.format(i))
                         continue
 
             # add S/N to results array
-            results.at[i, 'snr'] = result[0][0] * np.sqrt(sum((psf.f**2)*self.fit_weights[psf.used]))
+            results.at[i, 'snr'] = result['x'][0] * np.sqrt(sum((psf.f**2)*self.fit_weights[psf.used]))
 
             # if fit successful, include in data frame containing results
-            if 0 < result[-1] <= 4:
-                results.loc[i, names] = result[0]
+            if 0 < result['status'] <= 4:
+                results.loc[i, names] = result['x']
 
                 # log outcome of fit
-                _string = ", ".join(["{0}={1:.2f}".format(names[k], result[0][k]) for k in range(1, len(names))])
+                _string = ", ".join(["{0}={1:.2f}".format(names[k], result['x'][k]) for k in range(1, len(names))])
                 logger.info("Successfully fitted PSF of source #{0} (S/N={1:.1f}): f={2:.1f}, {3}".format(
                     i, results.at[i, 'snr'], results.at[i, 'flux'], _string))
 
             # otherwise log warning about failed fit
             else:
-                logger.warning("PSF fit failed for source #{0}: {1}".format(i, result[-2]))
+                logger.warning("PSF fit failed for source #{0}: {1}".format(i, result['message']))
 
         # return
         return results, self._combine_psf_profiles(radial_data) if return_psf_profiles else None, residuals
@@ -1102,7 +1123,8 @@ class FitLayer(object):
         if fit_background:
             jacob[-1] = x0[-1]
 
-        return jacob / sigma
+        # Note that to get the right shape for the optimization, the matrix needs to be transposed.
+        return (jacob / sigma).T
 
     def fit_sources_simultaneously(self, parameters, sources=None):
         """
