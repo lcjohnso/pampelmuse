@@ -57,7 +57,7 @@ parameters are not fitted.
 
 Latest Git revision
 -------------------
-2018/04/24
+2018/05/08
 """
 import collections
 import contextlib
@@ -72,7 +72,7 @@ from ..core.coordinates import Transformation
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180424
+__revision__ = 20180508
 
 
 logger = logging.getLogger(__name__)
@@ -920,6 +920,11 @@ class FitLayer(object):
                 for psf_parameter in psf_parameters:
                     x0.append(getattr(psf, psf_parameter))
 
+                # for combined model, restrict FWHM of second component to be narrower the FWHM of first comp.
+                if 'fwhm2' in names:
+                    bounds[1][names.get_loc('fwhm2')] = x0[names.get_loc('fwhm1')]
+                    bounds[0][names.get_loc('fwhm1')] = x0[names.get_loc('fwhm2')]
+
             # (3) check if positions should be fitted
             if fit_positions:
                 x0.extend([psf.xc, psf.yc])
@@ -1182,7 +1187,7 @@ class FitLayer(object):
             log_string = "Fitted parameter values:"
             for i, name in enumerate(parameters):
                 log_string += " {0}={1:.2f},".format(name, best_fit[i])
-                logger.info(log_string[:-1])
+            logger.info(log_string[:-1])
 
         # return
         return pd.Series(best_fit, index=parameters)

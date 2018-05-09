@@ -12,7 +12,7 @@
 
 \bibpunct{(}{)}{;}{a}{,}{,}
 
-\title{PampelMuse, version 0.9x}
+\title{PampelMuse, version 0.100}
 \author{Sebastian Kamann (s.kamann@ljmu.ac.uk)}
 \date{\today}
 
@@ -195,7 +195,7 @@ If provided, the bad pixel mask should be zero for valid pixels and one for pixe
 Although not required, it is highly advantageous if the header of the FITS file containing the IFS data contains some basic WCS information, i.e. at least the keywords \texttt{RA}, \texttt{DEC}, and the matrix \texttt{CDi\_j}. \pampelmuse will use this information to determine the spaxel scale and the approximate location of the field of view on the sky.
 
 \pampelmuse also offers the possibility to analyse only a part of the data cube or to bin the data in spectral direction to speed up the analysis. To this aim, the section \emph{layers} has been introduced in the configuration. It contains the following keys.
-\pmparameter{layers}{first}{inegert}{$0$}{The first layer of the IFS data that should be analysed. Negative numbers are counted backwards from the last layer.}
+\pmparameter{layers}{first}{integer}{$0$}{The first layer of the IFS data that should be analysed. Negative numbers are counted backwards from the last layer.}
 \pmparameter{layers}{last}{integer}{$-1$}{The last layer of the IFS data that should be analysed. Again, negative numbers are counted backwards from the last layer.}
 \pmparameter{layers}{binning}{integer}{1}{The spectral binning factor applied to the IFS data during the analysis.}
 
@@ -203,7 +203,7 @@ Although not required, it is highly advantageous if the header of the FITS file 
 As \pampelmuse does not currently include a dedicated source detection algorithm, the analysis relies on the presence of a reference catalogue, containing coordinates and magnitudes of the stars in and around the observed field. The best sources for such a catalogue are imaging data obtained with the \textit{Hubble} space telescope (HST) or ground based adaptive optics images. Note that the quality of the reference catalogue (especially its completeness and astrometric accuracy) will strongly influence the results of the analysis. For example, a common shortcoming of catalogues generated from HST data is that the brightest stars are often missing because they were saturated in the exposures. If this is the case, try to add them manually.
 
 For \pampelmuse to recognize the reference catalogue, its file name should be provided in the \emph{catalog} section of the configuration.
-\pmparameter{catalog}{name}{string}{}{The name of the astrometric reference catalogue used for the analysis. \textbf{IMPORTANT:} This parametermust be set in any user-configuration file.}
+\pmparameter{catalog}{name}{string}{}{The name of the astrometric reference catalogue used for the analysis. \textbf{IMPORTANT:} This parameter must be set in any user-configuration file.}
 
 The reference catalogue should be present as a plain csv-file with the first (non-commented) line containing the column names. \pampelmuse will recognize column names such as \texttt{ra}, \texttt{dec}, or \texttt{id} and process the column content accordingly. The reference catalogue must contain the following columns:
 \begin{enumerate}
@@ -250,18 +250,21 @@ whereas the Moffat profile is described via
 %
 For either profile, $\Sigma_\mathrm{0}$ is the central intensity. The width of the Gaussian is controlled by the standard deviation $\sigma$, while the effective radius $\rd$ defines the width of the Moffat. However, instead of $\sigma$ and $\beta$, \pampelmuse uses the FWHM as a measure for the profile width (see Appendix~\ref{app:profiles}). Note that the FWHM is always measured in units of spaxels.
 
-The Moffat profile has a second shape parameter, $\beta$. It measures the kurtosis of the profile, i.e. the strength of the wings of the PSF. Note that higher values of $\beta$ correspond to less pronounced wings. From my experience, $\beta\sim2.5$ is a typical value for a seeing-limited PSF. For this value, a Moffat profile has much more pronounced wings than a Gaussian profile. Therefore I strongly recommend using the Moffat profile because the Gaussian profile will almost certainly underestimate the wings of the PSF.
+The Moffat profile has a second shape parameter, $\beta$. It measures the kurtosis of the profile, i.e. the strength of the wings of the PSF. Note that higher values of $\beta$ correspond to less pronounced wings. From my experience, $\beta\sim2.5$ is a typical value for a seeing-limited PSF. For this value, a Moffat profile has much more pronounced wings than a Gaussian profile. Therefore I strongly recommend using the Moffat profile because the Gaussian profile will almost certainly underestimate the wings of the PSF. Since version 0.100, \pampelmuse also supports combinations of the two profiles, namely a double Gaussian and a Moffat-Gaussian profile.
 
 The radius $r$ incorporates the ellipticity $e$ and the position angle $\theta$ of each profile. Thus, besides the actual centroid coordinates, the Moffat profile has $4$ free parameters, the Gaussian profile has $3$.
 
 The properties of the the PSF during the analysis are controlled via the \emph{psf} section of the configuration. The profile in use can be set using the \emph{type} keyword.
-\pmparameter{psf}{type}{string}{moffat}{The name of analytical PSF profile to be used. Currently supported are 'moffat' and 'gaussian'.}
+\pmparameter{psf}{type}{string}{moffat}{The name of analytical PSF profile to be used. Currently supported are 'moffat', 'gauss', 'double\_gauss', and 'moffat\_gauss'.}
 
 The initial values of the PSF parameters can be specified directly in the \emph{psf}-section of the configuration.
 \pmparameter{psf}{e}{float}{0.0}{The initial value of the ellipticity of the PSF.}
 \pmparameter{psf}{theta}{float}{0.0}{The initial value of the position angle of the PSF.}
 \pmparameter{psf}{fwhm}{float}{3.0}{The initial value of the FWHM of the PSF.}
 \pmparameter{psf}{beta}{float}{2.0}{The initial value of the beta-parameter of the PSF (only used with a Moffat profile).}
+\pmparameter{psf}{f12}{float}{0.5}{The initial value of the fractional flux in the first component in case a PSF profile with two components is used.}
+\pmparameter{psf}{fwhm1}{float}{3.0}{The initial value of the FWHM of the first component in case a PSF profile with two components is used.}
+\pmparameter{psf}{fwhm2}{float}{6.0}{The initial value of the FWHM of the second component in case a PSF profile with two components is used.}
 
 Furthermore, it can be controlled which of the PSF parameters should be optimized during the fit and which ones should be held constant at their initial values. This is controlled via the \emph{fit} keyword of the \emph{psf} section of the configuration.
 \pmparameter{psf}{fit}{integer}{$6$}{The PSF behaviour in the fit. $\text{PSFFIT}=\sum_n 2^n$, where $n\geq1$ runs over the indices of the free parameters; e.g. $\text{PSFFIT}=6$ for a Moffat means to fit $\beta$ and $\text{FWHM}$ at constant $e$ and $\theta$.}

@@ -31,7 +31,7 @@ Added
 
 Latest Git revision
 -------------------
-2018/02/15
+2018/05/08
 """
 import datetime
 import logging
@@ -47,7 +47,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20180215
+__revision__ = 20180508
 
 
 logger = logging.getLogger(__name__)
@@ -143,7 +143,12 @@ class SpectrumWriter(object):
 
         # add estimate for seeing on detector using the fitted FWHM of the PSF profile
         if self.psf_attributes is not None:
-            mean_fwhm = np.nanmean(psf_attributes.data[('fwhm', 'value')])
+            if psf_attributes.profile not in ['double_gauss', 'moffat_gauss']:
+                mean_fwhm = np.nanmean(psf_attributes.data[('fwhm', 'value')])
+            else:
+                mean_fwhm = np.nanmean(
+                    psf_attributes.data[('f12', 'value')] * psf_attributes.data[('fwhm1', 'value')] + (
+                        1. - psf_attributes.data[('f12', 'value')]) * psf_attributes.data[('fwhm1', 'value')])
             self.header["hierarch PAMPELMUSE SEEING"] = (mean_fwhm, "Fitted PSF FWHM in spaxels")
 
         self.xy = None

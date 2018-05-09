@@ -28,7 +28,7 @@ defines generic methods that are inherited by all its subclasses.
 
 Latest Git revision
 -------------------
-2018/02/21
+2018/05/08
 """
 import logging
 import matplotlib
@@ -42,7 +42,7 @@ from ..utils.distance import dist2path, point_in_poly
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180221
+__revision__ = 20180508
 
 
 class Instrument(object):
@@ -230,6 +230,9 @@ class Instrument(object):
 
         self._edge = value
 
+        # need to recalculate the path around the edge
+        self._edgepath = None
+
     @edge.deleter
     def edge(self):
         """
@@ -237,8 +240,7 @@ class Instrument(object):
         implies that the path along the edge must also be reset.
         """
         self._edge = None
-        if self._edgepath is not None:
-            self._edgepath = None
+        self._edgepath = None
 
     @property
     def edgepath(self):
@@ -952,7 +954,9 @@ class Instrument(object):
                 data.size, self.nspaxel))
 
         outdata = np.zeros(self.shape, dtype=np.float32)
+        outdata[:] = np.nan
         outdata[self.y.astype('<i4'), self.x.astype('<i4')] = data
+
         return outdata
 
     def search_configuration(self, hdu, **kwargs):

@@ -30,7 +30,7 @@ muse_scipost recipe.
 
 Latest GIT revision
 -------------------
-2018/04/20
+2018/05/08
 """
 import logging
 import warnings
@@ -44,7 +44,7 @@ from .generic_ifs import GenericIFS
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180420
+__revision__ = 20180508
 
 
 class Muse(GenericIFS):
@@ -69,99 +69,6 @@ class Muse(GenericIFS):
         The newly created instance.
         """
         super(Muse, self).__init__(**kwargs)
-
-    @Instrument.edge.setter
-    def edge(self, value):
-        """
-        To set the edge for a MUSE data cube, the convex hull around the 2D
-        array of valid pixels is determined.
-
-        Parameters
-        ----------
-        value : nd_array
-            A 1dim. array containing a boolean flag for each spaxel that
-            indicates whether the spaxel contains valid data.
-
-        Returns
-        -------
-        edge : nd_array, int
-            The indices of the spaxels that define the edge of the field of
-            view.
-        """
-        if self.transform is None:
-            logging.error("No transformation from spaxels to x & y available.")
-            return
-
-        if len(value) != self.nspaxel:
-            logging.error("Size of boolean array [{0}] must match number of spaxels [{1}].".format(
-                    len(value), self.nspaxel))
-            return
-
-        chull = ConvexHull(self.transform[np.asarray(value, dtype=np.bool)])
-
-        # need to find indices in original transformation (i.e. before excluding NaNs)
-        self._edge = np.searchsorted(np.cumsum(value) - 1, chull.vertices)
-
-    def find_edge(self, valid):
-        """
-        DEPRECATED
-
-        The data structure of MUSE is such that the field of view is not a
-        fixed property of the instrument, but that each pointing comes with
-        a distinct number and arrangement of spaxels. Even for a single
-        exposure, the field of view will usually vary from one layer to the
-        next. For this reason, the edge of the field of view is determined
-        by providing a boolean array that contains a flag for each spaxel
-        that indicates whether it contains valid data or NaN. The routine
-        uses this information to determine which spaxels define the edge of
-        the field of view.
-
-        Parameters
-        ----------
-        valid : nd_array
-            A 1dim. array containing a boolean flag for each spaxel that
-            indicates whether the spaxel contains valid data.
-        """
-        warnings.warn('The method Muse.find_edge is deprecated', DeprecationWarning)
-
-        logging.info("Determining edge of MUSE field of view...")
-
-        if self.transform is None:
-            logging.error("No transformation from spaxels to x & y available.")
-            return
-
-        if len(valid) != self.nspaxel:
-            logging.error("Size of boolean array [{0}] must match number of spaxels [{1}].".format(
-                    len(valid), self.nspaxel))
-            return
-
-        # first scan through the spaxels along the y and the x axis, find the spaxel with the lowest and the highest
-        # x resp. y value. Their indices are combined in the list 'ind'.
-        ind = []
-        for yi in range(int(self.y.min()), int(self.y.max())):
-            select = np.flatnonzero(valid & (self.y >= yi) & (self.y < (yi + 1)))
-            if not select.any():
-                continue
-            j1 = self.x[select].argmin()
-            j2 = self.x[select].argmax()
-            ind.extend([select[j1], select[j2]])
-        for xi in range(int(self.x.min()), int(self.x.max())):
-            select = np.flatnonzero(valid & (self.x >= xi) & (self.x < (xi + 1)))
-            if not select.any():
-                continue
-            j1 = self.y[select].argmin()
-            if j1 not in ind:
-                ind.append(select[j1])
-            j2 = self.y[select].argmax()
-            if j2 not in ind:
-                ind.append(select[j2])
-
-        # for each spaxel included in 'ind', calculate the angle wrt. the centre of gravity, then sort the spaxels by
-        # increasing angle so that the polygon follows the edge of the field of view.
-        center = self.transform[ind].mean(axis=0)
-        angles = np.arctan2(self.x[ind] - center[0], self.y[ind] - center[1])
-
-        self.edge = np.asarray(ind, dtype=np.int32)[angles.argsort()]
 
 
 class MusePixtable(Instrument):

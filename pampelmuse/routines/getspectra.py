@@ -41,7 +41,7 @@ Added
 
 Latest Git revision
 -------------------
-2018/02/15
+2018/05/08
 """
 import logging
 from ..core.spectrum_writer import SpectrumWriter
@@ -49,7 +49,7 @@ from ..utils.fits import open_prm, open_ifs_data
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180215
+__revision__ = 20180508
 
 
 def add_parser(parser):

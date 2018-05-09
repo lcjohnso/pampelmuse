@@ -33,7 +33,7 @@ Added
 
 Latest Git revision
 -------------------
-2018/04/24
+2018/05/08
 """
 import logging
 import sys
@@ -45,7 +45,7 @@ from .aperture import AperPhoto
 from .background import BackgroundGrid
 from .coordinates import Transformation
 from .sources import Sources
-from ..instruments import Instrument, Muse, MusePixtable
+from ..instruments import Instrument, GenericIFS, Muse, MusePixtable
 from ..psf import Variables
 from ..psf.profiles import *
 from ..utils.image import find_offset
@@ -53,7 +53,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20180424
+__revision__ = 20180508
 
 
 logger = logging.getLogger(__name__)
@@ -583,11 +583,12 @@ class SourceSelector(object):
 
         logger.info("Creating mock {0}-band image from IFS data...".format(self.passband))
         self.data_image, self.var_image, weights = self.ifs_data.integrate_over_filtercurve(
-                self.passband, apply_variances=apply_variances, nbin=n_bin, layer_range=(5, self.ifs_data.nlayer - 5))
+                self.passband, apply_variances=apply_variances, nbin=n_bin, layer_range=(5, self.ifs_data.nlayer - 5),
+                return_grid=True)
 
-        # The sigma values are valid for the broadband image and must be increased to be representative for a typical
-        # layer. As the image was obtained by integrating over a filter curve, the sigma values are multiplied by
-        # sqrt(N) where N is the effective width of the filter curve in units of the spectral sampling.
+        # The variance values are valid for the broadband image and must be increased to be representative for a
+        # typical layer. As the image was obtained by integrating over a filter curve, the sigma values are multiplied
+        # by sqrt(N) where N is the effective width of the filter curve in units of the spectral sampling.
         self.var_image *= weights[(np.arange(weights.size) % 10) == 0].sum()
 
         mask = np.isnan(self.data_image)
@@ -595,15 +596,15 @@ class SourceSelector(object):
             logger.error("{0}-image created from IFS data contains only NaNs.".format(self.passband))
             logger.error("Check overlap between {0} throughput and IFS wavelength coverage.".format(self.passband))
 
-        # if a MUSE data cube has been provided, try to determine edge of field of view as smallest polygon to includes
+        # if a true 3D cube has been provided, try to determine edge of field of view as smallest polygon to includes
         # all valid spaxels.
-        if mask.any() and isinstance(self.ifs_data, Muse):
-            self.ifs_data.edge = ~mask
+        if mask.any() and isinstance(self.ifs_data, GenericIFS):
+            self.ifs_data.edge = self.ifs_data.find_edge(mask)
 
         self.var_image[mask] = np.inf
         self.data_image[mask] = 0
 
-        # take care of data cubes wih over-subtraction of background
+        # take care of data cubes with over-subtraction of background
         if self.data_image.sum() <= 0:
             self.data_image -= np.median(self.data_image)
             logger.warning('Flux sum in {0}-image was negative. Subtracted (negative) median flux.'.format(
@@ -655,12 +656,7 @@ class SourceSelector(object):
         if init_guess is None:  # need to correct for shift between image and catalogue.
             init_guess = (-self.sources.x.min(), -self.sources.y.min())
 
-        if self.data_image.ndim == 1:
-            cc_data_image = self.ifs_data.make_image(self.data_image, fill_value=0)
-        else:
-            cc_data_image = self.data_image
-
-        self.ccxoff, self.ccyoff = find_offset(cc_data_image, self.identification_image, max_off=ccmaxoff,
+        self.ccxoff, self.ccyoff = find_offset(self.data_image, self.identification_image, max_off=ccmaxoff,
                                                init_guess=init_guess)
         # Note that the offset are provided with negative signs because the cross-correlation routine determines
         # the offset from the reference image to the IFS data, while we need it vice versa.
@@ -800,27 +796,25 @@ class SourceSelector(object):
         for name in self.sources.transformation.names:
             psf_parameters[name] = self.sources.transformation.data[(name, 'value')].iloc[0]
 
+        # create coordinate transformation for (valid pixels of) variance image
+        py, px = np.mgrid[:self.var_image.shape[0], :self.var_image.shape[1]]
+        transform = np.c_[py[np.isfinite(self.var_image)], px[np.isfinite(self.var_image)]]
+
         # Assign sources to CPUs
         if n_cpu is None or n_cpu == -1:
             n_cpu = cpu_count()  # use all available CPUs
         to_cpu = np.arange(self.sources.n_sources) % n_cpu
         to_cpu[self.sources.ids < 0] = n_cpu + 1  # ignore background components
         args = []
+
         for n in range(n_cpu):
-            # in case the data is a MUSE pixtable, make sure the PSF profiles are defined on the same coordinates
-            # that are available  in the variance image
-            if isinstance(self.ifs_data, MusePixtable):
-                psf = self.psf_class.from_shape(shape=self.var_image.shape, uc=0., vc=0., mag=0., maxrad=10.,
-                                                **psf_parameters)
-            else:
-                psf = self.psf_class(transform=self.ifs_data.transform, uc=0., vc=0., mag=0., maxrad=10.,
-                                     **psf_parameters)
+            psf = self.psf_class(transform=transform, uc=0., vc=0., mag=0., maxrad=10., **psf_parameters)
             args.append({'psf': psf, 'data': self.sources.catalog.loc[to_cpu == n, ['x', 'y', 'mag']],
                          'zeropoint': zeropoint})
 
         # estimate S/N and integrated flux from sources in image
         if n_cpu > 1:
-            pool = Pool(n_cpu, initializer=init_worker, initargs=(self.var_image,))
+            pool = Pool(n_cpu, initializer=init_worker, initargs=(self.var_image[np.isfinite(self.var_image)],))
 
             _results = pool.map_async(estimate_snr, args)
             pool.close()

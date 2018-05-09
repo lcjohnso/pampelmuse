@@ -32,7 +32,7 @@ This module implements an analytical PSF profile in the form of a Moffat.
 
 Latest Git revision
 -------------------
-2018/04/24
+2018/05/08
 """
 import logging
 from numbers import Real
@@ -41,7 +41,7 @@ from ..functions import moffat
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180424
+__revision__ = 20180508
 
 
 class Moffat(Profile):
@@ -319,7 +319,7 @@ class Moffat(Profile):
         """
         if self._diff_xc is None:
             r_pderiv_xc = super(Moffat, self).get_diff_xc(integrate=False)
-            self._diff_theta = moffat.pderiv_r(self.r, self.beta, self.fwhm, self.e) * r_pderiv_xc
+            self._diff_xc = moffat.pderiv_r(self.r, self.beta, self.fwhm, self.e) * r_pderiv_xc
         if integrate:
             return self.sum_os(self._diff_xc)
         else:
@@ -344,7 +344,7 @@ class Moffat(Profile):
         """
         if self._diff_yc is None:
             r_pderiv_yc = super(Moffat, self).get_diff_yc(integrate=False)
-            self._diff_theta = moffat.pderiv_r(self.r, self.beta, self.fwhm, self.e) * r_pderiv_yc
+            self._diff_yc = moffat.pderiv_r(self.r, self.beta, self.fwhm, self.e) * r_pderiv_yc
         if integrate:
             return self.sum_os(self._diff_yc)
         else:
@@ -370,7 +370,7 @@ class Moffat(Profile):
         """
         if self._diff_A is None:
             r_pderiv_A = super(Moffat, self).get_diff_A(integrate=False)
-            self._diff_theta = moffat.pderiv_r(self.r, self.beta, self.fwhm, self.e) * r_pderiv_A
+            self._diff_A = moffat.pderiv_r(self.r, self.beta, self.fwhm, self.e) * r_pderiv_A
         if integrate:
             return self.sum_os(self._diff_A)
         else:
@@ -395,7 +395,7 @@ class Moffat(Profile):
         """
         if self._diff_B is None:
             r_pderiv_B = super(Moffat, self).get_diff_B(integrate=False)
-            self._diff_theta = moffat.pderiv_r(self.r, self.beta, self.fwhm, self.e) * r_pderiv_B
+            self._diff_B = moffat.pderiv_r(self.r, self.beta, self.fwhm, self.e) * r_pderiv_B
         if integrate:
             return self.sum_os(self._diff_B)
         else:
@@ -420,7 +420,7 @@ class Moffat(Profile):
         """
         if self._diff_C is None:
             r_pderiv_C = super(Moffat, self).get_diff_C(integrate=False)
-            self._diff_theta = moffat.pderiv_r(self.r, self.beta, self.fwhm, self.e) * r_pderiv_C
+            self._diff_C = moffat.pderiv_r(self.r, self.beta, self.fwhm, self.e) * r_pderiv_C
         if integrate:
             return self.sum_os(self._diff_C)
         else:
@@ -445,7 +445,7 @@ class Moffat(Profile):
         """
         if self._diff_D is None:
             r_pderiv_D = super(Moffat, self).get_diff_D(integrate=False)
-            self._diff_theta = moffat.pderiv_r(self.r, self.beta, self.fwhm, self.e) * r_pderiv_D
+            self._diff_D = moffat.pderiv_r(self.r, self.beta, self.fwhm, self.e) * r_pderiv_D
         if integrate:
             return self.sum_os(self._diff_D)
         else:
@@ -470,7 +470,7 @@ class Moffat(Profile):
         """
         if self._diff_x0 is None:
             r_pderiv_x0 = super(Moffat, self).get_diff_x0(integrate=False)
-            self._diff_theta = moffat.pderiv_r(self.r, self.beta, self.fwhm, self.e) * r_pderiv_x0
+            self._diff_x0 = moffat.pderiv_r(self.r, self.beta, self.fwhm, self.e) * r_pderiv_x0
         if integrate:
             return self.sum_os(self._diff_x0)
         else:
@@ -495,7 +495,7 @@ class Moffat(Profile):
         """
         if self._diff_y0 is None:
             r_pderiv_y0 = super(Moffat, self).get_diff_y0(integrate=False)
-            self._diff_theta = moffat.pderiv_r(self.r, self.beta, self.fwhm, self.e) * r_pderiv_y0
+            self._diff_y0 = moffat.pderiv_r(self.r, self.beta, self.fwhm, self.e) * r_pderiv_y0
         if integrate:
             return self.sum_os(self._diff_y0)
         else:

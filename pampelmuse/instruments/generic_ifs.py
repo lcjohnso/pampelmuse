@@ -29,16 +29,17 @@ i.e. NAXIS3 in FITS counting) being the spectral axis.
 
 Latest Git revision
 -------------------
-2018/01/24
+2018/05/08
 """
 import logging
 import numpy as np
+from scipy.spatial import ConvexHull, distance
 from astropy.wcs import WCS
 from .instrument import Instrument
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180124
+__revision__ = 20180508
 
 
 class GenericIFS(Instrument):
@@ -75,24 +76,8 @@ class GenericIFS(Instrument):
         if self._transform is None and self.shape is not None:
             self._transform = np.vstack((np.arange(self.nspaxel, dtype=np.float32) // self.shape[1],
                                          np.mod(np.arange(self.nspaxel, dtype=np.float32), self.shape[1]))).T
-        return self._transform
 
-    @Instrument.edge.getter
-    def edge(self):
-        """
-        Returns the spaxels along the edge of the field of view. The reason for
-        redefining it here is that for 3dim. data, the edge can be directly
-        inferred from the first and last indices of the spatial dimensions and
-        must not be known a priori.
-        """
-        # for this type of IFS, the spaxels that define the edge can be inferred directly from the transformation
-        # this assumes a rectangular field of view and fibres arranged row after row (e.g. PMAS/LArr).
-        if self._edge is None and self.transform is not None:
-            self._edge = np.hstack((np.flatnonzero((self.y == self.y.min()) & (self.x > self.x.min())),
-                                    np.flatnonzero((self.x == self.x.max()) & (self.y > self.y.min())),
-                                    np.flatnonzero((self.y == self.y.max()) & (self.x < self.x.max()))[::-1],
-                                    np.flatnonzero((self.x == self.x.min()) & (self.y < self.y.max()))[::-1]))
-        return self._edge
+        return self._transform
 
     @property
     def nspaxel(self):
@@ -103,6 +88,52 @@ class GenericIFS(Instrument):
             The number of spaxels of the current instance of 'Instrument'.
         """
         return self.shape[0]*self.shape[1]
+
+    @Instrument.edge.getter
+    def edge(self):
+        """
+        Returns the spaxels that define the closest path around edge of the
+        field of view.
+
+        The reason for redefining the method here is that for 3dim. data, the
+        edge can be directly inferred from minimum and maximum coordinates of
+        the spatial dimensions and must not be known a priori.
+        """
+        if self._edge is None and self.transform is not None:
+            self._edge = self.find_edge(np.zeros(self.shape, dtype=np.bool))
+
+        return self._edge
+
+    def find_edge(self, mask):
+        """
+        Sets the edge of the field of view to the convex hull around all valid
+        pixels in the provided mask.
+
+        The reason for introducing this method is that the field of view of
+        some instruments, such as MUSE, is not strictly rectangular, so that
+        a number of pixels in the rectangular cube are always NaN. Such pixels
+        must be set to True in the (2D) mask that is provided.
+
+        Parameters
+        ----------
+        mask : array, 2D
+            A boolean array containing a flag for each spaxel indicating if
+            the spaxel is part of the field of view that contains no signal.
+
+        Returns
+        -------
+        edge : nd_array, int
+            The indices of the spaxels that define the edge of the field of
+            view.
+        """
+        py, px = np.mgrid[:mask.shape[0], :mask.shape[1]]
+        valid_spaxels = np.c_[py[~mask], px[~mask]]
+
+        chull = ConvexHull(valid_spaxels)
+        edge_spaxels = valid_spaxels[chull.vertices]
+
+        # need to find indices of (nearest) spaxels in original transformation
+        return distance.cdist(self.transform, edge_spaxels).argmin(axis=0)
 
     def is_valid(self, hdu):
 
