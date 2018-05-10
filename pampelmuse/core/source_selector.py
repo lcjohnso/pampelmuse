@@ -33,7 +33,7 @@ Added
 
 Latest Git revision
 -------------------
-2018/05/08
+2018/05/10
 """
 import logging
 import sys
@@ -53,7 +53,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20180508
+__revision__ = 20180510
 
 
 logger = logging.getLogger(__name__)
@@ -410,7 +410,7 @@ class SourceSelector(object):
                 self.sources.crpix = self.ifs_data.wcs.wcs.crpix[2]
                 self.sources.cdelt = self.ifs_data.wcs.pixel_scale_matrix[-1, -1]
                 self.sources.ctype = self.ifs_data.wcs.wcs.ctype[2]
-                self.sources.cunit = self.ifs_data.wcs.wcs.cunit[2].name
+                self.sources.cunit = self.ifs_data.wcs.wcs.cunit[2].to_string()
             else:
                 self.sources.crval = self.ifs_data.wave[0]
                 self.sources.crpix = 1
