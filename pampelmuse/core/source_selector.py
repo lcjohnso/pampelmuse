@@ -33,7 +33,7 @@ Added
 
 Latest Git revision
 -------------------
-2018/05/10
+2018/05/22
 """
 import logging
 import sys
@@ -53,7 +53,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20180510
+__revision__ = 20180522
 
 
 logger = logging.getLogger(__name__)
@@ -233,11 +233,13 @@ class SourceSelector(object):
             raise IOError("Source IDs must be provided with photometry")
 
         # make sure magnitudes are available
-        if self.passband.lower() not in self.cfp_results.columns:
+        if self.passband not in self.cfp_results.columns and self.passband.lower() not in self.cfp_results.columns:
             logger.critical("Did not find magnitudes in photometry file.")
             raise IOError("Source magnitudes must be provided with photometry.")
-        else:
+        elif self.passband in self.cfp_results.columns:
             # rename columns with magnitudes to 'mag'
+            self.cfp_results.rename(columns={self.passband: 'mag'}, inplace=True)
+        else:
             self.cfp_results.rename(columns={self.passband.lower(): 'mag'}, inplace=True)
 
         # make sure either RA & Dec or x & y are available; if both are available, RA & Dec are preferred over x & y
