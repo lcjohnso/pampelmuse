@@ -3,75 +3,9 @@
   <component name="ChangeListManager">
     <list id="2537fcfb-7e20-4757-bbd2-3237e7f34740" name="patch" comment="Issue that CUBEFIT crashed when only PSF parameters or positions were fitted with POLYFIT. " />
     <list default="true" id="184c2abe-3153-48a7-88ae-f3ca9af990c0" name="Default" comment="">
-      <change beforePath="" afterPath="$PROJECT_DIR$/pampelmuse/config/data/pampelmuse.json" />
-      <change beforePath="" afterPath="$PROJECT_DIR$/pampelmuse/psf/canvas.py" />
-      <change beforePath="" afterPath="$PROJECT_DIR$/pampelmuse/psf/functions/__init__.py" />
-      <change beforePath="" afterPath="$PROJECT_DIR$/pampelmuse/psf/functions/gaussian.py" />
-      <change beforePath="" afterPath="$PROJECT_DIR$/pampelmuse/psf/functions/moffat.py" />
-      <change beforePath="" afterPath="$PROJECT_DIR$/pampelmuse/psf/profiles/__init__.py" />
-      <change beforePath="" afterPath="$PROJECT_DIR$/pampelmuse/psf/profiles/double_gaussian.py" />
-      <change beforePath="" afterPath="$PROJECT_DIR$/pampelmuse/psf/profiles/gaussian.py" />
-      <change beforePath="" afterPath="$PROJECT_DIR$/pampelmuse/psf/profiles/moffat.py" />
-      <change beforePath="" afterPath="$PROJECT_DIR$/pampelmuse/psf/profiles/moffat_gaussian.py" />
-      <change beforePath="" afterPath="$PROJECT_DIR$/pampelmuse/psf/profiles/profile.py" />
-      <change beforePath="$PROJECT_DIR$/.idea/pampelmuse.iml" afterPath="$PROJECT_DIR$/.idea/pampelmuse.iml" />
-      <change beforePath="$PROJECT_DIR$/.idea/watcherTasks.xml" afterPath="$PROJECT_DIR$/.idea/watcherTasks.xml" />
-      <change beforePath="$PROJECT_DIR$/bin/PampelMuse" afterPath="$PROJECT_DIR$/bin/PampelMuse" />
-      <change beforePath="$PROJECT_DIR$/bin/access_configuration.py" afterPath="" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
       <change beforePath="$PROJECT_DIR$/doc/manual.pdf" afterPath="$PROJECT_DIR$/doc/manual.pdf" />
       <change beforePath="$PROJECT_DIR$/doc/manual.tex" afterPath="$PROJECT_DIR$/doc/manual.tex" />
-      <change beforePath="$PROJECT_DIR$/doc/profiles.aux" afterPath="$PROJECT_DIR$/doc/profiles.aux" />
-      <change beforePath="$PROJECT_DIR$/doc/profiles.tex" afterPath="$PROJECT_DIR$/doc/profiles.tex" />
-      <change beforePath="$PROJECT_DIR$/doc/profiles.tex.backup" afterPath="$PROJECT_DIR$/doc/profiles.tex.backup" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/config/__init__.py" afterPath="$PROJECT_DIR$/pampelmuse/config/__init__.py" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/config/data/PMparams.xml" afterPath="" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/config/data/PMschema.xsd" afterPath="" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/config/data/PMstyle.xsl" afterPath="" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/config/xml_interact.py" afterPath="$PROJECT_DIR$/pampelmuse/config/xml_interact.py" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/core/aperture.py" afterPath="$PROJECT_DIR$/pampelmuse/core/aperture.py" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/core/background.py" afterPath="$PROJECT_DIR$/pampelmuse/core/background.py" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/core/coordinates.py" afterPath="$PROJECT_DIR$/pampelmuse/core/coordinates.py" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/core/fit_cube.py" afterPath="$PROJECT_DIR$/pampelmuse/core/fit_cube.py" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/core/fit_layer.py" afterPath="$PROJECT_DIR$/pampelmuse/core/fit_layer.py" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/core/make_residual_cube.py" afterPath="$PROJECT_DIR$/pampelmuse/core/make_residual_cube.py" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/core/parameters.py" afterPath="$PROJECT_DIR$/pampelmuse/core/parameters.py" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/core/source_selector.py" afterPath="$PROJECT_DIR$/pampelmuse/core/source_selector.py" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/core/sources.py" afterPath="$PROJECT_DIR$/pampelmuse/core/sources.py" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/core/spectrum_writer.py" afterPath="$PROJECT_DIR$/pampelmuse/core/spectrum_writer.py" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/filters/__init__.py" afterPath="$PROJECT_DIR$/pampelmuse/filters/__init__.py" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/graphics/Ui_exit_dialog.py" afterPath="$PROJECT_DIR$/pampelmuse/graphics/Ui_exit_dialog.py" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/graphics/Ui_pampelmuse_gui.py" afterPath="$PROJECT_DIR$/pampelmuse/graphics/Ui_pampelmuse_gui.py" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/graphics/__init__.py" afterPath="$PROJECT_DIR$/pampelmuse/graphics/__init__.py" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/graphics/dynamic_ima_canvas.py" afterPath="$PROJECT_DIR$/pampelmuse/graphics/dynamic_ima_canvas.py" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/graphics/dynamic_plot_canvas.py" afterPath="$PROJECT_DIR$/pampelmuse/graphics/dynamic_plot_canvas.py" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/graphics/exit_dialog.py" afterPath="$PROJECT_DIR$/pampelmuse/graphics/exit_dialog.py" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/graphics/pampelmuse_gui.py" afterPath="$PROJECT_DIR$/pampelmuse/graphics/pampelmuse_gui.py" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/graphics/pampelmuse_gui.qrc" afterPath="$PROJECT_DIR$/pampelmuse/graphics/pampelmuse_gui.qrc" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/graphics/pampelmuse_gui.ui" afterPath="$PROJECT_DIR$/pampelmuse/graphics/pampelmuse_gui.ui" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/graphics/pampelmuse_gui_rc.py" afterPath="$PROJECT_DIR$/pampelmuse/graphics/pampelmuse_gui_rc.py" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/instruments/argus.py" afterPath="$PROJECT_DIR$/pampelmuse/instruments/argus.py" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/instruments/generic_ifs.py" afterPath="$PROJECT_DIR$/pampelmuse/instruments/generic_ifs.py" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/instruments/instrument.py" afterPath="$PROJECT_DIR$/pampelmuse/instruments/instrument.py" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/instruments/muse.py" afterPath="$PROJECT_DIR$/pampelmuse/instruments/muse.py" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/instruments/pmas.py" afterPath="$PROJECT_DIR$/pampelmuse/instruments/pmas.py" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/psf/__init__.py" afterPath="$PROJECT_DIR$/pampelmuse/psf/__init__.py" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/psf/profiles.py" afterPath="" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/psf/variables.py" afterPath="$PROJECT_DIR$/pampelmuse/psf/variables.py" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/routines/__init__.py" afterPath="$PROJECT_DIR$/pampelmuse/routines/__init__.py" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/routines/addwcs.py" afterPath="" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/routines/cubefit.py" afterPath="$PROJECT_DIR$/pampelmuse/routines/cubefit.py" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/routines/getspectra.py" afterPath="$PROJECT_DIR$/pampelmuse/routines/getspectra.py" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/routines/initfit.py" afterPath="$PROJECT_DIR$/pampelmuse/routines/initfit.py" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/routines/makecube.py" afterPath="" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/routines/polyfit.py" afterPath="$PROJECT_DIR$/pampelmuse/routines/polyfit.py" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/routines/ptsort.py" afterPath="$PROJECT_DIR$/pampelmuse/routines/ptsort.py" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/routines/shotnoi.py" afterPath="" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/routines/singlesrc.py" afterPath="$PROJECT_DIR$/pampelmuse/routines/singlesrc.py" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/routines/subtres.py" afterPath="$PROJECT_DIR$/pampelmuse/routines/subtres.py" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/utils/fits.py" afterPath="$PROJECT_DIR$/pampelmuse/utils/fits.py" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/utils/io.py" afterPath="" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/utils/statistics.py" afterPath="$PROJECT_DIR$/pampelmuse/utils/statistics.py" />
-      <change beforePath="$PROJECT_DIR$/setup.py" afterPath="$PROJECT_DIR$/setup.py" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="TRACKING_ENABLED" value="true" />
@@ -85,8 +19,8 @@
       <file leaf-file-name="PampelMuse" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/bin/PampelMuse">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="1854">
-              <caret line="103" column="24" lean-forward="false" selection-start-line="103" selection-start-column="24" selection-end-line="103" selection-end-column="24" />
+            <state relative-caret-position="1188">
+              <caret line="79" column="24" lean-forward="false" selection-start-line="79" selection-start-column="24" selection-end-line="79" selection-end-column="24" />
               <folding />
             </state>
           </provider>
@@ -105,8 +39,8 @@
       <file leaf-file-name="initfit.py" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/pampelmuse/routines/initfit.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="774">
-              <caret line="63" column="23" lean-forward="false" selection-start-line="63" selection-start-column="23" selection-end-line="63" selection-end-column="23" />
+            <state relative-caret-position="18">
+              <caret line="38" column="44" lean-forward="false" selection-start-line="38" selection-start-column="44" selection-end-line="38" selection-end-column="44" />
               <folding />
             </state>
           </provider>
@@ -115,10 +49,10 @@
       <file leaf-file-name="source_selector.py" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/pampelmuse/core/source_selector.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="1134">
-              <caret line="63" column="23" lean-forward="false" selection-start-line="63" selection-start-column="23" selection-end-line="63" selection-end-column="23" />
+            <state relative-caret-position="738">
+              <caret line="55" column="23" lean-forward="false" selection-start-line="55" selection-start-column="23" selection-end-line="55" selection-end-column="23" />
               <folding>
-                <marker date="1527092694784" expanded="true" signature="27077:62481" ph="..." />
+                <marker date="1527094125551" expanded="true" signature="26561:61965" ph="..." />
               </folding>
             </state>
           </provider>
@@ -337,8 +271,8 @@
           <select />
         </subPane>
       </pane>
-      <pane id="Scratches" />
       <pane id="Scope" />
+      <pane id="Scratches" />
     </panes>
   </component>
   <component name="PropertiesComponent">
@@ -885,7 +819,7 @@
   <component name="ToolWindowManager">
     <frame x="52" y="-11" width="1869" height="1092" extended-state="6" />
     <layout>
-      <window_info id="Project" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.20098847" sideWeight="0.5" order="1" side_tool="false" content_ui="combo" />
+      <window_info id="Project" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.20538166" sideWeight="0.5" order="1" side_tool="false" content_ui="combo" />
       <window_info id="TODO" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="10" side_tool="false" content_ui="tabs" />
       <window_info id="Event Log" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33821988" sideWeight="0.52828115" order="0" side_tool="true" content_ui="tabs" />
       <window_info id="Version Control" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33821988" sideWeight="0.47171885" order="1" side_tool="false" content_ui="tabs" />
@@ -1286,18 +1220,18 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/pampelmuse/core/source_selector.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1134">
-          <caret line="63" column="23" lean-forward="false" selection-start-line="63" selection-start-column="23" selection-end-line="63" selection-end-column="23" />
+        <state relative-caret-position="738">
+          <caret line="55" column="23" lean-forward="false" selection-start-line="55" selection-start-column="23" selection-end-line="55" selection-end-column="23" />
           <folding>
-            <marker date="1527092694784" expanded="true" signature="27077:62481" ph="..." />
+            <marker date="1527094125551" expanded="true" signature="26561:61965" ph="..." />
           </folding>
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/bin/PampelMuse">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1854">
-          <caret line="103" column="24" lean-forward="false" selection-start-line="103" selection-start-column="24" selection-end-line="103" selection-end-column="24" />
+        <state relative-caret-position="1188">
+          <caret line="79" column="24" lean-forward="false" selection-start-line="79" selection-start-column="24" selection-end-line="79" selection-end-column="24" />
           <folding />
         </state>
       </provider>
@@ -1312,8 +1246,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/pampelmuse/routines/initfit.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="774">
-          <caret line="63" column="23" lean-forward="false" selection-start-line="63" selection-start-column="23" selection-end-line="63" selection-end-column="23" />
+        <state relative-caret-position="18">
+          <caret line="38" column="44" lean-forward="false" selection-start-line="38" selection-start-column="44" selection-end-line="38" selection-end-column="44" />
           <folding />
         </state>
       </provider>
