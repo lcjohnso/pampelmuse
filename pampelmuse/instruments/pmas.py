@@ -1,7 +1,7 @@
 """
 pmas.py
 ========
-Copyright 2013-2016 Sebastian Kamann
+Copyright 2013-2018 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -25,17 +25,17 @@ Purpose
 This module provides the Pmas class that is designed to facilitate the usgae
 of data from the PMAS spectrograph in the analysis.
 
-Latest SVN revision
+Latest Git revision
 -------------------
-345, 2016/08/01
+2018/01/18
 """
 import logging
 import numpy as np
 from .instrument import Instrument
 
 
-__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 345
+__author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
+__revision__ = 20180118
 
 
 class Pmas(Instrument):
@@ -214,6 +214,9 @@ class Pmas(Instrument):
             self.wcs.wcs.cunit[-1] = hdu.header['CUNIT1']
         if 'CTYPE1' in hdu.header:
             self.wcs.wcs.ctype[-1] = hdu.header['CTYPE1']
+
+        # make sure wavelength units are converted to meters
+        self.wcs.fix()
 
     def slice_for_layer(self, i):
         """

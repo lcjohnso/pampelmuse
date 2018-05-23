@@ -288,6 +288,9 @@
            </item>
            <item>
             <widget class="QComboBox" name="refCutsComboBox">
+             <property name="currentText" stdset="0">
+              <string>100%</string>
+             </property>
              <item>
               <property name="text">
                <string>100%</string>
@@ -557,6 +560,9 @@
                <width>70</width>
                <height>0</height>
               </size>
+             </property>
+             <property name="currentText" stdset="0">
+              <string>100%</string>
              </property>
              <item>
               <property name="text">

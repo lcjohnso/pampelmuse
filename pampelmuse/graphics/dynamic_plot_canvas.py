@@ -1,7 +1,7 @@
 """
 dynamic_plot_canvas.py
 ======================
-Copyright 2013-2016 Sebastian Kamann
+Copyright 2013-2018 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -37,25 +37,25 @@ certain (wavelength) ranges, zooming, and panning.
 The class DynamicPlotCanvas is used by the PampelMuse GUI to show the
 top panel, named 'Spectrum Viewer'.
 
-Latest SVN revision
--------------------4
-382, 2016/01/11
+Latest Git revision
+-------------------
+2018/01/04
 """
 import inspect
 import logging
 import matplotlib.pyplot
 import numpy as np
-from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from matplotlib.patches import Rectangle
 from matplotlib.transforms import blended_transform_factory
 from matplotlib.widgets import Cursor, SpanSelector
-from PyQt4 import QtCore
+from PyQt5 import QtCore
 matplotlib.pyplot.rcParams["axes.linewidth"] = 1.5
 
 
-__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 382
+__author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
+__revision__ = 20180104
 
 
 class DynamicPlotCanvas(FigureCanvasQTAgg):
@@ -65,6 +65,9 @@ class DynamicPlotCanvas(FigureCanvasQTAgg):
     feature is used to create a spectrumMask in wavelength space.
     """
     background = None
+
+    # define custom signals
+    range_selected = QtCore.pyqtSignal(float, float, bool, name='rangeSelected')
 
     def __init__(self, parent=None, width=9, height=5, dpi=100):
         """
@@ -96,6 +99,9 @@ class DynamicPlotCanvas(FigureCanvasQTAgg):
         # a vertical line is used to highlight the cursor position on the canvas.
         self.cursor = Cursor(self.axes, color='r', lw=1.5, ls='--', horizOn=False, vertOn=True, useblit=True)
 
+        # use vertical line to display (& synchronise) cursor if mouse is not over axes instance
+        self.vline = self.axes.axvline(np.mean(self.axes.get_xlim()), color='r', lw=1.5, ls='--')
+
         # define two selectors for adding a horizontal range to the rectangles or subtracting it.
         self.selector = SpanSelector(self.axes, self.on_select, direction='horizontal', useblit=True,
                                      rectprops=dict(facecolor='red', alpha=0.5), button=1)
@@ -108,6 +114,9 @@ class DynamicPlotCanvas(FigureCanvasQTAgg):
         # track of the number of available rectangles and their names.
         self.bar_transform = blended_transform_factory(self.axes.transData, self.axes.transAxes)
         self.bar_gid = ['selector', 'deselector']  # will contain the ID of every rectangle
+
+        self.fig.canvas.mpl_connect('axes_enter_event', self.enter_axes)
+        self.fig.canvas.mpl_connect('axes_leave_event', self.leave_axes)
 
         self.draw()
 
@@ -248,7 +257,7 @@ class DynamicPlotCanvas(FigureCanvasQTAgg):
         if y_data is not None:
             self.thePlots[name].set_ydata(y_data)
 
-        for i in xrange(len(self.axes.patches)):
+        for i in range(len(self.axes.patches)):
             self.axes.patches[i].set_height(0)
 
         # update axes limits if requested
@@ -281,7 +290,7 @@ class DynamicPlotCanvas(FigureCanvasQTAgg):
             self.axes.set_ylabel(y_label, fontsize=20)
 
         # modify height of rectangles.
-        for i in xrange(len(self.axes.patches)):
+        for i in range(len(self.axes.patches)):
             self.axes.patches[i].set_height(1)
 
         self.draw()  # update canvas.
@@ -308,8 +317,8 @@ class DynamicPlotCanvas(FigureCanvasQTAgg):
         """
         x_min = min(x_click, x_release)
         x_max = max(x_click, x_release)
-        logging.info('Selected range: {0:.1f} - {1:.1f}'.format(x_min, x_max))
-        self.emit(QtCore.SIGNAL("rangeSelected"), *[(x_min, x_max), True])
+        logging.info('Selected range: {0:.4g} - {1:.4g}'.format(x_min, x_max))
+        self.range_selected.emit(x_min, x_max, True)
 
     def on_deselect(self, x_click, x_release):
         """
@@ -333,5 +342,33 @@ class DynamicPlotCanvas(FigureCanvasQTAgg):
         """
         x_min = min(x_click, x_release)
         x_max = max(x_click, x_release)
-        logging.info('Deselected range: {0:.1f} - {1:.1f}'.format(x_min, x_max))
-        self.emit(QtCore.SIGNAL("rangeSelected"), *[(x_min, x_max), False])
+        logging.info('Deselected range: {0:.4g} - {1:.4g}'.format(x_min, x_max))
+        self.range_selected.emit(x_min, x_max, False)
+
+    def leave_axes(self, event):
+        """
+        The callback method is triggered when the mouse leaves the axes
+        instance.
+
+        Parameters
+        ----------
+        event : matplotlib.backend_bases.LocationEvent
+            The event that triggered the function call.
+        """
+        self.vline.set_alpha(1.0)
+        # self.vline.set_xdata([event.xdata, ])
+        self.draw()
+
+    def enter_axes(self, event):
+        """
+        The callback method is triggered when the mouse enters the axes
+        instance.
+
+        Parameters
+        ----------
+        event : matplotlib.backend_bases.LocationEvent
+            The event that triggered the function call.
+        """
+        self.vline.set_alpha(0.0)
+        # self.vline.set_xdata([event.xdata, ])
+        self.draw()

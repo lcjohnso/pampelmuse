@@ -1,0 +1,1322 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ChangeListManager">
+    <list id="2537fcfb-7e20-4757-bbd2-3237e7f34740" name="patch" comment="Issue that CUBEFIT crashed when only PSF parameters or positions were fitted with POLYFIT. " />
+    <list default="true" id="184c2abe-3153-48a7-88ae-f3ca9af990c0" name="Default" comment="">
+      <change beforePath="" afterPath="$PROJECT_DIR$/pampelmuse/config/data/pampelmuse.json" />
+      <change beforePath="" afterPath="$PROJECT_DIR$/pampelmuse/psf/canvas.py" />
+      <change beforePath="" afterPath="$PROJECT_DIR$/pampelmuse/psf/functions/__init__.py" />
+      <change beforePath="" afterPath="$PROJECT_DIR$/pampelmuse/psf/functions/gaussian.py" />
+      <change beforePath="" afterPath="$PROJECT_DIR$/pampelmuse/psf/functions/moffat.py" />
+      <change beforePath="" afterPath="$PROJECT_DIR$/pampelmuse/psf/profiles/__init__.py" />
+      <change beforePath="" afterPath="$PROJECT_DIR$/pampelmuse/psf/profiles/double_gaussian.py" />
+      <change beforePath="" afterPath="$PROJECT_DIR$/pampelmuse/psf/profiles/gaussian.py" />
+      <change beforePath="" afterPath="$PROJECT_DIR$/pampelmuse/psf/profiles/moffat.py" />
+      <change beforePath="" afterPath="$PROJECT_DIR$/pampelmuse/psf/profiles/moffat_gaussian.py" />
+      <change beforePath="" afterPath="$PROJECT_DIR$/pampelmuse/psf/profiles/profile.py" />
+      <change beforePath="$PROJECT_DIR$/.idea/pampelmuse.iml" afterPath="$PROJECT_DIR$/.idea/pampelmuse.iml" />
+      <change beforePath="$PROJECT_DIR$/.idea/watcherTasks.xml" afterPath="$PROJECT_DIR$/.idea/watcherTasks.xml" />
+      <change beforePath="$PROJECT_DIR$/bin/PampelMuse" afterPath="$PROJECT_DIR$/bin/PampelMuse" />
+      <change beforePath="$PROJECT_DIR$/bin/access_configuration.py" afterPath="" />
+      <change beforePath="$PROJECT_DIR$/doc/manual.pdf" afterPath="$PROJECT_DIR$/doc/manual.pdf" />
+      <change beforePath="$PROJECT_DIR$/doc/manual.tex" afterPath="$PROJECT_DIR$/doc/manual.tex" />
+      <change beforePath="$PROJECT_DIR$/doc/profiles.aux" afterPath="$PROJECT_DIR$/doc/profiles.aux" />
+      <change beforePath="$PROJECT_DIR$/doc/profiles.tex" afterPath="$PROJECT_DIR$/doc/profiles.tex" />
+      <change beforePath="$PROJECT_DIR$/doc/profiles.tex.backup" afterPath="$PROJECT_DIR$/doc/profiles.tex.backup" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/config/__init__.py" afterPath="$PROJECT_DIR$/pampelmuse/config/__init__.py" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/config/data/PMparams.xml" afterPath="" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/config/data/PMschema.xsd" afterPath="" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/config/data/PMstyle.xsl" afterPath="" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/config/xml_interact.py" afterPath="$PROJECT_DIR$/pampelmuse/config/xml_interact.py" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/core/aperture.py" afterPath="$PROJECT_DIR$/pampelmuse/core/aperture.py" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/core/background.py" afterPath="$PROJECT_DIR$/pampelmuse/core/background.py" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/core/coordinates.py" afterPath="$PROJECT_DIR$/pampelmuse/core/coordinates.py" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/core/fit_cube.py" afterPath="$PROJECT_DIR$/pampelmuse/core/fit_cube.py" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/core/fit_layer.py" afterPath="$PROJECT_DIR$/pampelmuse/core/fit_layer.py" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/core/make_residual_cube.py" afterPath="$PROJECT_DIR$/pampelmuse/core/make_residual_cube.py" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/core/parameters.py" afterPath="$PROJECT_DIR$/pampelmuse/core/parameters.py" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/core/source_selector.py" afterPath="$PROJECT_DIR$/pampelmuse/core/source_selector.py" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/core/sources.py" afterPath="$PROJECT_DIR$/pampelmuse/core/sources.py" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/core/spectrum_writer.py" afterPath="$PROJECT_DIR$/pampelmuse/core/spectrum_writer.py" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/filters/__init__.py" afterPath="$PROJECT_DIR$/pampelmuse/filters/__init__.py" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/graphics/Ui_exit_dialog.py" afterPath="$PROJECT_DIR$/pampelmuse/graphics/Ui_exit_dialog.py" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/graphics/Ui_pampelmuse_gui.py" afterPath="$PROJECT_DIR$/pampelmuse/graphics/Ui_pampelmuse_gui.py" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/graphics/__init__.py" afterPath="$PROJECT_DIR$/pampelmuse/graphics/__init__.py" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/graphics/dynamic_ima_canvas.py" afterPath="$PROJECT_DIR$/pampelmuse/graphics/dynamic_ima_canvas.py" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/graphics/dynamic_plot_canvas.py" afterPath="$PROJECT_DIR$/pampelmuse/graphics/dynamic_plot_canvas.py" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/graphics/exit_dialog.py" afterPath="$PROJECT_DIR$/pampelmuse/graphics/exit_dialog.py" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/graphics/pampelmuse_gui.py" afterPath="$PROJECT_DIR$/pampelmuse/graphics/pampelmuse_gui.py" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/graphics/pampelmuse_gui.qrc" afterPath="$PROJECT_DIR$/pampelmuse/graphics/pampelmuse_gui.qrc" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/graphics/pampelmuse_gui.ui" afterPath="$PROJECT_DIR$/pampelmuse/graphics/pampelmuse_gui.ui" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/graphics/pampelmuse_gui_rc.py" afterPath="$PROJECT_DIR$/pampelmuse/graphics/pampelmuse_gui_rc.py" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/instruments/argus.py" afterPath="$PROJECT_DIR$/pampelmuse/instruments/argus.py" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/instruments/generic_ifs.py" afterPath="$PROJECT_DIR$/pampelmuse/instruments/generic_ifs.py" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/instruments/instrument.py" afterPath="$PROJECT_DIR$/pampelmuse/instruments/instrument.py" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/instruments/muse.py" afterPath="$PROJECT_DIR$/pampelmuse/instruments/muse.py" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/instruments/pmas.py" afterPath="$PROJECT_DIR$/pampelmuse/instruments/pmas.py" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/psf/__init__.py" afterPath="$PROJECT_DIR$/pampelmuse/psf/__init__.py" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/psf/profiles.py" afterPath="" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/psf/variables.py" afterPath="$PROJECT_DIR$/pampelmuse/psf/variables.py" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/routines/__init__.py" afterPath="$PROJECT_DIR$/pampelmuse/routines/__init__.py" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/routines/addwcs.py" afterPath="" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/routines/cubefit.py" afterPath="$PROJECT_DIR$/pampelmuse/routines/cubefit.py" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/routines/getspectra.py" afterPath="$PROJECT_DIR$/pampelmuse/routines/getspectra.py" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/routines/initfit.py" afterPath="$PROJECT_DIR$/pampelmuse/routines/initfit.py" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/routines/makecube.py" afterPath="" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/routines/polyfit.py" afterPath="$PROJECT_DIR$/pampelmuse/routines/polyfit.py" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/routines/ptsort.py" afterPath="$PROJECT_DIR$/pampelmuse/routines/ptsort.py" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/routines/shotnoi.py" afterPath="" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/routines/singlesrc.py" afterPath="$PROJECT_DIR$/pampelmuse/routines/singlesrc.py" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/routines/subtres.py" afterPath="$PROJECT_DIR$/pampelmuse/routines/subtres.py" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/utils/fits.py" afterPath="$PROJECT_DIR$/pampelmuse/utils/fits.py" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/utils/io.py" afterPath="" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/utils/statistics.py" afterPath="$PROJECT_DIR$/pampelmuse/utils/statistics.py" />
+      <change beforePath="$PROJECT_DIR$/setup.py" afterPath="$PROJECT_DIR$/setup.py" />
+    </list>
+    <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
+    <option name="TRACKING_ENABLED" value="true" />
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FileEditorManager">
+    <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
+      <file leaf-file-name="PampelMuse" pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/bin/PampelMuse">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="1854">
+              <caret line="103" column="24" lean-forward="false" selection-start-line="103" selection-start-column="24" selection-end-line="103" selection-end-column="24" />
+              <folding />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="pampelmuse.json" pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/pampelmuse/config/data/pampelmuse.json">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="180">
+              <caret line="10" column="15" lean-forward="false" selection-start-line="10" selection-start-column="15" selection-end-line="10" selection-end-column="15" />
+              <folding />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="initfit.py" pinned="false" current-in-tab="true">
+        <entry file="file://$PROJECT_DIR$/pampelmuse/routines/initfit.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="774">
+              <caret line="63" column="23" lean-forward="false" selection-start-line="63" selection-start-column="23" selection-end-line="63" selection-end-column="23" />
+              <folding />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="source_selector.py" pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/pampelmuse/core/source_selector.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="1134">
+              <caret line="63" column="23" lean-forward="false" selection-start-line="63" selection-start-column="23" selection-end-line="63" selection-end-column="23" />
+              <folding>
+                <marker date="1527092694784" expanded="true" signature="27077:62481" ph="..." />
+              </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="instrument.py" pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/pampelmuse/instruments/instrument.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="15876">
+              <caret line="890" column="21" lean-forward="false" selection-start-line="890" selection-start-column="21" selection-end-line="890" selection-end-column="21" />
+              <folding />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="__init__.py" pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/pampelmuse/filters/__init__.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="1656">
+              <caret line="95" column="61" lean-forward="false" selection-start-line="95" selection-start-column="61" selection-end-line="95" selection-end-column="61" />
+              <folding />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="pampelmuse_gui.py" pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/pampelmuse/graphics/pampelmuse_gui.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="288">
+              <caret line="16" column="44" lean-forward="false" selection-start-line="16" selection-start-column="44" selection-end-line="16" selection-end-column="44" />
+              <folding />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="dynamic_ima_canvas.py" pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/pampelmuse/graphics/dynamic_ima_canvas.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="3060">
+              <caret line="177" column="8" lean-forward="false" selection-start-line="177" selection-start-column="8" selection-end-line="177" selection-end-column="8" />
+              <folding />
+            </state>
+          </provider>
+        </entry>
+      </file>
+    </leaf>
+  </component>
+  <component name="FindInProjectRecents">
+    <findStrings>
+      <find>transformation.i</find>
+      <find>transformation.</find>
+      <find>transformation.dat</find>
+      <find>transformation.data</find>
+      <find>transformation.data.</find>
+      <find>transformation.data.i</find>
+      <find>transformation.data.inx</find>
+      <find>transformation.data.in</find>
+      <find>transformation.data.inde</find>
+      <find>transformation.data.index</find>
+      <find>isin</find>
+      <find>def load_sp</find>
+      <find>load_s</find>
+      <find>s</find>
+      <find>staty</find>
+      <find>stat</find>
+      <find>statu</find>
+      <find>status</find>
+      <find>status =</find>
+      <find>status ==</find>
+      <find>status == 4</find>
+      <find>range to spe</find>
+      <find>init_wa</find>
+      <find>cursor</find>
+      <find>wave</find>
+      <find>cpuc</find>
+      <find>cpuco</find>
+      <find>cpu_c</find>
+      <find>Initial P</find>
+      <find>uncons</find>
+    </findStrings>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+    <option name="RECENT_BRANCH_BY_REPOSITORY">
+      <map>
+        <entry key="$PROJECT_DIR$" value="master" />
+      </map>
+    </option>
+  </component>
+  <component name="IdeDocumentHistory">
+    <option name="CHANGED_PATHS">
+      <list>
+        <option value="$PROJECT_DIR$/pampelmuse/utils/image.py" />
+        <option value="$PROJECT_DIR$/pampelmuse/core/parameters.py" />
+        <option value="$PROJECT_DIR$/pampelmuse/utils/statistics.py" />
+        <option value="$PROJECT_DIR$/pampelmuse/routines/ptsort.py" />
+        <option value="$PROJECT_DIR$/pampelmuse/core/coordinates.py" />
+        <option value="$PROJECT_DIR$/pampelmuse/graphics/dynamic_plot_canvas.py" />
+        <option value="$PROJECT_DIR$/pampelmuse/graphics/dynamic_ima_canvas.py" />
+        <option value="$PROJECT_DIR$/pampelmuse/core/background.py" />
+        <option value="$PROJECT_DIR$/pampelmuse/instruments/argus.py" />
+        <option value="$PROJECT_DIR$/pampelmuse/instruments/pmas.py" />
+        <option value="$PROJECT_DIR$/pampelmuse/routines/singlesrc.py" />
+        <option value="$PROJECT_DIR$/pampelmuse/core/aperture.py" />
+        <option value="$PROJECT_DIR$/pampelmuse/instruments/generic_ifs.py" />
+        <option value="$PROJECT_DIR$/pampelmuse/config/__init__.py" />
+        <option value="$PROJECT_DIR$/pampelmuse/config/data/pampelmuse.json" />
+        <option value="$PROJECT_DIR$/pampelmuse/routines/polyfit.py" />
+        <option value="$PROJECT_DIR$/pampelmuse/core/spectrum_writer.py" />
+        <option value="$PROJECT_DIR$/pampelmuse/routines/getspectra.py" />
+        <option value="$PROJECT_DIR$/pampelmuse/instruments/instrument.py" />
+        <option value="$PROJECT_DIR$/pampelmuse/core/sources.py" />
+        <option value="$PROJECT_DIR$/pampelmuse/utils/fits.py" />
+        <option value="$PROJECT_DIR$/pampelmuse/instruments/muse.py" />
+        <option value="$PROJECT_DIR$/pampelmuse/routines/cubefit.py" />
+        <option value="$PROJECT_DIR$/pampelmuse/core/fit_cube.py" />
+        <option value="$PROJECT_DIR$/pampelmuse/core/fit_layer.py" />
+        <option value="$PROJECT_DIR$/pampelmuse/core/make_residual_cube.py" />
+        <option value="$PROJECT_DIR$/pampelmuse/routines/subtres.py" />
+        <option value="$PROJECT_DIR$/pampelmuse/graphics/pampelmuse_gui.py" />
+        <option value="$PROJECT_DIR$/pampelmuse/filters/__init__.py" />
+        <option value="$PROJECT_DIR$/pampelmuse/core/source_selector.py" />
+        <option value="$PROJECT_DIR$/pampelmuse/routines/initfit.py" />
+        <option value="$PROJECT_DIR$/bin/PampelMuse" />
+      </list>
+    </option>
+  </component>
+  <component name="ProjectFrameBounds" extendedState="6">
+    <option name="x" value="52" />
+    <option name="y" value="-11" />
+    <option name="width" value="1869" />
+    <option name="height" value="1092" />
+  </component>
+  <component name="ProjectInspectionProfilesVisibleTreeState">
+    <entry key="Project Default">
+      <profile-state>
+        <expanded-state>
+          <State>
+            <id />
+          </State>
+          <State>
+            <id>Python</id>
+          </State>
+        </expanded-state>
+      </profile-state>
+    </entry>
+  </component>
+  <component name="ProjectLevelVcsManager">
+    <OptionsSetting value="false" id="Update" />
+  </component>
+  <component name="ProjectView">
+    <navigator currentView="ProjectPane" proportions="" version="1">
+      <flattenPackages />
+      <showMembers />
+      <showModules />
+      <showLibraryContents />
+      <hideEmptyPackages />
+      <abbreviatePackageNames />
+      <autoscrollToSource />
+      <autoscrollFromSource />
+      <sortByType />
+      <manualOrder />
+      <foldersAlwaysOnTop value="true" />
+    </navigator>
+    <panes>
+      <pane id="ProjectPane">
+        <subPane>
+          <expand>
+            <path>
+              <item name="pampelmuse" type="b2602c69:ProjectViewProjectNode" />
+              <item name="pampelmuse" type="462c0819:PsiDirectoryNode" />
+            </path>
+            <path>
+              <item name="pampelmuse" type="b2602c69:ProjectViewProjectNode" />
+              <item name="pampelmuse" type="462c0819:PsiDirectoryNode" />
+              <item name="pampelmuse" type="462c0819:PsiDirectoryNode" />
+            </path>
+            <path>
+              <item name="pampelmuse" type="b2602c69:ProjectViewProjectNode" />
+              <item name="pampelmuse" type="462c0819:PsiDirectoryNode" />
+              <item name="pampelmuse" type="462c0819:PsiDirectoryNode" />
+              <item name="config" type="462c0819:PsiDirectoryNode" />
+            </path>
+            <path>
+              <item name="pampelmuse" type="b2602c69:ProjectViewProjectNode" />
+              <item name="pampelmuse" type="462c0819:PsiDirectoryNode" />
+              <item name="pampelmuse" type="462c0819:PsiDirectoryNode" />
+              <item name="config" type="462c0819:PsiDirectoryNode" />
+              <item name="data" type="462c0819:PsiDirectoryNode" />
+            </path>
+            <path>
+              <item name="pampelmuse" type="b2602c69:ProjectViewProjectNode" />
+              <item name="pampelmuse" type="462c0819:PsiDirectoryNode" />
+              <item name="pampelmuse" type="462c0819:PsiDirectoryNode" />
+              <item name="core" type="462c0819:PsiDirectoryNode" />
+            </path>
+            <path>
+              <item name="pampelmuse" type="b2602c69:ProjectViewProjectNode" />
+              <item name="pampelmuse" type="462c0819:PsiDirectoryNode" />
+              <item name="pampelmuse" type="462c0819:PsiDirectoryNode" />
+              <item name="instruments" type="462c0819:PsiDirectoryNode" />
+            </path>
+            <path>
+              <item name="pampelmuse" type="b2602c69:ProjectViewProjectNode" />
+              <item name="pampelmuse" type="462c0819:PsiDirectoryNode" />
+              <item name="pampelmuse" type="462c0819:PsiDirectoryNode" />
+              <item name="routines" type="462c0819:PsiDirectoryNode" />
+            </path>
+            <path>
+              <item name="pampelmuse" type="b2602c69:ProjectViewProjectNode" />
+              <item name="pampelmuse" type="462c0819:PsiDirectoryNode" />
+              <item name="pampelmuse" type="462c0819:PsiDirectoryNode" />
+              <item name="utils" type="462c0819:PsiDirectoryNode" />
+            </path>
+          </expand>
+          <select />
+        </subPane>
+      </pane>
+      <pane id="Scratches" />
+      <pane id="Scope" />
+    </panes>
+  </component>
+  <component name="PropertiesComponent">
+    <property name="Git.Branch.Popup.ShowAllRemotes" value="true" />
+    <property name="settings.editor.selected.configurable" value="watcher.settings" />
+    <property name="last_opened_file_path" value="$USER_HOME$/Desktop/pampelmuse.patch" />
+  </component>
+  <component name="RunDashboard">
+    <option name="ruleStates">
+      <list>
+        <RuleState>
+          <option name="name" value="ConfigurationTypeDashboardGroupingRule" />
+        </RuleState>
+        <RuleState>
+          <option name="name" value="StatusDashboardGroupingRule" />
+        </RuleState>
+      </list>
+    </option>
+  </component>
+  <component name="RunManager" selected="Python.Initfit">
+    <configuration name="Cubefit1_SMALLIFU" type="PythonConfigurationType" factoryName="Python">
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="$USER_HOME$/.pyenv/versions/2.7.12/bin/python" />
+      <option name="WORKING_DIRECTORY" value="/media/datadisk/skamann/data/wifes/n1850_cubes" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <module name="pampelmuse" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/bin/PampelMuse" />
+      <option name="PARAMETERS" value="NGC1850_R7000_2016-04-01_cube CUBEFIT" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+    </configuration>
+    <configuration name="Cubefit2_SMALLIFU" type="PythonConfigurationType" factoryName="Python">
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="$USER_HOME$/.pyenv/versions/2.7.12/bin/python" />
+      <option name="WORKING_DIRECTORY" value="/media/datadisk/skamann/data/wifes/n1850_cubes" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <module name="pampelmuse" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/bin/PampelMuse" />
+      <option name="PARAMETERS" value="NGC1850_R7000_2016-04-01_cube --fromline layerbin=1 CUBEFIT" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+    </configuration>
+    <configuration name="Initfit" type="PythonConfigurationType" factoryName="Python">
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="$USER_HOME$/.pyenv/versions/2.7.12/bin/python" />
+      <option name="WORKING_DIRECTORY" value="/media/datadisk/skamann/pampelmuse_testcases/20150911T001648" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <module name="pampelmuse" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/bin/PampelMuse" />
+      <option name="PARAMETERS" value="PIXTABLE_SORTED --fromfile pampelmuse.user INITFIT" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+    </configuration>
+    <configuration name="Initfit_SMALLIFU" type="PythonConfigurationType" factoryName="Python">
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="$USER_HOME$/.pyenv/versions/2.7.12/bin/python" />
+      <option name="WORKING_DIRECTORY" value="/media/datadisk/skamann/data/wifes/n1850_cubes" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <module name="pampelmuse" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/bin/PampelMuse" />
+      <option name="PARAMETERS" value="NGC1850_R7000_2016-04-01_cube --fromfile pampelmuse.user INITFIT n1850_cleaned.cat2" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+    </configuration>
+    <configuration name="Subtres" type="PythonConfigurationType" factoryName="Python">
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="$USER_HOME$/.pyenv/versions/2.7.12/bin/python" />
+      <option name="WORKING_DIRECTORY" value="/media/datadisk/skamann/data/wifes/n1850_cubes" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <module name="pampelmuse" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/bin/PampelMuse" />
+      <option name="PARAMETERS" value="NGC1850_R7000_2016-04-01_cube SUBTRES" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+    </configuration>
+    <configuration default="true" type="PythonConfigurationType" factoryName="Python">
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <module name="pampelmuse" />
+      <option name="SCRIPT_NAME" value="" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <method />
+    </configuration>
+    <configuration default="true" type="Tox" factoryName="Tox">
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <module name="pampelmuse" />
+      <method />
+    </configuration>
+    <configuration default="true" type="tests" factoryName="Doctests">
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <module name="pampelmuse" />
+      <option name="SCRIPT_NAME" value="" />
+      <option name="CLASS_NAME" value="" />
+      <option name="METHOD_NAME" value="" />
+      <option name="FOLDER_NAME" value="" />
+      <option name="TEST_TYPE" value="TEST_SCRIPT" />
+      <option name="PATTERN" value="" />
+      <option name="USE_PATTERN" value="false" />
+      <method />
+    </configuration>
+    <configuration default="true" type="tests" factoryName="Unittests">
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <module name="pampelmuse" />
+      <option name="_new_additionalArguments" value="&quot;&quot;" />
+      <option name="_new_target" value="&quot;.&quot;" />
+      <option name="_new_targetType" value="&quot;PATH&quot;" />
+      <method />
+    </configuration>
+    <list size="5">
+      <item index="0" class="java.lang.String" itemvalue="Python.Initfit_SMALLIFU" />
+      <item index="1" class="java.lang.String" itemvalue="Python.Cubefit1_SMALLIFU" />
+      <item index="2" class="java.lang.String" itemvalue="Python.Cubefit2_SMALLIFU" />
+      <item index="3" class="java.lang.String" itemvalue="Python.Subtres" />
+      <item index="4" class="java.lang.String" itemvalue="Python.Initfit" />
+    </list>
+  </component>
+  <component name="ShelveChangesManager" show_recycled="false">
+    <option name="remove_strategy" value="false" />
+  </component>
+  <component name="SvnConfiguration">
+    <configuration />
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="184c2abe-3153-48a7-88ae-f3ca9af990c0" name="Default" comment="" />
+      <changelist id="2537fcfb-7e20-4757-bbd2-3237e7f34740" name="patch" comment="Issue that CUBEFIT crashed when only PSF parameters or positions were fitted with POLYFIT. " />
+      <created>1499438305310</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1499438305310</updated>
+    </task>
+    <task id="LOCAL-00024" summary="Fixed bug that wrong error type was expected in CUBEFIT">
+      <created>1507801650340</created>
+      <option name="number" value="00024" />
+      <option name="presentableId" value="LOCAL-00024" />
+      <option name="project" value="LOCAL" />
+      <updated>1507801650340</updated>
+    </task>
+    <task id="LOCAL-00025" summary="Started implementing background-per-slice option for MUSE pixtables.">
+      <created>1511981989654</created>
+      <option name="number" value="00025" />
+      <option name="presentableId" value="LOCAL-00025" />
+      <option name="project" value="LOCAL" />
+      <updated>1511981989654</updated>
+    </task>
+    <task id="LOCAL-00026" summary="Continued implementing background-per-slice option for MUSE pixtables.">
+      <created>1512410961889</created>
+      <option name="number" value="00026" />
+      <option name="presentableId" value="LOCAL-00026" />
+      <option name="project" value="LOCAL" />
+      <updated>1512410961889</updated>
+    </task>
+    <task id="LOCAL-00027" summary="Finished initial implementation of background-per-slice option for MUSE pixtables.">
+      <created>1512490825432</created>
+      <option name="number" value="00027" />
+      <option name="presentableId" value="LOCAL-00027" />
+      <option name="project" value="LOCAL" />
+      <updated>1512490825432</updated>
+    </task>
+    <task id="LOCAL-00028" summary="Fixed bug that INITFIT failed when aperture photometry returned only NaNs for one source.">
+      <created>1512497414111</created>
+      <option name="number" value="00028" />
+      <option name="presentableId" value="LOCAL-00028" />
+      <option name="project" value="LOCAL" />
+      <updated>1512497414111</updated>
+    </task>
+    <task id="LOCAL-00029" summary="Previous fix did not do the job, hope this one does.">
+      <created>1512498183066</created>
+      <option name="number" value="00029" />
+      <option name="presentableId" value="LOCAL-00029" />
+      <option name="project" value="LOCAL" />
+      <updated>1512498183066</updated>
+    </task>
+    <task id="LOCAL-00030" summary="Previous fix did not do the job, hope this one does.">
+      <created>1512498868515</created>
+      <option name="number" value="00030" />
+      <option name="presentableId" value="LOCAL-00030" />
+      <option name="project" value="LOCAL" />
+      <updated>1512498868515</updated>
+    </task>
+    <task id="LOCAL-00031" summary="Adapted writing of spectra so that S/N and magnitudes are not calculated for background components. Also fixed bug that wavelength array was not included in spectra anymore.">
+      <created>1512559202427</created>
+      <option name="number" value="00031" />
+      <option name="presentableId" value="LOCAL-00031" />
+      <option name="project" value="LOCAL" />
+      <updated>1512559202427</updated>
+    </task>
+    <task id="LOCAL-00032" summary="Fixed bugs in POLYFIT">
+      <created>1513772648289</created>
+      <option name="number" value="00032" />
+      <option name="presentableId" value="LOCAL-00032" />
+      <option name="project" value="LOCAL" />
+      <updated>1513772648289</updated>
+    </task>
+    <task id="LOCAL-00033" summary="Fixed bug.">
+      <created>1513779408477</created>
+      <option name="number" value="00033" />
+      <option name="presentableId" value="LOCAL-00033" />
+      <option name="project" value="LOCAL" />
+      <updated>1513779408477</updated>
+    </task>
+    <task id="LOCAL-00034" summary="Fixed bug.">
+      <created>1513779922734</created>
+      <option name="number" value="00034" />
+      <option name="presentableId" value="LOCAL-00034" />
+      <option name="project" value="LOCAL" />
+      <updated>1513779922734</updated>
+    </task>
+    <task id="LOCAL-00035" summary="Fixed bug that wavelength information was not properly propagated for MUSE pixtables.">
+      <created>1513781210356</created>
+      <option name="number" value="00035" />
+      <option name="presentableId" value="LOCAL-00035" />
+      <option name="project" value="LOCAL" />
+      <updated>1513781210356</updated>
+    </task>
+    <task id="LOCAL-00036" summary="Fixed bug that wavelength information was not properly propagated for MUSE pixtables.">
+      <created>1513781238979</created>
+      <option name="number" value="00036" />
+      <option name="presentableId" value="LOCAL-00036" />
+      <option name="project" value="LOCAL" />
+      <updated>1513781238979</updated>
+    </task>
+    <task id="LOCAL-00037" summary="Fixed bug.">
+      <created>1513781918993</created>
+      <option name="number" value="00037" />
+      <option name="presentableId" value="LOCAL-00037" />
+      <option name="project" value="LOCAL" />
+      <updated>1513781918993</updated>
+    </task>
+    <task id="LOCAL-00038" summary="Added HISTORY to primary header of PRM-file to keep track of routine calls.">
+      <created>1513784729597</created>
+      <option name="number" value="00038" />
+      <option name="presentableId" value="LOCAL-00038" />
+      <option name="project" value="LOCAL" />
+      <updated>1513784729597</updated>
+    </task>
+    <task id="LOCAL-00039" summary="Fixed bug.">
+      <created>1513858212914</created>
+      <option name="number" value="00039" />
+      <option name="presentableId" value="LOCAL-00039" />
+      <option name="project" value="LOCAL" />
+      <updated>1513858212914</updated>
+    </task>
+    <task id="LOCAL-00040" summary="Fixed bug that HISTORY header-keys were lost when saving PRM-file from GUI.">
+      <created>1513868020676</created>
+      <option name="number" value="00040" />
+      <option name="presentableId" value="LOCAL-00040" />
+      <option name="project" value="LOCAL" />
+      <updated>1513868020676</updated>
+    </task>
+    <task id="LOCAL-00041" summary="Modifications to GUI. Should not crash anymore when layer in NaD gap is selected.">
+      <created>1515078376023</created>
+      <option name="number" value="00041" />
+      <option name="presentableId" value="LOCAL-00041" />
+      <option name="project" value="LOCAL" />
+      <updated>1515078376023</updated>
+    </task>
+    <task id="LOCAL-00042" summary="Last fix was not successful.">
+      <created>1515079180676</created>
+      <option name="number" value="00042" />
+      <option name="presentableId" value="LOCAL-00042" />
+      <option name="project" value="LOCAL" />
+      <updated>1515079180676</updated>
+    </task>
+    <task id="LOCAL-00043" summary="Last fix was still not successful.">
+      <created>1515079275854</created>
+      <option name="number" value="00043" />
+      <option name="presentableId" value="LOCAL-00043" />
+      <option name="project" value="LOCAL" />
+      <updated>1515079275854</updated>
+    </task>
+    <task id="LOCAL-00044" summary="Continued working on supersampling of background">
+      <created>1515325705478</created>
+      <option name="number" value="00044" />
+      <option name="presentableId" value="LOCAL-00044" />
+      <option name="project" value="LOCAL" />
+      <updated>1515325705478</updated>
+    </task>
+    <task id="LOCAL-00045" summary="Fixed bug that evaluation of polynomial position fits produced bogus results because wavelength scale was changed.">
+      <created>1515772996824</created>
+      <option name="number" value="00045" />
+      <option name="presentableId" value="LOCAL-00045" />
+      <option name="project" value="LOCAL" />
+      <updated>1515772996824</updated>
+    </task>
+    <task id="LOCAL-00046" summary="Slight change so that old column names for polynomial fits to positions are recognized again.">
+      <created>1516183692573</created>
+      <option name="number" value="00046" />
+      <option name="presentableId" value="LOCAL-00046" />
+      <option name="project" value="LOCAL" />
+      <updated>1516183692573</updated>
+    </task>
+    <task id="LOCAL-00047" summary="Still experiencing issues with wavelength scale. Hopefully this fixes them.">
+      <created>1516283784412</created>
+      <option name="number" value="00047" />
+      <option name="presentableId" value="LOCAL-00047" />
+      <option name="project" value="LOCAL" />
+      <updated>1516283784412</updated>
+    </task>
+    <task id="LOCAL-00048" summary="Fixed bug in SINGLESRC routine. Also fixed issue that setting cpucount=-1 caused aperture photometry to crash. Finally, added handling for cases where total flux on integrated IFS image was still negative after subtracting median flux.">
+      <created>1516792020933</created>
+      <option name="number" value="00048" />
+      <option name="presentableId" value="LOCAL-00048" />
+      <option name="project" value="LOCAL" />
+      <updated>1516792020933</updated>
+    </task>
+    <task id="LOCAL-00049" summary="Fixed bug that when a mask for MUSE cubes was provided, only masked pixels were used.">
+      <created>1516792725135</created>
+      <option name="number" value="00049" />
+      <option name="presentableId" value="LOCAL-00049" />
+      <option name="project" value="LOCAL" />
+      <updated>1516792725135</updated>
+    </task>
+    <task id="LOCAL-00050" summary="Fixed bug in INITFIT occurring when n_cpu was None or -1. Also revised correction for negative fluxes in integrated IFU image.">
+      <created>1516960328651</created>
+      <option name="number" value="00050" />
+      <option name="presentableId" value="LOCAL-00050" />
+      <option name="project" value="LOCAL" />
+      <updated>1516960328652</updated>
+    </task>
+    <task id="LOCAL-00051" summary="Fixed bug that CUBEFIT crashed if only PSF parameters or positions were fitted.">
+      <created>1516968689295</created>
+      <option name="number" value="00051" />
+      <option name="presentableId" value="LOCAL-00051" />
+      <option name="project" value="LOCAL" />
+      <updated>1516968689296</updated>
+    </task>
+    <task id="LOCAL-00052" summary="Fixed bug in CUBEFIT and applied patch for images created from cubes with negative backgrounds in INITFIT.">
+      <created>1517496419258</created>
+      <option name="number" value="00052" />
+      <option name="presentableId" value="LOCAL-00052" />
+      <option name="project" value="LOCAL" />
+      <updated>1517496419258</updated>
+    </task>
+    <task id="LOCAL-00053" summary="Added polynom mask to list of changeable parameters.">
+      <created>1517568900577</created>
+      <option name="number" value="00053" />
+      <option name="presentableId" value="LOCAL-00053" />
+      <option name="project" value="LOCAL" />
+      <updated>1517568900577</updated>
+    </task>
+    <task id="LOCAL-00054" summary="Added new configuration parameters usesigma and psfmag to initfit-section">
+      <created>1518429523269</created>
+      <option name="number" value="00054" />
+      <option name="presentableId" value="LOCAL-00054" />
+      <option name="project" value="LOCAL" />
+      <updated>1518429523269</updated>
+    </task>
+    <task id="LOCAL-00055" summary="Added some logging">
+      <created>1518433784960</created>
+      <option name="number" value="00055" />
+      <option name="presentableId" value="LOCAL-00055" />
+      <option name="project" value="LOCAL" />
+      <updated>1518433784960</updated>
+    </task>
+    <task id="LOCAL-00056" summary="Adopted new wavelength policy: Internally, meters are used, but I/O is in Angstrom.">
+      <created>1518549399614</created>
+      <option name="number" value="00056" />
+      <option name="presentableId" value="LOCAL-00056" />
+      <option name="project" value="LOCAL" />
+      <updated>1518549399615</updated>
+    </task>
+    <task id="LOCAL-00057" summary="Fixed bug in GETSPECTRA.">
+      <created>1518689135625</created>
+      <option name="number" value="00057" />
+      <option name="presentableId" value="LOCAL-00057" />
+      <option name="project" value="LOCAL" />
+      <updated>1518689135627</updated>
+    </task>
+    <task id="LOCAL-00058" summary="Fixed another bug in GETSPECTRA.">
+      <created>1518690317445</created>
+      <option name="number" value="00058" />
+      <option name="presentableId" value="LOCAL-00058" />
+      <option name="project" value="LOCAL" />
+      <updated>1518690317445</updated>
+    </task>
+    <task id="LOCAL-00059" summary="Corrected logging message">
+      <created>1518690767254</created>
+      <option name="number" value="00059" />
+      <option name="presentableId" value="LOCAL-00059" />
+      <option name="project" value="LOCAL" />
+      <updated>1518690767254</updated>
+    </task>
+    <task id="LOCAL-00060" summary="Revised wavelength array calculation">
+      <created>1519216411241</created>
+      <option name="number" value="00060" />
+      <option name="presentableId" value="LOCAL-00060" />
+      <option name="project" value="LOCAL" />
+      <updated>1519216411241</updated>
+    </task>
+    <task id="LOCAL-00061" summary="Again working on WCS and wavelength units">
+      <created>1519223822931</created>
+      <option name="number" value="00061" />
+      <option name="presentableId" value="LOCAL-00061" />
+      <option name="project" value="LOCAL" />
+      <updated>1519223822931</updated>
+    </task>
+    <task id="LOCAL-00062" summary="Recognizing extension 'data_quality' as bad-pixel mask">
+      <created>1519226087195</created>
+      <option name="number" value="00062" />
+      <option name="presentableId" value="LOCAL-00062" />
+      <option name="project" value="LOCAL" />
+      <updated>1519226087195</updated>
+    </task>
+    <task id="LOCAL-00063" summary="Revised definition of FoV edge for pixtables.">
+      <created>1520262963449</created>
+      <option name="number" value="00063" />
+      <option name="presentableId" value="LOCAL-00063" />
+      <option name="project" value="LOCAL" />
+      <updated>1520262963449</updated>
+    </task>
+    <task id="LOCAL-00064" summary="Minor bugfix affecting the creation of the PSF diagnostics file. Also minor change in documentation.">
+      <created>1520351510103</created>
+      <option name="number" value="00064" />
+      <option name="presentableId" value="LOCAL-00064" />
+      <option name="project" value="LOCAL" />
+      <updated>1520351510104</updated>
+    </task>
+    <task id="LOCAL-00065" summary="Fixed rather serious bug in CUBEFIT that source coordinates where not properly updated when more than one CPU was used. This may affect all analyses performed with SVN revision 425 (committed 2017/05/28) or later that did not use a coordinate transformation or used polynomial fits to the coordinates.">
+      <created>1520855233575</created>
+      <option name="number" value="00065" />
+      <option name="presentableId" value="LOCAL-00065" />
+      <option name="project" value="LOCAL" />
+      <updated>1520855233575</updated>
+    </task>
+    <task id="LOCAL-00066" summary="Switched off local background determination for single PSF fits in CUBEFIT. The old approach (introduced in the revision committed on 2017/05/28) lead to increased beta values for a Moffat PSF.">
+      <created>1520967012499</created>
+      <option name="number" value="00066" />
+      <option name="presentableId" value="LOCAL-00066" />
+      <option name="project" value="LOCAL" />
+      <updated>1520967012500</updated>
+    </task>
+    <task id="LOCAL-00067" summary="Switched off local background determination for single PSF fits in CUBEFIT. The old approach (introduced in the revision committed on 2017/05/28) lead to increased beta values for a Moffat PSF.">
+      <created>1520967028061</created>
+      <option name="number" value="00067" />
+      <option name="presentableId" value="LOCAL-00067" />
+      <option name="project" value="LOCAL" />
+      <updated>1520967028061</updated>
+    </task>
+    <task id="LOCAL-00068" summary="Fixed bug.">
+      <created>1521024170512</created>
+      <option name="number" value="00068" />
+      <option name="presentableId" value="LOCAL-00068" />
+      <option name="project" value="LOCAL" />
+      <updated>1521024170512</updated>
+    </task>
+    <task id="LOCAL-00069" summary="Fixed bug in SUBTRES.">
+      <created>1521125411999</created>
+      <option name="number" value="00069" />
+      <option name="presentableId" value="LOCAL-00069" />
+      <option name="project" value="LOCAL" />
+      <updated>1521125411999</updated>
+    </task>
+    <task id="LOCAL-00070" summary="Fixed minor issue regarding INITFIT GUI.">
+      <created>1523371931705</created>
+      <option name="number" value="00070" />
+      <option name="presentableId" value="LOCAL-00070" />
+      <option name="project" value="LOCAL" />
+      <updated>1523371931706</updated>
+    </task>
+    <task id="LOCAL-00071" summary="Fixed minor issue that vertical line in spectrum view of GUI sometimes showed wrong wavelength.">
+      <created>1523446587709</created>
+      <option name="number" value="00071" />
+      <option name="presentableId" value="LOCAL-00071" />
+      <option name="project" value="LOCAL" />
+      <updated>1523446587709</updated>
+    </task>
+    <task id="LOCAL-00072" summary="Relaxed criterion for matching name of passband in reference catalog.">
+      <created>1526986422848</created>
+      <option name="number" value="00072" />
+      <option name="presentableId" value="LOCAL-00072" />
+      <option name="project" value="LOCAL" />
+      <updated>1526986422848</updated>
+    </task>
+    <option name="localTasksCounter" value="73" />
+    <servers />
+  </component>
+  <component name="ToolWindowManager">
+    <frame x="52" y="-11" width="1869" height="1092" extended-state="6" />
+    <layout>
+      <window_info id="Project" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.20098847" sideWeight="0.5" order="1" side_tool="false" content_ui="combo" />
+      <window_info id="TODO" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="10" side_tool="false" content_ui="tabs" />
+      <window_info id="Event Log" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33821988" sideWeight="0.52828115" order="0" side_tool="true" content_ui="tabs" />
+      <window_info id="Version Control" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33821988" sideWeight="0.47171885" order="1" side_tool="false" content_ui="tabs" />
+      <window_info id="Python Console" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="2" side_tool="false" content_ui="tabs" />
+      <window_info id="Run" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.32925585" sideWeight="0.5" order="8" side_tool="false" content_ui="tabs" />
+      <window_info id="Structure" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.17408018" sideWeight="0.5" order="4" side_tool="false" content_ui="tabs" />
+      <window_info id="Terminal" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="3" side_tool="false" content_ui="tabs" />
+      <window_info id="Favorites" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="0" side_tool="true" content_ui="tabs" />
+      <window_info id="Debug" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.39959225" sideWeight="0.5" order="6" side_tool="false" content_ui="tabs" />
+      <window_info id="Cvs" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="7" side_tool="false" content_ui="tabs" />
+      <window_info id="Message" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="4" side_tool="false" content_ui="tabs" />
+      <window_info id="Commander" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.4" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
+      <window_info id="Inspection" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.4" sideWeight="0.5" order="9" side_tool="false" content_ui="tabs" />
+      <window_info id="Hierarchy" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="3" side_tool="false" content_ui="combo" />
+      <window_info id="Find" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.3277487" sideWeight="0.4914882" order="5" side_tool="false" content_ui="tabs" />
+      <window_info id="Ant Build" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="2" side_tool="false" content_ui="tabs" />
+      <window_info id="Data View" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="0" side_tool="false" content_ui="tabs" />
+    </layout>
+    <layout-to-restore>
+      <window_info id="TODO" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="6" side_tool="false" content_ui="tabs" />
+      <window_info id="Cvs" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="4" side_tool="false" content_ui="tabs" />
+      <window_info id="Message" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="0" side_tool="false" content_ui="tabs" />
+      <window_info id="Commander" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.4" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
+      <window_info id="Event Log" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="7" side_tool="true" content_ui="tabs" />
+      <window_info id="Inspection" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.4" sideWeight="0.5" order="5" side_tool="false" content_ui="tabs" />
+      <window_info id="Run" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.32925585" sideWeight="0.5" order="2" side_tool="false" content_ui="tabs" />
+      <window_info id="Version Control" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.32925585" sideWeight="0.5" order="8" side_tool="false" content_ui="tabs" />
+      <window_info id="Python Console" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="9" side_tool="false" content_ui="tabs" />
+      <window_info id="Terminal" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="10" side_tool="false" content_ui="tabs" />
+      <window_info id="Project" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.16497055" sideWeight="0.5" order="1" side_tool="false" content_ui="combo" />
+      <window_info id="Hierarchy" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="3" side_tool="false" content_ui="combo" />
+      <window_info id="Find" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.32925585" sideWeight="0.5" order="1" side_tool="false" content_ui="tabs" />
+      <window_info id="Structure" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.19603643" sideWeight="0.5" order="4" side_tool="false" content_ui="tabs" />
+      <window_info id="Ant Build" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.25" sideWeight="0.5" order="2" side_tool="false" content_ui="tabs" />
+      <window_info id="Debug" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.39959225" sideWeight="0.5" order="3" side_tool="false" content_ui="tabs" />
+      <window_info id="Favorites" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="0" side_tool="true" content_ui="tabs" />
+      <window_info id="Data View" active="false" anchor="right" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="0" side_tool="false" content_ui="tabs" />
+    </layout-to-restore>
+  </component>
+  <component name="Vcs.Log.History.Properties">
+    <option name="COLUMN_ORDER">
+      <list>
+        <option value="0" />
+        <option value="2" />
+        <option value="3" />
+        <option value="1" />
+      </list>
+    </option>
+  </component>
+  <component name="VcsContentAnnotationSettings">
+    <option name="myLimit" value="2678400000" />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="Still experiencing issues with wavelength scale. Hopefully this fixes them." />
+    <MESSAGE value="Fixed bug in SINGLESRC routine. Also fixed issue that setting cpucount=-1 caused aperture photometry to crash. Finally, added handling for cases where total flux on integrated IFS image was still negative after subtracting median flux." />
+    <MESSAGE value="Fixed bug that when a mask for MUSE cubes was provided, only masked pixels were used." />
+    <MESSAGE value="Fixed bug in INITFIT occurring when n_cpu was None or -1. Also revised correction for negative fluxes in integrated IFU image." />
+    <MESSAGE value="Fixed bug that CUBEFIT crashed if only PSF parameters or positions were fitted." />
+    <MESSAGE value="Fixed bug in CUBEFIT and applied patch for images created from cubes with negative backgrounds in INITFIT." />
+    <MESSAGE value="Added polynom mask to list of changeable parameters." />
+    <MESSAGE value="Added new configuration parameters usesigma and psfmag to initfit-section" />
+    <MESSAGE value="Added some logging" />
+    <MESSAGE value="Adopted new wavelength policy: Internally, meters are used, but I/O is in Angstrom." />
+    <MESSAGE value="Fixed bug in GETSPECTRA." />
+    <MESSAGE value="Fixed another bug in GETSPECTRA." />
+    <MESSAGE value="Corrected logging message" />
+    <MESSAGE value="Revised wavelength array calculation" />
+    <MESSAGE value="Again working on WCS and wavelength units" />
+    <MESSAGE value="Recognizing extension 'data_quality' as bad-pixel mask" />
+    <MESSAGE value="Revised definition of FoV edge for pixtables." />
+    <MESSAGE value="Minor bugfix affecting the creation of the PSF diagnostics file. Also minor change in documentation." />
+    <MESSAGE value="Fixed rather serious bug in CUBEFIT that source coordinates where not properly updated when more than one CPU was used. This may affect all analyses performed with SVN revision 425 (committed 2017/05/28) or later that did not use a coordinate transformation or used polynomial fits to the coordinates." />
+    <MESSAGE value="Switched off local background determination for single PSF fits in CUBEFIT. The old approach (introduced in the revision committed on 2017/05/28) lead to increased beta values for a Moffat PSF." />
+    <MESSAGE value="Fixed bug." />
+    <MESSAGE value="Fixed bug in SUBTRES." />
+    <MESSAGE value="Fixed minor issue regarding INITFIT GUI." />
+    <MESSAGE value="Fixed minor issue that vertical line in spectrum view of GUI sometimes showed wrong wavelength." />
+    <MESSAGE value="Relaxed criterion for matching name of passband in reference catalog." />
+    <option name="LAST_COMMIT_MESSAGE" value="Relaxed criterion for matching name of passband in reference catalog." />
+    <option name="PRESELECT_EXISTING_CHANGELIST" value="true" />
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <default-breakpoints>
+        <breakpoint type="python-exception">
+          <properties notifyOnTerminate="true" exception="BaseException">
+            <option name="notifyOnTerminate" value="true" />
+          </properties>
+        </breakpoint>
+      </default-breakpoints>
+      <option name="time" value="6" />
+    </breakpoint-manager>
+    <watches-manager />
+  </component>
+  <component name="editorHistoryManager">
+    <entry file="file://$PROJECT_DIR$/pampelmuse/graphics/pampelmuse_gui.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="9260">
+          <caret line="483" column="8" lean-forward="false" selection-start-line="483" selection-start-column="8" selection-end-line="483" selection-end-column="8" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pampelmuse/core/fit_cube.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="21180">
+          <caret line="1065" column="18" lean-forward="true" selection-start-line="1065" selection-start-column="18" selection-end-line="1065" selection-end-column="18" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pampelmuse/utils/statistics.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/core/fit_layer.py" />
+    <entry file="file://$PROJECT_DIR$/pampelmuse/core/sources.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="800">
+          <caret line="40" column="3" lean-forward="false" selection-start-line="40" selection-start-column="3" selection-end-line="40" selection-end-column="3" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pampelmuse/routines/polyfit.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="3280">
+          <caret line="168" column="37" lean-forward="false" selection-start-line="168" selection-start-column="37" selection-end-line="168" selection-end-column="37" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pampelmuse/graphics/pampelmuse_gui.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="9260">
+          <caret line="483" column="8" lean-forward="false" selection-start-line="483" selection-start-column="8" selection-end-line="483" selection-end-column="8" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pampelmuse/core/fit_cube.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="21300">
+          <caret line="1065" column="18" lean-forward="true" selection-start-line="1065" selection-start-column="18" selection-end-line="1065" selection-end-column="18" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/core/fit_layer.py" />
+    <entry file="file://$PROJECT_DIR$/pampelmuse/core/fit_cube.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/core/fit_layer.py" />
+    <entry file="file://$USER_HOME$/.pyenv/versions/2.7.12/lib/python2.7/site-packages/astropy/io/fits/file.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="7540">
+          <caret line="400" column="0" lean-forward="false" selection-start-line="400" selection-start-column="0" selection-end-line="400" selection-end-column="0" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/.pyenv/versions/2.7.12/lib/python2.7/site-packages/scipy/ndimage/_ni_support.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="307">
+          <caret line="51" column="0" lean-forward="false" selection-start-line="51" selection-start-column="0" selection-end-line="51" selection-end-column="0" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/.pyenv/versions/2.7.12/lib/python2.7/site-packages/scipy/signal/signaltools.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="7780">
+          <caret line="414" column="0" lean-forward="false" selection-start-line="414" selection-start-column="0" selection-end-line="414" selection-end-column="0" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pampelmuse/utils/image.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="400">
+          <caret line="20" column="0" lean-forward="true" selection-start-line="20" selection-start-column="0" selection-end-line="20" selection-end-column="0" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pampelmuse/psf/variables.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pampelmuse/utils/statistics.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="540">
+          <caret line="42" column="10" lean-forward="false" selection-start-line="42" selection-start-column="10" selection-end-line="42" selection-end-column="10" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/setup.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pampelmuse/routines/ptsort.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="780">
+          <caret line="42" column="50" lean-forward="false" selection-start-line="42" selection-start-column="50" selection-end-line="42" selection-end-column="50" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/core/fit_layer.py" />
+    <entry file="file://$PROJECT_DIR$/pampelmuse/graphics/dynamic_plot_canvas.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="864">
+          <caret line="57" column="23" lean-forward="false" selection-start-line="57" selection-start-column="23" selection-end-line="57" selection-end-column="23" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pampelmuse/core/background.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="1818">
+          <caret line="106" column="0" lean-forward="false" selection-start-line="106" selection-start-column="0" selection-end-line="106" selection-end-column="0" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pampelmuse/psf/profiles.py" />
+    <entry file="file://$PROJECT_DIR$/pampelmuse/instruments/pmas.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="612">
+          <caret line="36" column="34" lean-forward="false" selection-start-line="36" selection-start-column="34" selection-end-line="36" selection-end-column="34" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pampelmuse/routines/singlesrc.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="401">
+          <caret line="151" column="65" lean-forward="false" selection-start-line="151" selection-start-column="61" selection-end-line="151" selection-end-column="65" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pampelmuse/core/aperture.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="7128">
+          <caret line="402" column="23" lean-forward="false" selection-start-line="402" selection-start-column="23" selection-end-line="402" selection-end-column="23" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pampelmuse/instruments/generic_ifs.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="666">
+          <caret line="40" column="23" lean-forward="false" selection-start-line="40" selection-start-column="23" selection-end-line="40" selection-end-column="23" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pampelmuse/core/coordinates.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="4446">
+          <caret line="250" column="8" lean-forward="false" selection-start-line="250" selection-start-column="8" selection-end-line="250" selection-end-column="8" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pampelmuse/core/parameters.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="4914">
+          <caret line="277" column="15" lean-forward="false" selection-start-line="277" selection-start-column="15" selection-end-line="277" selection-end-column="15" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pampelmuse/graphics/__init__.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="0">
+          <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pampelmuse/config/__init__.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="540">
+          <caret line="30" column="12" lean-forward="false" selection-start-line="30" selection-start-column="12" selection-end-line="30" selection-end-column="12" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pampelmuse/routines/polyfit.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="54">
+          <caret line="3" column="19" lean-forward="false" selection-start-line="3" selection-start-column="19" selection-end-line="3" selection-end-column="19" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pampelmuse/routines/getspectra.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="882">
+          <caret line="51" column="23" lean-forward="false" selection-start-line="51" selection-start-column="23" selection-end-line="51" selection-end-column="23" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pampelmuse/core/spectrum_writer.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="7578">
+          <caret line="431" column="48" lean-forward="false" selection-start-line="431" selection-start-column="48" selection-end-line="431" selection-end-column="48" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pampelmuse/core/sources.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="16614">
+          <caret line="933" column="40" lean-forward="false" selection-start-line="933" selection-start-column="40" selection-end-line="933" selection-end-column="40" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pampelmuse/instruments/argus.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="5472">
+          <caret line="308" column="24" lean-forward="false" selection-start-line="308" selection-start-column="24" selection-end-line="308" selection-end-column="24" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pampelmuse/utils/fits.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="2466">
+          <caret line="146" column="61" lean-forward="false" selection-start-line="146" selection-start-column="61" selection-end-line="146" selection-end-column="61" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pampelmuse/instruments/muse.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="5940">
+          <caret line="338" column="70" lean-forward="false" selection-start-line="338" selection-start-column="70" selection-end-line="338" selection-end-column="70" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pampelmuse/routines/cubefit.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="774">
+          <caret line="46" column="34" lean-forward="false" selection-start-line="46" selection-start-column="34" selection-end-line="46" selection-end-column="34" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pampelmuse/core/fit_cube.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="594">
+          <caret line="33" column="10" lean-forward="false" selection-start-line="33" selection-start-column="10" selection-end-line="33" selection-end-column="10" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pampelmuse/core/fit_layer.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="14184">
+          <caret line="797" column="34" lean-forward="false" selection-start-line="797" selection-start-column="34" selection-end-line="797" selection-end-column="34" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pampelmuse/core/make_residual_cube.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="720">
+          <caret line="45" column="23" lean-forward="false" selection-start-line="45" selection-start-column="23" selection-end-line="45" selection-end-column="23" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pampelmuse/routines/subtres.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="648">
+          <caret line="36" column="10" lean-forward="false" selection-start-line="36" selection-start-column="10" selection-end-line="36" selection-end-column="10" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pampelmuse/graphics/dynamic_ima_canvas.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="3060">
+          <caret line="177" column="8" lean-forward="false" selection-start-line="177" selection-start-column="8" selection-end-line="177" selection-end-column="8" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pampelmuse/graphics/pampelmuse_gui.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="288">
+          <caret line="16" column="44" lean-forward="false" selection-start-line="16" selection-start-column="44" selection-end-line="16" selection-end-column="44" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pampelmuse/instruments/instrument.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="15876">
+          <caret line="890" column="21" lean-forward="false" selection-start-line="890" selection-start-column="21" selection-end-line="890" selection-end-column="21" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pampelmuse/filters/__init__.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="1656">
+          <caret line="95" column="61" lean-forward="false" selection-start-line="95" selection-start-column="61" selection-end-line="95" selection-end-column="61" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pampelmuse/core/source_selector.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="1134">
+          <caret line="63" column="23" lean-forward="false" selection-start-line="63" selection-start-column="23" selection-end-line="63" selection-end-column="23" />
+          <folding>
+            <marker date="1527092694784" expanded="true" signature="27077:62481" ph="..." />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/bin/PampelMuse">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="1854">
+          <caret line="103" column="24" lean-forward="false" selection-start-line="103" selection-start-column="24" selection-end-line="103" selection-end-column="24" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pampelmuse/config/data/pampelmuse.json">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="180">
+          <caret line="10" column="15" lean-forward="false" selection-start-line="10" selection-start-column="15" selection-end-line="10" selection-end-column="15" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pampelmuse/routines/initfit.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="774">
+          <caret line="63" column="23" lean-forward="false" selection-start-line="63" selection-start-column="23" selection-end-line="63" selection-end-column="23" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+  </component>
+</project>

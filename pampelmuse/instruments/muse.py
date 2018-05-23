@@ -1,7 +1,7 @@
 """
 muse.py
 =======
-Copyright 2013-2016 Sebastian Kamann
+Copyright 2013-2018 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -28,9 +28,9 @@ muse_scipost and muse_exp_combine recipes of the MUSE pipeline. The class
 'MusePixtable' enables the analysis of pixtables as they are produced by the
 muse_scipost recipe.
 
-Latest SVN revision
+Latest GIT revision
 -------------------
-393, 2017/01/27
+2018/05/08
 """
 import logging
 import warnings
@@ -43,8 +43,8 @@ from .instrument import Instrument
 from .generic_ifs import GenericIFS
 
 
-__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 393
+__author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
+__revision__ = 20180508
 
 
 class Muse(GenericIFS):
@@ -70,97 +70,6 @@ class Muse(GenericIFS):
         """
         super(Muse, self).__init__(**kwargs)
 
-    @Instrument.edge.setter
-    def edge(self, value):
-        """
-        To set the edge for a MUSE data cube, the convex hull around the 2D
-        array of valid pixels is determined.
-
-        Parameters
-        ----------
-        value : nd_array
-            A 1dim. array containing a boolean flag for each spaxel that
-            indicates whether the spaxel contains valid data.
-
-        Returns
-        -------
-        edge : nd_array, int
-            The indices of the spaxels that define the edge of the field of
-            view.
-        """
-        if self.transform is None:
-            logging.error("No transformation from spaxels to x & y available.")
-            return
-
-        if len(value) != self.nspaxel:
-            logging.error("Size of boolean array [{0}] must match number of spaxels [{1}].".format(
-                    len(value), self.nspaxel))
-            return
-
-        chull = ConvexHull(self.transform[np.asarray(value, dtype=np.bool)])
-        self._edge = chull.vertices
-
-    def find_edge(self, valid):
-        """
-        DEPRECATED
-
-        The data structure of MUSE is such that the field of view is not a
-        fixed property of the instrument, but that each pointing comes with
-        a distinct number and arrangement of spaxels. Even for a single
-        exposure, the field of view will usually vary from one layer to the
-        next. For this reason, the edge of the field of view is determined
-        by providing a boolean array that contains a flag for each spaxel
-        that indicates whether it contains valid data or NaN. The routine
-        uses this information to determine which spaxels define the edge of
-        the field of view.
-
-        Parameters
-        ----------
-        valid : nd_array
-            A 1dim. array containing a boolean flag for each spaxel that
-            indicates whether the spaxel contains valid data.
-        """
-        warnings.warn('The method Muse.find_edge is deprecated', DeprecationWarning)
-
-        logging.info("Determining edge of MUSE field of view...")
-
-        if self.transform is None:
-            logging.error("No transformation from spaxels to x & y available.")
-            return
-
-        if len(valid) != self.nspaxel:
-            logging.error("Size of boolean array [{0}] must match number of spaxels [{1}].".format(
-                    len(valid), self.nspaxel))
-            return
-
-        # first scan through the spaxels along the y and the x axis, find the spaxel with the lowest and the highest
-        # x resp. y value. Their indices are combined in the list 'ind'.
-        ind = []
-        for yi in xrange(int(self.y.min()), int(self.y.max())):
-            select = np.flatnonzero(valid & (self.y >= yi) & (self.y < (yi + 1)))
-            if not select.any():
-                continue
-            j1 = self.x[select].argmin()
-            j2 = self.x[select].argmax()
-            ind.extend([select[j1], select[j2]])
-        for xi in xrange(int(self.x.min()), int(self.x.max())):
-            select = np.flatnonzero(valid & (self.x >= xi) & (self.x < (xi + 1)))
-            if not select.any():
-                continue
-            j1 = self.y[select].argmin()
-            if j1 not in ind:
-                ind.append(select[j1])
-            j2 = self.y[select].argmax()
-            if j2 not in ind:
-                ind.append(select[j2])
-
-        # for each spaxel included in 'ind', calculate the angle wrt. the centre of gravity, then sort the spaxels by
-        # increasing angle so that the polygon follows the edge of the field of view.
-        center = self.transform[ind].mean(axis=0)
-        angles = np.arctan2(self.x[ind] - center[0], self.y[ind] - center[1])
-
-        self.edge = np.asarray(ind, dtype=np.int32)[angles.argsort()]
-
 
 class MusePixtable(Instrument):
     """
@@ -175,15 +84,20 @@ class MusePixtable(Instrument):
     _layer_limits = None  # place-holders for indices defining individual layers
     _limit_indices = None
 
-    xhdu = None  # place-holders for HDUs containing x- & y-positions.
+    xhdu = None  # place-holders for HDUs containing x- & y-positions (& optionally the IFU and slice number).
     yhdu = None
+    ifuhdu = None
+    slicehdu = None
 
     dqmax = 4
     deg2rad = np.pi/180.
 
     rawwave = None
     rawwave_for_current_layer = None
-    wstep = 1.25  # Dispersion in Angstrom/pixel
+    wstep = 1.25e-10  # Dispersion in m/pixel
+
+    ifus_for_current_layer = None
+    slices_for_current_layer = None
 
     def __init__(self, **kwargs):
         """
@@ -247,6 +161,54 @@ class MusePixtable(Instrument):
             logging.info('Loaded y-coordinates from HDU <{0}> of file {1}'.format(
                 self.yhdu.name, self.yhdu.fileinfo()['file'].name))
 
+    def _set_ifuhdu(self, hdu):
+        """
+        This method sets the HDU with the IFU number of every pixel for the
+        MusePixtable instance, i.e. it loads an HDU containing the IFU numbers
+        for the observed data into the current instance. Note that it should
+        be loaded AFTER the data itself.
+
+        IMPORTANT: This method should not be used directly, instead, use the
+        MusePixtable.open() method for loading data.
+
+        Parameters
+        ----------
+        hdu : a FITS ImageHDU containing the IFU numbers.
+        """
+        if self.datahdu is None:  # HDU containing data must be loaded first
+            logging.error('Can only load HDU containing IFU numbers after data HDU has been loaded.')
+        elif not self.is_valid(hdu):
+            logging.error('IFU-number HDU [{0}] of file {1} has invalid format.'.format(
+                    hdu.name, hdu.fileinfo()['file'].name))
+        else:
+            self.ifuhdu = hdu
+            logging.info('Loaded IFU numbers from HDU <{0}> of file {1}'.format(
+                self.ifuhdu.name, self.ifuhdu.fileinfo()['file'].name))
+
+    def _set_slicehdu(self, hdu):
+        """
+        This method sets the HDU with the slice number of every pixel for the
+        MusePixtable instance, i.e. it loads an HDU containing the slice
+        numbers for the observed data into the current instance. Note that it
+        should be loaded AFTER the data itself.
+
+        IMPORTANT: This method should not be used directly, instead, use the
+        MusePixtable.open() method for loading data.
+
+        Parameters
+        ----------
+        hdu : a FITS ImageHDU containing the slice numbers.
+        """
+        if self.datahdu is None:  # HDU containing data must be loaded first
+            logging.error('Can only load HDU containing slice numbers after data HDU has been loaded.')
+        elif not self.is_valid(hdu):
+            logging.error('Slice-number HDU [{0}] of file {1} has invalid format.'.format(
+                    hdu.name, hdu.fileinfo()['file'].name))
+        else:
+            self.slicehdu = hdu
+            logging.info('Loaded slice numbers from HDU <{0}> of file {1}'.format(
+                self.slicehdu.name, self.slicehdu.fileinfo()['file'].name))
+
     def open(self, filename, isresiduals=False, **kwargs):
         """
         This method opens a FITS file containing a MUSE pixtable. Note that
@@ -287,19 +249,11 @@ class MusePixtable(Instrument):
         self.wcs.wcs.crpix = [self.wcs.wcs.crpix[0] - pt[0].header['ESO DRS MUSE PIXTABLE PREDAR LIMITS XLO'],
                               self.wcs.wcs.crpix[1] - pt[0].header['ESO DRS MUSE PIXTABLE PREDAR LIMITS YLO']]
 
-        # a pixtable has no fixed transformation from spaxels to spatial coordinates, it changes for every layer
-        # that is defined. To obtain an initial estimate of the FoV, we use some HIERARCH keywords:
-        xsize = int(pt[0].header['ESO DRS MUSE PIXTABLE PREDAR LIMITS XHI'] - pt[0].header[
-            'ESO DRS MUSE PIXTABLE PREDAR LIMITS XLO'])
-        ysize = int(pt[0].header['ESO DRS MUSE PIXTABLE PREDAR LIMITS YHI'] - pt[0].header[
-            'ESO DRS MUSE PIXTABLE PREDAR LIMITS YLO'])
-        self.transform = np.vstack((np.arange(xsize*ysize, dtype=np.int32) // xsize,
-                                    np.mod(np.arange(xsize*ysize, dtype=np.int32), xsize))).T
-
         # Note that for the MUSE pixtables two wavelength ranges are defined; MusePixtable.rawwave contains one value
-        # per pixel while MusePixtable.wave contains one value per layer
+        # per pixel while MusePixtable.wave contains one value per layer. As the pixel tables are provided in units of
+        # Angstrom, we need to convert to meters
         logging.info('Reading wavelength array ...')
-        self.rawwave = pt['lambda'].data[:, 0]
+        self.rawwave = 1e-10*pt['lambda'].data[:, 0]
         logging.info('... done.')
 
         # check if wavelength array is strictly increasing
@@ -320,18 +274,26 @@ class MusePixtable(Instrument):
         self._set_maskhdu(pt['dq'])
         self._set_xhdu(pt['xpos'])
         self._set_yhdu(pt['ypos'])
+        if 'ifu' in pt:
+            self._set_ifuhdu(pt['ifu'])
+        if 'slice' in pt:
+            self._set_slicehdu(pt['slice'])
 
         # define default layers for this cube. This may be changed by the user later on
         layers = np.linspace(self.rawwave.min(), self.rawwave.max(),
                              int((self.rawwave.max() - self.rawwave.min())/self.wstep), dtype=np.float32)
         self.layer_limits = np.vstack((layers[:-1], layers[1:])).T
 
+        # a pixel table has no fixed transformation from spaxels to spatial coordinates, it changes for every layer
+        # that is defined. Get coordinate transformation for central layer to have useful idea of edges of FoV.
+        self.set_transform_for_layer(len(layers)//2)
+
     def _convert_coordinates(self, xpos, ypos):
         """
         This method is mainly a python version of the c-routine written by
         P. Weilbacher for the MUSE pipeline (muse_wcs_position_celestial in
         muse_wcs.c). It converts the native spherical coordinates found in
-        the pixtable to RA and DEC coordinates using a TAN projection.
+        the pixel table to RA and DEC coordinates using a TAN projection.
 
         Parameters
         ----------
@@ -436,7 +398,7 @@ class MusePixtable(Instrument):
         Returns
         -------
         values : ndarray
-            The data values (ore residuals) in the requested layer. Note that
+            The data values (or residuals) in the requested layer. Note that
             if a bad-pixel mask is provided, bad pixels are filtered out from
             the data before it is returned. This is different from the
             behaviour for the other instruments where those pixels are set to
@@ -447,6 +409,11 @@ class MusePixtable(Instrument):
             If return_var was set, this array will contain the variances of
             the data values in the requested layer. It has the same shape as
             the data array.
+        ifu : ndarray or None
+            If return_slice was set abd the IFU and slice numbers of the
+            individual pixels are available, an array with the same size as
+            values will be returned containing the IFU numbers. Otherwise
+            None is returned.
         """
         imin, imax = self.layer_indices[i]
 
@@ -464,8 +431,12 @@ class MusePixtable(Instrument):
 
         var = self.varhdu.section[imin:imax + 1][mask, 0] if return_var else None
 
-        # store information about the wavelength of each pixel returned
+        # store information about the wavelength of each pixel returned (& IFU, slice if HDUs available)
         self.rawwave_for_current_layer = self.rawwave[imin:imax + 1][mask]
+        if self.ifuhdu:
+            self.ifus_for_current_layer = self.ifuhdu.section[imin:imax + 1][mask, 0]
+        if self.slicehdu:
+            self.slices_for_current_layer = self.slicehdu.section[imin:imax + 1][mask, 0]
 
         if not return_grid:
             return data, var
@@ -512,9 +483,13 @@ class MusePixtable(Instrument):
         else:
             mask = np.ones(imax - imin, dtype=np.bool)
 
-        ra, dec = self._convert_coordinates(self.xhdu.section[imin:imax+1][mask, 0],
-                                            self.yhdu.section[imin:imax+1][mask, 0])
-        x, y = self.wcs.wcs_world2pix(ra, dec, 1)
+        # make sure any valid pixels exist
+        if not mask.any():
+            x = y = []
+        else:
+            ra, dec = self._convert_coordinates(self.xhdu.section[imin:imax+1][mask, 0],
+                                                self.yhdu.section[imin:imax+1][mask, 0])
+            x, y = self.wcs.wcs_world2pix(ra, dec, 1)
         self.transform = np.vstack((y, x)).T
 
     def integrate(self, imin, imax, apply_variances=False, weights=None, nbin=1, **kwargs):
@@ -609,9 +584,17 @@ class MusePixtable(Instrument):
         outdata : ndarray
             The transformed 2dim. data.
         """
+        # perform consistency checks on provided data
         if data.size != self.nspaxel:
             logging.error('Unable to create image: Size of data ({0} differs from no. of spaxels ({1}).'.format(
                 data.size, self.nspaxel))
+            return None
+        elif self.nspaxel == 0:
+            if grid is None:
+                logging.error('Cannot create image from empty pixel grid.')
+                return None
+            else:
+                return np.nan*np.ones_like(grid[0], dtype=np.float32)
 
         if grid is None:
             grid = np.mgrid[int(self.y.min()):int(self.y.max()+1):int(self.y.max() - self.y.min() + 1)*1j,

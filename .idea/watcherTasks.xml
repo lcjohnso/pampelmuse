@@ -7,14 +7,14 @@
       <option name="description" />
       <option name="exitCodeBehavior" value="ERROR" />
       <option name="fileExtension" value="ui" />
-      <option name="immediateSync" value="true" />
-      <option name="name" value="PyQT4 UIC" />
+      <option name="immediateSync" value="false" />
+      <option name="name" value="PyQT5 UIC" />
       <option name="output" value="Ui_$FileNameWithoutExtension$.py" />
       <option name="outputFilters">
         <array />
       </option>
       <option name="outputFromStdout" value="false" />
-      <option name="program" value="$USER_HOME$/.pyenv/shims/pyuic4" />
+      <option name="program" value="$USER_HOME$/.pyenv/shims/pyuic5" />
       <option name="scopeName" value="Project Files" />
       <option name="trackOnlyRoot" value="false" />
       <option name="workingDir" value="$FileDir$" />
@@ -24,16 +24,16 @@
       <option name="arguments" value="$FileName$ -o $FileNameWithoutExtension$_rc.py" />
       <option name="checkSyntaxErrors" value="true" />
       <option name="description" />
-      <option name="exitCodeBehavior" value="ERROR" />
+      <option name="exitCodeBehavior" value="ALWAYS" />
       <option name="fileExtension" value="xml" />
       <option name="immediateSync" value="true" />
-      <option name="name" value="PyQT4 RCC" />
+      <option name="name" value="PyQT5 RCC" />
       <option name="output" value="$FileNameWithoutExtension$_rc.py" />
       <option name="outputFilters">
         <array />
       </option>
       <option name="outputFromStdout" value="false" />
-      <option name="program" value="$USER_HOME$/.pyenv/shims/pyrcc4" />
+      <option name="program" value="$USER_HOME$/.pyenv/shims/pyrcc5" />
       <option name="scopeName" value="Project Files" />
       <option name="trackOnlyRoot" value="false" />
       <option name="workingDir" value="$FileDir$" />

@@ -1,7 +1,7 @@
 """
 dynamic_ima_canvas.py
 =====================
-Copyright 2013-2016 Sebastian Kamann
+Copyright 2013-2018 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -33,22 +33,22 @@ The class is used by the PampelMuse GUI to display IFS data and reference
 data. In order to handle 2dim. IFS data, the Cube class is loaded from
 pampelmuse.core.cube
 
-Latest SVN revision
+Latest Git revision
 -------------------
-380, 2016/12/14
+2018/01/04
 """
 import logging
 import numpy as np
 from matplotlib import collections, patches
 from matplotlib.figure import Figure
-from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg
-from PyQt4 import QtCore
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
+from PyQt5 import QtCore
 from ..instruments import Instrument
 from ..utils.fits import open_ifs_data
 
 
-__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 380
+__author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
+__revision__ = 20180104
 
 
 class DynamicImaCanvas(FigureCanvasQTAgg):
@@ -63,6 +63,12 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
     x = None  # x-values of data_plot
     y = None  # y-values of data_plot
     ids = None
+
+    # define custom signals
+    layer_changed = QtCore.pyqtSignal(int, name='layerChanged')
+    lower_cut_changed = QtCore.pyqtSignal(float, name='loCutChanged')
+    upper_cut_changed = QtCore.pyqtSignal(float, name='hiCutChanged')
+    pointer_position_changed = QtCore.pyqtSignal(int, int, float, name='coordsChanged')
 
     def __init__(self, parent=None, width=4, height=4, dpi=100):
         """
@@ -139,6 +145,11 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
             method are passed on to the call of matplotlib.pyplot.imshow
             that is used to display the data.
         """
+        # sanity check
+        if not isinstance(image, (list, np.ndarray)):
+            logging.error('Cannot display data: {0}'.format(image))
+            return
+
         # Check if an imshow instance does exist, if so, update its data
         if self.image is None:
             self.image_plot = self.axes.imshow(image, **kwargs)
@@ -146,8 +157,7 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
             self.image_plot.set_data(image)
 
         self.image = image
-        logging.debug('Size of image to be loaded: {0}x{1} pixels'.format(
-            self.image.shape[1], self.image.shape[0]))
+        logging.debug('Size of image to be loaded: {0}x{1} pixels'.format(self.image.shape[1], self.image.shape[0]))
 
         self.changeCuts()  # adapt cuts to the new data
 
@@ -234,7 +244,7 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
         self.layer = i
 
         # emit QtCore.SIGNAL notifying about index of new layer
-        self.emit(QtCore.SIGNAL("layerChanged"), i)
+        self.layer_changed.emit(i)
 
     def changeCuts(self, vrange=None, locut=None, hicut=None):
         """
@@ -279,7 +289,7 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
             else:
                 # sort pixel values
                 values.sort()
-                self.cuts = (values[cutpix / 2], 0.5 * (values[-cutpix / 2 - 1] + values[-cutpix / 2 - 2]))
+                self.cuts = (values[cutpix//2], 0.5 * (values[-cutpix//2 - 1] + values[-cutpix//2 - 2]))
 
         # change cuts and update canvas
         logging.debug("Updated display cuts are min={0:.3g}, max={1:.3g}".format(
@@ -289,9 +299,9 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
 
         # emit signal that cuts were changed
         if self.cuts[0] != oldcuts[0]:
-            self.emit(QtCore.SIGNAL("changedLoCut"), self.cuts[0])
+            self.lower_cut_changed.emit(self.cuts[0])
         if self.cuts[1] != oldcuts[1]:
-            self.emit(QtCore.SIGNAL("changedHiCut"), self.cuts[1])
+            self.upper_cut_changed.emit(self.cuts[1])
 
     def updateAxesLimits(self):
         """
@@ -459,4 +469,4 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
         except IndexError:
             f = np.nan
 
-        self.emit(QtCore.SIGNAL("coordsChanged"), x, y, f)
+        self.pointer_position_changed.emit(x, y, f)

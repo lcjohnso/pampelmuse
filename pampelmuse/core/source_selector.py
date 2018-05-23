@@ -2,7 +2,7 @@
 source_selector.py
 ==================
 
-Copyright 2013-2016 Sebastian Kamann
+Copyright 2013-2018 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -31,28 +31,29 @@ Added
 -----
 2016/08/09, rev. 353
 
-Latest SVN revision
+Latest Git revision
 -------------------
-406, 2017/03/28
+2018/05/22
 """
 import logging
 import sys
 from multiprocessing import cpu_count, Pool
 import numpy as np
-from scipy import spatial
+import pandas as pd
+from astropy.wcs import WCS
 from .aperture import AperPhoto
 from .background import BackgroundGrid
+from .coordinates import Transformation
 from .sources import Sources
-from ..instruments import Instrument, Muse, MusePixtable
-from ..filters import ALIASES
-from ..psf import *
-from ..utils.io import read_asciifile
+from ..instruments import Instrument, GenericIFS, Muse, MusePixtable
+from ..psf import Variables
+from ..psf.profiles import *
 from ..utils.image import find_offset
 from ..utils.statistics import der_snr
 
 
-__author__ = 'Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)'
-__revision__ = 406
+__author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
+__revision__ = 20180522
 
 
 logger = logging.getLogger(__name__)
@@ -87,14 +88,15 @@ def image_from_psf(sources_data):
         - psf_instances : an instance of a PSF class
               The PSF profile is required to determine the flux distribution
               across the FoV
-        - uc : array_like
-            The centroids of the individual stars along the x-direction of the
-            reference system
-        - vc : array_like
-            The centroids of the individual stars along the y-direction of the
-            reference system
-        - mag : array_like
-            The magnitudes of the individual stars in the chosen passband.
+        - data: pandas.DataFrame
+              The centroid coordinates and the magnitudes of the individual
+              sources, provided as columns 'x', 'y', and 'mag'
+        - offset : tuple, optional
+              A global offset applied to all sources along x and y. Default is
+              (0, 0)
+        - zeropoint : float
+              The magnitude zeropoint, i.e. the magnitude of a source with an
+              integrated flux of 1. Default is 0.
 
     Returns
     -------
@@ -104,14 +106,18 @@ def image_from_psf(sources_data):
     psf = sources_data['psf']
     image = np.zeros((psf.n_pixel, ), dtype='<f4')
 
-    for i in range(len(sources_data['uc'])):
-        psf.uc = sources_data['uc'][i]
-        psf.vc = sources_data['vc'][i]
-        psf.mag = sources_data['mag'][i]
+    offset = sources_data.get('offset', (0., 0.))
+    zeropoint = sources_data.get('zeropoint', 0.)
+
+    n_sources = sources_data['data'].shape[0]
+    for i, (index, row) in enumerate(sources_data['data'].iterrows(), start=1):
+        psf.uc = row['x'] - offset[0]
+        psf.vc = row['y'] - offset[1]
+        psf.mag = row['mag'] - zeropoint
         psf.reset()
 
         image[psf.used] += psf.f
-        logger.debug('Image creation: Processed star {0}/{1}'.format(i+1, len(sources_data['uc'])))
+        logger.debug('Image creation: Processed star #{0} {1}/{2}'.format(index, i, n_sources))
 
     return image
 
@@ -127,55 +133,57 @@ def estimate_snr(sources_data):
         - psf_instances : an instance of a PSF class
               The PSF profile is required to determine the flux distribution
               across the FoV
-        - uc : array_like
-            The centroids of the individual stars along the x-direction of the
-            reference system
-        - vc : array_like
-            The centroids of the individual stars along the y-direction of the
-            reference system
-        - mag : array_like
-            The magnitudes of the individual stars in the chosen passband.
+        - data: pandas.DataFrame
+              The centroid coordinates and the magnitudes of the individual
+              sources, provided as columns 'x', 'y', and 'mag'
+        - zeropoint : float
+              The magnitude zeropoint, i.e. the magnitude of a source with an
+              integrated flux of 1. Default is 0.
 
     Returns
     -------
-    snratios : nd_array
-        A 1dim. array containing the S/N-ratio for each source
+    snratios : pandas.Series
+        A pandas Series containing the S/N-ratio for each source
     totfluxes : float
-        The integrated flux of all point sources over the individual
+        The integrated fluxes of all point sources over the individual
         spaxels.
     """
     global g_variance
 
-    snratios = []
+    snratios = pd.Series(0., index=sources_data['data'].index)
     totfluxes = 0.
 
     psf = sources_data['psf']
-    for i in range(len(sources_data['uc'])):
-        psf.uc = sources_data['uc'][i]
-        psf.vc = sources_data['vc'][i]
-        psf.mag = sources_data['mag'][i]
+    zeropoint = sources_data.get('zeropoint', 0.)
+
+    n_sources = sources_data['data'].shape[0]
+    for i, (index, row) in enumerate(sources_data['data'].iterrows(), start=1):
+        psf.uc = row['x']
+        psf.vc = row['y']
+        psf.mag = row['mag'] - zeropoint
         psf.reset()
 
         if (g_variance[psf.used] == 0).any():
             logger.error("Sigma image contains invalid pixels with values <=0.")
 
         # measure S/N
-        snratios.append(np.sqrt(((psf.f / np.sqrt(g_variance[psf.used])) ** 2).sum()))
+        snratios[index] = np.sqrt(np.nansum((psf.f / np.sqrt(g_variance[psf.used])) ** 2))
 
-        logger.debug("Estimated S/N for source {0}/{1}: {2}.".format(i+1, len(sources_data['uc']), snratios[-1]))
+        logger.debug("Estimated S/N for source #{0} [{1}/{2}]: {3}.".format(index, i, n_sources, snratios[index]))
 
         # add the flux contribution of this source in the FoV
         totfluxes += psf.f.sum()
 
-    return np.array(snratios, dtype=np.float32), totfluxes
+    return snratios, totfluxes
 
 
 class SourceSelector(object):
     """
     This class is designed to perform the selection process for the sources
-    that are used in the PampelMuse extraction process. It defines methods
-    that perform the individual steps of the source selection that are called
-    by the INITFIT routine of PampelMuse.
+    that are used in the PampelMuse extraction process.
+
+    The defined methods perform the individual steps of the source selection
+    process and are used by the INITFIT routine of PampelMuse.
     """
 
     def __init__(self, photometry_file, ifs_data, passband="f814w", zeropoint=None, position_fit=2):
@@ -196,7 +204,7 @@ class SourceSelector(object):
             should be performed.
         zeropoint : float, optional
             An initial guess for the photometric zeropoint of the IFS data in
-            the choosen passband.
+            the chosen passband.
         position_fit : int, optional
             A flag indicating how the source positions on the IFS data should
             be determined. Can be one of:
@@ -217,54 +225,74 @@ class SourceSelector(object):
         # get results from crowded-field photometry, initialize sources
         logger.info('Reading photometry results from file "{0}".'.format(photometry_file))
 
-        # Note that the routine will first check if the first (uncommented) line in the file is a header line from
-        # which it can infer the column content. Only if that fails, it will use the association in 'usecols' and
-        # 'usenames' the 'aliases' provide for each valid passband a list of other possible names the column may have
-        self.cfp_results = read_asciifile(photometry_file, usecols=(0, 1, 2, 3, 4, 5),
-                                          usenames="id,x,y,{0},ra,dec".format(self.passband),
-                                          optional="x,y,ra,dec", aliases=ALIASES)
-
-        # make sure IDs are available
-        if "id" not in self.cfp_results.keys():
+        # open reference catalog. It should be in plain csv-format. the source IDs are used as index
+        try:
+            self.cfp_results = pd.read_csv(photometry_file, index_col='id')
+        except ValueError:
             logger.critical("Did not find IDs in photometry file.")
             raise IOError("Source IDs must be provided with photometry")
 
         # make sure magnitudes are available
-        if self.passband.lower() not in self.cfp_results.keys():
+        if self.passband not in self.cfp_results.columns and self.passband.lower() not in self.cfp_results.columns:
             logger.critical("Did not find magnitudes in photometry file.")
             raise IOError("Source magnitudes must be provided with photometry.")
+        elif self.passband in self.cfp_results.columns:
+            # rename columns with magnitudes to 'mag'
+            self.cfp_results.rename(columns={self.passband: 'mag'}, inplace=True)
+        else:
+            self.cfp_results.rename(columns={self.passband.lower(): 'mag'}, inplace=True)
 
         # make sure either RA & Dec or x & y are available; if both are available, RA & Dec are preferred over x & y
-        if self.use_wcs:
-            if "ra" not in self.cfp_results.keys() or "dec" not in self.cfp_results.keys():
-                self.use_wcs = False
-
-        if self.use_wcs:
+        if "ra" in self.cfp_results.columns and "dec" in self.cfp_results.columns:
             logger.info("Using RA & DEC coordinates as input.")
-
             ra = np.asarray(self.cfp_results["ra"], dtype=np.float64)
             dec = np.asarray(self.cfp_results["dec"], dtype=np.float64)
 
-            # get IFS spaxel coordinates from reference RA and DEC
-            if self.ifs_data.wcs.wcs.naxis == 3:
-                x, y, _ = self.ifs_data.wcs.wcs_world2pix(ra, dec, np.ones(ra.shape), 1)
+            # if we have a WCS instance, use it to convert to pixel coordinates
+            if self.use_wcs:
+                # get IFS spaxel coordinates from reference RA and DEC
+                if self.ifs_data.wcs.wcs.naxis == 3:
+                    x, y, _ = self.ifs_data.wcs.wcs_world2pix(ra, dec, np.ones(ra.shape), 1)
+                else:
+                    x, y = self.ifs_data.wcs.wcs_world2pix(ra, dec, 1)
+
+            # otherwise create mock WCS instance with pixelsize 0.2arcsec
             else:
-                x, y = self.ifs_data.wcs.wcs_world2pix(ra, dec, 1)
+                wcs = WCS(naxis=2)
+                wcs.wcs.ctype = ['RA---TAN', 'DEC--TAN']
+                wcs.wcs.cdelt = [-0.2/3600., 0.2/3600.]
+                wcs.wcs.crval = [ra.max(), dec.min()]
+                wcs.wcs.crpix = [0, 0]
+                x, y = wcs.wcs_world2pix(ra, dec, 1)
+
             self.cfp_results["x"] = x.tolist()
             self.cfp_results["y"] = y.tolist()
 
+        elif "x" in self.cfp_results.columns or "y" in self.cfp_results.columns:
+            self.use_wcs = False
+            logger.info("using x- and-coordinates as input.")
+
         else:
-            if "x" not in self.cfp_results.keys() or "y" not in self.cfp_results.keys():
-                logger.critical("Cannot find input source coordinates.")
-                raise IOError("Either x & y or RA & Dec must be provided with photometry.")
+            logger.critical("Cannot find input source coordinates.")
+            raise IOError("Either x & y or RA & Dec must be provided with photometry.")
 
         # Perform sanity checks on provided source list (exclude sources with magnitudes NaN or >99):
-        self.valid = ~np.isnan(np.asarray(self.cfp_results[passband.lower()], dtype=np.float32))
-        self.valid &= (np.asarray(self.cfp_results[passband.lower()], dtype=np.float32) < 99.)
-        if not self.valid.all():
-            logger.warning("Ignoring {0} source(s) with undefined magnitudes.".format((~self.valid).sum()))
-        if len(np.unique(self.cfp_results["id"])) < len(self.cfp_results["id"]):
-            logger.error("Catalog contains duplicated IDs.")
+        self.cfp_results['valid'] = np.isfinite(self.cfp_results['mag'])
+        self.cfp_results.loc[self.cfp_results['mag'] >= 99, 'valid'] = False
+        if not self.cfp_results['valid'].all():
+            logger.warning("Ignoring {0} source(s) with undefined magnitudes.".format(
+                (~self.cfp_results['valid']).sum()))
+
+        # check for duplicate indices (= source IDs)
+        if self.cfp_results.index.duplicated().any():
+            logger.error('Catalog contains duplicate source IDs.')
+
+        # unless already present, add columns for storing status of a source and whether it is in a combined
+        # component with a different primary source
+        if 'status' not in self.cfp_results.columns:
+            self.cfp_results['status'] = -1
+        if 'primary' not in self.cfp_results.columns:
+            self.cfp_results['primary'] = 0
 
         self.position_fit = position_fit
         self.sources = None
@@ -301,7 +329,7 @@ class SourceSelector(object):
             except AttributeError:
                 return (self.ifs_data.wcs.wcs.cdelt[:2] != 0).all()
 
-    def background_setup(self, skysize=-1):
+    def background_setup(self, skysize=-1, slices=False, oversampling=1):
         """
         Method to add one or more background components.
 
@@ -315,64 +343,87 @@ class SourceSelector(object):
         skysize : int, optional
             The size of each cell of the background grid in pixels. Set to -1
             for a constant background across the field of view.
+        slices : boolean, optional
+            Set this flag to create a separate background component for each
+            IFU/slice. This is only used for MUSE data.
+        oversampling : int, optional
+            To improve the sky subtraction for MUSE pixel tables, the spectral
+            sampling of the background components can be increased by the
+            provided factor.
 
         Returns
         -------
-        n_background : int
+        n_background : int, optional
             The number of background components used.
         """
         if skysize <= 0:
-            background = BackgroundGrid.constant()
+            background = BackgroundGrid.constant(oversampling=oversampling)
         else:
-            background = BackgroundGrid.from_shape(shape=self.ifs_data.shape, rscale=skysize/2.)
-        for i, [y, x] in enumerate(background.centroids):
-            # ignore sky components outside FoV
-            if self.ifs_data.distance_to_edge([[x, y]])[0] < -skysize and skysize > 0:
-                continue
-            self.valid = np.r_[self.valid, True]
-            self.cfp_results["id"].append(str(-i-1))
-            self.cfp_results["x"].append(str(x))
-            self.cfp_results["y"].append(str(y))
-            self.cfp_results[self.passband.lower()].append("0")
-            if "ra" in self.cfp_results.keys():
-                self.cfp_results["ra"].append("0")
-            if "dec" in self.cfp_results.keys():
-                self.cfp_results["dec"].append("0")
-        return len(background.centroids)
+            background = BackgroundGrid.from_shape(shape=self.ifs_data.shape, rscale=skysize/2.,
+                                                   oversampling=oversampling)
+
+        if slices:
+            logger.warning('Assigning background components to slices still in testing phase.')
+            if isinstance(self.ifs_data, MusePixtable):
+                if self.ifs_data.ifuhdu is not None and self.ifs_data.slicehdu is not None:
+                    background.add_slices(n_ifu=24, n_slice=48)
+                else:
+                    logger.error('Need extensions "ifu" and "slice" for assigning background components to slices.')
+            else:
+                logger.error('Assigning background components to slices only supported for MUSE pixel tables.')
+
+        # create data frame for background data
+        n_centroids = len(background.centroids)
+        index = pd.Index(np.arange(-1, -n_centroids-1, -1))  # sky components have negative index
+        background_data = pd.DataFrame(True, columns=['valid', ], index=index)
+        background_data['x'] = background.centroids[:, 0]
+        background_data['y'] = background.centroids[:, 1]
+        background_data['status'] = 4
+        # ignore sky components outside FoV (if any)
+        if skysize > 0:
+            outside_fov = (self.ifs_data.distance_to_edge(background.centroids) < -skysize)
+            background_data.loc[outside_fov, 'status'] = -1
+        # change status of slice-only backgrounds (if any) to 5
+        if slices:
+            last_indices = background_data.tail(background.n_ifu*background.n_slice).index
+            background_data.loc[last_indices, 'status'] = 5
+        background_data['primary'] = index
+
+        # attach background components to source catalog
+        self.cfp_results = self.cfp_results.append(background_data, verify_integrity=True)
+
+        return n_centroids
 
     def make_sources_instance(self):
         """
         Method to create an instance of pampelmuse.core.Sources containing
         the current list of stellar and background sources.
 
-        The method will run the intialisation method of the Sources-class and
+        The method will run the initialisation method of the Sources-class and
         copy the dispersion information from the IFs data to the new instance.
         Afterwards, the instance can be accessed as SourceSelector().sources.
         """
-        self.sources = Sources(ids=np.asarray(self.cfp_results["id"], dtype=np.int32)[self.valid])
-        self.sources.x = np.asarray(self.cfp_results["x"], dtype=np.float32)[self.valid]
-        self.sources.y = np.asarray(self.cfp_results["y"], dtype=np.float32)[self.valid]
-        self.sources.mag = np.asarray(self.cfp_results[self.passband.lower()], dtype=np.float32)[self.valid]
-        if "ra" in self.cfp_results.keys():
-            self.sources.ra = np.asarray(self.cfp_results["ra"], dtype=np.float64)[self.valid]
-        if "dec" in self.cfp_results.keys():
-            self.sources.dec = np.asarray(self.cfp_results["dec"], dtype=np.float64)[self.valid]
+        self.sources = Sources(catalog=self.cfp_results[self.cfp_results['valid']])
 
         # unless a MUSE pixtable is being analysed, copy dispersion information to sources class
         if not isinstance(self.ifs_data, MusePixtable):
             if self.ifs_data.wcs.naxis > 2:
                 self.sources.crval = self.ifs_data.wcs.wcs.crval[2]
                 self.sources.crpix = self.ifs_data.wcs.wcs.crpix[2]
-                if self.ifs_data.wcs.wcs.has_cd():
-                    self.sources.cdelt = self.ifs_data.wcs.wcs.cd[2, 2]
-                else:
-                    self.sources.cdelt = self.ifs_data.wcs.wcs.cdelt[2]
+                self.sources.cdelt = self.ifs_data.wcs.pixel_scale_matrix[-1, -1]
                 self.sources.ctype = self.ifs_data.wcs.wcs.ctype[2]
-                self.sources.cunit = self.ifs_data.wcs.wcs.cunit[2].name
+                self.sources.cunit = self.ifs_data.wcs.wcs.cunit[2].to_string()
             else:
                 self.sources.crval = self.ifs_data.wave[0]
                 self.sources.crpix = 1
                 self.sources.cdelt = np.diff(self.ifs_data.wave).mean()
+        else:
+            self.sources.crval = self.ifs_data.wave[0]
+            self.sources.crpix = 1
+            self.sources.cdelt = np.diff(self.ifs_data.wave).mean()
+
+        # make sure instance has correct dispersion information
+        self.sources.n_dispersion = self.ifs_data.nlayer
 
     def prepare_psf(self, profile='moffat', parameters=None):
         """
@@ -391,7 +442,7 @@ class SourceSelector(object):
             The name of the analytical profile used to model the PSF.
             Currently 'moffat' (default), 'gauss', and 'double_gauss' are
             supported.
-        parameters : list, optional
+        parameters : iterable, optional
             The values of the parameters of the chosen profile, provided as a
             list that contains one dictionary per parameter. Each dictionary
             should contain three keys:
@@ -399,7 +450,7 @@ class SourceSelector(object):
             - 'value': The (initial) value of the parameter
             - 'free': Boolean flag indicating if the parameter value should be
                       optimized in the analysis.
-            By default, a round Moffat profile with beta=2.5 and fwhm=3.0pixel
+            By default, a round Moffat profile with beta=2.5 and fwhm=2.5pixel
             is used.
         """
         if profile == "moffat":
@@ -408,21 +459,30 @@ class SourceSelector(object):
             self.psf_class = Gaussian
         elif profile == "double_gauss":
             self.psf_class = DoubleGaussian
+        elif profile == "moffat_gauss":
+            self.psf_class = MoffatGaussian
         else:
             logger.error('Unknown PSF type: "{0}"'.format(profile))
             return
 
-        if parameters is None:
-            parameters = [{'name': 'beta', 'value': 2.5, 'free': False},
-                          {'name': 'fwhm', 'value': 3.0, 'free': False}]
+        # prepare data and variability flags for default PSF
+        n_parameters = len(Variables.PROFILES[profile])
+        data = pd.DataFrame(np.zeros((1, n_parameters), dtype=np.float32), columns=Variables.PROFILES[profile])
+        free = pd.Series(0, index=Variables.PROFILES[profile])
 
-        self.psf_attributes = Variables(profile=profile)
-        for parameter in parameters:
-            # include value and fit request in PSF variables
-            j = self.psf_attributes.names.index(parameter['name'])
-            self.psf_attributes.data[0, j, 0] = parameter['value']
-            self.psf_attributes.free[j] = parameter['free']
+        # update PSF data and variability flags with user-provided data (if any)
+        if parameters is not None:
+            for p in parameters:
+                data[p['name']] = p['value']
+                free[p['name']] = p['free']
+        # otherwise make sure fwhm (and beta) are >0
+        else:
+            data['fwhm'] = 2.5
+            if 'beta' in Variables.PROFILES[profile]:
+                data['beta'] = 2.5
 
+        # initialise instance with PSF parameters and print basic info about PSF
+        self.psf_attributes = Variables(profile=profile, data=data, free=free)
         self.psf_attributes.info()
 
     def create_mock_image(self, n_stars=500, n_cpu=1):
@@ -466,25 +526,26 @@ class SourceSelector(object):
         if n_cpu is None or n_cpu == -1:
             n_cpu = cpu_count()  # use all available CPUs
 
-        psf_parameters = dict(
-                (name, self.psf_attributes.data[:, i, 0]) for i, name in enumerate(self.psf_attributes.names))
+        # collect PSF parameters in dictionary for profile initialisation
+        psf_parameters = {}
+        for name in self.psf_attributes.names:
+            psf_parameters[name] = self.psf_attributes.data.at[0, (name, 'value')]
 
         # select n_stars brightest sources - note that the selection has no effect on argsort because
         # the background components are at the end of the array
-        include = np.argsort(self.sources.mag[:self.sources.nsrc - self.sources.nbackground])[:n_stars]
-        to_cpu = np.arange(include.size) % n_cpu
+        used_ids = self.sources.mag[~self.sources.is_background].sort_values().index[:n_stars]
+        to_cpu = np.arange(used_ids.size) % n_cpu
 
         # to get reasonable count rates in mock image, adjust zeropoint unless known
-        zeropoint = self.sources.mag[include[-1]] + 7.5 if self.zeropoint is None else self.zeropoint
+        zeropoint = self.sources.mag[used_ids[-1]] + 7.5 if self.zeropoint is None else self.zeropoint
 
         args = []
+        psf = None
         for n in range(n_cpu):
-            used = include[to_cpu == n]
+            used = used_ids[to_cpu == n]
             psf = self.psf_class.from_shape(shape=shape, uc=0., vc=0., mag=0., maxrad=10., **psf_parameters)
-            args.append({'psf': psf,
-                         'uc': self.sources.x[used] - self.sources.x.min(),
-                         'vc': self.sources.y[used] - self.sources.y.min(),
-                         'mag': self.sources.mag[used] - zeropoint})
+            args.append({'psf': psf, 'data': self.sources.catalog.loc[used, ['x', 'y', 'mag']],
+                         'offset': (self.sources.x.min(), self.sources.y.min()), 'zeropoint': zeropoint})
 
         if n_cpu > 1:
             pool = Pool(n_cpu)
@@ -496,11 +557,11 @@ class SourceSelector(object):
             _image = image_from_psf(args[0])
 
         # 3. resample image on regular (x, y) grid
-        logger.info("   resampling image on regular 2D grid...")
+        logger.info("   re-sampling image on regular 2D grid ...")
         self.identification_image = np.zeros(shape, dtype=np.float32)
         self.identification_image[psf.y.astype('<i4'), psf.x.astype('<i4')] = _image
 
-    def create_image_from_ifs(self, n_bin=10):
+    def create_image_from_ifs(self, n_bin=10, apply_variances=True):
         """
         This method creates a two-dimensional image from the IFS data.
 
@@ -517,15 +578,19 @@ class SourceSelector(object):
         n_bin : int, optional
             The binning factor; if >1, only every n_bin'th layer will be used
             to create the image.
+        apply_variances : bool, optional
+            Boolean flag indicating whether the variances of the IFS should be
+            used when creating the image.
         """
 
         logger.info("Creating mock {0}-band image from IFS data...".format(self.passband))
-        (self.data_image, self.var_image), weights = self.ifs_data.integrate_over_filtercurve(
-                self.passband, apply_variances=True, nbin=n_bin)
+        self.data_image, self.var_image, weights = self.ifs_data.integrate_over_filtercurve(
+                self.passband, apply_variances=apply_variances, nbin=n_bin, layer_range=(5, self.ifs_data.nlayer - 5),
+                return_grid=True)
 
-        # The sigma values are valid for the broadband image and must be increased to be representative for a typical
-        # layer. As the image was obtained by integrating over a filter curve, the sigma values are multiplied by
-        # sqrt(N) where N is the effective width of the filter curve in units of the spectral sampling.
+        # The variance values are valid for the broadband image and must be increased to be representative for a
+        # typical layer. As the image was obtained by integrating over a filter curve, the sigma values are multiplied
+        # by sqrt(N) where N is the effective width of the filter curve in units of the spectral sampling.
         self.var_image *= weights[(np.arange(weights.size) % 10) == 0].sum()
 
         mask = np.isnan(self.data_image)
@@ -533,21 +598,27 @@ class SourceSelector(object):
             logger.error("{0}-image created from IFS data contains only NaNs.".format(self.passband))
             logger.error("Check overlap between {0} throughput and IFS wavelength coverage.".format(self.passband))
 
-        # if a MUSE data cube has been provided, try to determine edge of field of view as smallest polygon to includes
+        # if a true 3D cube has been provided, try to determine edge of field of view as smallest polygon to includes
         # all valid spaxels.
-        if mask.any() and isinstance(self.ifs_data, Muse):
-            self.ifs_data.edge = ~mask
+        if mask.any() and isinstance(self.ifs_data, GenericIFS):
+            self.ifs_data.edge = self.ifs_data.find_edge(mask)
 
         self.var_image[mask] = np.inf
         self.data_image[mask] = 0
 
+        # take care of data cubes with over-subtraction of background
         if self.data_image.sum() <= 0:
             self.data_image -= np.median(self.data_image)
-            if self.data_image.sum() > 0:
-                logger.warning('Flux sum in {0}-image was negative. Subtracted (negative) median flux.'.format(
-                    self.passband))
-            else:
-                logger.error("Flux sum in {0}-image is negative.".format(self.passband))
+            logger.warning('Flux sum in {0}-image was negative. Subtracted (negative) median flux.'.format(
+                self.passband))
+            if self.data_image.sum() <= 0:
+                fixed_pixels = 0
+                while self.data_image.sum() <= 0:
+                    self.data_image[np.argmin(self.data_image)] = 0
+                    fixed_pixels += 1
+                logger.warning(
+                    "Flux sum in {0}-image was still negative. Set the {1} most negative pixels to zero.".format(
+                        self.passband, fixed_pixels))
 
     def cross_correlate_images(self, ccmaxoff=None, init_guess=None):
         """
@@ -568,9 +639,8 @@ class SourceSelector(object):
         init_guess : tuple, optional
             Initial guesses for the offset along the x- and y-axes. The peak
             in the cross-correlation signal is searched in a square with half-
-            width 'ccmaxoff' centred on the initial guess.
-            IMPORTANT: The offsets are measured relative to the initial guess
-                       coordinates.
+            width 'ccmaxoff' centred on the initial guess. IMPORTANT: The
+            offsets are measured relative to the initial guess coordinates.
         """
 
         if not self.use_wcs:
@@ -588,19 +658,16 @@ class SourceSelector(object):
         if init_guess is None:  # need to correct for shift between image and catalogue.
             init_guess = (-self.sources.x.min(), -self.sources.y.min())
 
-        if self.data_image.ndim == 1:
-            cc_data_image = self.ifs_data.make_image(self.data_image, fill_value=0)
-        else:
-            cc_data_image = self.data_image
-
-        self.ccxoff, self.ccyoff = find_offset(cc_data_image, self.identification_image, max_off=ccmaxoff,
+        self.ccxoff, self.ccyoff = find_offset(self.data_image, self.identification_image, max_off=ccmaxoff,
                                                init_guess=init_guess)
         # Note that the offset are provided with negative signs because the cross-correlation routine determines
         # the offset from the reference image to the IFS data, while we need it vice versa.
         logger.info("   pointing offset from cross-correlation dx={0:.1f}, dy={1:.1f}".format(self.ccxoff, self.ccyoff))
 
         # initialize/update coordinate transformation
-        self.sources.transformation.data = np.array([1., 0., 0., 1., -self.ccxoff, -self.ccyoff], dtype=np.float32)
+        self.sources.transformation = Transformation(
+            data=pd.DataFrame(np.array([[1., 0., 0., 1., -self.ccxoff, -self.ccyoff]], dtype=np.float32),
+                              columns=Transformation.PARAMETERS))
         if self.position_fit == 2:
             self.sources.transformation.free[:] = True
         elif self.position_fit == 1:
@@ -627,23 +694,32 @@ class SourceSelector(object):
             image. Note that it will be possible to adjust this number once
             the GUI has been loaded.
         """
-        from PyQt4 import QtGui
+        from PyQt5 import QtWidgets
         from ..graphics.pampelmuse_gui import PampelMuseGui
 
         logger.info("Preparing GUI for source identification...")
 
-        app = QtGui.QApplication(sys.argv)
+        app = QtWidgets.QApplication(sys.argv)
 
         # get magnitude of n_stars'th brightest star
-        n_stars = min(n_stars, self.sources.nsrc - self.sources.nbackground - 1)
-        mag = self.sources.mag[np.argsort(self.sources.mag[:self.sources.nsrc - self.sources.nbackground])[n_stars]]
+        n_stars = min(n_stars, self.sources.n_sources - self.sources.n_background - 1)
+        mag = self.sources.mag[~self.sources.is_background].sort_values().iloc[n_stars]
 
         identifier = PampelMuseGui(sources=self.sources, ifsData=self.ifs_data, refImage=self.identification_image)
 
-        if self.use_wcs:  # overplot positions of sources on IFS as determined via cross-correlation
+        # account for offset between reference image and true coordinates
+        (dx, dy) = (self.sources.x.min(), self.sources.y.min())
+        identifier.refOffsets = {'x': pd.Series(self.sources.x - dx, index=self.sources.ids),
+                                 'y': pd.Series(self.sources.y - dy, index=self.sources.ids)}
+        identifier.sources.plotted = self.sources.ids[self.sources.ids >= 0]
+        identifier.plot_sources_on_ref()
+
+        if self.use_wcs:
+            # show approximate location of IFS field of view in reference view
             identifier.addFovToReference(self.ccxoff - self.sources.x.min() + self.ifs_data.shape[1]//2,
                                          self.ccyoff - self.sources.y.min() + self.ifs_data.shape[0]//2)
 
+            # overplot positions of sources on IFS as determined via cross-correlation
             sizes = 10.*(10**(-0.2*(self.sources.mag - mag - 1.)))
             sizes[sizes <= 1] = 0
             select = (self.sources.status < 4) & (
@@ -652,25 +728,23 @@ class SourceSelector(object):
             identifier.ifsPlot.addData(self.sources.x[select] - self.ccxoff, self.sources.y[select] - self.ccyoff,
                                        s=sizes[select], marker="o", edgecolor="g", facecolor="None")
 
-        # account for offset between reference image and true coordinates
-        (dx, dy) = (self.sources.x.min(), self.sources.y.min())
-        identifier.refOffsets = np.vstack((self.sources.x - dx, self.sources.y - dy))
-        identifier.maxMagSpinBox.setValue(mag)
-
         identifier.show()
         app.exec_()
 
         identified = identifier.identifiedSources
+
         if len(identified) >= 4:
             # TODO: reduce number of required sources to 2 if only offsets should be determined
-            # determine coordinate transformation using identified sources, when providing the IFS coordinates for the
-            # sources that were identified, they need to be provided in the right order (the sources were not
-            # necessarily identified in the same order they appear in the catalogue)
-            sorted_indices = np.argsort([list(self.sources.ID).index(entry) for entry in identified.keys()])
 
-            self.sources.load_ifs_coordinates(ids=identified.keys())
-            self.sources.ifs_coordinates[..., 0] = np.asarray(identified.values())[sorted_indices, :2]
-            self.sources.fit_coordinate_transformation()
+            # collect IFS coordinates in common DataFrame and fit coordinate transformation
+            ifs_coordinates = pd.DataFrame(
+                0., index=[self.sources.wave[0]], columns=pd.MultiIndex.from_product([identified.keys(), ['x', 'y']]))
+            for source_id, values in identified.items():
+                ifs_coordinates.at[self.sources.wave[0], (source_id, 'x')] = values[0]
+                ifs_coordinates.at[self.sources.wave[0], (source_id, 'y')] = values[1]
+
+            self.sources.transformation = Transformation.from_coordinates(self.sources.catalog, ifs_coordinates)
+
             if self.position_fit == 2:
                 self.sources.transformation.free[:] = True
             elif self.position_fit == 1:
@@ -715,38 +789,41 @@ class SourceSelector(object):
 
         zeropoint = 25. if self.zeropoint is None else self.zeropoint
 
-        psf_parameters = dict(
-                (name, self.psf_attributes.data[:, i, 0]) for i, name in enumerate(self.psf_attributes.names))
-        for i, name in enumerate(self.sources.transformation.names):
-            psf_parameters[name] = self.sources.transformation.data[:, i, 0]
+        # collect PSF parameters in dictionary for profile initialisation
+        psf_parameters = {}
+        for name in self.psf_attributes.names:
+            psf_parameters[name] = self.psf_attributes.data.at[0, (name, 'value')]
+
+        # add parameters of coordinate transformation
+        for name in self.sources.transformation.names:
+            psf_parameters[name] = self.sources.transformation.data[(name, 'value')].iloc[0]
+
+        # create coordinate transformation for (valid pixels of) variance image
+        py, px = np.mgrid[:self.var_image.shape[0], :self.var_image.shape[1]]
+        transform = np.c_[py[np.isfinite(self.var_image)], px[np.isfinite(self.var_image)]]
 
         # Assign sources to CPUs
-        to_cpu = np.arange(self.sources.nsrc) % n_cpu
-        to_cpu[self.sources.ID < 0] = n_cpu + 1
+        if n_cpu is None or n_cpu == -1:
+            n_cpu = cpu_count()  # use all available CPUs
+        to_cpu = np.arange(self.sources.n_sources) % n_cpu
+        to_cpu[self.sources.ids < 0] = n_cpu + 1  # ignore background components
         args = []
+
         for n in range(n_cpu):
-            used = np.flatnonzero(to_cpu == n)
-            if isinstance(self.ifs_data, MusePixtable):
-                psf = self.psf_class.from_shape(shape=self.var_image.shape, uc=0., vc=0., mag=0., maxrad=10.,
-                                                **psf_parameters)
-            else:
-                psf = self.psf_class(transform=self.ifs_data.transform, uc=0., vc=0., mag=0., maxrad=10.,
-                                     **psf_parameters)
-            args.append({'psf': psf, 'uc': self.sources.x[used], 'vc': self.sources.y[used],
-                         'mag': self.sources.mag[used] - zeropoint})
+            psf = self.psf_class(transform=transform, uc=0., vc=0., mag=0., maxrad=10., **psf_parameters)
+            args.append({'psf': psf, 'data': self.sources.catalog.loc[to_cpu == n, ['x', 'y', 'mag']],
+                         'zeropoint': zeropoint})
 
         # estimate S/N and integrated flux from sources in image
         if n_cpu > 1:
-            pool = Pool(n_cpu, initializer=init_worker, initargs=(self.var_image,))
+            pool = Pool(n_cpu, initializer=init_worker, initargs=(self.var_image[np.isfinite(self.var_image)],))
 
             _results = pool.map_async(estimate_snr, args)
             pool.close()
             pool.join()
             results = _results.get()
 
-            self.signal_to_noise = np.zeros(to_cpu.size, dtype='<f4')
-            for n in range(n_cpu):
-                self.signal_to_noise[to_cpu == n] = results[n][0]
+            self.signal_to_noise = pd.concat([r[0] for r in results], verify_integrity=True)
             intflux = np.sum([r[1] for r in results])
         else:
             init_worker(*(self.var_image,))
@@ -769,25 +846,21 @@ class SourceSelector(object):
     def fwhm(self):
         if self.psf_class is None:
             return np.nan
-        elif isinstance(self.psf_class, DoubleGaussian):
-            i = self.psf_attributes.names.index('f12')
-            j = self.psf_attributes.names.index('fwhm1')
-            k = self.psf_attributes.names.index('fwhm2')
-            f12 = np.nanmean(self.psf_attributes.data[:, i, 0])
-            fwhm1 = np.nanmean(self.psf_attributes.data[:, j, 0])
-            fwhm2 = np.nanmean(self.psf_attributes.data[:, k, 0])
+        elif self.psf_class in [DoubleGaussian, MoffatGaussian]:
+            f12 = np.nanmean(self.psf_attributes.data[('f12', 'value')])
+            fwhm1 = np.nanmean(self.psf_attributes.data[('fwhm1', 'value')])
+            fwhm2 = np.nanmean(self.psf_attributes.data[('fwhm2', 'value')])
             return f12*fwhm1 + (1. - f12)*fwhm2
         else:
-            i = self.psf_attributes.names.index('fwhm')
-            return np.nanmean(self.psf_attributes.data[:, i, 0])
+            return np.nanmean(self.psf_attributes.data[('fwhm', 'value')])
 
     def select(self, reslim=None, sncut=3., confusion_density=0.4, binrad=0.2, use_unres=False, unres_range=2):
         """
         This method performs the source selection process for the PSF fitting,
 
         Each source is given a status based on criteria such as the estimated
-        S/N, the distance brighter sources or the edge of the field of view.
-        The status of a source can be one of the following:
+        S/N, the distance to brighter sources, and the edge of the field of
+        view. The status of a source can be one of the following:
             4 - a background/sky spectrum
             2 - a resolved source for which a spectrum will be extracted
             1 - a source that should be resolved according to its brightness,
@@ -802,13 +875,14 @@ class SourceSelector(object):
         reslim : float, optional
             If this parameter is set to a value different from None, the
             method will not try to determine the confusion limit itself but
-            will  only include sources brighter than the provided value.
+            will only include sources brighter than the provided value.
         confusion_density : float, optional
             The source density where the confusion limit is reached, provided
             as [no. of sources]/[resolution element]. A value of 0.4 gave good
             results for the simulations performed in Kamann et al. (2013).
         sncut : float, optional
-            The minimum S/N a source must have to be still included.
+            The minimum estimated S/N of a source that is still considered as
+            resolved.
         binrad : float, optional
             The minimum distance for which sources are considered resolved,
             provided relative to the FWHM of the PSF profile. Sources with
@@ -821,7 +895,7 @@ class SourceSelector(object):
             If an unresolved component should be included, this parameter
             gives the range in magnitudes of the sources that are included in
             the component. Note that the bright end of this range is set to
-             the magnitude of the faintest resolved source.
+            the magnitude of the faintest resolved source.
         """
         logger.info("Selecting sources to be used in PSF fitting...")
 
@@ -833,41 +907,35 @@ class SourceSelector(object):
             logger.error('Need to define PSF before source selection can be performed.')
             return
 
-        # load IFS coordinates for all stars, average over spectral axis (if any), and bring into correct order
-        # (including background components)
-        self.sources.load_ifs_coordinates()
-        ifs_coordinates = np.zeros((self.sources.nsrc, 2), dtype='<f4')
-        ifs_coordinates[self.sources.ifs_coordinates_loaded] = np.nanmean(self.sources.ifs_coordinates[..., 0], axis=0)
-
-        # arrays to keep track of the status of each source and the ID of the brightest source in its component
-        # (that is identical to the source ID unless a brighter source is so close that the two cannot be separated
-        # and are fitted as a single component)
-        status = -np.ones((self.sources.nsrc,), dtype=np.int16)
-        status[self.sources.ID < 0] = 4  # handle background components
-        primary = np.zeros((self.sources.nsrc,), dtype=np.int32)
-        primary[self.sources.ID < 0] = self.sources.ID[self.sources.ID < 0]  # handle background components
-
-        # for larger fields of view, such as the MUSE WFM, the stellar density can be very different across its extent.
+        # for larger fields of view, such as the MUSE WFM, the stellar density can vary significantly across its extent.
         # To deal with this, the confusion limit is estimated locally in an area of radius 10xFWHM around each star
         density = np.zeros(self.ifs_data.nspaxel, dtype=np.int16)
 
-        # loop over magnitude-sorted list of indices of the sources the instance of the Sources-class
-        # (brightest sources first)
-        indices_in_sources_class = np.argsort(self.sources.mag)
+        # load IFS coordinates for all stars (using first layer as reference)
+        self.sources.load_ifs_coordinates(layers=0)
+        #  get IFS coordinates as DataFrame with source IDs as indices and x & y as columns
+        _x = self.sources.ifs_coordinates.loc[:, (slice(None), 'x', 'value')]
+        _y = self.sources.ifs_coordinates.loc[:, (slice(None), 'y', 'value')]
+        xy = pd.DataFrame(np.stack((_x.values[0], _y.values[0]), axis=1), index=_x.columns.levels[0],
+                          columns=['x', 'y'])
 
         logger.info("       ID   mag    S/N  d_bright  d_edge  status")
         logger.info("                           [spx]   [spx]        ")
 
-        for i in indices_in_sources_class:
+        # loop over magnitude-sorted list of indices of the sources the instance of the Sources-class
+        # (brightest sources first)
+        for source_id, mag in self.sources.mag.sort_values().items():
 
-            if status[i] == 4:  # ignore background components
+            if source_id < 0:  # ignore background components
                 continue
 
             # stop loop if current source falls below (fixed) confusion limit
-            if reslim is not None and self.sources.mag[i] > reslim:
+            if reslim is not None and mag > reslim:
                 break
 
-            xi, yi = ifs_coordinates[i]
+            # get x- and y-coordinate
+            xi = xy.at[source_id, 'x']
+            yi = xy.at[source_id, 'y']
 
             # get position of source relative to field of view
             distance_to_pixels = self.ifs_data.distance_to_spaxels(xi, yi)[..., 0]
@@ -884,7 +952,7 @@ class SourceSelector(object):
                     continue
 
             # get S/N estimate for the source
-            snr = self.signal_to_noise[i]
+            snr = self.signal_to_noise[source_id]
             if snr < sncut:
                 continue
 
@@ -898,35 +966,35 @@ class SourceSelector(object):
                 density[distance_to_pixels.argmin()] += 1
 
             # calculate distance to next brighter source
-            brighter = np.flatnonzero(status == 2)
+            brighter = self.cfp_results.index[self.cfp_results['status'] == 2]
             if brighter.any():
-                dr = spatial.distance.cdist([[xi, yi]], ifs_coordinates[brighter])[0]
-                j_near = dr.argmin()
+                dr = np.sqrt((xi - xy.loc[brighter, 'x'])**2 + (yi - xy.loc[brighter, 'y'])**2)
+                id_near = dr.idxmin()
 
                 # issue warning if two sources have basically the same IFS coordinates
-                if dr[j_near] < 1e-5:
-                    logger.warning("Source #{0} might be double.".format(self.sources.ID[i]))
+                if dr[id_near] < 1e-5:
+                    logger.warning("Source #{0} might be double.".format(source_id))
 
                 # penalize S/N if a brighter source is located inside the FWHM of the PSF
-                if dr[j_near] < self.fwhm:
-                    snr *= (1.+0.9*np.log10(dr[j_near]/self.fwhm))
+                if dr[id_near] < self.fwhm:
+                    snr *= (1.+0.9*np.log10(dr[id_near]/self.fwhm))
 
-                    if dr[j_near] < (binrad*self.fwhm) or snr < sncut:
-                        status[i] = 1
-                        primary[i] = self.sources.ID[status == 2][j_near]
+                    if dr[id_near] < (binrad*self.fwhm) or snr < sncut:
+                        self.cfp_results.at[source_id, 'status'] = 1
+                        self.cfp_results.at[source_id, 'primary'] = id_near
                         logger.info("{0:9d}  {1:4.1f}  {2:6.1f}  {3:8.2f}  {4:6.2f}       1".format(
-                            self.sources.ID[i], self.sources.mag[i], snr, dr[j_near], distance_to_edge))
+                            source_id, mag, snr, dr[id_near], distance_to_edge))
                         continue
 
-            status[i] = 2
-            primary[i] = self.sources.ID[i]
+            self.cfp_results.at[source_id, 'status'] = 2
+            self.cfp_results.at[source_id, 'primary'] = source_id
             logger.info("{0:9d}  {1:4.1f}  {2:6.1f}            {3:6.2f}       2".format(
-                self.sources.ID[i], self.sources.mag[i], snr, distance_to_edge))
+                source_id, mag, snr, distance_to_edge))
 
         logger.info("Results of source selection: {0} resolved, {1} nearby sources.".format(
-            (status == 2).sum(), (status == 1).sum()))
+            np.sum(self.cfp_results['status'] == 2), np.sum(self.cfp_results['status'] == 1)))
 
-        if not (status == 2).any():
+        if not (self.cfp_results['status'] == 2).any():
             logger.error("Did not find any resolved sources. Aborting...")
             return
 
@@ -934,7 +1002,7 @@ class SourceSelector(object):
         # prm-file may contain two different values for "RESLIM": the initial one provided by the user and the one
         # just determined from the source list.
         if reslim is None:
-            reslim = self.sources.mag[status == 2].max()
+            reslim = self.sources.mag[self.cfp_results.index[self.cfp_results['status'] == 2]].max()
             logger.info("Estimated confusion limit is m_{0}={1:.1f}".format(self.passband, reslim))
 
         # if requested, add a component of unresolved stars
@@ -944,23 +1012,28 @@ class SourceSelector(object):
             logger.info("Including sources to magnitude m_{0}={1:.2f} to unresolved component...".format(
                 self.passband, unreslim))
 
-            for i in indices_in_sources_class:
+            for source_id, mag in self.sources.mag.sort_values().items():
 
-                if status[i] > 0:
+                if self.cfp_results.at[source_id, 'status'] > 0:
                     continue
 
-                if self.sources.mag[i] > unreslim:
+                if mag > unreslim:
                     break
 
-                distance_to_edge = self.ifs_data.distance_to_edge(ifs_coordinates[[i]])[0]
+                distance_to_edge = self.ifs_data.distance_to_edge(xy[source_id].values)[0]
                 if distance_to_edge > -1:
-                    status[i] = 0
-                    primary[i] = -2
+                    self.cfp_results.at[source_id, 'status'] = 0
 
-            logger.info("Unresolved component contains {0} sources.".format(int((status == 0).sum())))
+            # use brightest unresolved source as "primary"
+            idx = self.sources.mag[self.cfp_results.index[self.cfp_results['status'] == 1]].idxmin()
+            self.cfp_results.loc[self.cfp_results['status'] == 0, 'primary'] = idx
 
-        self.sources.primary = primary
-        self.sources.status = status
+            logger.info("Unresolved component contains {0} sources.".format((self.cfp_results['status'] == 0).sum()))
+
+        # set properties in sources class
+        self.sources.primary = self.cfp_results.loc[self.sources.ids, 'primary']
+        self.sources.status = self.cfp_results.loc[self.sources.ids, 'status']
+        self.sources.load_spectra(init_wave=isinstance(self.ifs_data, MusePixtable))
 
     def search_psf_stars(self, saturated=None, max_mag=None, psf_radius=10, aperture_noise=0.1):
         """
@@ -1018,43 +1091,43 @@ class SourceSelector(object):
         else:
             saturated = []
 
-        # load IFS coordinates for all stars, average over spectral axis (if any), and bring into correct order
-        # (including background components)
-        self.sources.load_ifs_coordinates()
-        ifs_coordinates = np.zeros((self.sources.nsrc, 2), dtype='<f4')
-        ifs_coordinates[self.sources.ifs_coordinates_loaded] = np.nanmean(self.sources.ifs_coordinates[..., 0], axis=0)
-
-        # loop over magnitude-sorted list of indices of the sources the instance of the Sources-class
-        # (brightest sources first)
-        indices_in_sources_class = np.argsort(self.sources.mag)
+        # load IFS coordinates for all stars (again using first layer as reference)
+        self.sources.load_ifs_coordinates(layers=0)
+        #  get IFS coordinates as DataFrame with source IDs as indices and x & y as columns
+        _x = self.sources.ifs_coordinates.loc[:, (slice(None), 'x', 'value')]
+        _y = self.sources.ifs_coordinates.loc[:, (slice(None), 'y', 'value')]
+        xy = pd.DataFrame(np.stack((_x.values[0], _y.values[0]), axis=1), index=_x.columns.levels[0],
+                          columns=['x', 'y'])
 
         logger.info('IDs of stars that fulfill criteria for PSF stars:')
         logger.info('      ID|   mag| d_edge [pixel]| shoulder_drop')
         logger.info('--------+------+---------------+--------------')
-        for i in indices_in_sources_class:
-            if max_mag is not None and self.sources.mag[i] > max_mag:
+
+        # loop over magnitude-sorted list of indices of the sources the instance of the Sources-class
+        # (brightest sources first)
+        for source_id, mag in self.sources.mag.sort_values().items():
+            if max_mag is not None and mag > max_mag:
                 break
-            if self.sources.status[i] != 2:
+            if self.sources.status[source_id] != 2:
                 continue
-            if self.sources.ID[i] in saturated:
+            if source_id in saturated:
                 continue
-            if (self.sources.primary == self.sources.ID[i]).sum() != 1:
+            if (self.sources.primary == source_id).sum() != 1:
                 continue
 
-            distance_to_edge = self.ifs_data.distance_to_edge(ifs_coordinates[[i]])[0]
+            distance_to_edge = self.ifs_data.distance_to_edge(np.atleast_2d(xy.loc[source_id].values))[0]
             if distance_to_edge < self.fwhm:
                 continue
             elif distance_to_edge < 2*self.fwhm and isinstance(self.ifs_data, (Muse, MusePixtable)):
                 continue
 
             # calculate shoulder drop
-            dr = spatial.distance.cdist(ifs_coordinates[[i]], ifs_coordinates)[0]
-            dr[i] = np.inf  # handle the source itself
-            dr[self.sources.status == 4] = np.inf  # handle background components
+            dr = np.sqrt((xy.at[source_id, 'x'] - xy['x'])**2 * (xy.at[source_id, 'y'] - xy['y'])**2)
+            dr[source_id] = np.inf  # handle the source itself
+            dr[self.sources.status >= 4] = np.inf  # handle background components
 
-            if (dr < psf_radius).any():
-                assert dr.size == self.sources.mag.size
-                dmag = (self.sources.mag[(dr < psf_radius)] - self.sources.mag[i]).min()
+            if dr.min() < psf_radius:
+                dmag = (self.sources.mag[dr[dr < psf_radius].index] - mag).min()
                 shoulder_drop = 10**(-0.4*dmag)
                 if shoulder_drop > aperture_noise:
                     continue
@@ -1062,15 +1135,14 @@ class SourceSelector(object):
                 shoulder_drop = 0
 
             # check if brighter star inside 1.5x PSFRAD:
-            if (dr < 1.5*psf_radius).any() and (self.sources.mag[dr < 1.5*psf_radius] < self.sources.mag[i]).any():
+            if dr.min() < 1.5*psf_radius and self.sources.mag[dr[dr < 1.5*psf_radius].index].min() < mag:
                 continue
 
-            self.sources.status[i] = 3
-            logger.info("{0:8d}|{1:6.2f}|{2:15.1f}|{3:14.2f}".format(self.sources.ID[i], self.sources.mag[i],
-                                                                     distance_to_edge, shoulder_drop))
+            self.sources.catalog.at[source_id, 'status'] = 3
+            logger.info("{0:8d}|{1:6.2f}|{2:15.1f}|{3:14.2f}".format(source_id, mag, distance_to_edge, shoulder_drop))
 
         if len(self.sources.psf_indices) == 0:
-            logger.critical("No possible PSF sources found!")
+            logger.error("No possible PSF sources found!")
             return
 
     def run_aperture_photometry(self, ids=None, start=0, stop=-1, radius=3, n_cpu=1, n_bin=1):
@@ -1112,124 +1184,143 @@ class SourceSelector(object):
         logger.info("Initializing aperture spectrophotometry for possible PSF stars...")
 
         if ids is None:
-            ids = self.sources.ID[self.sources.status == 3]
-        else:  # make sure IDs are provided in same order as in Sources instance
-            ids = self.sources.ID[np.in1d(self.sources.ID, ids, assume_unique=True)]
+            ids = self.sources.ids[self.sources.status == 3]
+        else:  # make sure IDs are available in Sources instance
+            ids = self.sources.ids[np.in1d(self.sources.ids, ids, assume_unique=True)]
         if len(ids) == 0:
-            logger.error('Did not find any suitable sources.')
+            logger.error('Did not find any suitable sources for aperture photometry.')
             return
 
         # make sure sources instance has correct dispersion information
-        if self.sources.ndisp != self.ifs_data.nlayer:
+        if self.sources.n_dispersion != self.ifs_data.nlayer:
             logger.warning('Need to update dispersion information in source catalog.')
-            self.sources.ndisp = self.ifs_data.nlayer
+            self.sources.n_dispersion = self.ifs_data.nlayer
 
             # create dummy spectrum data: every spectrum contains only NaNs
             # if a MUSE pixtable is being analysed, a dedicated wavelength array must be created as well.
-            if isinstance(self.ifs_data, MusePixtable):
-                self.sources.load_spectra(init_wave=True)
-                self.sources.data_wave[:] = np.nan
-            # otherwise try to add dispersion information to Sources instance
-            else:
-                self.sources.load_spectra(init_wave=False)
+            self.sources.load_spectra(init_wave=isinstance(self.ifs_data, MusePixtable))
             self.sources.data[:] = np.nan
 
-        if self.sources.transformation.valid and self.sources.transformation.ndisp != self.ifs_data.nlayer:
-            self.sources.transformation.resize(self.sources.ndisp)
-
         # Obtain centroid coordinates for the selected sources
-        self.sources.load_ifs_coordinates(ids=ids)
-        # Important: the input format of the aperture routine is (y, x) instead of (x, y)
-        centroids = np.nanmean(self.sources.ifs_coordinates[..., 0], axis=0)[:, ::-1]
+        self.sources.load_ifs_coordinates(ids=ids.values)
+
+        #  get IFS coordinates as DataFrame with source IDs as indices and x & y as columns
+        _x = self.sources.ifs_coordinates.loc[:, (slice(None), 'x', 'value')]
+        _y = self.sources.ifs_coordinates.loc[:, (slice(None), 'y', 'value')]
+        xy = pd.DataFrame(np.stack((_x.values[0], _y.values[0]), axis=1), index=_x.columns.levels[0],
+                          columns=['x', 'y'])
 
         logger.info('Using following stars in aperture spectrophotometry:')
         logger.info('       ID      x      y')
-        for i, (y, x) in enumerate(centroids):
-            logger.info('{0:9d}{1:7.1f}{2:7.1f}'.format(ids[i], x, y))
+        for source_id, row in xy.iterrows():
+            logger.info('{0:9d}{1:7.1f}{2:7.1f}'.format(source_id, row['x'], row['y']))
 
         # initialize aperture routine
-        make_aper = AperPhoto(cube=self.ifs_data, centroids=centroids)
+        aperture = AperPhoto(cube=self.ifs_data, centroids=xy)
 
         # run it - note that the array that is returned may contain NaN values (if the moment calculation failed or
-        # lead to unphysical values). To account for this, masked arrays are used in the following calculations
-        # TODO: find out why code crashes for n_cpu != 1
-        if n_cpu > 1:
-            logger.warning('Parallelization switched off for aperture photometry.')
-        results = make_aper(r_aper=radius, layer_range=(start, stop), background="local", n_cpu=1, n_bin=n_bin)
+        # lead to unphysical values).
+        results, background = aperture(r_aper=radius, layer_range=(start, stop), background="local", n_cpu=n_cpu,
+                                       n_bin=n_bin)
 
-        # for testing purposes:
-        # from astropy.io import fits
-        # tablehdu = fits.BinTableHDU(results)
-        # tablehdu.writeto("/users/skamann/aperture.fits", clobber=True)
+        # make sure no source returned only NaN
+        mean_results = results.mean(axis=0)
+        for source_id, values in mean_results.groupby(level=0):
+            if np.isnan(values).any():
+                logger.warning('Excluding source #{0} as calculation returned only NaNs.'.format(source_id))
+                results.drop(source_id, axis=1, inplace=True)
+                self.sources.status[source_id] = 2
 
-        for i, source_id in enumerate(ids):
+        # initialize containers for storing profile shape parameters
+        fwhm = []
+        e = []
+        theta = []
 
-            j = np.where(self.sources.ID == source_id)[0][0]
+        # loop over sources, insert their spectra, calculate FWHM, ellipticity, and pos. angle of profile
+        # note that removed source IDs are still in the columns property, see discussion here:
+        # https://github.com/pandas-dev/pandas/issues/2770
+        for source_id in np.unique(results.columns.get_level_values(0)):
+
+            # get spectrum
+            spectrum = results[(source_id, 'flux')]
 
             # add flux of source to Sources instance
-            self.sources.data[:, self.sources.specrow[j], 0] = results["flux"][i]
+            self.sources.data[(self.sources.specrow[source_id], 'flux')].iloc[results.index] = spectrum.values
 
-            # for pixtables, also need wavelength information for each spectrum
-            if isinstance(self.ifs_data, MusePixtable):
-                self.sources.data_wave[:, self.sources.specrow[j]] = self.ifs_data.wave
+            # add coordinates if they are fitted
+            if self.sources.ifs_coordinates_free.any():
+                self.sources.ifs_coordinates[source_id] = np.nan
+                self.sources.ifs_coordinates[
+                    (source_id, 'x', 'value')].iloc[results.index] = results[(source_id, 'x')].values
+                self.sources.ifs_coordinates[
+                    (source_id, 'y', 'value')].iloc[results.index] = results[(source_id, 'y')].values
 
             # NaN pixels are set to zero since DER_SNR skips such pixels
-            snr = der_snr(np.ma.array(results["flux"][i], mask=np.isnan(results["flux"][i]), fill_value=0.).filled())
+            snr = der_snr(np.ma.array(spectrum.values, mask=np.isnan(spectrum.values), fill_value=0.).filled())
             logger.info("S/N of source #{0} is {1:.1f}".format(source_id, snr))
 
-            # add IFS coordinates to Sources instance
-            self.sources.ifs_coordinates[:, i, 0, 0] = results["x"][i]
-            self.sources.ifs_coordinates[:, i, 1, 0] = results["y"][i]
+            # for PSF stars, determine profile shape, for the origin of the formulae, check the SExtractor manual
+            if self.sources.status[source_id] == 3:
+                x2 = results[(source_id, 'x2')]
+                y2 = results[(source_id, 'y2')]
+                xy = results[(source_id, 'xy')]
 
-        # determine wavelength-dependent coordinate transformation
-        if self.sources.transformation.valid:
-            logger.info("Determining wavelength-dependent coordinate transformation...")
-            self.sources.fit_coordinate_transformation()
-            if self.position_fit == 2:
-                self.sources.transformation.free[:] = True
-            elif self.position_fit == 1:
-                self.sources.transformation.free[-2:] = True
+                a = np.sqrt((x2 + y2) / 2. + np.sqrt(((x2 - y2) / 2.) ** 2 + xy ** 2))
+                b = np.sqrt((x2 + y2) / 2. - np.sqrt(((x2 - y2) / 2.) ** 2 + xy ** 2))
 
-        # determine FWHM, E and THETA
+                fwhm.append(np.sqrt(8. * np.log(2)) * a)
+                e.append(1. - (b / a))
+                # according to SExtractor manual, theta should have same size as covariance
+                _theta = 0.5 * np.arctan2(2 * xy, (x2 - y2))
+                _theta[(_theta < 0) & (xy > 0)] += np.pi/2.
+                _theta[(_theta > 0) & (xy < 0)] -= np.pi/2.
+
+                # IMPORTANT: SExtractor measures angle from x-axis in ccw while PampelMuse uses the y-axis as
+                # zeropoint. The following lines do the conversion.
+                _theta[_theta < 0] += np.pi/2.
+                _theta[_theta > 0] -= np.pi/2.
+
+                theta.append(-_theta)
+
+        # calculate (& update) PSF parameters
         logger.info("Estimating PSF properties using measured moments...")
-        x2 = np.ma.array(results['x2'], mask=np.isnan(results['x2']))
-        y2 = np.ma.array(results['y2'], mask=np.isnan(results['y2']))
-        xy = np.ma.array(results['xy'], mask=np.isnan(results['xy']))
-
-        # get A, B:
-        with np.errstate(invalid="ignore"):
-            a = np.sqrt((x2 + y2) / 2. + np.sqrt(((x2 - y2) / 2.) ** 2 + xy ** 2))
-            a.mask[a <= 0] = True
-            b = np.sqrt((x2 + y2) / 2. - np.sqrt(((x2 - y2) / 2.) ** 2 + xy ** 2))
-            b.mask[b <= 0] = True
+        # check if dispersion information of PSF is correct
+        if self.psf_attributes.contains_free_parameters:
+            self.psf_attributes.resize(self.sources.wave[results.index.values])
 
         # FWHM
-        fwhm = np.sqrt(8. * np.log(2)) * np.mean(a, axis=0)
         # TODO: should FWHM be updated as well?
-        logger.info("Mean FWHM: {0:.2f}pix.".format(float(fwhm.mean())))
+        mean_fwhm = np.nanmean(fwhm, axis=0)
+        logger.info("Mean FWHM: {0:.2f}pix.".format(np.nanmean(mean_fwhm)))
 
         # Ellipticity
-        e = 1. - np.mean(b / a, axis=0)
-        logger.info("Mean ellipticity: {0:.2f}".format(float(e.mean())))
-        ii = self.psf_attributes.names.index("e")
-        if self.psf_attributes.free[ii]:
-            # need to check if dispersion information already included in PSF variables, otherwise, use
-            # numpy.resize that fills enlarged array with repeated copies of available data
-            if self.psf_attributes.data.shape[0] == 1:
-                self.psf_attributes.data = np.resize(self.psf_attributes.data,
-                                                     e.shape + self.psf_attributes.data.shape[1:])
-            self.psf_attributes.data[:, ii, 0] = e.data
+        mean_e = np.nanmean(e, axis=0)
+        logger.info("Mean ellipticity: {0:.2f}".format(np.nanmean(mean_e)))
+        if self.psf_attributes.free['e']:
+            self.psf_attributes.data[('e', 'value')] = mean_e
 
         # Position angle
-        with np.errstate(invalid="ignore"):
-            _theta = 0.5 * np.arctan(2 * xy / (x2 - y2))
-            _theta -= (-1) ** (_theta < 0) * np.pi / 4.
-            _theta += (-1) ** (xy > 0) * np.pi / 4.
-            theta = _theta.mean(axis=0)
-        logger.info("Mean position angle: {0:.2f}rad.".format(float(theta.mean())))
-        ii = self.psf_attributes.names.index("theta")
-        if self.psf_attributes.free[ii]:
-            if self.psf_attributes.data.shape[0] == 1:
-                self.psf_attributes.data = np.resize(self.psf_attributes.data,
-                                                     theta.shape + self.psf_attributes.data.shape[1:])
-            self.psf_attributes.data[:, ii, 0] = theta.data
+        mean_theta = np.nanmean(theta, axis=0)
+        logger.info("Mean position angle: {0:.2f}rad.".format(np.nanmean(mean_theta)))
+        if self.psf_attributes.free['theta']:
+            self.psf_attributes.data[('theta', 'value')] = mean_theta
+
+        # finally bring to same indices as sources instance
+        self.psf_attributes.resize(self.sources.wave)
+
+        # determine wavelength-dependent coordinate transformation
+        if self.sources.transformation.valid and self.position_fit > 0:
+            logger.info("Determining wavelength-dependent coordinate transformation...")
+            if self.position_fit == 1:
+                fixed = {'A': pd.Series(1., index=self.sources.wave),
+                         'B': pd.Series(0., index=self.sources.wave),
+                         'C': pd.Series(0., index=self.sources.wave),
+                         'D': pd.Series(1., index=self.sources.wave), }
+            else:
+                fixed = None
+            t = Transformation.from_coordinates(self.sources.catalog, results, fixed=fixed)
+            # need to update index-information to match that of sources class
+            t.data.index = self.sources.wave[results.index.values]
+            t.resize(self.sources.wave)
+            #  add to sources instance
+            self.sources.transformation = t

@@ -12,15 +12,16 @@
 
 \bibpunct{(}{)}{;}{a}{,}{,}
 
-\title{PampelMuse, version 0.90}
-\author{Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)}
+\title{PampelMuse, version 0.100}
+\author{Sebastian Kamann (s.kamann@ljmu.ac.uk)}
 \date{\today}
 
 \definecolor{light-gray}{gray}{0.3}
 
 
 \newcommand{\shellcmd}[1]{\\\indent\indent\texttt{\footnotesize\# #1}}
-\newcommand{\pmparameter}[4]{\begin{center}\framebox{\begin{tabularx}{.95\linewidth}{c c c X} \textbf{#1} & type=\textit{#2} & default=#3 & \footnotesize{\textcolor{light-gray}{#4}} \end{tabularx}}\end{center}}
+% \newcommand{\pmparameter}[4]{\begin{center}\framebox{\begin{tabularx}{.95\linewidth}{c c c X} \textbf{#1} & type=\textit{#2} & default=#3 & \footnotesize{\textcolor{light-gray}{#4}}\end{tabularx}}\end{center}}
+\newcommand{\pmparameter}[5]{\begin{center}\framebox{\begin{tabularx}{.95\linewidth}{c c c X} \textbf{#1}|\textbf{#2} & type=\textit{#3} & default=#4 & \footnotesize{\textcolor{light-gray}{#5}}\end{tabularx}}\end{center}}
   
 
 %%%%%%%%%%%%%% Own definitions %%%%%%%%%%%%%%%%%%%%%
@@ -42,18 +43,19 @@
  
 \subsection{Requirements}
 
-\pampelmuse is written in \textit{python}. Currently version 2.7 of \textit{python} must be available on the system (because earlier versions lack the \texttt{argparse} module that is required). Support for \textit{python\,3} is planned for future revisions. In addition, several \textit{python} packages are required to run \pampelmuse:
+\pampelmuse is written in \textit{python3}. It has been tested for version 3.5.2 but may also run with earlier \textit{python} installations. In addition, several \textit{python} packages are required to run \pampelmuse:
 \begin{itemize}
- \item \textit{numpy}\footnote{\url{http://www.numpy.org/}}, tested for version 1.10.4
- \item \textit{scipy}\footnote{\url{http://scipy.org/}}, tested for version 0.16.1, $\geq$0.15 required.
- \item \textit{astropy}\footnote{\url{http://www.astropy.org/}}, tested for version 1.1.1, $\geq0.3$ required.
-  \item \textit{matplotlib}\footnote{\url{http://matplotlib.org/}}, tested for version 1.5.1.
+ \item \textit{numpy}\footnote{\url{http://www.numpy.org/}}, tested for version 1.12.1
+ \item \textit{scipy}\footnote{\url{http://scipy.org/}}, tested for version 0.19.0, $\geq$0.15 required.
+ \item \textit{astropy}\footnote{\url{http://www.astropy.org/}}, tested for version 1.3.2, $\geq0.3$ required.
+ \item \textit{matplotlib}\footnote{\url{http://matplotlib.org/}}, tested for version 2.0.2.
+ \item \textit{pandas}\footnote{\url{http://pandas.pydata.org/}}, tested for version 0.20.1.
 \end{itemize}
 Note that the versions of the packages listed above are just a recommendation. The code may also run with earlier versions. In addition to these packages, it is highly recommended that the following package is available on the system:
 \begin{itemize}
- \item \textit{PyQt4}\footnote{\url{http://www.riverbankcomputing.co.uk/software/pyqt/intro}}
+ \item \textit{PyQt5}\footnote{\url{http://www.riverbankcomputing.co.uk/software/pyqt/intro}}
 \end{itemize}
-\textit{PyQt4} is required in order to work with the graphical user interface (GUI) that is provided with \pampelmuse. When starting \pampelmuse the availability of \textit{PyQt4} is checked. If the package is not available, the interactive mode of will be disabled.
+\textit{PyQt5} is required in order to work with the graphical user interface (GUI) that is provided with \pampelmuse. When starting \pampelmuse the availability of \textit{PyQt5} is checked. If the package is not available, the interactive mode of will be disabled.
 
 \subsection{Download and Installation}
 
@@ -63,8 +65,8 @@ There are currently two possibilities to obtain \pampelmuse that will be describ
 \label{sec:install:tarball}
 
 A zipped version of the code is available at \url{http://path.to/pampelmuse.tar.gz}. After the download is completed, change to the folder containing the tarball and execute the following commands
-\shellcmd{tar -xvzf PampelMuse-0.90.0.tar.gz}
-\shellcmd{cd PampelMuse-0.17.1/}
+\shellcmd{tar -xvzf PampelMuse-X.Y.Z.tar.gz}
+\shellcmd{cd PampelMuse-X.Y.Z/}
 \shellcmd{python setup.py install} \\
 This will install \pampelmuse to your default \textit{python} path. Note that the last step usually requires root privileges. If you do not have them, you can define a custom path using the \texttt{-{}-prefix} or \texttt{-{}-home} arguments. For example, the following command will install \pampelmuse to folders \texttt{\$HOME/lib/python} and \texttt{\$HOME/bin}:
 \shellcmd{python setup.py install -{}-home=\~{}} \\
@@ -80,12 +82,12 @@ Afterwards, you should be able to execute
 \shellcmd{PampelMuse -{}-help} \\
 If no error message is returned, you have installed \pampelmuse successfully!
 
-\subsubsection{Using the SVN repository}
-The maintenance of \pampelmuse is handled via an SVN repository located at \url{http://svn.astro.physik.uni-goettingen.de/pampelmuse}. The advantage of using the repository is that it allows you to always use the most recent version of the code. However, the disadvantage is that when updating the code I sometimes commit revisions that are not fully operational or have freshly introduced bugs. So when updating to a new revision, be sure to check the most recent log entries.
+\subsubsection{Using the GIT repository}
+The maintenance of \pampelmuse is handled via an GIT repository hosted at \url{https://gitlab.gwdg.de}. The advantage of using the repository is that it allows you to always use the most recent version of the code. However, the disadvantage is that when updating the code I sometimes commit revisions that are not fully operational or have freshly introduced bugs. So when updating to a new revision, be sure to check the most recent log entries.
 
-To install from the SVN repository, first cd into the folder were you want to install the code (like \texttt{\~{}/tools/}) and check out the trunk of the repository:
+To install from the GIT repository, first cd into the folder were you want to install the code (like \texttt{\~{}/tools/}) and clone the repository:
 \shellcmd{cd \~{}/tools/}
-\shellcmd{svn co http://svn.astro.physik.uni-goettingen.de/pampelmuse/trunk pampelmuse} \\
+\shellcmd{git clone -b python3 https://gitlab.gwdg.de/skamann/pampelmuse.git} \\
 This should download the most recent version of \pampelmuse. In order to use the code afterwards, the following modifications should be added to your shell configuration. For a bash shell, use
 \shellcmd{export pampelmuse\_path=<path to PampelMuse>/ \#\# \~{}/tools/pampelmuse in the example above}
 \shellcmd{export PYTHONPATH=\$PYTHONPATH:\$pampelmuse\_path}
@@ -94,9 +96,9 @@ and for a c shell use
 \shellcmd{setenv pampelmuse\_path <path to PampelMuse>/ \#\# \~{}/tools/pampelmuse in the example above}
 \shellcmd{setenv PYTHONPATH \$PYTHONPATH:\$pampelmuse\_path}
 \shellcmd{setenv PATH \$PATH:\$pampelmuse\_path/bin}\\
-Note that the SVN repository also contains the setup script. So you can also execute
+Note that the GIT repository also contains the setup script. So you can also execute
 \shellcmd{python setup.py install} \\
-and proceed in analogy to Sect.~\ref{sec:install:tarball}. The downside of this approach is that you will have to reinstall \pampelmuse everytime you check out a new version from the repository.
+and proceed in analogy to Sect.~\ref{sec:install:tarball}. The downside of this approach is that you will have to reinstall \pampelmuse every time you pull a new version from the repository.
 
 In either case, calling
 \shellcmd{PampelMuse -{}-help} \\
@@ -108,34 +110,41 @@ should return no error message.
 
 \subsection{Default configuration}
 
-The behaviour of \pampelmuse can be modified using a number of configuration parameters. The default configuration that is shipped with the code is contained in an XML-file that is stored under \texttt{\$pampelmuse\_path/pampelmuse/config/data/PMparams.xml}. To view this file, open it with any web browser, e.g. via
-\shellcmd{firefox \$pampelmuse\_path/pampelmuse/config/data/PMparams.xml}\,
+The behaviour of \pampelmuse can be modified using a number of configuration parameters. The default configuration that is shipped with the code is contained in an JSON\footnote{see \url{https://en.wikipedia.org/wiki/JSON} for an introduction}-file that is stored under \texttt{\$pampelmuse\_path/pampelmuse/config/data/pampelmuse.json}. To view this file, open it with your favourite text editor, e.g. via
+\shellcmd{emacs \$pampelmuse\_path/pampelmuse/config/data/pampelmuse.json}\,
 
 In the following sections, the individual parameters of the configuration will be gradually introduced when discussing the part of \pampelmuse that they influence. Note that each parameter is introduced via the statement
 %
-\pmparameter{NAME}{type}{value}{comment}
+\pmparameter{section}{key}{type}{value}{comment}
 %
-that provide its name, type (e.g. string or float), default value, and a (hopefully) helpful comment about its usage. Some parameters that influence the overall behaviour of \pampelmuse are provided in the following.
-\pmparameter{VERBOSE}{integer}{2}{The chattiness of \pampelmuse, i.e. the amount of output produced on the console, increasing from $0$ to $4$. The code uses the logging module of python, the different numbers correspond to the following levels: $0$--CRITICAL, $1$-ERROR, $2$--WARNING, $3$--INFO, $4$-DEBUG}
-\pmparameter{CPUCOUNT}{integer}{$1$}{The number of CPUs used by the parallelized parts of \pampelmuse. If set to $-1$, the code uses all available CPUs on the system.}
+that provide its name, type (e.g. string or float), default value, and a (hopefully) helpful comment about its usage. Parameters that influence the overall behaviour of \pampelmuse are listed in the section \emph{global}, some of which are explained in the following.
+\pmparameter{global}{verbose}{integer}{3}{The chattiness of \pampelmuse, i.e. the amount of output produced on the console, increasing from $0$ to $4$. The code uses the logging module of python, the different numbers correspond to the following levels: $0$--CRITICAL, $1$-ERROR, $2$--WARNING, $3$--INFO, $4$-DEBUG}
+\pmparameter{global}{cpucount}{integer}{$1$}{The number of CPUs used by the parallelized parts of \pampelmuse. If set to $-1$, the code uses all available CPUs on the system.}
 
 \subsection{Modifying the configuration}
 
-I strongly recommend leaving the XML file untouched even if you want to change the configuration. Instead, make use of one of the possibilities introduced in the following to supply your own set of configuration parameters to an analysis.
+I strongly recommend leaving the JSON-file untouched even if you want to change the configuration. Instead, make use of the following to supply your own set of configuration parameters to an analysis.
 
-\subsubsection{Using the command line}
-
-\pampelmuse can be started with the option \texttt{-{}-fromline} which accepts a comma-separated list of \textbf{name}=\textit{value} pairs, where \texttt{value} is the new value of the parameter \textbf{name}. As an example, \texttt{-{}-fromline verbose=3,ifu=muse,interact=True} would be a valid expression for the \texttt{-{}-fromline} argument.
-
-\subsubsection{Using a plain text file}
-
-Alternatively, \pampelmuse may be called with the \texttt{-{}-fromfile} option in which case the configuration is updated using a plain text file which contains the \textbf{name}=\textit{value} pairs, one per line. As an example, a valid argument would be \texttt{-{}-fromfile pampelmuse.user}\, where the file \texttt{pampelmuse.user} may look like this:
+When starting any subroutine of \pampelmuse, you will always have to provide a user-configuration file which should also be in plain JSON format. The user-configuration file may only contain sections and keywords available in the default configuration. Note that some parameters are left blank in the default configuration (like the prefix of the IFS data file to be analysed) and hence must be provided in the user-configuration file. Below is an example of a valid file provided by a user aiming to extract stellar spectra from MUSE data of 47Tuc.
 \begin{lstlisting}[frame=single]
- ## Example configuration file
- ifu=muse
- verbose=3
- interact=True
-  ...
+ # Example configuration file
+  {
+    "global": {
+	"prefix": "DATACUBE_FINAL",
+	"cpucount": 1
+    },
+    "catalog": {
+	"name": "ngc104_starlist.csv"
+    },
+    "psf": {
+	"fit": 30,
+	"fwhm": 4.0
+    },
+    "sky": {
+	"binsize": 50
+    }
+    
+}
 \end{lstlisting}
 
 
@@ -144,7 +153,7 @@ Alternatively, \pampelmuse may be called with the \texttt{-{}-fromfile} option i
 
 \subsection{Supported instruments}
 
-In general, \pampelmuse is designed to correctly handle IFS data regardless of which instrument was used to observe the data. However, because of the huge diversity of data formats that are produced by the indivdual IF spectrographs, I cannot guarantee that it will work out of the box for each instrument. So far, I successfully tested it using data from
+In general, \pampelmuse is designed to correctly handle IFS data regardless of which instrument was used to observe the data. However, because of the huge diversity of data formats that are produced by the individual IF spectrographs, I cannot guarantee that it will work out of the box for each instrument. So far, I successfully tested it using data from
 \begin{itemize}
  \item PMAS \citep{2005PASP..117..620R}
  \item ARGUS \citep{2002Msngr.110....1P}
@@ -185,32 +194,38 @@ If provided, the bad pixel mask should be zero for valid pixels and one for pixe
 
 Although not required, it is highly advantageous if the header of the FITS file containing the IFS data contains some basic WCS information, i.e. at least the keywords \texttt{RA}, \texttt{DEC}, and the matrix \texttt{CDi\_j}. \pampelmuse will use this information to determine the spaxel scale and the approximate location of the field of view on the sky.
 
-\pampelmuse also offers the possibility to analyse only a part of the datacube or to bin the data in spectral direction to speed up the analysis. Two parameters, \texttt{LAYERRNG} and \texttt{LAYERBIN} can be used to achieve this.
-\pmparameter{LAYERRNG}{tuple}{($0$, $-1$)}{The range of layers of the IFS data that should be analysed. The default corresponds to the full cube.}
-\pmparameter{LAYERBIN}{integer}{1}{The spectral binning factor of the IFS data during the analysis.}
+\pampelmuse also offers the possibility to analyse only a part of the data cube or to bin the data in spectral direction to speed up the analysis. To this aim, the section \emph{layers} has been introduced in the configuration. It contains the following keys.
+\pmparameter{layers}{first}{integer}{$0$}{The first layer of the IFS data that should be analysed. Negative numbers are counted backwards from the last layer.}
+\pmparameter{layers}{last}{integer}{$-1$}{The last layer of the IFS data that should be analysed. Again, negative numbers are counted backwards from the last layer.}
+\pmparameter{layers}{binning}{integer}{1}{The spectral binning factor applied to the IFS data during the analysis.}
 
 \subsection{The reference catalogue}
 As \pampelmuse does not currently include a dedicated source detection algorithm, the analysis relies on the presence of a reference catalogue, containing coordinates and magnitudes of the stars in and around the observed field. The best sources for such a catalogue are imaging data obtained with the \textit{Hubble} space telescope (HST) or ground based adaptive optics images. Note that the quality of the reference catalogue (especially its completeness and astrometric accuracy) will strongly influence the results of the analysis. For example, a common shortcoming of catalogues generated from HST data is that the brightest stars are often missing because they were saturated in the exposures. If this is the case, try to add them manually.
 
-The reference catalogue should be present as a plain ascii-file with the first (non-commented) line containing the column names. \pampelmuse will recognize column names such as \texttt{ra}, \texttt{dec}, or \texttt{id} and process the column content accordingly. The reference catalogue must contain the following columns:
+For \pampelmuse to recognize the reference catalogue, its file name should be provided in the \emph{catalog} section of the configuration.
+\pmparameter{catalog}{name}{string}{}{The name of the astrometric reference catalogue used for the analysis. \textbf{IMPORTANT:} This parameter must be set in any user-configuration file.}
+
+The reference catalogue should be present as a plain csv-file with the first (non-commented) line containing the column names. \pampelmuse will recognize column names such as \texttt{ra}, \texttt{dec}, or \texttt{id} and process the column content accordingly. The reference catalogue must contain the following columns:
 \begin{enumerate}
- \item A unique identifer for every source; must be a non-negative integer
+ \item A unique identifier for every source; must be a non-negative integer
  \item Two columns containing the source coordinates in a reference system. Both pixel and world coordinates are accepted, and priority is given to the latter if both are present. If provided, the world coordinates should be in units of decimal degrees.
- \item A magnitude for every source in a passband that covers at least some part of the spectral range of the IFS data. Currently the filter name also needs to be specfied in the configuration, using the parameter
- \pmparameter{PASSBAND}{string}{f814w}{The name of the filter in which the magnitudes provided in the reference catalogue were observed.}
+ \item A magnitude for every source in a passband that covers at least some part of the spectral range of the IFS data. Currently the filter name also needs to be specified in the configuration, using the parameter
+ \pmparameter{catalog}{passband}{string}{f814w}{The name of the filter in which the magnitudes provided in the reference catalogue are given.}
 \end{enumerate}
 
-Here is an example of how a valid reference catalogue file may look like:
-
+Here is an example of how a valid reference catalogue file may look like (but note that a fifth column labelled ``status'' is required when using the SINGLESRC routine instead of INITFIT):
 \begin{center} \begin{lstlisting}[frame=single]
- ## Example reference catalogue
- ## Random Cluster NGC9999, generated from HST/WFPC2 data
- id   ra   dec  f606w
-  1  12.764311  -26.986152  13.29
-  2  12.751325  -26.986431  14.87
-  4  12.760123  -26.976514  12.25
+ # Example reference catalogue
+ # Random Cluster NGC9999, generated from HST/WFPC2 data
+ id,ra,dec,f606w
+ 1,12.764311,-26.986152,13.29
+ 2,12.751325,-26.986431,14.87
+ 4,12.760123,-26.976514,12.25
   ...
 \end{lstlisting} \end{center}
+
+In some occasions, it may happen that the brightest stars from the reference catalogue appear saturated in the IFS data. In such cases, it is advised to flag these stars using the \emph{saturated} key of the \emph{catalog} section. As input, it takes a tuple containing the ID(s) of the saturated star(s). \pampelmuse will then ignore these stars when determining the PSF of the observation.
+\pmparameter{catalog}{saturated}{tuple}{}{The list of stars from the reference catalogue that appear saturated in the IFS data.}
 
 \subsubsection{A note about filters}
 \pampelmuse comes with a limited number of filters. Currently, the transmission curves for \textit{F555W}, \textit{F606W}, \textit{F775W}, \textit{F814W}, and \textit{K} are provided. If the input photometry uses another filter, it is possible to provide \pampelmuse with the required information. To this aim, set the environment variable \texttt{PMFILTERPATH}. It must point to the folder in which the transmission curve of the filter is stored, e.g.
@@ -233,18 +248,30 @@ whereas the Moffat profile is described via
  M(r) = \Sigma_\text{0}\left[1+\left(\frac{r}{\rd}\right)^2\right]^{-\beta}\,.
 \end{equation}
 %
-The PSF profile that is used in the analysis can be changed using the parameter
-\pmparameter{PSFTYPE}{string}{moffat}{The name of analytical PSF profile to be used. Currently supported are 'moffat' and 'gaussian'.}
-
 For either profile, $\Sigma_\mathrm{0}$ is the central intensity. The width of the Gaussian is controlled by the standard deviation $\sigma$, while the effective radius $\rd$ defines the width of the Moffat. However, instead of $\sigma$ and $\beta$, \pampelmuse uses the FWHM as a measure for the profile width (see Appendix~\ref{app:profiles}). Note that the FWHM is always measured in units of spaxels.
 
-The Moffat profile has a second shape parameter, $\beta$. It measures the kurtosis of the profile, i.e. the strength of the wings of the PSF. Note that higher values of $\beta$ correspond to less pronounced wings. From my experience, $\beta\sim2.5$ is a typical value for a seeing-limited PSF. For this value, a Moffat profile has much more pronounced wings than a Gaussian profile. Therefore I strongly recommend using the Moffat profile because the Gaussian profile will almost certainly underestimate the wings of the PSF.
+The Moffat profile has a second shape parameter, $\beta$. It measures the kurtosis of the profile, i.e. the strength of the wings of the PSF. Note that higher values of $\beta$ correspond to less pronounced wings. From my experience, $\beta\sim2.5$ is a typical value for a seeing-limited PSF. For this value, a Moffat profile has much more pronounced wings than a Gaussian profile. Therefore I strongly recommend using the Moffat profile because the Gaussian profile will almost certainly underestimate the wings of the PSF. Since version 0.100, \pampelmuse also supports combinations of the two profiles, namely a double Gaussian and a Moffat-Gaussian profile.
 
-The radius $r$ incorporates the ellipticity $e$ and the position angle $\theta$ of each profile. Thus, besides the actual centroid coordinates, the Moffat profile has $4$ free parameters, the Gaussian profile has $3$. The initial PSF parameters and their behaviour during the analysis are specified using three configuration parameters, \texttt{PSFPARS}, \texttt{PSFFIT}, and \texttt{PSFRAD}.
-\pmparameter{PSFPARS}{tuple}{($2.5$,~$3.0$,~$0.0$,~$0.0$)}{The initial guesses for the PSF parameters. For a Moffat profile, the order is ($\beta$, $\text{FWHM}$, $e$, $\theta$). For a Gaussian profile, the order is ($\text{FWHM}$, $e$, $\theta$). In either case, the FWHM is measured in units of spaxels.}
-\pmparameter{PSFFIT}{integer}{$6$}{The PSF behaviour in the fit. $\text{PSFFIT}=\sum_n 2^n$, where $n\geq1$ runs over the indices of the free parameters; e.g. $\text{PSFFIT}=6$ for a Moffat means to fit $\beta$ and $\text{FWHM}$ at constant $e$ and $\theta$.}
-\pmparameter{PSFRAD}{float}{10}{The centroid distance out to which the profile will be calculated, given in spaxels. Must of course be $>0$.}
+The radius $r$ incorporates the ellipticity $e$ and the position angle $\theta$ of each profile. Thus, besides the actual centroid coordinates, the Moffat profile has $4$ free parameters, the Gaussian profile has $3$.
 
+The properties of the the PSF during the analysis are controlled via the \emph{psf} section of the configuration. The profile in use can be set using the \emph{type} keyword.
+\pmparameter{psf}{type}{string}{moffat}{The name of analytical PSF profile to be used. Currently supported are 'moffat', 'gauss', 'double\_gauss', and 'moffat\_gauss'.}
+
+The initial values of the PSF parameters can be specified directly in the \emph{psf}-section of the configuration.
+\pmparameter{psf}{e}{float}{0.0}{The initial value of the ellipticity of the PSF.}
+\pmparameter{psf}{theta}{float}{0.0}{The initial value of the position angle of the PSF.}
+\pmparameter{psf}{fwhm}{float}{3.0}{The initial value of the FWHM of the PSF.}
+\pmparameter{psf}{beta}{float}{2.0}{The initial value of the beta-parameter of the PSF (only used with a Moffat profile).}
+\pmparameter{psf}{f12}{float}{0.5}{The initial value of the fractional flux in the first component in case a PSF profile with two components is used.}
+\pmparameter{psf}{fwhm1}{float}{3.0}{The initial value of the FWHM of the first component in case a PSF profile with two components is used.}
+\pmparameter{psf}{fwhm2}{float}{6.0}{The initial value of the FWHM of the second component in case a PSF profile with two components is used.}
+
+Furthermore, it can be controlled which of the PSF parameters should be optimized during the fit and which ones should be held constant at their initial values. This is controlled via the \emph{fit} keyword of the \emph{psf} section of the configuration.
+\pmparameter{psf}{fit}{integer}{$6$}{The PSF behaviour in the fit. $\text{PSFFIT}=\sum_n 2^n$, where $n\geq1$ runs over the indices of the free parameters; e.g. $\text{PSFFIT}=6$ for a Moffat means to fit $\beta$ and $\text{FWHM}$ at constant $e$ and $\theta$.}
+
+Finally, the radial extent of the PSF profiles can be controlled with the following key.
+\pmparameter{psf}{radius}{float}{10}{The centroid distance out to which the profile will be calculated, given in spaxels. Must of course be $>0$.}
+The PSF radius should be chosen large enough so that no rings of positive residual flux appear around the brightest stars in the residuals.
 
 \section{The handling of the source coordinates}
 
@@ -269,8 +296,8 @@ Substituting $A=\xi\,\cos\theta$, $B=-\nu\,\cos\theta$, $C=-\nu\,\sin\theta$, an
  y^n = D\,v^n - B\,u^n + y_\mathrm{0} \,. 
 \end{align}
 
-The parameters $A$ to $y_\mathrm{0}$ of the coordinate transformation can be optimized in the analysis. Their behavior during the extraction is controlled via the parameter \texttt{POSFIT}.
-\pmparameter{POSFIT}{integer}{2}{Defines how the coordinate transformation is handled during the analysis:\newline $0$ -- no optimization;\newline $1$ -- only optimize the shifts, i.e. parameters $x_\mathrm{0}$ and $y_\mathrm{0}$;\newline $2$ -- optimize all $6$ parameters of the transformation.}
+The parameters $A$ to $y_\mathrm{0}$ of the coordinate transformation can be optimized in the analysis. Their behaviour during the extraction is controlled via the parameter \emph{posfit} in the \emph{initfit} section of the configuration.
+\pmparameter{initfit}{posfit}{integer}{2}{Defines how the coordinate transformation is handled during the analysis:\newline $0$ -- no optimization;\newline $1$ -- only optimize the shifts, i.e. parameters $x_\mathrm{0}$ and $y_\mathrm{0}$;\newline $2$ -- optimize all $6$ parameters of the transformation.}
 
 \textbf{Note that older versions of \pampelmuse only used $4$ parameters to determine the coordinate transformation, which is the special case of an affine transformation where $\xi=\nu$.}
 
@@ -284,8 +311,8 @@ Before describing the individual routines of \pampelmuse, the graphical user int
 
 The GUI shows three separate panels. The upper half is reserved for the spectrum viewer while the lower half contains the reference viewer on the left and the IFS viewer on the right side. The buttons to the top right of each panel allow to zoom in to and out of the data that is displayed, pan over it, and recover previous views of it. The cuts used to display the reference and the IFS data can be changed using the buttons at the bottom of either panel. Finally, the slider to the right of the IFS viewer can be used to scroll through the different layers of the IFS data.
 
-Note that the GUI will only appear if \pampelmuse is executed in interactive mode. This is controlled by the parameter \texttt{INTERACT}
-\pmparameter{INTERACT}{boolean}{True}{If True, the code will open a GUI that allows the user to control several steps of the data analysis. Otherwise, these steps are performed without any user interaction. Note that the automated mode requires that the basic WCS information mentioned in Sect.~\ref{sec:data} is available in the header of the IFS data.}
+Note that the GUI will only appear if \pampelmuse is executed in interactive mode. This is controlled by the parameter \emph{interact} in the \emph{global} section of the configuration.
+\pmparameter{global}{interact}{boolean}{True}{If True, the code will open a GUI that allows the user to control several steps of the data analysis. Otherwise, these steps are performed without any user interaction. Note that the automated mode requires that the basic WCS information mentioned in Sect.~\ref{sec:data} is available in the header of the IFS data.}
 
 \begin{figure}[!t]
  \centering\includegraphics[width=10cm]{gui_overview.png}
@@ -297,9 +324,9 @@ Note that the GUI will only appear if \pampelmuse is executed in interactive mod
 \label{sec:initfit}
 
 The first step of the analysis is to identify those sources from the reference catalogue for which it is feasible to extract spectra from the IFS data. As the reference catalogue ideally was obtained from higher resolution data and typically covers a larger area on the sky, it would not make much sense to try and extract a spectrum for each star in the catalogue. Instead, we use INITFIT to make a selection. The syntax for calling this routine is
-\shellcmd{PampelMuse <config> <IFS data prefix> INITFIT <reference catalogue>}\ .
+\shellcmd{PampelMuse <user configuration file> INITFIT}\ .
 
-Note that the IFS data should be provided without the \texttt{.fits} or \texttt{.dat.fits} suffix. The parameter \texttt{config} refers to the user setup as explained in detail in Sect.~\ref{sec:configuration}.
+The parameter \texttt{user configuration file} refers to the user-specific setup as explained in detail in Sect.~\ref{sec:configuration}. Note that the IFS data to be analysed must be provided in the \emph{global} section of the user-configuration file, as key \emph{prefix}. \pampelmuse expects it without the \texttt{.fits} or \texttt{.dat.fits} suffix.
 
 \vspace*{5mm}
 INITFIT performs the following steps in order to select a useful subset of the available sources.
@@ -307,17 +334,17 @@ INITFIT performs the following steps in order to select a useful subset of the a
  \item Opening the IFS data, checking their validity.
  \item Opening the reference catalogue file, checking its validity.
  \item Creating an image from the IFS data in the passband in which the magnitudes in the reference catalogue were provided.
- \item Creating a mock image from the sources in the reference catalogue, again in the passband in which the magnitudes were provided. The mock image is prepared using the same pixelsize as the IFS data and the initial guess of the PSF for the IFS data (see parameters \texttt{PSFTYPE} and \texttt{PSFPARS}, Sect.~\ref{sec:psf}). \newline
- \textbf{Note:} Depending on the coverage of the reference catalogue and on the number of sources in it, this step can take a lot of time and/or consume a lot of memory. If you encounter one of these problems, you can either manually reduce the footprint of the catalogue or set the \texttt{RESLIM} parameter (see below) to a smaller magnitude. The latter works because only sources brighter than the assumed confusion limit are used to create the mock image. If at the same time the parameter \texttt{UPDATERL} is true (recommended), then this will have no effect on the final source selection.
+ \item Creating a mock image from the sources in the reference catalogue, again in the passband in which the magnitudes were provided. The mock image is prepared using the same pixel size as the IFS data and the initial guess of the PSF for the IFS data (see the keys in the \emph{psf} section of the configuration, Sect.~\ref{sec:psf}). \newline
+ \textbf{Note:} Depending on the coverage of the reference catalogue and on the number of sources in it, this step could take a lot of time and/or consume a lot of memory. To limit both memory usage and computing time, the code will omit fainter sources and those that are too far away from the predicted footprint of the IFS data. If you still encounter that too much memory is being used, try reducing the \emph{ccmaxoff} key in the \emph{initfit} section of the configuration (see below).
  \item Cross-correlating the two images just created to find the most likely location of the IFS field of view with respect to the reference catalogue. Note that this step requires that both images indeed have the same pixel scale and orientation. To ensure this, RA and Dec coordinates of the sources must be provided with the reference catalogue and the header of the IFS data must include the WCS information mentioned in Sect.~\ref{sec:data}. Otherwise this step is skipped. \newline
- One issue I encountered when doing the cross-correlation was that a wrong pointing solution was selected because the signal was dominated by the brightest stars in the reference catalogues. To suppress this behaviour, the parameter \texttt{CCMAXOFF} can be used.
- \pmparameter{CCMAXOFF}{float}{-1.0}{The maximum allowed offset with respect to the header WCS position when locating the IFS pointing via cross correlation with the photometric catalog, given in spaxels. The default, $-1.0$, sets the allowed offset to half the size of the field of view. If set to $0$, the pointing suggested by the header WCS will be left unchanged.}
+ One issue that can be encountered when doing the cross-correlation is that a wrong pointing solution is selected because the cross-correlation signal is dominated by the brightest stars in the reference catalogues. To suppress this behaviour, the parameter \emph{ccmaxoff} in the \emph{initfit} section can be used.
+ \pmparameter{initfit}{ccmaxoff}{float}{-1.0}{The maximum allowed offset with respect to the header WCS position when locating the IFS pointing via cross correlation with the photometric catalogue, given in spaxels. The default, $-1.0$, sets the allowed offset to half the size of the field of view. If set to $0$, the pointing suggested by the header WCS will be left unchanged.}
  Note that \pampelmuse stores the offsets determined via cross-correlation in two \texttt{HIERARCH} keywords, \texttt{PAMPELMUSE INITFIT CCXOFF} and \texttt{PAMPELMUSE INITFIT CCYOFF}. The values provided there give the shifts along the $x$- and $y$-axis of the IFS data in units of spaxels. In order to correct the WCS information of the cube for the offsets with respect to the reference catalogue, subtract the shifts from the values of \texttt{CRPIX1} and \texttt{CRPIX2}.
  
  \item Loading the \pampelmuse GUI with the content following content (also in Fig.~\ref{fig:gui_overview}):
   \begin{itemize}
    \item The \textit{Reference view} shows the mock image created from the photometric input catalogue. The sources are marked with red circles and are pickable. When selecting a source via the left mouse button, the GUI displays some information about it in the status bar at the bottom of the GUI. If the cross correlation in the previous step was successful, then the reference view also shows the suggested position and orientation of the IFS field of view.
-   \item The \textit{IFS view} shows a layer from datacube (initially the first one). If the cross-correlation in the previous step  was successful, then the GUI will show the suggested positions of the brighter sources as green circles. It is possible to grab individual spaxels from the cube using the left mouse button.
+   \item The \textit{IFS view} shows a layer from datacube (initially the central one). If the cross-correlation in the previous step  was successful, then the GUI will show the suggested positions of the brighter sources as green circles. It is possible to grab individual spaxels from the cube using the left mouse button.
    \item The \textit{Spectrum viewer} is initially empty. If a spaxel is grabbed in the IFS view, then the spectrum of that spaxel is displayed.
   \end{itemize}
   Note that  this step is skipped if \pampelmuse is run in non-interactive mode.
@@ -327,35 +354,32 @@ INITFIT performs the following steps in order to select a useful subset of the a
    \item If the cross correlation failed or you are not happy with its result, then you will have to define the approximate location of the IFS field of view with respect to the reference catalogue manually. To do so, proceed as follows. Pick a source in the reference catalogue, then select its approximate position in the datacube. Once a source is successfully identified, it will be displayed by a filled red circle in the Reference view. To undo the identification for a source, pick it with the \textit{right} mouse button in the Reference view. At least three sources should be identified before closing the GUI. INITFIT will then use this information to re-determine the location of the IFS field of view.
   \end{enumerate}
   In non-interactive mode, the code assumes that the location of the IFS field of view determined via cross-correlation is correct.
- \item Knowing the positions of the sources in the IFS field of view, INITFIT will then estimate the signal-to-noise ratio (S/N) for all sources from the reference catalogue. To this aim, it assumes a photometric zeropoint in the provided filter, calculates the summed flux of all sources inside the field of view and compares it to the actual flux in the image created from the IFS data (cf. step~3). The photometric zeropoint is then adapted to bring the two fluxes in agreement. If instead a fixed photometric zeropoint should be used (not recommended), the parameter \texttt{ZEROMAG} may be used.
- \pmparameter{ZEROMAG}{float}{$99.9$}{Sets the photometric zeropoint of the IFS data in the provided passband, i.e. the magnitude of a source creating 1~count/layer. If set to $99.9$ (recommended),  the zeropoint is estimated from the data.}
+ \item Knowing the positions of the sources in the IFS field of view, INITFIT will then estimate the signal-to-noise ratio (S/N) for all sources from the reference catalogue. To this aim, it assumes a photometric zeropoint in the provided filter, calculates the summed flux of all sources inside the field of view and compares it to the actual flux in the image created from the IFS data (cf. step~3). The photometric zeropoint is then adapted to bring the two fluxes in agreement. If instead a fixed photometric zeropoint should be used (not recommended!), the key \emph{zeromag} of the \emph{initfit} section may be used.
+ \pmparameter{initfit}{zeromag}{float}{}{Sets the photometric zeropoint of the IFS data in the provided passband, i.e. the magnitude of a source creating 1~count/layer. If set to null (recommended), the zeropoint is estimated from the data.}
  Depending on the size of the reference catalogue, this step may take some time, even though it is parallelized.
  \item The next step is the actual source selection. INITFIT will loop over the sources in the reference catalogue -- sorted by magnitude, i.e. brightest first -- and do a number of checks to determine the status of every source in the fitting process:
   \begin{itemize}
-   \item Check if source is brighter than the fixed confusion limit \texttt{RESLIM}. This is only done if \texttt{UPDATERL} is False (not recommended).
-   \pmparameter{RESLIM}{float}{$16.0$}{The resolution limit, i.e. the magnitude below which sources cannot be resolved anymore. Note that this limit is automatically determined if UPDATERL is set to True.}
-   \pmparameter{UPDATERL}{boolean}{True}{If True, the resolution limit is automatically determined based on the local source density (see parameter CONFLIM). Otherwise,  the fixed value provided by RESLIM is used.}
-   \item Check if the local source density is below the provided threshold, \texttt{CONFDENS}. As for a larger field of view, such as the MUSE WFM, the stellar density can be very different across its extent, the confusion limit is estimated locally in an area of radius $10\times\mathrm{FWHM}$ around each star.
-   \pmparameter{CONFDENS}{float}{$0.4$}{The confusion density, i.e. the maximum density of resolvable sources per resolution element. IF UPDATERL is True, the local resolution limit will be the magnitude at which the density of brighter sources reaches this density.  The default value of $0.4$ was determined using simulations \citep[see][]{2013A&A...549A..71K}.}
-   \item Check if S/N is above the threshold value, \texttt{SNRCUT}. 
-   \pmparameter{SNRCUT}{float}{$3.0$}{The minimum signal to noise of sources that are included in the extraction.}
+   \item Check if the local source density of brighter sources is below the provided threshold, defined by the key \emph{confdens} in the \emph{initfit} section of the configuration. As for a larger field of view, such as the MUSE WFM, the stellar density can be very different across its extent, the confusion limit is estimated locally in an area of radius $10\times\mathrm{FWHM}$ around each star.
+   \pmparameter{initfit}{confdens}{float}{$0.4$}{The confusion density, i.e. the maximum density of resolvable sources per resolution element. The local resolution limit will be the magnitude at which the density of brighter sources reaches this density. The default value of $0.4$ was determined using simulations \citep[see][]{2013A&A...549A..71K}.}
+   \item Check if S/N is above the threshold value, defined by the key \emph{snrcut}.
+   \pmparameter{initfit}{snrcut}{float}{$3.0$}{The minimum signal to noise of sources that are included in the extraction.}
    Note that the S/N estimated in the previous step is modified in two cases.
    \begin{enumerate}
     \item If a source is outside the IFS field of view, the S/N is penalized by $\exp(-(d/\mathrm{FWHM})^2)$, where $d$ is the distance to the nearest spaxel.
     \item If a source is nearby a brighter source (with a distance $r<\mathrm{FWHM}$), the S/N is modified with the factor $1.+0.9\log(r/\mathrm{FWHM})$. This factor approximates the decrease in S/N found for nearby sources in \citet{2013A&A...549A..71K}.
    \end{enumerate}
-   \item Check that there is no brighter source in the direct vicinity, defined by the parameter \texttt{BINRAD}, of the source.
-   \pmparameter{BINRAD}{float}{$0.3$}{The minimum spatial separation (in units of the PSF FWHM) of a source that is considered resolvable to a brighter source.}
+   \item Check that there is no brighter source in the direct vicinity, defined by the configuration key \emph{binrad}, of the source.
+   \pmparameter{initfit}{binrad}{float}{$0.3$}{The minimum spatial separation (in units of the PSF FWHM) of a source that is considered resolvable to a brighter source.}
   \end{itemize}
-  Sources that passed all the above checks are assigned status $2$. They are considered resolved and their spectra are set for extraction. Sources that fail \texttt{BINRAD} criterion or the S/N criterion because of the vicinity of a brighter source are given status $1$ and their contribution is accounted for in the extraction of the spectrum of the brighter neighbour. All other stars are given status $-1$ and are ignored during the spectrum extraction.
- \item The next step is only carried out if an unresolved stellar component should be included in the extraction process. The idea here is that the sources that are fainter than the resolution limit still create a grainy structure across the field of view (similar to surface brightness fluctuations in nearby galaxies). If the reference catalogue is of sufficient depth, this graininess can be modelled using the broadband magnitudes, positions, and the PSF. In the extraction, a combined spectrum will be extracted for the entity of these sources. If such a component is used and which sources enter it is defined by the parameters \texttt{USEUNRES} and \texttt{UNRESBIN}. 
- \pmparameter{USEUNRES}{boolean}{False}{If True, the routine will collect set all sources inside the IFS field of view that are less than UNRESBIN magnitudes fainter than the faintest resolved source and extract a combined spectrum for them.}
- \pmparameter{UNRESBIN}{float}{$2.0$}{The width of the magnitude interval in the sense that the faintest sources included in the unresolved component are UNRESBIN magnitudes fainter than the faintest resolved sources. Only used if USEUNRES is True.}
+  Sources that passed all the above checks are assigned status $2$. They are considered resolved and their spectra are set for extraction. Sources that fail the last criterion or the S/N criterion because of the vicinity of a brighter source are given status $1$ and their contribution is accounted for in the extraction of the spectrum of the brighter neighbour. All other stars are given status $-1$ and are ignored during the spectrum extraction.
+ \item The next step is only carried out if an unresolved stellar component should be included in the extraction process. The idea here is that the sources that are fainter than the resolution limit still create a grainy structure across the field of view (similar to surface brightness fluctuations in nearby galaxies). If the reference catalogue is of sufficient depth, this graininess can be modelled using the broadband magnitudes, positions, and the PSF. In the extraction, a combined spectrum will be extracted for the entity of these sources. If such a component is used and which sources enter it is defined by the keys in the \emph{unresolved} section of the configuration. 
+ \pmparameter{unresolved}{use}{boolean}{False}{If True, the routine will collect all sources inside the IFS field of view that are less than \emph{binsize} magnitudes fainter than the faintest resolved source and extract a combined spectrum for them.}
+ \pmparameter{unresolved}{binsize}{float}{$2.0$}{The width of the magnitude interval in the sense that the faintest sources included in the unresolved component are \emph{binsize} magnitudes fainter than the faintest resolved sources. Only used if \emph{use} is True.}
  All sources in the unresolved component are given status $0$.
- \item To account for the spectrum of the night sky or an unresolved stellar background, additional components may be included in the extraction. The way background components are currently handled can be summarized as follows. A homogeneous grid with a sampling of \texttt{SKYSIZE} is defined across the field of view. Each gridpoint defines an additional component in the optimization. The weight of a spaxel in a gridpoint is obtained from an inverse distance weighting, where distance is measured using a two-dimensional Gaussian with width $0.5\times$\texttt{SKYSIZE} centered on the gridpoint.
- \pmparameter{GLOBSKY}{boolean}{True}{If True, one or more non-stellar components are included in the fit to account for background sources.}
- \pmparameter{SKYSIZE}{float}{-1}{The distance between two background patches. If set to -1, only a constant background is used.}
- As a rule of thumb, in crowded fields with a significant number of unresolved sources, \texttt{SKYSIZE} should be of the order of the spatial scale over which the stellar density changes significantly. As an example, Fig.~\ref{fig:residuals_skysize} compares the residuals of the extraction for a MUSE cube of NGC~6266 when using a constant or a variable sky. It is clear that the constant sky cannot account for the strong increase in stellar density towards the cluster centre. For this reason, the stars leave systematic positive residuals in the outskirts (where the sky is overestimated) and negative residuals in the centre (where the sky is underestimated).
+ \item To account for the spectrum of the night sky or an unresolved stellar background, additional components may be included in the extraction. To this aim, the key \emph{use} of the \emph{sky} section of the configuration should be enabled. The way background components are currently handled can be summarized as follows. A homogeneous grid is defined across the field of view, its sampling is controlled by the key \emph{binsize} of the \emph{sky} section. Each grid point defines an additional component in the optimization. The weight of a spaxel in a grid point is obtained from an inverse distance weighting, where distance is measured using a two-dimensional Gaussian with width $0.5\times$\texttt{binsize} centred on the grid point.
+ \pmparameter{sky}{use}{boolean}{True}{If True, one or more non-stellar components are included in the fit to account for background sources.}
+ \pmparameter{sky}{binsize}{float}{-1}{The distance between two background patches. If set to -1, only a constant background is used.}
+ As a rule of thumb, in crowded fields with a significant number of unresolved sources, \emph{binsize} should be of the order of the spatial scale over which the stellar density changes significantly. As an example, Fig.~\ref{fig:residuals_skysize} compares the residuals of the extraction for a MUSE cube of NGC~6266 when using a constant or a variable sky. It is clear that the constant sky cannot account for the strong increase in stellar density towards the cluster centre. For this reason, the stars leave systematic positive residuals in the outskirts (where the sky is overestimated) and negative residuals in the centre (where the sky is underestimated).
  
  \begin{figure}[ht]
   \centering\includegraphics[width=12cm]{ngc6266_residuals_skysize.png}
@@ -363,9 +387,9 @@ INITFIT performs the following steps in order to select a useful subset of the a
   \label{fig:residuals_skysize}
  \end{figure}
  
- \item The next step depends on the size of the IFS data, more precisely on the number of spaxels. \pampelmuse was designed to handle data coming from various instruments, in particular PMAS and MUSE. Now, PMAS has $256$ spaxels while MUSE has more than $90\,000$. As a consequence, the way the PSF is optimized for the two instruments is different. Within a field of view as small as the one of PMAS, you will almost never find reasonably isolated and bright stars that allow you to constrain the PSF. Instead, for PMAS-like data the idea is to fit a PSF profile to all resolved sources simultaneously. While this approach works well for $\sim20$ sources which you typically resolve in a PMAS cube, it is computationally very demanding for the $\sim5\,000$ sources you expect in a MUSE cube. However, for MUSE data the chances of finding good PSF stars is much higher. To account for this  diversity in IFS data, \pampelmuse uses the parameter \texttt{SMALLIFU}.
- \pmparameter{SMALLIFU}{bool}{True}{This flag defines whether all resolved sources are used to fit the PSF and the coordinate transformation (if True) or only a subset of reasonably bright and isolated PSF sources.}
- My recommendation is to set \texttt{SMALLIFU} to True for cubes with less than $\sim2\,000$ spaxels and to False otherwise. In the latter case, INITFIT will search for suitable sources to model the PSF during the extraction. Potential PSF sources are those that fulfil the following criteria:
+ \item The next step depends on the size of the IFS data, more precisely on the number of spaxels. \pampelmuse was designed to handle data coming from various instruments, in particular PMAS and MUSE. Now, PMAS has $256$ spaxels while MUSE has more than $90\,000$. As a consequence, the way the PSF is optimized for the two instruments is different. Within a field of view as small as the one of PMAS, you will almost never find reasonably isolated and bright stars that allow you to constrain the PSF. Instead, for PMAS-like data the idea is to fit a PSF profile to all resolved sources simultaneously. While this approach works well for $\sim20$ sources which you typically resolve in a PMAS cube, it is computationally very demanding for the $\sim5\,000$ sources you expect in a MUSE cube. However, for MUSE data the chances of finding good PSF stars is much higher. To account for this  diversity in IFS data, \pampelmuse uses the key \emph{smallifu}, defined in the \emph{global} section of the configuration.
+ \pmparameter{global}{smallifu}{bool}{False}{This flag defines whether all resolved sources are used to fit the PSF and the coordinate transformation (if True) or only a subset of reasonably bright and isolated PSF sources.}
+ My recommendation is to set \emph{smallifu} to True for cubes with less than $\sim2\,000$ spaxels and to False otherwise. In the latter case, INITFIT will search for suitable sources to model the PSF during the extraction. Potential PSF sources are those that fulfil the following criteria:
  \begin{itemize}
   \item at least 3 magnitudes brighter than measured resolution limit
   \item identified as resolved (i.e. status 2) in the source selection 
@@ -373,13 +397,13 @@ INITFIT performs the following steps in order to select a useful subset of the a
   \item a distance $\geq \mathrm{FWHM}$ from the edge of the IFS field of view 
   \item two isolation criteria:
   \begin{itemize}
-   \item The relative contribution from neighbouring sources inside the region where the PSF is modelled (\texttt{PSFRAD}) must be smaller than the value of parameter \texttt{APERNOIS}.
-   \pmparameter{APERNOIS}{float}{0.1}{The maximum allowed contamination around a PSF source from a neighbouring source. It is measured as the flux ratio of the brightest source within a distance PSFRAD and the flux of the PSF star itself.}
+   \item The relative contribution from neighbouring sources inside the region where the PSF is modelled (see key \emph{radius} of configuration-section \emph{psf}) must be smaller than the value of key \emph{apernois}, defined in the \emph{initfit} section of the configuration.
+   \pmparameter{initfit}{apernois}{float}{0.1}{The maximum allowed contamination around a PSF source from a neighbouring source. It is measured as the flux ratio of the brightest source within a distance PSFRAD and the flux of the PSF star itself.}
    \item No brighter sources are allowed inside $1.5\times$ \texttt{PSFRAD} distance.
   \end{itemize}
  \end{itemize}
- Aperture photometry is performed on each layer for each source that fulfils the above criteria. The aperture radius is defined by the configuration parameter \texttt{APERRAD}.
- \pmparameter{APERRAD}{float}{3.0}{The radius in spaxels of the circle around each PSF source in which the aperture photometry is performed.}
+ Aperture photometry is performed on each layer for each source that fulfils the above criteria. The aperture radius is defined by the key \emph{aperrad} in the \emph{initfit} section of the configuration.
+ \pmparameter{initfit}{aperrad}{float}{3.0}{The radius in spaxels of the circle around each PSF source in which the aperture photometry is performed.}
  Note that not only the fluxes are measured, but also the first and second order spatial moments. \newline
  After that, the resulting spectra are used to redetermine the S/N estimate of each source and to perform the final selection of PSF sources. Also, the centroids of the aperture photometry are used to estimate the source coordinates as a function of wavelength. Finally, the second order moments measured for the PSF sources are used to estimate the ellipticity and the position angle of the PSF (if they are free parameters in the PSF fit, see Sect.~\ref{sec:psf}).
  \item Write the results from the source selection to a dedicated multi-extension FITS-file, named \textit{$<$prefix$>$.prm.fits} and hereafter called PRM-file. This file is loaded by all other routines of \pampelmuse. An overview on the structure of the PRM-file is given in Table~\ref{tab:prmfile}.
@@ -404,28 +428,28 @@ INITFIT performs the following steps in order to select a useful subset of the a
 \label{sec:cubefit}
 
 CUBEFIT is the routine that actually performs the extraction of the spectra by simultaneously fitting a PSF to all sources that have been identified as resolvable by INITFIT. The calling sequence for CUBEFIT is
-\shellcmd{PampelMuse <config> <IFS data prefix> CUBEFIT}\ .
+\shellcmd{PampelMuse <user configuration file> CUBEFIT}\ .
 
-Note that the routine expects a file PRM-file generated by INITFIT. This file also contains the configuration parameters that were provided to INITFIT in the header of the primary HDU. If a dedicated configuration is provided to CUBEFIT (or any other routine that requires the PRM-file), preference is given to the parameter values in the provided configuration. However, only a subset of the configuration parameters can be changed after running INITFIT. In general, all parameters that influence the source selection (such as \texttt{RESLIM}, \texttt{PSFPARS}, ...) cannot be changed any more.
+Note that the routine expects a file PRM-file generated by INITFIT. This file also stores the user-configuration that was provided to INITFIT in the header of the primary HDU. However, a user configuration file must still be provided and contain at least the \emph{prefix} key to point \pampelmuse to the IFS data that should be analysed. If a modified configuration compared to INITFIT is provided to CUBEFIT (or any other routine that requires the PRM-file), preference is given to the parameter values in the provided configuration. However, only a subset of the configuration parameters can be changed after running INITFIT. In general, all parameters that influence the source selection (such as keys of the \emph{psf}, section) cannot be changed any more.
 
-CUBEFIT analyses the IFS data layer by layer, starting from the central layer and simulateously proceeding into the red and the blue part of the cube. On each layer, the code performs an interative analysis in order to extract the optimal flux for each source. This iterative scheme, also depicted in Fig.~\ref{fig:cubefit_scheme}, can be summarized as follows.
+CUBEFIT analyses the IFS data layer by layer, starting from the central layer and simultaneously proceeding into the red and the blue part of the cube. On each layer, the code performs an iterative analysis in order to extract the optimal flux for each source. This iterative scheme, also depicted in Fig.~\ref{fig:cubefit_scheme}, can be summarized as follows.
 \begin{enumerate}
  \item Using the initial guesses for the PSF and the coordinate transformation, a first fit of the fluxes is performed. The flux fit is a linear least-squares fit that can be solved by direct matrix inversion and does not require initial guesses. The matrix contains the PSF profiles of the individual components. As each PSF profile is significantly different from zero only in the vicinity of the represented star, the majority of the matrix entries are zero. For such sparse matrices very efficient inversion algorithms are available. CUBEFIT uses the method \texttt{lsmr} \citep{2010arXiv1006.0758F} from the \texttt{scipy.sparse.linalg} package. It was tested for up to $10\,000$ sources and provided reliable solutions in reasonable computation times.
  \item With an initial value for all fluxes available, CUBEFIT updates the coordinate transformation from reference to IFS coordinates via the Levenberg-Marquardt algorithm \texttt{leastsq} from the \texttt{scipy.optimize} package. To speed up the computation, CUBEFIT internally calculates the Jacobi matrix, i.e. the matrix containing the partial derivatives of the PSF profile(s) with respect to the fitted parameters of the coordinate transformation, also provided in App.~\ref{app:profiles}.
  \item The third step, the optimization of the PSF parameters, uses the fluxes and the updated coordinate transformation. Again, the code makes use of the \texttt{leastsq} algorithm and incorporates the Jacobi matrix, this time containing the partial derivatives with respect to the PSF shape parameters.
- \item The updated PSF and coordinate transformation are used to refit the fluxes of the sources. Afterwards, it is checked whether the fluxes converged. The convergence criterion that is used by \pampelmuse is that the median change in flux compared to the last iteration is $<0.005$. If the convergence criterion is fulfilled or the maximum number of iterations has been reached, the analysis is continued with the next layer. Otherwise the iteration continues with fitting the coordinate transformation parameters (step 2). The maximum number of iterations can be set by the parameter \texttt{MAXITER}.
- \pmparameter{MAXITER}{integer}{$10$}{The maximum number of iterations that is performed by CUBEFIT on an individual layer of the IFS data.}
+ \item The updated PSF and coordinate transformation are used to refit the fluxes of the sources. Afterwards, it is checked whether the fluxes converged. The convergence criterion that is used by \pampelmuse is that the median change in flux compared to the last iteration is $<0.005$. If the convergence criterion is fulfilled or the maximum number of iterations has been reached, the analysis is continued with the next layer. Otherwise the iteration continues with fitting the coordinate transformation parameters (step 2). The maximum number of iterations can be set by the key \emph{iterations} in the \emph{cubefit} section of the configuration.
+ \pmparameter{cubefit}{iterations}{integer}{$10$}{The maximum number of iterations that is performed by CUBEFIT on an individual layer of the IFS data.}
  \item After all the requested layers have been analysed in this way, the results are written to the PRM-file.
 \end{enumerate}
 Note that the initial after the first two layers have been processed, the code will use the fit results for the PSF and the coordinate transformation as initial guesses for the analysis of the next layer. To avoid that a failed fit in one layer (e.g. because of a strong cosmic) influences the analysis of the following ones, the initial guesses are obtained by averaging over the results from the $10$ adjacent layers.
 
-It should be highlighted again that the way the fit of the coordinate transformation and PSF parameters is carried out depends on the value of the parameter \texttt{SMALLIFU}, cf. Sect.~\ref{sec:initfit}. If the value of \texttt{SMALLIFU} is True, the code optimizes for the parameters by fitting a PSF profile to all resolved sources simulateously. Otherwise, the code loops over all PSF sources found by INITFIT and fits a single PSF profile to them. Afterwards, the parameters of the coordinate transformation are obtained using the reference coordinates and the fitted centroids of all PSF sources. The PSF parameters are updated by averaging over the results from the individual PSF fits. To remove contamination from neighbouring sources as accurately as possible, those sources are subtracted from the IFS data before the fit using the current PSF estimate. 
+It should be highlighted again that the way the fit of the coordinate transformation and PSF parameters is carried out depends on the value of the parameter \texttt{SMALLIFU}, cf. Sect.~\ref{sec:initfit}. If the value of \texttt{SMALLIFU} is True, the code optimizes for the parameters by fitting a PSF profile to all resolved sources simultaneously. Otherwise, the code loops over all PSF sources found by INITFIT and fits a single PSF profile to them. Afterwards, the parameters of the coordinate transformation are obtained using the reference coordinates and the fitted centroids of all PSF sources. The PSF parameters are updated by averaging over the results from the individual PSF fits. To remove contamination from neighbouring sources as accurately as possible, those sources are subtracted from the IFS data before the fit using the current PSF estimate. 
 
 Note that this routine is computationally the most demanding part of \pampelmuse. The executions times can vary from a few minutes if only some sources are present to tens of hours for really crowded fields and huge datasets. My recommendation is to start CUBEFIT in a \texttt{screen} session, detach from it and have a good glass of wine. (Note however that  for budget reasons, the wine is not shipped with \pampelmuse.)
 
 \begin{figure}[!t]
   \centering\includegraphics[width=10cm]{cubefit_scheme.png}
- \caption{The iterative fittting approach of the CUBEFIT routine.}
+ \caption{The iterative fitting approach of the CUBEFIT routine.}
  \label{fig:cubefit_scheme}
 \end{figure}
 
@@ -433,23 +457,24 @@ Note that this routine is computationally the most demanding part of \pampelmuse
 \label{sec:polyfit}
 
 After running CUBEFIT, you can check the results using the \pampelmuse GUI. To this aim, start the POLYFIT routine via 
-\shellcmd{PampelMuse <config> <IFS data prefix> POLYFIT}\,.
+\shellcmd{PampelMuse <user configuration file> POLYFIT}\,.
 This routine serves two purposes. On the one hand, it allows for a visual inspection of all fitted parameters, i.e. the extracted spectra, the IFS coordinates, and the PSF. On the other hand, it can be used to fit wavelength dependencies of the PSF parameters and the IFS coordinates with polynomials. The idea behind the latter is that from a theoretical point of view, you expect those quantities to vary smoothly with wavelength, e.g. because of differential atmospheric refraction (DAR). But because of the limited S/N in each layer, the fitted variation with wavelength will show scatter, especially in spectral regions were the signal is low like telluric absorption bands. Fitting those variations with polynomials averages out the scatter and should in principle lead to a higher S/N in the extracted spectra. When starting CUBEFIT again after performing the polynomial fits, the routine will only refit the fluxes in each layer while keeping the other parameters fixed at their polynomial values.
 
 When running \pampelmuse in interactive mode, the routine will load the GUI with the content that is displayed in Fig.~\ref{fig:gui_polyfit}. In large parts it looks similar to the one that was opened by INITFIT. In the following the functionality of the GUI is explained.
 \begin{itemize}
- \item The purpose of the Spectrum Viewer is to display the wavelength dependecies of the fitted parameters of spectra. The data to be shown can be selected using the two drop-down menus in `Data:' to the bottom left of the panel. Via `HDU',  you can select the parameter class (spectrum, coordinate, PSF parameter) to be displayed, while `Identifier' lets you select the ID in case that a spectrum or coordinate should be displayed or the specific parameter in case the PSF or the coordinate transformation should be displayed. The requested data is displayed upon clicking the green button. \newline
- Using the left mouse button, you can exclude wavelength ranges from the polynomial fits. To this aim, keep the mouse button pressed while scanning over the desired range. Doing the same with the right mouse button lets you unmask regions. \newline
- The two drop-down menus in `Fit:' to the bottom right of the panel allow you to specify the type and order of the polynomial that is used to fit the data. The fit is carried out via a click on the green button to the right. Note that currently only fits to the PSF parameters and the IFS coordinates are supported. Fitting the individual IFS coordinates instead of the coordinate transformation (which was used to calculate them) is preferred because the parameters of the coordinate transformation can sometimes show correlated variations (in particular if the field of view contains only a few spaxels) that are difficult to describe with polynomials.
+ \item The purpose of the Spectrum Viewer is to display the wavelength dependencies of the fitted parameters of spectra. The data to be shown can be selected using the two drop-down menus in `Data:' to the bottom left of the panel. Via `HDU',  you can select the parameter class (spectrum, coordinate, PSF parameter) to be displayed, while `Identifier' lets you select the ID in case that a spectrum or coordinate should be displayed or the specific parameter in case the PSF or the coordinate transformation should be displayed. The requested data is displayed upon clicking the green button. \newline
+ Using the left mouse button, you can exclude wavelength ranges from the polynomial fits. To this aim, keep the mouse button pressed while scanning over the desired range. Doing the same with the right mouse button lets you unmask regions. If any wavelength ranges should be excluded from the fits by default (e.g. because of strong telluric absorption), you may specify these ranges using the \emph{mask} key in the \emph{polynom} section of the configuration. This is helpful especially if POLYFIT is run in non-interactive mode (see below).
+ \pmparameter{polynom}{mask}{tuple}{}{In case any wavelength range(s) should be excluded from the polynomial fits by default, provide their start and end values. The values should be provided as a single tuple of even length, so that even indices contain the start values and odd indices the end values of the ranges to be masked.}
+ The two drop-down menus in `Fit:' to the bottom right of the panel allow you to specify the type and degree of the polynomial that is used to fit the data. Their default values are controlled by the keys \emph{type} and \emph{degree} in the \emph{polynom} section of the configuration file.
+\pmparameter{polynom}{type}{string}{plain}{The type of polynomial used to fit the wavelength dependencies. Can be one of `plain' (normal polynomial), `chebyshev', `legendre', and `hermite'.}
+\pmparameter{polynom}{order}{integer}{0}{The degree of the polynomials used to fit the wavelength dependencies.} 
+ The fit is carried out via a click on the green button to the right. Note that currently only fits to the PSF parameters and the IFS coordinates are supported. Fitting the individual IFS coordinates instead of the coordinate transformation (which was used to calculate them) is preferred because the parameters of the coordinate transformation can sometimes show correlated variations (in particular if the field of view contains only a few spaxels) that are difficult to describe with polynomials.
  \item The IFS View displays again the cube, this time with the positions of the extracted sources overplotted. The size of the circles used to mark the extracted sources sclae with  their brightness. Sources marked by green circles are used to fit the PSF. While this display is very helpful for small fields of view, it can look very messy for MUSE-like data of crowded stellar fields. However, you can use the magnifying glass to the upper right of the panel to zoom into the data. When clicking on a source while the Spectrum View shows a spectrum or an IFS coordinate,  the spectrum/coordinate of the selected source will be shown.
  \item The Reference View is currently not used.
 \end{itemize}
 After you have fitted all the desired parameters and are happy with the results, you can use the buttons to the top  left of the GUI to save the results to the PRM-file.
 
-Note that when \pampelmuse is not run in interactive mode (see parameter \texttt{INTERACT}), POLYFIT will not show the GUI but use polynomials of requested order to fit the source coordinates and the free PSF parameters automatically. The type and order of the polynomials being used can be controlled using the configuration parameters \texttt{POLTYPE} and \texttt{POLYDEG}.
-\pmparameter{POLYTYPE}{string}{plain}{The type of polynomial used to fit the wavelength dependencies. Can be one of `plain' (normal polynomial), `chebyshev', `legendre', and `hermite'.}
-\pmparameter{POLYDEG}{integer}{0}{The degree of the polynomials used to fit the wavelength dependencies.}
-In order to be able to mask out wavelength ranges also when running POLYFIT in non-interactive mode, it can be called with the option \texttt{--mask <wmin> <wmax>}, indicating that the wavelength range between \texttt{<wmin>} and \texttt{<wmax>} should be masked out. This option may be provided more than once so that multiple ranges can be excluded.
+Note that when \pampelmuse is not run in interactive mode (see key \emph{interact} in \emph{global} section), POLYFIT will not show the GUI but use polynomials of requested order to fit the source coordinates and the free PSF parameters automatically. The type and order of the polynomials being used as well as the wavelength ranges that should be masked can still be controlled via the respective configuration keys (see above).
 
 \begin{figure}[!t]
   \centering\includegraphics[width=10cm]{gui_polyfit.png}
@@ -459,25 +484,27 @@ In order to be able to mask out wavelength ranges also when running POLYFIT in n
 
 \subsection{GETSPECTRA - obtaining the results}
 Once the analysis is complete, you probably want to have the spectra in some other format than the PRM-file. To facilitate this, \pampelmuse has a routine GETSPECTRA, called with the following sequence.
-\shellcmd{PampelMuse <config> <IFS data prefix> GETSPECTRA <spectra prefix>}\,.\\
-The routine will store all the extracted spectra in individual FITS files that contain the spectrum in the primary extension and an estimate of the uncertainties in an image HDU named \texttt{SIGMA}. The header of each file will contain the correct dispersion information, general information about the star and the spectrum as well as a number of hierarch keywords copied from the PRM-file.
-Note that this routine is called with the mandatory argument \texttt{<spectra prefix>} which is a string  (typically the name of the observed cluster, galaxy, ...) that is used as a common prefix to all FITS files that are written. Additionally, the routine may be called with the \texttt{--folder} option to provide a folder in which all spectra should be stored.
+\shellcmd{PampelMuse <user configuration file> GETSPECTRA}\ .\\
+The routine will store all the extracted spectra in individual FITS files that contain the spectrum in the primary extension and an estimate of the uncertainties in an image HDU named \texttt{SIGMA}. The header of each file will contain the correct dispersion information, general information about the star and the spectrum as well as a number of HIERARCH keywords copied from the PRM-file.
+Note that this routine requires the \emph{prefix} key to be set in the \emph{getspectra} section of the user configuration file. This is a string (typically the name of the observed cluster, galaxy, ...) that is used as a common prefix to all FITS files that are written. Additionally, the key \emph{folder} in the same section can be used to provide a folder in which all spectra should be stored.
+\pmparameter{getspectra}{prefix}{string}{}{The common prefix given to all FITS files that are written.}
+\pmparameter{getspectra}{folder}{string}{spectra}{The name of the folder in which the FITS files should be stored.}
 
 \subsection{Recommended analysis strategy}
-The strategy I usually use when analysing IFS data is the following.  After selecting the sources for which spectra should be extracted via INITFIT, I perform a first extraction with CUBEFIT in which the PSF parameters and the coordinate transformation are optimized across the whole wavelength range  with a moderate binning in spectral  direction, $\texttt{LAYERBIN} \sim 50$. Afterwards, I use POLYFIT to smooth the wavelength dependencies of those parameters via polynomial fits. Finally, I run CUBEFIT again, this time without any spectral binning. Since the PRM-file now contains the polynomial fits to the positions and PSF parameters, it will only fit the source fluxes without any iteration. Hence, the secoond run of CUBEFIT should be much faster than the first.
+The strategy I usually use when analysing IFS data is the following.  After selecting the sources for which spectra should be extracted via INITFIT, I perform a first extraction with CUBEFIT in which the PSF parameters and the coordinate transformation are optimized across the whole wavelength range  with a moderate binning in spectral direction, $\texttt{layers|binning} \sim 50$. Afterwards, I use POLYFIT to smooth the wavelength dependencies of those parameters via polynomial fits. Finally, I run CUBEFIT again, this time without any spectral binning. Since the PRM-file now contains the polynomial fits to the positions and PSF parameters, it will only fit the source fluxes without any iteration. Hence, the second run of CUBEFIT should be much faster than the first.
 
 \subsection{Auxiliary routines}
 \subsubsection{SINGLESRC}
 The routine SINGLESRC can act as a replacement for the INITFIT routine for fields where no reference catalogue is available. It should currently only be used for non-crowded fields with reasonably isolated sources. The calling sequence for this routine is
-\shellcmd{PampelMuse <config> <IFS data prefix> <$X_1$>,<$Y_1$>,<$\mathrm{status}_1$> ... <$X_N$>,<$Y_N$>,<$\mathrm{status}_N$>}\\
-assuming that spectra for $N$ sources should be extracted from the IFS data. For each source an initial guess for the IFS coordinates must be provided. Also the status of each source must be provided. It should be $2$ for sources for which the flux and coordinates are fitted and $3$ for sources that are additionally used to fit the PSF parameters.
+\shellcmd{PampelMuse <user configuration file> SINGLESRC}\ .\\
+As INITFIT, SINGLESRC requires the \emph{name} key in the \emph{catalog} section to be set. The catalogue should be in the same format described above for the INITFIT routine, i.e. a plain csv-file. Besides the source IDs and estimated magnitudes in the filter provided as key \emph{passband}, it should contain columns $x$ and $y$, containing the source coordinates. However, in contrast to INITFIT, SINGLESRC assumes that the coordinates provided in the file are actual IFS spaxel coordinates, not reference coordinates. The routine will also not do any source selection, but use all of the provided sources in the analysis. To this aim, the catalogue should contain an additional column, named 'status', which should be $2$ for sources for which the flux and coordinates are fitted and $3$ for sources that are additionally used to fit the PSF parameters.
 
-SINGLESRC will perform aperture photometry for every provided source on each layer of the IFS data to improve the initial guesses for the source coordinates. Afterwards, the routine will prepare a PRM-file that can be used to start the following routines, i.e. CUBEFIT and POLYFIT. In contrast to the procedure desribed earlier, CUBEFIT will not constrain a coordinate transformation but directly fit the IFS coordinates of each source.
+SINGLESRC will perform aperture photometry for every provided source on each layer of the IFS data to improve the initial guesses for the source coordinates. Afterwards, the routine will prepare a PRM-file that can be used to start the following routines, i.e. CUBEFIT and POLYFIT. In contrast to the procedure described earlier, CUBEFIT will not constrain a coordinate transformation but directly fit the IFS coordinates of each source.
 
 \section{Troubleshooting}
 \subsection{Wiggles in extracted MUSE spectra}
 When running \pampelmuse with MUSE data, some extracted spectra may show wiggles in the continuum (see Fig.~\ref{fig:muse_spectra_wiggles}). The reason for this is that by default \pampelmuse uses the variances provided by the MUSE pipeline (extension \texttt{STAT}). However, the final reduction step --- resampling of the data onto a homogeneous grid --- shifts power into the covariances. As the covariances are neglected by the pipeline, the variances show similar wiggles. While formally the variances are correct for individual pixels, they underestimate the true ones as soon as one starts to combine pixels. But that is what \pampelmuse does, hence the wiggles appear. As a workaround, you can switch of the usage of the uncertainties during the extraction with the parameter \texttt{USESIGMA}.
-\pmparameter{USESIGMA}{float}{True}{Flag indicating if the uncertainties provided with the IFS data are used in the extraction.}
+\pmparameter{cubefit}{usesigma}{float}{True}{Flag indicating if the uncertainties provided with the IFS data are used in the extraction.}
 If the uncertainties should not be used, the code tries to estimate them from the model. To this aim, the standard deviations of the residuals after subtracting the model from the data are determined as a function of the  model flux. In any case, make sure to carefully check the quality of the extracted spectra afterwards. In some cases, it may be necessary to smooth the uncertainties outside of \pampelmuse prior to the extraction.
 
 \begin{figure}[ht]
@@ -496,6 +523,19 @@ Tim-Oliver Husser, Benjamin Giesers, Bruno Dias, Anja Feldmaier, ...
 \bibliography{references}
 
 \appendix
+
+\section{The PSF inspection file}
+Starting with version 0.92(?), \pampelmuse offers the possibility to store detailed information about the PSF fits performed during CUBEFIT. This feature was implemented for the commissioning of the AO system of MUSE in June/July 2017. It only works if \pampelmuse is run with the \emph{smallifu} key set to False or if the PRM-file has been prepared using the SINGLESRC routine. Then, one can enable the key \emph{inspect} in the \emph{psf} section of the configuration. As a result, at the completion of CUBEFIT, an additional FITS file will be written containing detailed information about the fits of all PSF sources in all layers of the data cube.
+\pmparameter{psf}{inspect}{boolean}{False}{If enabled, an additional FITS file, named <prefix>.psf.fits will be written to disk at the end of the CUBEFIT routine, containing detailed information about the PSF stars and their fits. Note that this feature does not work in combination with the \emph{smallifu} option of \pampelmuse.}
+
+For each PSF star in the analysis (i.e. each star that has status 3 in the PRM-file), the FITS file will contain four HDUs with the following content.
+\begin{itemize}
+ \item The values of the fitted PSF parameters in each layer that was analysed. The information is stored as a FITS-table, containing one column per fitted parameter and the wavelength information in the different rows. The names of these extensions are \texttt{PM\_<source ID>}, where <source ID> is the ID of the star in extension \texttt{SOURCES} of the PRM-file.
+ \item The radial profiles of the PSF stars in the IFS data as a function of wavelength. This information is stored as a two-dimensional array, containing the profile for one layer per column. The (approximate) wavelengths of the layers can be reconstructed from the \texttt{CRVAL1} and \texttt{CDELT1} keys in the header. The names of these extensions are \texttt{PR\_<source ID>}, where again <source ID> is the ID of the star in extension \texttt{SOURCES} of the PRM-file. Note that the common radii of the individual points of all profiles (in spaxels) are provided as the data of the primary extension of the FITS-file.
+ \item The two-dimensional profile of each PSF star extracted from the IFS data as a function of wavelength is stored as a mini data cube. Again, (approximate) dispersion information is encoded in the \texttt{CRVAL1} and \texttt{CDELT1} keys in the header. The names of these extensions are \texttt{DAT\_<source ID>}.
+ \item The two-dimensional residual maps of the PSF fits to every star as a function of wavelength are also stored as mini data cubes. The format is just the same as for the two dimensional profiles and the extensions are named \texttt{RES\_<source ID>}.
+\end{itemize}
+
 
 \include{profiles}
 

@@ -1,7 +1,7 @@
 """
 make_residuals_cube.py
 ======================
-Copyright 2013-2016 Sebastian Kamann
+Copyright 2013-2018 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -31,40 +31,37 @@ Added
 -----
 rev. 343, 2016/08/01
 
-Latest SVN revision
-401, 2017/03/03
+Latest Git revision
+2018/03/15
 """
 import logging
 from multiprocessing import cpu_count, Pool
 import numpy as np
+import pandas as pd
 from .fit_cube import FitCube
 from .fit_layer import FitLayer
 
 
-__author__ = 'Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)'
-__revision__ = 401
+__author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
+__revision__ = 20180315
 
 
 logger = logging.getLogger(__name__)
 
 
-def init_worker(psf_type, magnitudes, components, maxrad, osfactor, osradius, *args):
+def init_worker(psf_type, psf_radius, osfactor, osradius, *args):
     """
     This function defines the global parameters for the parallel part of the
-    processing. The global parameters are those that do not change from one
-    layer to the next, therefore they do not have to be initialized anew for
-    each layer.
+    processing.
+    
+    The global parameters are those that do not change from one layer to the
+    next. Therefore they do not have to be initialized anew for each layer.
 
     Parameters
     ----------
     psf_type : string
         The name of the PSF profile in use.
-    magnitudes : array_like
-        The relative magnitudes of the sources. A magnitude of 0 corresponds
-        to an integrated flux of 1.
-    components : array_like
-        The component in the fit to which each source belongs.
-    maxrad : int
+    psf_radius : int
         The radius in pixels out to which the PSF profiles are calculated
     osfactor : int
         The oversampling factor used to improve the accuracy for the central
@@ -79,16 +76,12 @@ def init_worker(psf_type, magnitudes, components, maxrad, osfactor, osradius, *a
     derived from the names of the parameters by adding a prefix 'g_'
     """
     global g_psf_type
-    global g_magnitudes
-    global g_components
-    global g_maxrad
+    global g_psf_radius
     global g_osfactor
     global g_osradius
 
     g_psf_type = psf_type
-    g_magnitudes = magnitudes
-    g_components = components
-    g_maxrad = maxrad
+    g_psf_radius = psf_radius
     g_osfactor = osfactor
     g_osradius = osradius
 
@@ -96,55 +89,55 @@ def init_worker(psf_type, magnitudes, components, maxrad, osfactor, osradius, *a
 def parallel_process_layers(fit_parameters):
     """
     This function is designed to calculate the fit residuals for several
-    layers in parallel. To this aim it is called by multiprocess.Pool from
-    within the MakeResidualCube class. It basically initializes a new instance
-    of the pampelmuse.core.fit_layer.FitLayer class and afterwards executes
-    the residuals_from_fluxes routine every time it is called.
+    layers in parallel.
+    
+    To this aim it is called by multiprocess.Pool from within the
+    MakeResidualCube class. It basically initializes a new instance of the
+    pampelmuse.core.fit_layer.FitLayer class and afterwards executes the
+    residuals_from_fluxes routine every time it is called.
 
     Parameters
     ----------
     fit_parameters : dict
         A dictionary containing the parameters necessary to launch the fit:
-        data - the data array that defines the layer.
-        transformation - The transformation from pixel to x- & y-coordinates
-        xy - the reference or pixel coordinates of the sources.
-        psf_parameters - the initial guesses/fixed values of the PSF
-                         parameters.
-        position_parameters - the initial guesses/fixed values of the coord.
-                              transformation parameters.
+        data - the value, variance, x-, and y-positions, and wavelength
+               (optional) of each pixel of the layer.
+        catalog - A pandas,.DataFrame containing at least the pixel
+                  coordinates of all sources that should be subtracted from
+                  the data.
+        psf_parameters - the values of the PSF parameters.
+        position_parameters - the values of the coordinate transformation
+                              parameters.
         background - the matrix containing the footprints of the individual
                      background components.
+        background_index - the index/indices used for the background
+                           components.
         fluxes - the fluxes of all components
-        background_fluxes - the fluxes of all background components (if any)
 
     Returns
     -------
     residuals : ndarray
-        An array containing the residuals for all pixels provided in the
-        'transform' parameter.
+        An array containing the fit residuals for all pixels provided via the
+        'data' parameter.
     """
 
     # fit parameters is a dictionary that must contain the following keys:
     # data, variances, transformation, xy, psf_parameters, position_parameters
     data = fit_parameters['data']
-    variances = fit_parameters['variances']
-    transformation = fit_parameters['transformation']
-    xy = fit_parameters['xy']
+    catalog = fit_parameters['catalog']
     psf_parameters = fit_parameters['psf_parameters']
     position_parameters = fit_parameters['position_parameters']
     background = fit_parameters['background']
-    wave = fit_parameters['wave']
+    background_index = fit_parameters['background_index']
     fluxes = fit_parameters['fluxes']
-    background_fluxes = fit_parameters['background_fluxes']
 
-    global g_psf_type, g_magnitudes, g_components, g_maxrad, g_osfactor, g_osradius
+    global g_psf_type, g_psf_radius, g_osfactor, g_osradius
 
-    layerfit = FitLayer(data=data, variances=variances, transformation=transformation, psf_type=g_psf_type,
-                        psf_parameters=psf_parameters, xy=xy, position_parameters=position_parameters,
-                        magnitudes=g_magnitudes, components=g_components, background=background,
-                        wave=wave, maxrad=g_maxrad, osfactor=g_osfactor, osradius=g_osradius)
+    layerfit = FitLayer(data=data, catalog=catalog, psf_type=g_psf_type, psf_parameters=psf_parameters,
+                        psf_radius=g_psf_radius, position_parameters=position_parameters, background=background,
+                        osfactor=g_osfactor, osradius=g_osradius, background_index=background_index)
 
-    results = layerfit.residuals_from_fluxes(fluxes=fluxes, background_fluxes=background_fluxes)
+    results = layerfit.residuals_from_fluxes(fluxes=fluxes)
 
     return results
 
@@ -217,17 +210,19 @@ class MakeResidualsCube(FitCube):
         # check if any sources should be included/excluded, define boolean array of included (resolved) sources
         elif include is not None:
             logging.info('Only subtracting the following source(s): {0}'.format(', '.join(map(str, include))))
-            selected = np.in1d(self.sources.ID[~self.sources.is_background], include)
+            selected_ids = pd.Index(include)
         elif exclude is not None:
             logging.info('Not subtracting the following source(s): {0}'.format(', '.join(map(str, exclude))))
-            selected = np.in1d(self.sources.ID[~self.sources.is_background], exclude, invert=True)
+            selected_ids = self.sources.ids.drop(exclude)
         else:
-            selected = np.ones(self.magnitudes.size, dtype=np.bool)
+            selected_ids = self.sources.ids
 
-        # also get indices in the spectra array of the components that are included (in ascending order!)
-        # plus
-        # the new (consecutive) assignment of sources to components
-        selected_fluxes, selected_components = np.unique(self.components[selected], return_inverse=True)
+        # remove sky components if they should not be subtracted
+        if not subtract_background:
+            selected_ids = selected_ids.drop(self.sources.ids[self.sources.is_background])
+
+        # get corresponding rows in spectrum data
+        selected_components = self.sources.specrow[selected_ids].unique()
 
         # check which layers should be analysed
         start, stop = layer_range
@@ -235,62 +230,75 @@ class MakeResidualsCube(FitCube):
             start = self.sources.ndisp + start
         if stop < 0:
             stop = self.sources.ndisp + (stop + 1)
-        logger.info("Layer range used to create residuals: {0}-{1}".format(start, stop))
+        logger.info("Layer range used to create residuals: {0} - {1}".format(start, stop))
 
         # define layers that should be used in increasing order
         layers_to_analyse = np.arange(start, stop, dtype=np.int16)
 
+        # get indices corresponding to requested layers
+        indices_to_analyse = self.sources.wave[layers_to_analyse]
+
         # begin loading data required for fitting process into memory
         # whole array with spectra needs to be loaded
         self.sources.load_spectra()
-        if self.sources.data_wave is not None:
-            if np.isnan(self.sources.wave).any() or (self.sources.wave <= 0).any():
-                self.sources.data_wave[:, 0] = self.ifs_data.wave
 
         # if parameters (of the PSF or the coordinate transformation) are fitted, it must be ensured that the instances
         # have correct dispersion information
-        if self.psf_attributes.ndisp != self.sources.ndisp:
-            self.psf_attributes.resize(self.sources.ndisp)
-        if self.sources.transformation.valid and self.sources.transformation.ndisp != self.sources.ndisp:
-            self.sources.transformation.resize(self.sources.ndisp)
-
+        if self.psf_attributes.n_dispersion != self.sources.n_dispersion:
+            self.psf_attributes.resize(self.sources.wave)
+        else:
+            self.psf_attributes.data.index = self.sources.wave
         # Interpolate across wavelength range to ensure the parameters have valid values for all fitted layers.
-        # Afterwards set parameters of omitted layers to NaN. Note that this is not done for polynomial fits to the
-        # parameters
         self.psf_attributes.interpolate()
+
+        # do same for coordinate transformation (only if available)
         if self.sources.transformation.valid:
+            if self.sources.transformation.n_dispersion != self.sources.n_dispersion:
+                self.sources.transformation.resize(self.sources.wave)
+            else:
+                self.sources.transformation.data.index = self.sources.wave
             self.sources.transformation.interpolate()
 
-        # Load full coordinate array into memory because doing it per layer is quite slow. Switch on interpolation to
-        # make sure valid coordinates are available for all layers.
-        self.sources.load_ifs_coordinates(interpolate=True)
+        # Load full coordinate array into memory because doing it per layer is quite slow.
+        self.sources.load_ifs_coordinates()
+        # replace NaNs to make sure valid coordinates are available for all fitted layers.
+        self.sources.ifs_coordinates.fillna(method='pad', inplace=True)
 
         # Check how many CPUs should be used
-        if n_cpu is None:
+        if n_cpu is None or n_cpu == -1:
             n_cpu = cpu_count()
         logger.info("Starting processing using {0} CPU(s).".format(n_cpu))
+
+        # Set global values for processing of individual layers and initialize pool of processes
+        initial_arguments = (self.psf_attributes.profile,
+                             self.psf_radius,
+                             self.osfactor,
+                             self.osradius
+                             )
+        if n_cpu > 1:
+            pool = Pool(n_cpu, initializer=init_worker, initargs=initial_arguments)
+        else:
+            pool = None
+            init_worker(*initial_arguments)
+
+        # prepare source catalog of _stellar_ sources
+        # note that the catalog content may change from layer to layer when no coordinate transformation is being used
+        series = []
+        if subtract_background:
+            stellar_ids = selected_ids.drop(self.sources.ids[self.sources.is_background])
+        else:
+            stellar_ids = selected_ids
+        series.extend([self.sources.x[stellar_ids], self.sources.y[stellar_ids]])
+        series.append(self.sources.specrow[stellar_ids])
+        series.append(self.sources.weights[stellar_ids])
+        catalog = pd.concat(series, axis=1, keys=['x', 'y', 'component', 'magnitude'])
 
         # For all layers to be fitted in parallel, we first need to collect the input data in a common list.
         # The list will contain one dictionary per layer to be fitted in parallel
         fit_input = []
 
-        # Set global values for processing to individual layers:
-        initargs = (self.psf_attributes.profile,
-                    self.magnitudes[selected],
-                    selected_components,
-                    self.maxrad,
-                    self.osfactor,
-                    self.osradius
-                    )
-
-        if n_cpu > 1:
-            pool = Pool(n_cpu, initializer=init_worker, initargs=initargs)
-        else:
-            pool = None
-            init_worker(*initargs)
-
         # loop over all layers in cube that should be analysed
-        for i, jj in enumerate(layers_to_analyse):
+        for i, jj in enumerate(indices_to_analyse):
 
             # Add a common prefix for all logging messages related to the analysis of the current layer.
             n_digits = int(np.log10(layers_to_analyse.size)) + 1  # for logging prefix, get number of digits of N_layer
@@ -299,20 +307,17 @@ class MakeResidualsCube(FitCube):
             handler = logging.getLogger().handlers[0]
             handler.setFormatter(fmt)
 
-            # call fitting routine
-            logger.info("Collecting input data processing layer #{0}.".format(jj))
+            # collect input data for processing of current layer
+            logger.info("Processing layer with wavelength {0:.1f} Angstrom.".format(1e10*jj))
 
-            # get 1D arrays containing valid data pixels, also sigma-values if requested
-            data, variances, transform, wave = self.get_layer(jj, n_bin=1, use_variances=False, mask_nan=False)
-            fit_input.append({'data': data, 'variances': variances, 'transformation': transform, 'wave': wave})
+            # get 1D arrays containing valid data pixels
+            data = self.get_layer(self.sources.wave.get_loc(jj), use_variances=False, n_bin=1, skip_nan=False,
+                                  use_slices=(self.sources.status == 5).any())
+            fit_input.append({'data': data})
 
             # update fluxes
             fluxes = self.read_fluxes(jj)
-            fit_input[-1]['fluxes'] = fluxes[:self.sources.nsrc - self.sources.nbackground][selected_fluxes]
-            if subtract_background:
-                fit_input[-1]['background_fluxes'] = fluxes[self.sources.nsrc - self.sources.nbackground:]
-            else:
-                fit_input[-1]['background_fluxes'] = None
+            fit_input[-1]['fluxes'] = fluxes[fluxes.index <= selected_components.max()]
 
             # update PSF parameters
             fit_input[-1]['psf_parameters'] = self.read_psf_parameters(jj)
@@ -324,34 +329,35 @@ class MakeResidualsCube(FitCube):
 
             # update direct coordinates if required
             if self.sources.ifs_coordinates_fitted.any() or self.sources.ifs_coordinates_free.any():
-                fit_input[-1]['xy'] = self.read_ifs_coordinates(jj)[selected]
+                catalog[['x', 'y']] = self.read_ifs_coordinates(jj)
                 fit_input[-1]['position_parameters'] = None
-            else:
-                fit_input[-1]['xy'] = np.dstack((self.sources.x[~self.sources.is_background],
-                                                 self.sources.y[~self.sources.is_background]))[0][selected]
 
-            if self.background is not None and subtract_background:
-                self.background.transform = self.ifs_data.transform
-                fit_input[-1]['background'] = self.background.get_sparse_matrix(
-                    offset=self.sources.ncmp - self.sources.nbackground)
+            # add sources catalog to fit input
+            fit_input[-1]['catalog'] = catalog
+
+            # add background if requested
+            if subtract_background and self.background is not None:
+                self.background.transform = data[['x', 'y']].values
+                if 'ifu' in data.columns and 'slice' in data.columns:
+                    self.background.ifus = data['ifu'].values
+                    self.background.slices = data['slice'].values
+                background_matrix, background_components = self.background.get_sparse_matrix(
+                    offset=self.sources.n_components - self.sources.n_background)
             else:
-                fit_input[-1]['background'] = None
+                background_matrix = background_components = None
+            fit_input[-1]['background'] = background_matrix
+            fit_input[-1]['background_index'] = background_components
 
             # A parallel processing is triggered every n_cpu's layer
-            if np.mod(i + 1, n_cpu) == 0 or jj == layers_to_analyse[-1]:
+            if np.mod(i + 1, n_cpu) == 0 or jj == indices_to_analyse[-1]:
                 if n_cpu > 1:
-                    # pool = Pool(n_cpu, initializer=init_worker, initargs=initargs)
                     _results = pool.map_async(parallel_process_layers, fit_input)
-
-                    # pool.close()
-                    # pool.join()
-                    results = _results.get()  # list(itertools.chain.from_iterable(_results.get()))
+                    results = _results.get()
                 else:
-                    # init_worker(*initargs)
                     results = [parallel_process_layers(fit_input[0])]
 
                 for k, result in enumerate(results, start=1):
-                    self.residuals[self.ifs_data.slice_for_layer(jj - n_cpu + k)] = result
+                    self.residuals[self.ifs_data.slice_for_layer(layers_to_analyse[i] - len(results) + k)] = result
 
                 fit_input = []
 
@@ -359,10 +365,11 @@ class MakeResidualsCube(FitCube):
 
     def read_fluxes(self, current, last=None):
         """
-        Method to fluxes of all components for a given layer. If possible and
-        requested, the method obtains updated values by averaging over the
-        results from the nearest layers, otherwise it uses the values in the
-        sources instance.
+        Method to fluxes of all components for a given layer.
+        
+        If possible and requested, the method obtains updated values by
+        averaging over the results from the nearest layers, otherwise it uses
+        the values in the sources instance.
 
         Parameters
         ----------
@@ -374,12 +381,16 @@ class MakeResidualsCube(FitCube):
 
         Returns
         -------
-        fluxes : ndarray
-            The updated value of each PSF parameter for the current layer.
+        fluxes : pd.Series
+            The updated value of the flux of each component for the current
+            layer.
         """
-        logger.info("Updating fluxes of individual components...")
+        logger.info("Updating fluxes of individual components ...")
 
         if last is None:
-            return self.sources.data[current, :, 0]
+            fluxes = self.sources.data.loc[current, (slice(None), 'flux')]
         else:
-            return np.nanmean(self.sources.data[last, :, 0], axis=0)
+            fluxes = np.nanmean(self.sources.loc[last, (slice(None), 'flux')], axis=0)
+
+        # remove second level from MultiIndex which is not needed any more.
+        return fluxes.reset_index(level=1, drop=True)

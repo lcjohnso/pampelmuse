@@ -1,7 +1,7 @@
 """
 cubefit.py
 ==========
-Copyright 2013-2016 Sebastian Kamann
+Copyright 2013-2018 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -22,32 +22,30 @@ along with PampelMuse. If not, see <http://www.gnu.org/licenses/>.
 +++
 Provides
 --------
+function pampelmuse.cubefit.add_parser
 function pampelmuse.routines.cubefit.cubefit
 
 Purpose
 -------
-This module implements the function 'cubefit' that is called if the
-requested PampelMuse subroutine is CUBEFIT. The function is a build
-around the main component of PampelMuse, namely the class StarFit,
-defined in the pampelmuse.core.fit_array module. As input, it takes
-a namespace containing the configuration of PampelMuse.
-There is also a version of StarFit that implements a GUI to display
-the results of the analysis. This class, QStarFit, is defined in the
-pampelmuse.core.qfit_array module. It is called by the function 'cube-
-fit' if the configuration parameter USEQT of PampelMuse is enabled.
+This module implements the function 'cubefit' that is called if the requested
+PampelMuse subroutine is CUBEFIT. As all other routines, it uses the
+configuration of PampelMuse as only input argument. The configuration must be
+provided as an instance of configparser.ConfigParser. The cubefit-function
+reads the configuration and passes it to the pampelmuse.core.FitCube-class
+which performs the actual analysis.
 
 Latest SVN revision
 -------------------
-374, 2016/09/23
+2018/05/08
 """
 import datetime
 import logging
 from ..core.fit_cube import FitCube
-from ..utils.fits import open_prm, save_prm
+from ..utils.fits import make_header_from_config, open_ifs_data, open_prm, save_prm, get_history
 
 
-__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 374
+__author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
+__revision__ = 20180508
 
 
 def add_parser(parser):
@@ -65,40 +63,66 @@ def add_parser(parser):
     p.set_defaults(func=cubefit)
 
 
-def cubefit(pampelmuse):
+def cubefit(config):
+    """
+    This function performs the optimization stage of the fit. It is called
+    when the CUBEFIT routine of PampelMuse is called.
+
+    Parameters
+    ----------
+    config : dict
+        Dictionary containing the configuration of PampelMuse.
+    """
 
     logging.info("Executing requested routine CUBEFIT [Revision {0:d}].".format(__revision__))
 
     # Collect information about sources/create Sources-instance
     logging.info("Obtaining information on sources in the field...")
-    
-    # Source catalogue
-    sources, psf_attributes = open_prm(filename=pampelmuse.filename, ndisp=pampelmuse.ifs_data.wave.size)
 
-    # Check the range of layers to be fitted 
-    try:
-        start = pampelmuse.start
-    except AttributeError:
-        start = 0
-    try:
-        stop = pampelmuse.stop
-    except AttributeError:
-        stop = pampelmuse.ifs_data.ndisp-1
+    # get prefix of IFS data - note that the calling routine makes sure that the entry exists in the configuration
+    prefix = config['global']['prefix']
+
+    # open IFS data
+    ifs_data = open_ifs_data(prefix=prefix)
+
+    # adjust numbers of first and last layer to be analysed
+    first_layer = config['layers']['first']
+    if first_layer < 0:
+        first_layer = ifs_data.nlayer + first_layer
+    last_layer = config['layers']['last']
+    if last_layer < 0:
+        last_layer = ifs_data.nlayer + last_layer + 1
+
+    # Source catalogue
+    sources, psf_attributes = open_prm(filename='{0}.prm.fits'.format(prefix), ndisp=ifs_data.wave.size)
+
+    # get history of PRM file
+    history = get_history(filename='{0}.prm.fits'.format(prefix))
 
     # start fitting process:
     logging.info("Starting fit process...")
 
-    fitter = FitCube(ifs_data=pampelmuse.ifs_data, sources=sources, psf_attributes=psf_attributes,
-                     maxrad=pampelmuse.psfrad)
+    fitter = FitCube(ifs_data=ifs_data, sources=sources, psf_attributes=psf_attributes,
+                     psf_radius=config['psf'].get('radius', 15.))
 
-    fitter(layer_range=(start, stop), n_cpu=pampelmuse.cpucount, maxiter=pampelmuse.maxiter,
-           use_variances=pampelmuse.usesigma, n_bin=pampelmuse.layerbin)
+    psf_data = fitter(layer_range=(first_layer, last_layer), n_cpu=config['global'].get('cpucount', 1),
+                      max_iterations=config['cubefit'].get('iterations', 5),
+                      use_variances=config['cubefit'].get('usesigma', True),
+                      n_bin=config['layers'].get('binning', 1), analyse_psf=config['psf'].get('inspect', False))
 
     logging.info("Saving results...")
 
-    # log status of analysis
-    pampelmuse.cubefit.utc = datetime.datetime.utcnow().strftime("%y-%m-%d %H:%M:%S")
-    pampelmuse.cubefit.revision = __revision__
-    pampelmuse.cubefit.status = "SUCCESS"
+    # save PSF data if requested
+    if psf_data is not None:
+        psf_data.writeto('{0}.psf.fits'.format(prefix), overwrite=True)
 
-    save_prm(sources, psf_attributes, filename=pampelmuse.filename, header=pampelmuse.makeHeader())
+    # create header containing configuration
+    header = make_header_from_config(config=config)
+
+    # add history to header
+    for entry in history:
+        header['HISTORY'] = entry
+    now = datetime.datetime.utcnow().strftime("%y-%m-%d %H:%M:%S")
+    header['HISTORY'] = 'CUBEFIT [r{0}] finished at {1}'.format(__revision__, now)
+
+    save_prm(sources, psf_attributes, filename='{0}.prm.fits'.format(prefix), header=header)
