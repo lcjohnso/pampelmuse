@@ -37,7 +37,7 @@ memory but only on request.
 
 Latest Git revision
 -------------------
-2018/02/15
+2018/06/01
 """
 import collections
 import logging
@@ -60,7 +60,7 @@ except ImportError:
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180215
+__revision__ = 20180601
 
 
 logger = logging.getLogger(__name__)
@@ -1627,86 +1627,8 @@ class Sources(object):
             # log progress
             logging.debug("Polynomial fit to source #{0} [{1}/{2}]".format(source_id, n, len(ids)))
             if statusBar is not None:
-                statusBar.showMessage("Polynomial fit to source #{0} [{1}/{2}]".format(
-                    self.ID[j], n, len(indices_to_fit)), 5000)
-
-    ##############################################################################
-    #              Source selection methods/properties                           #
-    ##############################################################################
-    def distance_to_brighter(self):
-        """
-        DEPRECATED - not used anymore since revision 118
-        Calculate the distance of a source to the nearest source that has
-        is brighter as the source itself. This calculation is performed
-        for all sources that have IFS coordinates available.
-        
-        Returns
-        -------
-        mindist : ndarray
-            The distance to the nearest brighter source in units of spaxels.
-        nearsrc : ndarray
-            The ID of the nearest brighter source.
-        """
-
-        logging.info("Determining distance to nearest brighter source...")
-
-        # average IFS coordinates over dispersion axis
-        x = self.ifs_coordinates[..., 0, 0].mean(axis=0)
-        y = self.ifs_coordinates[..., 1, 0].mean(axis=0)
-        mag = self._mag[self.ifs_coordinates_loaded]
-
-        # prepare output arrays
-        mindist = np.zeros(x.shape, dtype=np.float32)
-        nearsrc = np.zeros(x.shape, dtype=np.int32)
-
-        # loop over all source that have IFS coordinates available.
-        for i in xrange(x.size):
-            dist_i = np.sqrt((x - x[i]) ** 2 + (y - y[i]) ** 2)
-            dist_i[(mag - mag[i]) >= 0] = 99.  # exclude all sources that are not brighter
-
-            mindist[i] = dist_i.min()
-            nearsrc[i] = self.ID[self.ifs_coordinates_loaded][dist_i.argmin()]
-
-        return mindist, nearsrc
-
-    def shoulder_drop(self, r):
-        """
-        DEPRECATED - not used anymore since revision 130 (or so)
-        This method determines the shoulder drop or topographic prominence
-        of the sources that is a measure for how strongly a source dominates
-        its surroundings. The measure used here is the flux ratio of the source
-        to the brightest source within distance r. This quantity is used to
-        select the sources that are used to fit the PSF.
-        For the exact definition of the topographic prominence, see
-        http://en.wikipedia.org/wiki/Topographic_prominence. The definition
-        here is slightly modified.
-        
-        Parameters
-        ----------
-        r : float
-            The search radius around each source. Only sources with distances
-            <r are used to measure the shoulder drop for a source.
-            
-        Returns
-        -------
-        shoulder_drop : ndarray
-            For each source with IFS coordinates available, the flux ratio of
-            the source to its brightest neighbor (within a distance r) is
-            returned.
-        """
-        logging.info("Determining shoulder drop of sources...")
-
-        x = self.ifs_coordinates[..., 0, 0].mean(axis=0)
-        y = self.ifs_coordinates[..., 1, 0].mean(axis=0)
-        mag = self._mag[self.ifs_coordinates_loaded]
-
-        dist = np.sqrt((x - x[:, np.newaxis]) ** 2 + (y - y[:, np.newaxis]) ** 2)
-        np.fill_diagonal(dist, 99.)
-
-        offset = mag[:, np.newaxis] - mag
-        offset[dist > r] = 99.
-
-        return 10 ** (-0.4 * offset.min(axis=0))
+                statusBar.showMessage("Polynomial fit to source #{0} [{1}/{2}]".format(source_id, n, len(ids)),
+                                      5000)
 
     ##############################################################################
     #                             Output methods                                 #

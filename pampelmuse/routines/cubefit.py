@@ -36,7 +36,7 @@ which performs the actual analysis.
 
 Latest SVN revision
 -------------------
-2018/05/08
+2018/06/01
 """
 import datetime
 import logging
@@ -45,7 +45,7 @@ from ..utils.fits import make_header_from_config, open_ifs_data, open_prm, save_
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180508
+__revision__ = 20180601
 
 
 def add_parser(parser):

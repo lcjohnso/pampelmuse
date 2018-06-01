@@ -57,7 +57,7 @@ parameters are not fitted.
 
 Latest Git revision
 -------------------
-2018/05/08
+2018/06/01
 """
 import collections
 import contextlib
@@ -72,7 +72,7 @@ from ..core.coordinates import Transformation
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180508
+__revision__ = 20180601
 
 
 logger = logging.getLogger(__name__)
@@ -1030,7 +1030,7 @@ class FitLayer(object):
             else:
                 peak = data.max() - data.min()
                 noise = np.median(data) - data.min()
-            if peak/noise <= 3:
+            if peak/noise <= 3 and i in psf_sources:
                 logger.error('Cannot perform PSF fit for source #{0}: No significant peak detected.'.format(i))
                 continue
 
