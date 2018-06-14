@@ -57,7 +57,7 @@ parameters are not fitted.
 
 Latest Git revision
 -------------------
-2018/06/01
+2018/06/14
 """
 import collections
 import contextlib
@@ -72,7 +72,7 @@ from ..core.coordinates import Transformation
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180601
+__revision__ = 20180614
 
 
 logger = logging.getLogger(__name__)
@@ -326,7 +326,7 @@ class FitLayer(object):
         elif self.fluxes.max() > 0:
             model_fluxes = self.model.sum(axis=1).getA1()
             x_bin, y_bin = FitLayer.calc_running_mad(model_fluxes, self.current)
-            return pd.Series(1.4826*np.interp(model_fluxes, x_bin, y_bin), index=self.catalog.index)
+            return pd.Series(1.4826*np.interp(model_fluxes, x_bin, y_bin), index=self.data.index)
             # 1.4826 is for MAD -> sigma conversion
         # if not, just return 1s
         else:
