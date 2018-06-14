@@ -326,7 +326,7 @@ class FitLayer(object):
         elif self.fluxes.max() > 0:
             model_fluxes = self.model.sum(axis=1).getA1()
             x_bin, y_bin = FitLayer.calc_running_mad(model_fluxes, self.current)
-            return pd.Series(1.4826*np.interp(model_fluxes, x_bin, y_bin), index=self.data.index)
+            return pd.Series((1.4826*np.interp(model_fluxes, x_bin, y_bin))**2, index=self.data.index)
             # 1.4826 is for MAD -> sigma conversion
         # if not, just return 1s
         else:
@@ -1426,7 +1426,7 @@ class FitLayer(object):
 
             # use robust median absolute deviation (MAD) around an initial median value of zero
             cury = y[indices[imin:imax]]
-            ybin[i] = np.median(abs(cury))
+            ybin[i] = np.nanmedian(abs(cury))
         return xbin, ybin
 
     def average_psf_fits(self, results, psf_parameters=None, position_parameters=None):
