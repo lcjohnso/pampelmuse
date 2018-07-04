@@ -3,12 +3,14 @@
 \usepackage[T1]{fontenc}  % makes sure \_ stays and underscore if c&p'd
 \usepackage{fullpage}
 \usepackage[utf8]{inputenc}
+\usepackage{hyperref}
 \usepackage{natbib}
 \usepackage{amsmath}
 \usepackage{graphicx}
 \usepackage{url}
 \usepackage{listings}
 \usepackage{tabularx}
+
 
 \bibpunct{(}{)}{;}{a}{,}{,}
 
@@ -32,12 +34,17 @@
 
 \begin{document}
 
-\graphicspath{{./../images/}}
 \maketitle
+\graphicspath{{./../images/}}
 
 \begin{abstract}
  \pampelmuse is a software package with the purpose of facilitating the analysis of integral-field spectroscopic observations of crowded stellar fields. It provides several  subroutines to perform the individual steps of the data analysis. The theoretical work that went into the development of this code is described in detail in \citet{2013A&A...549A..71K} and not repeated here. Instead, the purpose of this document is to provide a practical guide on the analysis of IFS data with \pampelmuse.
 \end{abstract}
+
+\clearpage
+
+\tableofcontents
+\clearpage
 
 \section{Getting started}
  
@@ -76,7 +83,7 @@ Afterwards you have to make sure that the system finds the newly installed files
 to your shell configuration file (\texttt{\$HOME/.bashrc}). For a c-shell, the following commands lines should be added to your configuration file (\texttt{\$HOME/.cshrc}):
 \shellcmd{setenv PYTHONPATH \$PYTHONPATH:\$HOME/lib/python}
 \shellcmd{setenv PATH \$PATH:\$HOME/bin}\\
-For further informations on custom installation paths, check the \textit{python} documentation.\footnote{\url{http://docs.python.org/2/install/#alternate-installation}}
+For further information on custom installation paths, check the \textit{python} documentation.\footnote{\url{http://docs.python.org/2/install/\#alternate-installation}}
 
 Afterwards, you should be able to execute
 \shellcmd{PampelMuse -{}-help} \\
@@ -254,8 +261,8 @@ The Moffat profile has a second shape parameter, $\beta$. It measures the kurtos
 
 The radius $r$ incorporates the ellipticity $e$ and the position angle $\theta$ of each profile. Thus, besides the actual centroid coordinates, the Moffat profile has $4$ free parameters, the Gaussian profile has $3$.
 
-The properties of the the PSF during the analysis are controlled via the \emph{psf} section of the configuration. The profile in use can be set using the \emph{type} keyword.
-\pmparameter{psf}{type}{string}{moffat}{The name of analytical PSF profile to be used. Currently supported are 'moffat', 'gauss', 'double\_gauss', and 'moffat\_gauss'.}
+The properties of the the PSF during the analysis are controlled via the \emph{psf} section of the configuration. The profile in use can be set using the \emph{profile} keyword.
+\pmparameter{psf}{profile}{string}{moffat}{The name of analytical PSF profile to be used. Currently supported are 'moffat', 'gauss', 'double\_gauss', and 'moffat\_gauss'.}
 
 The initial values of the PSF parameters can be specified directly in the \emph{psf}-section of the configuration.
 \pmparameter{psf}{e}{float}{0.0}{The initial value of the ellipticity of the PSF.}
@@ -467,7 +474,7 @@ When running \pampelmuse in interactive mode, the routine will load the GUI with
  \pmparameter{polynom}{mask}{tuple}{}{In case any wavelength range(s) should be excluded from the polynomial fits by default, provide their start and end values. The values should be provided as a single tuple of even length, so that even indices contain the start values and odd indices the end values of the ranges to be masked.}
  The two drop-down menus in `Fit:' to the bottom right of the panel allow you to specify the type and degree of the polynomial that is used to fit the data. Their default values are controlled by the keys \emph{type} and \emph{degree} in the \emph{polynom} section of the configuration file.
 \pmparameter{polynom}{type}{string}{plain}{The type of polynomial used to fit the wavelength dependencies. Can be one of `plain' (normal polynomial), `chebyshev', `legendre', and `hermite'.}
-\pmparameter{polynom}{order}{integer}{0}{The degree of the polynomials used to fit the wavelength dependencies.} 
+\pmparameter{polynom}{degree}{integer}{0}{The degree of the polynomials used to fit the wavelength dependencies.} 
  The fit is carried out via a click on the green button to the right. Note that currently only fits to the PSF parameters and the IFS coordinates are supported. Fitting the individual IFS coordinates instead of the coordinate transformation (which was used to calculate them) is preferred because the parameters of the coordinate transformation can sometimes show correlated variations (in particular if the field of view contains only a few spaxels) that are difficult to describe with polynomials.
  \item The IFS View displays again the cube, this time with the positions of the extracted sources overplotted. The size of the circles used to mark the extracted sources sclae with  their brightness. Sources marked by green circles are used to fit the PSF. While this display is very helpful for small fields of view, it can look very messy for MUSE-like data of crowded stellar fields. However, you can use the magnifying glass to the upper right of the panel to zoom into the data. When clicking on a source while the Spectrum View shows a spectrum or an IFS coordinate,  the spectrum/coordinate of the selected source will be shown.
  \item The Reference View is currently not used.
@@ -489,6 +496,15 @@ The routine will store all the extracted spectra in individual FITS files that c
 Note that this routine requires the \emph{prefix} key to be set in the \emph{getspectra} section of the user configuration file. This is a string (typically the name of the observed cluster, galaxy, ...) that is used as a common prefix to all FITS files that are written. Additionally, the key \emph{folder} in the same section can be used to provide a folder in which all spectra should be stored.
 \pmparameter{getspectra}{prefix}{string}{}{The common prefix given to all FITS files that are written.}
 \pmparameter{getspectra}{folder}{string}{spectra}{The name of the folder in which the FITS files should be stored.}
+
+\subsection{SUBTRES - creating residuals}
+\pampelmuse also offers the possibility to create a residuals cube once the analysis is complete. To this aim, the routine SUBTRES can be used. By default, it will subtract the contribution of all resolved stellar sources from the cube. However, it is also possible to subtract a subset of the resolved sources, using either of the \emph{include} or \emph{exclude} keys in the \emph{subtres} section of the configuration. Only one of the keys should be set at a time.
+\pmparameter{subtres}{include}{array}{}{The list of IDs of resolved sources that should be subtracted from the IFS data using SUBTRES. The default is to subtract all resolved sources unless the option \emph{exclude} is used.}
+\pmparameter{subtres}{exclude}{array}{}{The list of IDs of resolved sources that should NOT be subtracted from the IFS data using SUBTRES. By default, all sources are subtracted unless the sources to subtract are specified using the \emph{include} option.}
+
+In addition, SUBTRES allows the user to subtract the sky background or the background created by an unresolved stellar component (if either of the components has been used in the analysis). To this aim, a key \emph{subtract} exists in both the \emph{sky} and \emph{unresolved} sections of the configuration.
+\pmparameter{sky}{subtract}{boolean}{False}{Flag indicating if the sky background should be removed when running the SUBTRES routine.}
+\pmparameter{unresolved}{subtract}{boolean}{False}{Flag indicating if the unresolved stellar background should be removed when running the SUBTRES routine.}
 
 \subsection{Recommended analysis strategy}
 The strategy I usually use when analysing IFS data is the following.  After selecting the sources for which spectra should be extracted via INITFIT, I perform a first extraction with CUBEFIT in which the PSF parameters and the coordinate transformation are optimized across the whole wavelength range  with a moderate binning in spectral direction, $\texttt{layers|binning} \sim 50$. Afterwards, I use POLYFIT to smooth the wavelength dependencies of those parameters via polynomial fits. Finally, I run CUBEFIT again, this time without any spectral binning. Since the PRM-file now contains the polynomial fits to the positions and PSF parameters, it will only fit the source fluxes without any iteration. Hence, the second run of CUBEFIT should be much faster than the first.

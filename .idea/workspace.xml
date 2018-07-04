@@ -4,7 +4,11 @@
     <list id="2537fcfb-7e20-4757-bbd2-3237e7f34740" name="patch" comment="Issue that CUBEFIT crashed when only PSF parameters or positions were fitted with POLYFIT. " />
     <list default="true" id="184c2abe-3153-48a7-88ae-f3ca9af990c0" name="Default" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/core/fit_layer.py" afterPath="$PROJECT_DIR$/pampelmuse/core/fit_layer.py" />
+      <change beforePath="$PROJECT_DIR$/bin/PampelMuse" afterPath="$PROJECT_DIR$/bin/PampelMuse" />
+      <change beforePath="$PROJECT_DIR$/doc/manual.pdf" afterPath="$PROJECT_DIR$/doc/manual.pdf" />
+      <change beforePath="$PROJECT_DIR$/doc/manual.tex" afterPath="$PROJECT_DIR$/doc/manual.tex" />
+      <change beforePath="$PROJECT_DIR$/doc/profiles.aux" afterPath="$PROJECT_DIR$/doc/profiles.aux" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/config/__init__.py" afterPath="$PROJECT_DIR$/pampelmuse/config/__init__.py" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="TRACKING_ENABLED" value="true" />
@@ -18,8 +22,8 @@
       <file leaf-file-name="PampelMuse" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/bin/PampelMuse">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="593">
-              <caret line="81" column="0" lean-forward="true" selection-start-line="81" selection-start-column="0" selection-end-line="81" selection-end-column="0" />
+            <state relative-caret-position="633">
+              <caret line="80" column="23" lean-forward="false" selection-start-line="80" selection-start-column="23" selection-end-line="80" selection-end-column="23" />
               <folding>
                 <element signature="e#2531#2546#0" expanded="true" />
               </folding>
@@ -30,8 +34,18 @@
       <file leaf-file-name="pampelmuse.json" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/pampelmuse/config/data/pampelmuse.json">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="180">
-              <caret line="10" column="15" lean-forward="false" selection-start-line="10" selection-start-column="15" selection-end-line="10" selection-end-column="15" />
+            <state relative-caret-position="900">
+              <caret line="71" column="3" lean-forward="false" selection-start-line="71" selection-start-column="0" selection-end-line="72" selection-end-column="0" />
+              <folding />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="__init__.py" pinned="false" current-in-tab="true">
+        <entry file="file://$PROJECT_DIR$/pampelmuse/config/__init__.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="702">
+              <caret line="39" column="23" lean-forward="false" selection-start-line="39" selection-start-column="23" selection-end-line="39" selection-end-column="23" />
               <folding />
             </state>
           </provider>
@@ -47,10 +61,10 @@
           </provider>
         </entry>
       </file>
-      <file leaf-file-name="fit_layer.py" pinned="false" current-in-tab="true">
+      <file leaf-file-name="fit_layer.py" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/pampelmuse/core/fit_layer.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="427">
+            <state relative-caret-position="49">
               <caret line="328" column="71" lean-forward="false" selection-start-line="328" selection-start-column="71" selection-end-line="328" selection-end-column="71" />
               <folding />
             </state>
@@ -70,7 +84,7 @@
       <file leaf-file-name="cubefit.py" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/pampelmuse/routines/cubefit.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="845">
+            <state relative-caret-position="792">
               <caret line="47" column="23" lean-forward="false" selection-start-line="47" selection-start-column="23" selection-end-line="47" selection-end-column="23" />
               <folding>
                 <element signature="e#1278#1293#0" expanded="true" />
@@ -82,7 +96,7 @@
       <file leaf-file-name="fit_cube.py" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/pampelmuse/core/fit_cube.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="-401">
+            <state relative-caret-position="11430">
               <caret line="642" column="8" lean-forward="false" selection-start-line="642" selection-start-column="8" selection-end-line="642" selection-end-column="8" />
               <folding>
                 <element signature="e#923#937#0" expanded="true" />
@@ -109,16 +123,6 @@
               <folding>
                 <marker date="1527094125551" expanded="true" signature="26561:61965" ph="..." />
               </folding>
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file leaf-file-name="__init__.py" pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/pampelmuse/filters/__init__.py">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="1656">
-              <caret line="95" column="61" lean-forward="false" selection-start-line="95" selection-start-column="61" selection-end-line="95" selection-end-column="61" />
-              <folding />
             </state>
           </provider>
         </entry>
@@ -183,7 +187,6 @@
         <option value="$PROJECT_DIR$/pampelmuse/routines/singlesrc.py" />
         <option value="$PROJECT_DIR$/pampelmuse/core/aperture.py" />
         <option value="$PROJECT_DIR$/pampelmuse/instruments/generic_ifs.py" />
-        <option value="$PROJECT_DIR$/pampelmuse/config/__init__.py" />
         <option value="$PROJECT_DIR$/pampelmuse/config/data/pampelmuse.json" />
         <option value="$PROJECT_DIR$/pampelmuse/routines/polyfit.py" />
         <option value="$PROJECT_DIR$/pampelmuse/core/spectrum_writer.py" />
@@ -200,8 +203,9 @@
         <option value="$PROJECT_DIR$/pampelmuse/routines/initfit.py" />
         <option value="$PROJECT_DIR$/pampelmuse/core/sources.py" />
         <option value="$PROJECT_DIR$/pampelmuse/routines/cubefit.py" />
-        <option value="$PROJECT_DIR$/bin/PampelMuse" />
         <option value="$PROJECT_DIR$/pampelmuse/core/fit_layer.py" />
+        <option value="$PROJECT_DIR$/bin/PampelMuse" />
+        <option value="$PROJECT_DIR$/pampelmuse/config/__init__.py" />
       </list>
     </option>
   </component>
@@ -494,13 +498,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1499438305310</updated>
-    </task>
-    <task id="LOCAL-00028" summary="Fixed bug that INITFIT failed when aperture photometry returned only NaNs for one source.">
-      <created>1512497414111</created>
-      <option name="number" value="00028" />
-      <option name="presentableId" value="LOCAL-00028" />
-      <option name="project" value="LOCAL" />
-      <updated>1512497414111</updated>
     </task>
     <task id="LOCAL-00029" summary="Previous fix did not do the job, hope this one does.">
       <created>1512498183066</created>
@@ -838,14 +835,21 @@
       <option name="project" value="LOCAL" />
       <updated>1528992828127</updated>
     </task>
-    <option name="localTasksCounter" value="77" />
+    <task id="LOCAL-00077" summary="Fixed bug affecting CUBEFIT when variances were not used.">
+      <created>1528993610421</created>
+      <option name="number" value="00077" />
+      <option name="presentableId" value="LOCAL-00077" />
+      <option name="project" value="LOCAL" />
+      <updated>1528993610421</updated>
+    </task>
+    <option name="localTasksCounter" value="78" />
     <servers />
   </component>
   <component name="ToolWindowManager">
     <frame x="52" y="-11" width="1869" height="1092" extended-state="6" />
     <editor active="true" />
     <layout>
-      <window_info id="Project" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.21416804" sideWeight="0.5" order="1" side_tool="false" content_ui="combo" />
+      <window_info id="Project" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.21856123" sideWeight="0.5" order="1" side_tool="false" content_ui="combo" />
       <window_info id="TODO" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="10" side_tool="false" content_ui="tabs" />
       <window_info id="Event Log" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33821988" sideWeight="0.52828115" order="0" side_tool="true" content_ui="tabs" />
       <window_info id="Run" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.32925585" sideWeight="0.5" order="8" side_tool="false" content_ui="tabs" />
@@ -1188,7 +1192,6 @@
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="15876">
           <caret line="890" column="21" lean-forward="false" selection-start-line="890" selection-start-column="21" selection-end-line="890" selection-end-column="21" />
-          <folding />
         </state>
       </provider>
     </entry>
@@ -1207,14 +1210,6 @@
           <folding>
             <marker date="1527094125551" expanded="true" signature="26561:61965" ph="..." />
           </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/pampelmuse/config/data/pampelmuse.json">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="180">
-          <caret line="10" column="15" lean-forward="false" selection-start-line="10" selection-start-column="15" selection-end-line="10" selection-end-column="15" />
-          <folding />
         </state>
       </provider>
     </entry>
@@ -1242,17 +1237,9 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/pampelmuse/config/__init__.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="540">
-          <caret line="30" column="12" lean-forward="false" selection-start-line="30" selection-start-column="12" selection-end-line="30" selection-end-column="12" />
-          <folding />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/pampelmuse/routines/cubefit.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="845">
+        <state relative-caret-position="792">
           <caret line="47" column="23" lean-forward="false" selection-start-line="47" selection-start-column="23" selection-end-line="47" selection-end-column="23" />
           <folding>
             <element signature="e#1278#1293#0" expanded="true" />
@@ -1260,19 +1247,9 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/bin/PampelMuse">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="593">
-          <caret line="81" column="0" lean-forward="true" selection-start-line="81" selection-start-column="0" selection-end-line="81" selection-end-column="0" />
-          <folding>
-            <element signature="e#2531#2546#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/pampelmuse/core/fit_cube.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="-401">
+        <state relative-caret-position="11430">
           <caret line="642" column="8" lean-forward="false" selection-start-line="642" selection-start-column="8" selection-end-line="642" selection-end-column="8" />
           <folding>
             <element signature="e#923#937#0" expanded="true" />
@@ -1282,8 +1259,34 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/pampelmuse/core/fit_layer.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="427">
+        <state relative-caret-position="49">
           <caret line="328" column="71" lean-forward="false" selection-start-line="328" selection-start-column="71" selection-end-line="328" selection-end-column="71" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/bin/PampelMuse">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="633">
+          <caret line="80" column="23" lean-forward="false" selection-start-line="80" selection-start-column="23" selection-end-line="80" selection-end-column="23" />
+          <folding>
+            <element signature="e#2531#2546#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pampelmuse/config/data/pampelmuse.json">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="900">
+          <caret line="71" column="3" lean-forward="false" selection-start-line="71" selection-start-column="0" selection-end-line="72" selection-end-column="0" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pampelmuse/config/__init__.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="702">
+          <caret line="39" column="23" lean-forward="false" selection-start-line="39" selection-start-column="23" selection-end-line="39" selection-end-column="23" />
           <folding />
         </state>
       </provider>
