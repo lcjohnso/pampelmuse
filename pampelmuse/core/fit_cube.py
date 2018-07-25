@@ -31,7 +31,7 @@ extraction for a data cube.
 
 Latest GIT revision
 -------------------
-2018/03/14
+2018/07/25
 """
 import logging
 import time
@@ -44,7 +44,7 @@ from ..instruments.muse import MusePixtable
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180314
+__revision__ = 20180725
 
 
 logger = logging.getLogger(__name__)
@@ -585,7 +585,7 @@ class FitCube(object):
                     self.background.ifus = data['ifu'].values
                     self.background.slices = data['slice'].values
                 background_matrix, background_components = self.background.get_sparse_matrix(
-                    offset=self.sources.n_components - self.sources.n_background)
+                    offset=self.sources.n_components - self.sources.n_background, purge_empty=True)
             else:
                 background_matrix = background_components = None
             fit_input[-1]['background'] = background_matrix

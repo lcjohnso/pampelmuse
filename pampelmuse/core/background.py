@@ -39,7 +39,7 @@ Revision 221, 2014/12/02
 
 Latest Git revision
 -------------------
-2018/01/08
+2018/07/25
 """
 import logging
 import numpy as np
@@ -50,7 +50,7 @@ from ..psf import Canvas
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180108
+__revision__ = 20180725
 
 
 class BackgroundGrid(Canvas):
@@ -456,19 +456,20 @@ class BackgroundGrid(Canvas):
             The indices of the background components that are returned (i.e.
             omitting the empty ones if purge_empty was set).
         """
+        # check if numpy.isin is available, otherwise fall back to np.in1d
+        isin = np.isin if np.__version__ >= "1.13.0" else np.in1d
+
         i, j = np.nonzero(self.f)
         values = self.f[(i, j)]
 
         # check if any empty components should be removed
         if purge_empty and self.gridsize > len(np.unique(i)):
-            empty_components = np.flatnonzero(np.isin(np.arange(self.gridsize), i, invert=True))
+            empty_components = np.flatnonzero(isin(np.arange(self.gridsize), i, invert=True))
             for component in empty_components[::-1]:
                 i[i > component] -= 1
         else:
             empty_components = []
 
-        # check if numpy.isin is available, otherwise fall back to np.in1d
-        isin = np.isin if np.__version__ >= "1.13.0" else np.in1d
         included_components = np.flatnonzero(isin(np.arange(self.gridsize), empty_components, invert=True))
         included_components += offset
 

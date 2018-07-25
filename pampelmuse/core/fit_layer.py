@@ -147,6 +147,11 @@ class FitLayer(object):
             highest index (i.e. the highest entries in 'components') is an
             unresolved component. See Kamann et al. (2013) for the idea of the
             unresolved component.
+        background : sparse matrix, optional
+            The spatial distributions of the background component to be used
+            in the fit, provided as a sparse matrix with one component per
+            column. Note that the first columns of the matrix must be empty
+            to accommodate the stellar sources.
         osfactor : int, optional
             The oversampling factor used to increase the accuracy of the
             calculation of the core shape of the PSF profiles.
@@ -197,9 +202,9 @@ class FitLayer(object):
         if background is not None and not isinstance(background, sparse.coo_matrix):
             logger.error('Parameter "background" must be a scipy.sparse.coo_matrix, not {0}'.format(type(background)))
             return
-        elif background is not None and background.shape[0] > 0:
+        elif background is not None and background.shape[1] > 0:
             self.background = background
-            self.n_background = 1 + self.background.col.max() - self.background.col.min()
+            self.n_background = self.background.shape[1] - self.n_components
         else:
             self.background = None
             self.n_background = 0
