@@ -33,7 +33,7 @@ Added
 
 Latest Git revision
 -------------------
-2018/08/09
+2018/08/10
 """
 import logging
 import sys
@@ -53,7 +53,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20180809
+__revision__ = 20180810
 
 
 logger = logging.getLogger(__name__)
@@ -816,7 +816,7 @@ class SourceSelector(object):
 
         # estimate S/N and integrated flux from sources in image
         if n_cpu > 1:
-            pool = Pool(n_cpu, initializer=init_worker, initargs=(self.var_image, ))
+            pool = Pool(n_cpu, initializer=init_worker, initargs=(self.var_image[np.isfinite(self.var_image)],))
 
             _results = pool.map_async(estimate_snr, args)
             pool.close()
@@ -826,7 +826,7 @@ class SourceSelector(object):
             self.signal_to_noise = pd.concat([r[0] for r in results], verify_integrity=True)
             intflux = np.sum([r[1] for r in results])
         else:
-            init_worker(*(self.var_image,))
+            init_worker(*(self.var_image[np.isfinite(self.var_image)],))
             self.signal_to_noise, intflux = estimate_snr(args[0])
 
         logger.info("Estimating the photometric zeropoint...")
