@@ -65,16 +65,17 @@ This results in the inverse transformation:
 
 Latest Git revision
 -------------------
-2017/12/17
+2018/08/13
 """
 import logging
+import sys
 import numpy as np
 import pandas as pd
 from ..core.parameters import Parameters
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20171217
+__revision__ = 20180813
 
 
 logger = logging.getLogger(__name__)
@@ -366,7 +367,7 @@ class Transformation(Parameters):
                 use_column[i] = False
 
         # some versions of numpy seem to have issues if the input to np.linalg.lstsq contains NaNs.
-        if np.__version__ < '1.13' and np.isnan(b).any():
+        if (np.__version__ < '1.13' or sys.version.find('Anaconda') >= 0) and np.isnan(b).any():
             logger.warning('Replacing {0} NaNs using linear interpolation.'.format(np.isnan(b).sum()))
             for i in range(b.shape[1]):
                 mask = np.isnan(b[:, i])

@@ -33,10 +33,11 @@ Added
 
 Latest Git revision
 -------------------
-2018/08/10
+2018/08/14
 """
 import logging
 import sys
+import warnings
 from multiprocessing import cpu_count, Pool
 import numpy as np
 import pandas as pd
@@ -53,7 +54,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20180810
+__revision__ = 20180814
 
 
 logger = logging.getLogger(__name__)
@@ -1288,20 +1289,22 @@ class SourceSelector(object):
         if self.psf_attributes.contains_free_parameters:
             self.psf_attributes.resize(self.sources.wave[results.index.values])
 
-        # FWHM
-        # TODO: should FWHM be updated as well?
-        mean_fwhm = np.nanmean(fwhm, axis=0)
-        logger.info("Mean FWHM: {0:.2f}pix.".format(np.nanmean(mean_fwhm)))
+        # calculate wavelength-dependent values of FWHM, ellipticity and theta
+        # add warnings filter to suppress messages
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', category=RuntimeWarning)
+            mean_fwhm = np.nanmean(fwhm, axis=0)
+            mean_e = np.nanmean(e, axis=0)
+            mean_theta = np.nanmean(theta, axis=0)
 
-        # Ellipticity
-        mean_e = np.nanmean(e, axis=0)
+        logger.info("Mean FWHM: {0:.2f}pix.".format(np.nanmean(mean_fwhm)))
         logger.info("Mean ellipticity: {0:.2f}".format(np.nanmean(mean_e)))
+        logger.info("Mean position angle: {0:.2f}rad.".format(np.nanmean(mean_theta)))
+
+        # update PSF parameters if the parameters are fitted
+        # TODO: should FWHM be updated as well?
         if self.psf_attributes.free['e']:
             self.psf_attributes.data[('e', 'value')] = mean_e
-
-        # Position angle
-        mean_theta = np.nanmean(theta, axis=0)
-        logger.info("Mean position angle: {0:.2f}rad.".format(np.nanmean(mean_theta)))
         if self.psf_attributes.free['theta']:
             self.psf_attributes.data[('theta', 'value')] = mean_theta
 
