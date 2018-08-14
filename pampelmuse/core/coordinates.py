@@ -367,7 +367,7 @@ class Transformation(Parameters):
                 use_column[i] = False
 
         # some versions of numpy seem to have issues if the input to np.linalg.lstsq contains NaNs.
-        if (np.__version__ < '1.13' or sys.version.find('Anaconda') >= 0) and np.isnan(b).any():
+        if (np.__version__ < '1.14' or sys.version.find('Anaconda') >= 0) and np.isnan(b).any():
             logger.warning('Replacing {0} NaNs using linear interpolation.'.format(np.isnan(b).sum()))
             for i in range(b.shape[1]):
                 mask = np.isnan(b[:, i])
