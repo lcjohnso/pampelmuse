@@ -34,7 +34,7 @@ if PampelMuse is started with the 'SUBTRES' option.
 
 Latest Git revision
 -------------------
-2018/03/15
+2018/08/16
 """
 import datetime
 import logging
@@ -45,7 +45,7 @@ from ..utils.fits import open_prm, open_ifs_data
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20170315
+__revision__ = 20180816
 
 
 def add_parser(parser):
@@ -88,16 +88,16 @@ def subtres(config):
     sources, psf_attributes = open_prm('{0}.prm.fits'.format(prefix), ndisp=ifs_data.wave.size)
 
     # adjust numbers of first and last layer to be analysed
-    first_layer = config['layers'].get('first', 0)
+    first_layer = config['layers']['first']
     if first_layer < 0:
         first_layer = ifs_data.nlayer + first_layer
-    last_layer = config['layers'].get('last', -1)
+    last_layer = config['layers']['last']
     if last_layer < 0:
         last_layer = ifs_data.nlayer + last_layer + 1
 
     # check if only a subset of sources should be subtracted or some sources should NOT be subtracted
-    exclude = config['subtres'].get('exclude', None)
-    include = config['subtres'].get('include', None)
+    exclude = config['subtres']['exclude']
+    include = config['subtres']['include']
     if include is not None and exclude is not None:
         logging.error('Only subtres.include or subtres.exclude may be specified.')
         return
@@ -106,11 +106,11 @@ def subtres(config):
     logging.info("Starting source subtraction...")
 
     fitter = MakeResidualsCube(ifs_data=ifs_data, sources=sources, psf_attributes=psf_attributes,
-                               psf_radius=config['psf'].get('radius', 15))
+                               psf_radius=config['psf']['radius'])
 
     residuals = fitter(layer_range=(first_layer, last_layer),
-                       n_cpu=config['global'].get('cpucount', 1),
-                       subtract_background=config['sky'].get('subtract', False),
+                       n_cpu=config['global']['cpucount'],
+                       subtract_background=config['sky']['subtract'],
                        include=include, exclude=exclude)
 
     logging.info("Saving results...")
