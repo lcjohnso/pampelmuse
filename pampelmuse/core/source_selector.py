@@ -33,7 +33,7 @@ Added
 
 Latest Git revision
 -------------------
-2018/08/14
+2018/09/20
 """
 import logging
 import sys
@@ -54,7 +54,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20180814
+__revision__ = 20180920
 
 
 logger = logging.getLogger(__name__)
@@ -1021,7 +1021,11 @@ class SourceSelector(object):
                 if mag > unreslim:
                     break
 
-                distance_to_edge = self.ifs_data.distance_to_edge(xy[source_id].values)[0]
+                # get x- and y-coordinate
+                xi = xy.at[source_id, 'x']
+                yi = xy.at[source_id, 'y']
+
+                distance_to_edge = self.ifs_data.distance_to_edge([[xi, yi]])[0]
                 if distance_to_edge > -1:
                     self.cfp_results.at[source_id, 'status'] = 0
 
