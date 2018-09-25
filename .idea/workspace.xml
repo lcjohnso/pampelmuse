@@ -20,8 +20,8 @@
       <file leaf-file-name="PampelMuse" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/bin/PampelMuse">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="378">
-              <caret line="79" column="22" lean-forward="false" selection-start-line="79" selection-start-column="22" selection-end-line="79" selection-end-column="22" />
+            <state relative-caret-position="145">
+              <caret line="60" column="10" lean-forward="false" selection-start-line="60" selection-start-column="10" selection-end-line="60" selection-end-column="10" />
               <folding />
             </state>
           </provider>
@@ -30,8 +30,8 @@
       <file leaf-file-name="source_selector.py" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/pampelmuse/core/source_selector.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="360">
-              <caret line="56" column="23" lean-forward="false" selection-start-line="56" selection-start-column="23" selection-end-line="56" selection-end-column="23" />
+            <state relative-caret-position="198">
+              <caret line="35" column="10" lean-forward="false" selection-start-line="35" selection-start-column="10" selection-end-line="35" selection-end-column="10" />
               <folding />
             </state>
           </provider>
@@ -40,7 +40,7 @@
       <file leaf-file-name="initfit.py" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/pampelmuse/routines/initfit.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="199">
+            <state relative-caret-position="552">
               <caret line="63" column="23" lean-forward="false" selection-start-line="63" selection-start-column="23" selection-end-line="63" selection-end-column="23" />
               <folding />
             </state>
@@ -163,8 +163,8 @@
         <option value="$PROJECT_DIR$/pampelmuse/core/fit_layer.py" />
         <option value="$PROJECT_DIR$/pampelmuse/routines/cubefit.py" />
         <option value="$PROJECT_DIR$/pampelmuse/core/fit_cube.py" />
-        <option value="$PROJECT_DIR$/pampelmuse/core/source_selector.py" />
         <option value="$PROJECT_DIR$/pampelmuse/routines/initfit.py" />
+        <option value="$PROJECT_DIR$/pampelmuse/core/source_selector.py" />
         <option value="$PROJECT_DIR$/bin/PampelMuse" />
       </list>
     </option>
@@ -251,6 +251,19 @@
               <item name="pampelmuse" type="462c0819:PsiDirectoryNode" />
               <item name="pampelmuse" type="462c0819:PsiDirectoryNode" />
               <item name="instruments" type="462c0819:PsiDirectoryNode" />
+            </path>
+            <path>
+              <item name="pampelmuse" type="b2602c69:ProjectViewProjectNode" />
+              <item name="pampelmuse" type="462c0819:PsiDirectoryNode" />
+              <item name="pampelmuse" type="462c0819:PsiDirectoryNode" />
+              <item name="psf" type="462c0819:PsiDirectoryNode" />
+            </path>
+            <path>
+              <item name="pampelmuse" type="b2602c69:ProjectViewProjectNode" />
+              <item name="pampelmuse" type="462c0819:PsiDirectoryNode" />
+              <item name="pampelmuse" type="462c0819:PsiDirectoryNode" />
+              <item name="psf" type="462c0819:PsiDirectoryNode" />
+              <item name="profiles" type="462c0819:PsiDirectoryNode" />
             </path>
             <path>
               <item name="pampelmuse" type="b2602c69:ProjectViewProjectNode" />
@@ -464,13 +477,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1499438305310</updated>
-    </task>
-    <task id="LOCAL-00036" summary="Fixed bug that wavelength information was not properly propagated for MUSE pixtables.">
-      <created>1513781238979</created>
-      <option name="number" value="00036" />
-      <option name="presentableId" value="LOCAL-00036" />
-      <option name="project" value="LOCAL" />
-      <updated>1513781238979</updated>
     </task>
     <task id="LOCAL-00037" summary="Fixed bug.">
       <created>1513781918993</created>
@@ -808,7 +814,14 @@
       <option name="project" value="LOCAL" />
       <updated>1535994029628</updated>
     </task>
-    <option name="localTasksCounter" value="85" />
+    <task id="LOCAL-00085" summary="Fixed bug in INITFIT affecting usage of unresolved component.">
+      <created>1537450364888</created>
+      <option name="number" value="00085" />
+      <option name="presentableId" value="LOCAL-00085" />
+      <option name="project" value="LOCAL" />
+      <updated>1537450364888</updated>
+    </task>
+    <option name="localTasksCounter" value="86" />
     <servers />
   </component>
   <component name="TodoView">
@@ -824,9 +837,9 @@
     <frame x="52" y="-11" width="1869" height="1092" extended-state="6" />
     <editor active="true" />
     <layout>
-      <window_info id="Project" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.21746293" sideWeight="0.5" order="1" side_tool="false" content_ui="combo" />
-      <window_info id="TODO" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.32984293" sideWeight="0.4936848" order="10" side_tool="false" content_ui="tabs" />
-      <window_info id="Event Log" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.32984293" sideWeight="0.50631523" order="0" side_tool="true" content_ui="tabs" />
+      <window_info id="Project" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.22570017" sideWeight="0.5" order="1" side_tool="false" content_ui="combo" />
+      <window_info id="TODO" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.32984293" sideWeight="0.487095" order="10" side_tool="false" content_ui="tabs" />
+      <window_info id="Event Log" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.32984293" sideWeight="0.512905" order="0" side_tool="true" content_ui="tabs" />
       <window_info id="Find" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.3277487" sideWeight="0.4914882" order="5" side_tool="false" content_ui="tabs" />
       <window_info id="Run" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.32925585" sideWeight="0.5" order="8" side_tool="false" content_ui="tabs" />
       <window_info id="Version Control" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33717278" sideWeight="0.46952224" order="1" side_tool="false" content_ui="tabs" />
@@ -878,7 +891,6 @@
     <option name="myLimit" value="2678400000" />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Added some logging" />
     <MESSAGE value="Adopted new wavelength policy: Internally, meters are used, but I/O is in Angstrom." />
     <MESSAGE value="Fixed bug in GETSPECTRA." />
     <MESSAGE value="Fixed another bug in GETSPECTRA." />
@@ -903,7 +915,8 @@
     <MESSAGE value="Fixed bug in CUBEFIT" />
     <MESSAGE value="Added functionality for shrinking PampelMuse GUI. Useful when using screens with low resolution." />
     <MESSAGE value="Fixed bug." />
-    <option name="LAST_COMMIT_MESSAGE" value="Fixed bug." />
+    <MESSAGE value="Fixed bug in INITFIT affecting usage of unresolved component." />
+    <option name="LAST_COMMIT_MESSAGE" value="Fixed bug in INITFIT affecting usage of unresolved component." />
     <option name="PRESELECT_EXISTING_CHANGELIST" value="true" />
   </component>
   <component name="XDebuggerManager">
@@ -1230,26 +1243,26 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/pampelmuse/core/source_selector.py">
+    <entry file="file://$PROJECT_DIR$/pampelmuse/routines/initfit.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="360">
-          <caret line="56" column="23" lean-forward="false" selection-start-line="56" selection-start-column="23" selection-end-line="56" selection-end-column="23" />
+        <state relative-caret-position="552">
+          <caret line="63" column="23" lean-forward="false" selection-start-line="63" selection-start-column="23" selection-end-line="63" selection-end-column="23" />
           <folding />
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/pampelmuse/routines/initfit.py">
+    <entry file="file://$PROJECT_DIR$/pampelmuse/core/source_selector.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="199">
-          <caret line="63" column="23" lean-forward="false" selection-start-line="63" selection-start-column="23" selection-end-line="63" selection-end-column="23" />
+        <state relative-caret-position="198">
+          <caret line="35" column="10" lean-forward="false" selection-start-line="35" selection-start-column="10" selection-end-line="35" selection-end-column="10" />
           <folding />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/bin/PampelMuse">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="378">
-          <caret line="79" column="22" lean-forward="false" selection-start-line="79" selection-start-column="22" selection-end-line="79" selection-end-column="22" />
+        <state relative-caret-position="145">
+          <caret line="60" column="10" lean-forward="false" selection-start-line="60" selection-start-column="10" selection-end-line="60" selection-end-column="10" />
           <folding />
         </state>
       </provider>

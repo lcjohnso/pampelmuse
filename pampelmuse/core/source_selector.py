@@ -33,7 +33,7 @@ Added
 
 Latest Git revision
 -------------------
-2018/09/20
+2018/09/25
 """
 import logging
 import sys
@@ -54,7 +54,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20180920
+__revision__ = 20180925
 
 
 logger = logging.getLogger(__name__)
@@ -1030,8 +1030,9 @@ class SourceSelector(object):
                     self.cfp_results.at[source_id, 'status'] = 0
 
             # use brightest unresolved source as "primary"
-            idx = self.sources.mag[self.cfp_results.index[self.cfp_results['status'] == 1]].idxmin()
-            self.cfp_results.loc[self.cfp_results['status'] == 0, 'primary'] = idx
+            if (self.cfp_results['status'] == 0).sum() > 0:
+                idx = self.sources.mag[self.cfp_results.index[self.cfp_results['status'] == 0]].idxmin()
+                self.cfp_results.loc[self.cfp_results['status'] == 0, 'primary'] = idx
 
             logger.info("Unresolved component contains {0} sources.".format((self.cfp_results['status'] == 0).sum()))
 
