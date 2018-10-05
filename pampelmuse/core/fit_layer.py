@@ -57,7 +57,7 @@ parameters are not fitted.
 
 Latest Git revision
 -------------------
-2018/09/03
+2018/10/05
 """
 import collections
 import contextlib
@@ -72,7 +72,7 @@ from ..core.coordinates import Transformation
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180903
+__revision__ = 20181005
 
 
 logger = logging.getLogger(__name__)
@@ -258,7 +258,7 @@ class FitLayer(object):
         self.fluxes = pd.Series(0., index=np.arange(self.n_components))
         if self.n_background > 0:
             # check if valid indices for background components were provided
-            if background_index is None and len(background_index) != self.n_background:
+            if background_index is None or len(background_index) != self.n_background:
                 background_index = np.arange(-1, -(self.n_background + 1), -1)
             self.fluxes = self.fluxes.append(pd.Series(0., index=background_index))
 
@@ -474,7 +474,7 @@ class FitLayer(object):
             elif not isinstance(fluxes, pd.Series):
                 logger.error('Parameter "fluxes" must be convertible to pandas Series.')
                 return
-            elif fluxes.size != (self.n_components * self.n_background):
+            elif fluxes.size != (self.n_components + self.n_background):
                 logger.error('No. of provided fluxes does not match number of components.')
                 return
             self.fluxes = fluxes
