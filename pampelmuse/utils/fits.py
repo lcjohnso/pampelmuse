@@ -32,7 +32,7 @@ The provided functions facilitate working with FITS data.
 
 Latest Git revision
 -------------------
-2018/01/24
+2018/10/17
 """
 import os
 import logging
@@ -47,7 +47,7 @@ from ..psf import Variables
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180221
+__revision__ = 20181017
 
 
 def open_ifs_data(prefix, **kwargs):
@@ -403,9 +403,15 @@ def make_header_from_config(config, **kwargs):
             # parameters 'mask' and 'saturated' can be lists and need to be handled separately:
             if isinstance(value, (list, tuple)):
                 for i, value_i in enumerate(value, start=1):
-                    header['HIERARCH PAMPELMUSE {0} {1} {2}'.format(key, sub_key, i)] = value_i
+                    card = fits.Card('HIERARCH PAMPELMUSE {0} {1} {2}'.format(key, sub_key, i), value_i)
             else:
-                header['HIERARCH PAMPELMUSE {0} {1}'.format(key, sub_key)] = value
+                card = fits.Card('HIERARCH PAMPELMUSE {0} {1}'.format(key, sub_key), value)
+            try:
+                card.verify()
+            except ValueError:
+                logging.warning('Configuration key {0} = {1} is too long for header.'.format(card.keyword, card.value))
+            else:
+                header.append(card=card)
 
     # add additional keywords (if any)
     for key, value in kwargs:
