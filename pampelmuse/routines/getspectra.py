@@ -41,15 +41,16 @@ Added
 
 Latest Git revision
 -------------------
-2018/05/08
+2018/12/05
 """
 import logging
+import sys
 from ..core.spectrum_writer import SpectrumWriter
 from ..utils.fits import open_prm, open_ifs_data
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180508
+__revision__ = 20181205
 
 
 def add_parser(parser):
@@ -81,6 +82,11 @@ def getspectra(config):
 
     # Get source catalogue from PRM-file
     sources, psf = open_prm('{0}.prm.fits'.format(prefix), ndisp=ifs_data.wave.size)
+
+    # check if a prefix for the output spectra has been defined
+    if not config['getspectra']['prefix']:
+        logging.error('No prefix for output spectra defined. Please set the parameter getspectra|prefix.')
+        sys.exit(1)
 
     # If no filters are provided for calculating magnitudes, just use the one from
     # the source selection.
