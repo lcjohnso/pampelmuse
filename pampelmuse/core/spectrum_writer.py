@@ -31,7 +31,7 @@ Added
 
 Latest Git revision
 -------------------
-2018/05/08
+2018/12/12
 """
 import datetime
 import logging
@@ -47,7 +47,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20180508
+__revision__ = 20181212
 
 
 logger = logging.getLogger(__name__)
@@ -104,13 +104,17 @@ class SpectrumWriter(object):
         # add dispersion information to header; note that internal wavelength unit is meter, but spectra are stored
         # in units of Angstrom.
         if self.sources.data_wave_hdu is None:
+            if self.sources.cunit == 'Angstrom':
+                factor = 1
+            else:
+                factor = 1e10
             self.header["CRPIX1"] = self.sources.crpix - start
-            self.header["CRVAL1"] = 1e10*self.sources.crval
-            self.header["CDELT1"] = 1e10*self.sources.cdelt
+            self.header["CRVAL1"] = factor*self.sources.crval
+            self.header["CDELT1"] = factor*self.sources.cdelt
             self.header["CTYPE1"] = self.sources.ctype
             self.header["CUNIT1"] = 'Angstrom'
-            self.header["WSTART"] = 1e10*(self.sources.crval - (self.sources.crpix - start - 1)*self.sources.cdelt)
-            self.header["WSTEP"] = 1e10*self.sources.cdelt
+            self.header["WSTART"] = factor*(self.sources.crval - (self.sources.crpix - start - 1)*self.sources.cdelt)
+            self.header["WSTEP"] = factor*self.sources.cdelt
         else:
             self.header['WAVE'] = 'WAVE'  # if dedicated HDU with wavelength information exists
 
