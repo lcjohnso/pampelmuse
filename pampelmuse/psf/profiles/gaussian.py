@@ -125,7 +125,7 @@ class Gaussian(Profile):
             for the parents pixels after averaging over the sub-pixels.
         """
         if self._f is None:
-            self._f = gaussian.flux(self.r, self.fwhm, self.e)
+            self._f = self.int_flux*gaussian.flux(self.r, self.fwhm, self.e)
         if integrate:
             return self.sum_os(self._f)
         else:

@@ -2,7 +2,7 @@
 source_selector.py
 ==================
 
-Copyright 2013-2018 Sebastian Kamann
+Copyright 2013-2019 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -33,7 +33,7 @@ Added
 
 Latest Git revision
 -------------------
-2018/09/25
+2019/02/03
 """
 import logging
 import sys
@@ -54,7 +54,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20180925
+__revision__ = 20190203
 
 
 logger = logging.getLogger(__name__)
@@ -462,6 +462,8 @@ class SourceSelector(object):
             self.psf_class = DoubleGaussian
         elif profile == "moffat_gauss":
             self.psf_class = MoffatGaussian
+        elif profile == "double_moffat":
+            self.psf_class = DoubleMoffat
         else:
             logger.error('Unknown PSF type: "{0}"'.format(profile))
             return

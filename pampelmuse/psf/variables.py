@@ -1,7 +1,7 @@
 """
 variables.py
 ============
-Copyright 2013-2018 Sebastian Kamann
+Copyright 2013-2019 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -34,7 +34,7 @@ general framework for dealing with parameters within PampelMuse.
 
 Latest Git revision
 -------------------
-2018/04/24
+2019/02/03
 """
 import logging
 import numpy as np
@@ -43,7 +43,7 @@ from ..core.parameters import Parameters
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180424
+__revision__ = 20190203
 
 
 logger = logging.getLogger(__name__)
@@ -67,12 +67,19 @@ class Variables(Parameters):
     PROFILES = {"moffat": ["beta", "fwhm", "e", "theta"],
                 "gauss": ["fwhm", "e", "theta"],
                 "double_gauss": ["f12", "fwhm1", "fwhm2", "e", "theta"],
-                "moffat_gauss": ["f12", "beta", "fwhm1", "fwhm2", "e", "theta"]}
+                "moffat_gauss": ["f12", "beta", "fwhm1", "fwhm2", "e", "theta"],
+                "double_moffat": ["f12", "beta1", "fwhm1", "beta2", "fwhm2", "e", "theta"]}
 
     #  define dictionary providing tex-style representations of each parameter name for plotting
-    LABELS = {"fwhm": r"$\mathrm{FWHM}\ [\mathrm{spaxel}]$", "beta": r"$\beta$", "e": r"$e$",
-              "theta": r"$\theta\ [\mathrm{rad}]$", "fwhm1": r"$\mathrm{FWHM}_1\ [\mathrm{spaxel}]$",
-              "fwhm2": r"$\mathrm{FWHM}_2\ [\mathrm{spaxel}]$", "f12": r"$f_\mathrm{12}$"}
+    LABELS = {"fwhm": r"$\mathrm{FWHM}\ [\mathrm{spaxel}]$",
+              "beta": r"$\beta$",
+              "e": r"$e$",
+              "theta": r"$\theta\ [\mathrm{rad}]$",
+              "beta1": r"$\beta_1$",
+              "beta2": r"$\beta_2$",
+              "fwhm1": r"$\mathrm{FWHM}_1\ [\mathrm{spaxel}]$",
+              "fwhm2": r"$\mathrm{FWHM}_2\ [\mathrm{spaxel}]$",
+              "f12": r"$f_\mathrm{12}$"}
 
     def __init__(self, profile='moffat', data=None, free=None, **kwargs):
         """

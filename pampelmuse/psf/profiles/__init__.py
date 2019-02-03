@@ -1,7 +1,7 @@
 """
 __init__.py
 ===========
-Copyright 2013-2018 Sebastian Kamann
+Copyright 2013-2019 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -22,7 +22,8 @@ from .profile import Profile
 from .gaussian import Gaussian
 from .moffat import Moffat
 from .double_gaussian import DoubleGaussian
+from .double_moffat import DoubleMoffat
 from .moffat_gaussian import MoffatGaussian
 
 # define what should be imported upon 'from psf import *':
-__all__ = ["Gaussian", "Moffat", "DoubleGaussian", "MoffatGaussian"]
+__all__ = ["Gaussian", "Moffat", "DoubleGaussian", "MoffatGaussian", "DoubleMoffat"]

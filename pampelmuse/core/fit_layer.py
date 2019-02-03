@@ -67,7 +67,7 @@ import numpy as np
 import pandas as pd
 from scipy import optimize, sparse
 from scipy.sparse import linalg
-from ..psf.profiles import Gaussian, Moffat, DoubleGaussian, MoffatGaussian
+from ..psf.profiles import *
 from ..core.coordinates import Transformation
 
 
@@ -223,6 +223,8 @@ class FitLayer(object):
             psf_class = DoubleGaussian
         elif psf_type.lower() == 'moffat_gauss':
             psf_class = MoffatGaussian
+        elif psf_type.lower() == 'double_moffat':
+            psf_class = DoubleMoffat
         else:
             logger.error('Unknown PSF type provided: {0}'.format(psf_type))
             psf_class = None
