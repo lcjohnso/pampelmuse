@@ -41,7 +41,7 @@ Added
 
 Latest Git revision
 -------------------
-2018/12/05
+2018/12/12
 """
 import logging
 import sys
@@ -50,7 +50,7 @@ from ..utils.fits import open_prm, open_ifs_data
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20181205
+__revision__ = 20181212
 
 
 def add_parser(parser):
