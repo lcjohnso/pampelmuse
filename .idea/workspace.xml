@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="184c2abe-3153-48a7-88ae-f3ca9af990c0" name="Default" comment="Added double-Moffat to options for PSF profile." />
+    <list default="true" id="184c2abe-3153-48a7-88ae-f3ca9af990c0" name="Default" comment="Added double-Moffat to options for PSF profile.">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+    </list>
     <list id="2537fcfb-7e20-4757-bbd2-3237e7f34740" name="patch" comment="Issue that CUBEFIT crashed when only PSF parameters or positions were fitted with POLYFIT. " />
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -229,72 +231,6 @@
               <item name="pampelmuse" type="b2602c69:ProjectViewProjectNode" />
               <item name="pampelmuse" type="462c0819:PsiDirectoryNode" />
             </path>
-            <path>
-              <item name="pampelmuse" type="b2602c69:ProjectViewProjectNode" />
-              <item name="pampelmuse" type="462c0819:PsiDirectoryNode" />
-              <item name="bin" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="pampelmuse" type="b2602c69:ProjectViewProjectNode" />
-              <item name="pampelmuse" type="462c0819:PsiDirectoryNode" />
-              <item name="pampelmuse" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="pampelmuse" type="b2602c69:ProjectViewProjectNode" />
-              <item name="pampelmuse" type="462c0819:PsiDirectoryNode" />
-              <item name="pampelmuse" type="462c0819:PsiDirectoryNode" />
-              <item name="config" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="pampelmuse" type="b2602c69:ProjectViewProjectNode" />
-              <item name="pampelmuse" type="462c0819:PsiDirectoryNode" />
-              <item name="pampelmuse" type="462c0819:PsiDirectoryNode" />
-              <item name="config" type="462c0819:PsiDirectoryNode" />
-              <item name="data" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="pampelmuse" type="b2602c69:ProjectViewProjectNode" />
-              <item name="pampelmuse" type="462c0819:PsiDirectoryNode" />
-              <item name="pampelmuse" type="462c0819:PsiDirectoryNode" />
-              <item name="core" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="pampelmuse" type="b2602c69:ProjectViewProjectNode" />
-              <item name="pampelmuse" type="462c0819:PsiDirectoryNode" />
-              <item name="pampelmuse" type="462c0819:PsiDirectoryNode" />
-              <item name="graphics" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="pampelmuse" type="b2602c69:ProjectViewProjectNode" />
-              <item name="pampelmuse" type="462c0819:PsiDirectoryNode" />
-              <item name="pampelmuse" type="462c0819:PsiDirectoryNode" />
-              <item name="instruments" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="pampelmuse" type="b2602c69:ProjectViewProjectNode" />
-              <item name="pampelmuse" type="462c0819:PsiDirectoryNode" />
-              <item name="pampelmuse" type="462c0819:PsiDirectoryNode" />
-              <item name="psf" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="pampelmuse" type="b2602c69:ProjectViewProjectNode" />
-              <item name="pampelmuse" type="462c0819:PsiDirectoryNode" />
-              <item name="pampelmuse" type="462c0819:PsiDirectoryNode" />
-              <item name="psf" type="462c0819:PsiDirectoryNode" />
-              <item name="profiles" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="pampelmuse" type="b2602c69:ProjectViewProjectNode" />
-              <item name="pampelmuse" type="462c0819:PsiDirectoryNode" />
-              <item name="pampelmuse" type="462c0819:PsiDirectoryNode" />
-              <item name="routines" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="pampelmuse" type="b2602c69:ProjectViewProjectNode" />
-              <item name="pampelmuse" type="462c0819:PsiDirectoryNode" />
-              <item name="pampelmuse" type="462c0819:PsiDirectoryNode" />
-              <item name="utils" type="462c0819:PsiDirectoryNode" />
-            </path>
           </expand>
           <select />
         </subPane>
@@ -462,13 +398,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1499438305310</updated>
-    </task>
-    <task id="LOCAL-00041" summary="Modifications to GUI. Should not crash anymore when layer in NaD gap is selected.">
-      <created>1515078376023</created>
-      <option name="number" value="00041" />
-      <option name="presentableId" value="LOCAL-00041" />
-      <option name="project" value="LOCAL" />
-      <updated>1515078376023</updated>
     </task>
     <task id="LOCAL-00042" summary="Last fix was not successful.">
       <created>1515079180676</created>
@@ -806,7 +735,14 @@
       <option name="project" value="LOCAL" />
       <updated>1549227954243</updated>
     </task>
-    <option name="localTasksCounter" value="90" />
+    <task id="LOCAL-00090" summary="Added double-Moffat to options for PSF profile.">
+      <created>1549230845605</created>
+      <option name="number" value="00090" />
+      <option name="presentableId" value="LOCAL-00090" />
+      <option name="project" value="LOCAL" />
+      <updated>1549230845605</updated>
+    </task>
+    <option name="localTasksCounter" value="91" />
     <servers />
   </component>
   <component name="TodoView">
@@ -819,12 +755,11 @@
     </todo-panel>
   </component>
   <component name="ToolWindowManager">
-    <frame x="64" y="1069" width="1857" height="1092" extended-state="6" />
-    <editor active="true" />
+    <frame x="64" y="-11" width="1857" height="1092" extended-state="6" />
     <layout>
       <window_info id="Favorites" order="0" side_tool="true" />
       <window_info content_ui="combo" id="Project" order="1" visible="true" weight="0.20066334" />
-      <window_info anchor="bottom" id="Event Log" order="0" sideWeight="0.512905" side_tool="true" weight="0.32984293" />
+      <window_info active="true" anchor="bottom" id="Event Log" order="0" sideWeight="0.51354337" side_tool="true" visible="true" weight="0.19644724" />
       <window_info anchor="bottom" id="Version Control" order="1" sideWeight="0.46952224" weight="0.33717278" />
       <window_info anchor="bottom" id="Python Console" order="2" sideWeight="0.49588138" weight="0.32984293" />
       <window_info anchor="bottom" id="Terminal" order="3" sideWeight="0.498078" weight="0.32984293" />
@@ -834,12 +769,12 @@
       <window_info anchor="bottom" id="Cvs" order="7" weight="0.25" />
       <window_info anchor="bottom" id="Run" order="8" weight="0.32925585" />
       <window_info anchor="bottom" id="Inspection" order="9" weight="0.4" />
-      <window_info anchor="bottom" id="TODO" order="10" sideWeight="0.487095" visible="true" weight="0.19644724" />
+      <window_info anchor="bottom" id="TODO" order="10" sideWeight="0.4864566" visible="true" weight="0.19644724" />
       <window_info anchor="right" id="Data View" order="0" />
       <window_info anchor="right" id="Commander" order="1" weight="0.4" />
       <window_info anchor="right" id="Ant Build" order="2" weight="0.25" />
       <window_info anchor="right" content_ui="combo" id="Hierarchy" order="3" weight="0.25" />
-      <window_info active="true" anchor="right" id="Structure" order="4" visible="true" weight="0.17357656" />
+      <window_info anchor="right" id="Structure" order="4" visible="true" weight="0.17357656" />
     </layout>
     <layout-to-restore>
       <window_info id="Favorites" order="0" side_tool="true" />
