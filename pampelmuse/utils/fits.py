@@ -1,7 +1,7 @@
 """
 fits.py
 =======
-Copyright 2013-2018 Sebastian Kamann
+Copyright 2013-2019 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -32,7 +32,7 @@ The provided functions facilitate working with FITS data.
 
 Latest Git revision
 -------------------
-2018/10/17
+2019/02/13
 """
 import os
 import logging
@@ -47,7 +47,7 @@ from ..psf import Variables
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20181017
+__revision__ = 20190213
 
 
 def open_ifs_data(prefix, **kwargs):
@@ -404,14 +404,16 @@ def make_header_from_config(config, **kwargs):
             if isinstance(value, (list, tuple)):
                 for i, value_i in enumerate(value, start=1):
                     card = fits.Card('HIERARCH PAMPELMUSE {0} {1} {2}'.format(key, sub_key, i), value_i)
+                    header.append(card=card)
             else:
                 card = fits.Card('HIERARCH PAMPELMUSE {0} {1}'.format(key, sub_key), value)
-            try:
-                card.verify()
-            except ValueError:
-                logging.warning('Configuration key {0} = {1} is too long for header.'.format(card.keyword, card.value))
-            else:
-                header.append(card=card)
+                try:
+                    card.verify()
+                except ValueError:
+                    logging.warning('Configuration key {0} = {1} is too long for header.'.format(
+                        card.keyword, card.value))
+                else:
+                    header.append(card=card)
 
     # add additional keywords (if any)
     for key, value in kwargs:
