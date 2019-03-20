@@ -33,7 +33,7 @@ Added
 
 Latest Git revision
 -------------------
-2019/02/03
+2019/03/20
 """
 import logging
 import sys
@@ -54,7 +54,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20190203
+__revision__ = 20190320
 
 
 logger = logging.getLogger(__name__)
@@ -617,7 +617,7 @@ class SourceSelector(object):
             if self.data_image.sum() <= 0:
                 fixed_pixels = 0
                 while self.data_image.sum() <= 0:
-                    self.data_image[np.argmin(self.data_image)] = 0
+                    self.data_image[np.unravel_index(np.argmin(self.data_image), self.data_image.shape)] = 0
                     fixed_pixels += 1
                 logger.warning(
                     "Flux sum in {0}-image was still negative. Set the {1} most negative pixels to zero.".format(
