@@ -33,7 +33,7 @@ Added
 
 Latest Git revision
 -------------------
-2019/03/20
+2019/03/26
 """
 import logging
 import sys
@@ -54,7 +54,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20190320
+__revision__ = 20190326
 
 
 logger = logging.getLogger(__name__)
@@ -594,7 +594,7 @@ class SourceSelector(object):
         # The variance values are valid for the broadband image and must be increased to be representative for a
         # typical layer. As the image was obtained by integrating over a filter curve, the sigma values are multiplied
         # by sqrt(N) where N is the effective width of the filter curve in units of the spectral sampling.
-        self.var_image *= weights[(np.arange(weights.size) % 10) == 0].sum()
+        self.var_image *= weights[(np.arange(weights.size) % n_bin) == 0].sum()
 
         mask = np.isnan(self.data_image)
         if mask.all():
@@ -608,6 +608,10 @@ class SourceSelector(object):
 
         self.var_image[mask] = np.inf
         self.data_image[mask] = 0
+
+        if np.isnan(self.var_image).any():
+            logger.warning('Variance image created from IFS data contains {0}/{1} NaN pixels.'.format(
+                np.isnan(self.var_image).sum(), self.var_image.size))
 
         # take care of data cubes with over-subtraction of background
         if self.data_image.sum() <= 0:
