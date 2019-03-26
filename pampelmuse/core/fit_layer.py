@@ -57,7 +57,7 @@ parameters are not fitted.
 
 Latest Git revision
 -------------------
-2019/03/21
+2019/03/26
 """
 import collections
 import contextlib
@@ -72,7 +72,7 @@ from ..core.coordinates import Transformation
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20190321
+__revision__ = 20190326
 
 
 logger = logging.getLogger(__name__)
@@ -561,9 +561,12 @@ class FitLayer(object):
                                 self.psf_instances[index].yc = row['yc']
 
                     # get average values from individual fits as pandas Series
+                    if position_parameters_to_fit is None or 'xy' in position_parameters_to_fit:
+                        _position_parameters_to_fit = None
+                    else:
+                        _position_parameters_to_fit = position_parameters_to_fit
                     final = self.average_psf_fits(
-                        single_psf_results, psf_parameters_to_fit,
-                        None if 'xy' in position_parameters_to_fit else position_parameters_to_fit)
+                        single_psf_results, psf_parameters_to_fit, _position_parameters_to_fit)
 
                 else:
                     final = pd.Series()
