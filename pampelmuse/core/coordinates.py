@@ -1,7 +1,7 @@
 """
 coordinates.py
 ==============
-Copyright 2013-2017 Sebastian Kamann
+Copyright 2013-2019 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -65,7 +65,7 @@ This results in the inverse transformation:
 
 Latest Git revision
 -------------------
-2018/08/13
+2019/03/27
 """
 import logging
 import sys
@@ -75,7 +75,7 @@ from ..core.parameters import Parameters
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180813
+__revision__ = 20190327
 
 
 logger = logging.getLogger(__name__)
@@ -367,11 +367,12 @@ class Transformation(Parameters):
                 use_column[i] = False
 
         # some versions of numpy seem to have issues if the input to np.linalg.lstsq contains NaNs.
-        if (np.__version__ < '1.14' or sys.version.find('Anaconda') >= 0) and np.isnan(b).any():
-            logger.warning('Replacing {0} NaNs using linear interpolation.'.format(np.isnan(b).sum()))
-            for i in range(b.shape[1]):
-                mask = np.isnan(b[:, i])
-                b[mask, i] = np.interp(np.flatnonzero(mask), np.flatnonzero(~mask), b[~mask, i])
+        if np.__version__ < '1.14' or sys.version.find('Anaconda') >= 0 or not getattr(np.__config__, 'mkl_info', {}):
+            if np.isnan(b).any():
+                logger.warning('Replacing {0} NaNs using linear interpolation.'.format(np.isnan(b).sum()))
+                for i in range(b.shape[1]):
+                    mask = np.isnan(b[:, i])
+                    b[mask, i] = np.interp(np.flatnonzero(mask), np.flatnonzero(~mask), b[~mask, i])
 
         # for linear fit, the dispersion axis of b must be the last axis, so b needs to be transposed
         best_fit = np.linalg.lstsq(in_matrix[:, use_column], b.T)[0]  # -> returns array with shape (6 - n_fixed, K)
