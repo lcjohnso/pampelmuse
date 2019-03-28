@@ -65,7 +65,7 @@ import logging
 import time
 import numpy as np
 import pandas as pd
-from scipy import optimize, sparse
+from scipy import interpolate, optimize, sparse
 from scipy.sparse import linalg
 from ..psf.profiles import *
 from ..core.coordinates import Transformation
@@ -105,7 +105,8 @@ class FitLayer(object):
     _unresolved_matrix = None
 
     def __init__(self, data, catalog, psf_type, psf_parameters, psf_radius=np.inf, position_parameters=None,
-                 last_component_is_unresolved=False, background=None, osfactor=1, osradius=0, background_index=None):
+                 last_component_is_unresolved=False, background=None, osfactor=1, osradius=0, background_index=None,
+                 lut=None):
         """
         Initialize a new instance of the FitLayer class.
 
@@ -160,6 +161,12 @@ class FitLayer(object):
         background_index : pandas.Index, optional
            The index/indices of the background component(s). If None (default)
            the background components are indexed descendingly from -1.
+        lut : function, optional
+           If provided, must be a function that takes a set of radii and
+           returns the correction factors to be applied to the fluxes of the
+           analytical PSF profiles at those radii.
+           Note that if a LUT is provided and any of the PSF parameters are
+           optimized, the LUT will also be modified.
         """
         self.psf_radius = psf_radius
 
@@ -251,6 +258,9 @@ class FitLayer(object):
                 new_psf.xc = row['x']
                 new_psf.yc = row['y']
             self.psf_instances[index] = new_psf
+
+        # check if look-up table should be used
+        self.lut = lut
 
         # place-holder for variables defined below:
         self.source_matrix = None
@@ -552,6 +562,8 @@ class FitLayer(object):
                     single_psf_results, profiles, residuals = self.fit_sources_consecutively(
                         sources=sources, psf_parameters=psf_parameters_to_fit, psf_sources=psf_sources,
                         fit_positions=(position_parameters_to_fit is not None), return_psf_profiles=analyse_psf)
+
+                    self.create_look_up_table(residuals=residuals, centroids=single_psf_results)
 
                     # if positions are fitted directly, update them
                     if position_parameters_to_fit is not None and 'xy' in position_parameters_to_fit:
@@ -902,7 +914,7 @@ class FitLayer(object):
             * 'flux': the fitted flux of each source.
             * 'snr': an estimate of the S/N of each source.
             * ['fwhm', 'e', 'theta', ...: values of the free PSF parameters.]
-            * ['x', 'y': the x- and y-centroids obtained in the fits]
+            * ['xc', 'yc': the x- and y-centroids obtained in the fits]
         profiles : pandas.DataFrame
             The radial profiles of the stars to which a PSF profile was fitted
             if the parameter 'psf_profiles' was set. Otherwise None is
@@ -1586,3 +1598,56 @@ class FitLayer(object):
 
         combined = pd.DataFrame(np.stack(data, axis=1), columns=source_ids, index=np.nanmean(radii, axis=0))
         return combined
+
+    def create_look_up_table(self, residuals, centroids):
+        """
+        Create look-up table containing the relative residuals of the PSF fits
+        averaged over all sources.
+
+        Parameters
+        ----------
+        residuals : dict
+            A dictionary containing for each source a pandas DataFrame with
+            the columns 'data' and 'residuals' that uses the same Index values
+            as the full data set.
+        centroids : pandas.DataFrame
+            A pandas DataFrame containing one row per source, using the source
+            IDs as Index values and containing the centroid coordinates in
+            columns named 'xc' and 'yc'.
+
+        Returns
+        -------
+        lut : instance of scipy.interpolate.InterpolatedUnivariateSpline
+            The calculated luck-up table. It can be called using a set of
+            radii and will return the interpolated relative residuals at
+            these radii.
+        """
+        # for each source, measure distances of provided pixels to centroid and collect them together with the
+        # relative residuals in a single DataFrame.
+        combined = []
+        for source_id, data in residuals.items():
+            x = self.data.loc[data.index, 'x']
+            y = self.data.loc[data.index, 'y']
+
+            combined.append(pd.DataFrame({'dx': x - centroids.at[source_id, 'xc'],
+                                          'dy': y - centroids.at[source_id, 'yc'],
+                                          'rel_res': data['residuals']/(data['data'] - data['residuals']),
+                                          'weights': np.ones_like(x)}))
+
+        combined_residuals = pd.concat(combined, ignore_index=True)
+
+        radii, correction = self._get_radial_profile(
+            data=combined_residuals['rel_res'],
+            radii=np.sqrt(combined_residuals['dx']**2 + combined_residuals['dy']**2),
+            weights=combined_residuals['weights'])
+
+        import matplotlib.pyplot as plt
+        fig = plt.figure()
+        ax = fig.add_axes([0.12, 0.12, 0.83, 0.83])
+        ax.axhline(y=0, ls='-', lw=1.5, c='0.5')
+        ax.plot(np.sqrt(combined_residuals['dx']**2 + combined_residuals['dy']**2), combined_residuals['rel_res'],
+                ls='None', marker='x', ms=5, mew=1.0, mec='g')
+        ax.plot(radii, correction, ls='None', marker='+', mew=2.5, mec='r', ms=20)
+        plt.show()
+
+        return interpolate.InterpolatedUnivariateSpline(radii, correction)

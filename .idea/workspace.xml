@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="184c2abe-3153-48a7-88ae-f3ca9af990c0" name="Default" comment="Some additional logging in INITFIT.">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/core/coordinates.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/core/coordinates.py" afterDir="false" />
+    <list default="true" id="184c2abe-3153-48a7-88ae-f3ca9af990c0" name="Default" comment="Additional check for numpy versions that are not compatible with NaNs as input to linalg.lstsq.">
+      <change beforePath="$PROJECT_DIR$/pampelmuse/core/fit_layer.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/core/fit_layer.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/psf/profiles/moffat.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/psf/profiles/moffat.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/psf/profiles/profile.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/psf/profiles/profile.py" afterDir="false" />
     </list>
     <list id="2537fcfb-7e20-4757-bbd2-3237e7f34740" name="patch" comment="Issue that CUBEFIT crashed when only PSF parameters or positions were fitted with POLYFIT. " />
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
@@ -14,15 +15,6 @@
   </component>
   <component name="FileEditorManager">
     <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/bin/PampelMuse">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="1188">
-              <caret line="79" column="24" selection-start-line="79" selection-start-column="24" selection-end-line="79" selection-end-column="24" />
-            </state>
-          </provider>
-        </entry>
-      </file>
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/pampelmuse/core/source_selector.py">
           <provider selected="true" editor-type-id="text-editor">
@@ -35,11 +27,11 @@
           </provider>
         </entry>
       </file>
-      <file pinned="false" current-in-tab="true">
+      <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/pampelmuse/core/coordinates.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="375">
-              <caret line="369" column="32" lean-forward="true" selection-start-line="369" selection-start-column="32" selection-end-line="369" selection-end-column="32" />
+            <state relative-caret-position="576">
+              <caret line="75" lean-forward="true" selection-start-line="75" selection-end-line="75" />
             </state>
           </provider>
         </entry>
@@ -47,8 +39,11 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/pampelmuse/core/fit_cube.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="702">
-              <caret line="39" column="19" selection-start-line="39" selection-end-line="39" selection-end-column="43" />
+            <state relative-caret-position="563">
+              <caret line="1151" column="8" selection-start-line="1151" selection-start-column="8" selection-end-line="1151" selection-end-column="8" />
+              <folding>
+                <element signature="e#923#937#0" expanded="true" />
+              </folding>
             </state>
           </provider>
         </entry>
@@ -56,8 +51,11 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/pampelmuse/core/fit_layer.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="1062">
-              <caret line="59" column="10" selection-start-line="59" selection-start-column="10" selection-end-line="59" selection-end-column="10" />
+            <state relative-caret-position="491">
+              <caret line="785" column="54" lean-forward="true" selection-start-line="785" selection-start-column="54" selection-end-line="785" selection-end-column="54" />
+              <folding>
+                <element signature="e#2748#2766#0" expanded="true" />
+              </folding>
             </state>
           </provider>
         </entry>
@@ -65,7 +63,7 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/pampelmuse/routines/cubefit.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="792">
+            <state relative-caret-position="681">
               <caret line="47" column="23" selection-start-line="47" selection-start-column="23" selection-end-line="47" selection-end-column="23" />
             </state>
           </provider>
@@ -74,8 +72,17 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/pampelmuse/psf/profiles/profile.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="14688">
-              <caret line="819" column="8" selection-start-line="819" selection-start-column="8" selection-end-line="819" selection-end-column="8" />
+            <state relative-caret-position="486">
+              <caret line="222" column="27" lean-forward="true" selection-start-line="222" selection-start-column="27" selection-end-line="222" selection-end-column="27" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="true">
+        <entry file="file://$PROJECT_DIR$/pampelmuse/psf/profiles/moffat.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="545">
+              <caret line="186" column="84" selection-start-line="186" selection-start-column="39" selection-end-line="186" selection-end-column="84" />
             </state>
           </provider>
         </entry>
@@ -185,11 +192,13 @@
         <option value="$PROJECT_DIR$/pampelmuse/config/data/pampelmuse.json" />
         <option value="$PROJECT_DIR$/pampelmuse/utils/fits.py" />
         <option value="$PROJECT_DIR$/pampelmuse/routines/initfit.py" />
-        <option value="$PROJECT_DIR$/pampelmuse/core/fit_layer.py" />
         <option value="$PROJECT_DIR$/pampelmuse/routines/cubefit.py" />
         <option value="$PROJECT_DIR$/pampelmuse/core/source_selector.py" />
         <option value="$PROJECT_DIR$/bin/PampelMuse" />
         <option value="$PROJECT_DIR$/pampelmuse/core/coordinates.py" />
+        <option value="$PROJECT_DIR$/pampelmuse/core/fit_layer.py" />
+        <option value="$PROJECT_DIR$/pampelmuse/psf/profiles/profile.py" />
+        <option value="$PROJECT_DIR$/pampelmuse/psf/profiles/moffat.py" />
       </list>
     </option>
   </component>
@@ -462,13 +471,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1499438305310</updated>
-    </task>
-    <task id="LOCAL-00047" summary="Still experiencing issues with wavelength scale. Hopefully this fixes them.">
-      <created>1516283784412</created>
-      <option name="number" value="00047" />
-      <option name="presentableId" value="LOCAL-00047" />
-      <option name="project" value="LOCAL" />
-      <updated>1516283784412</updated>
     </task>
     <task id="LOCAL-00048" summary="Fixed bug in SINGLESRC routine. Also fixed issue that setting cpucount=-1 caused aperture photometry to crash. Finally, added handling for cases where total flux on integrated IFS image was still negative after subtracting median flux.">
       <created>1516792020933</created>
@@ -806,7 +808,14 @@
       <option name="project" value="LOCAL" />
       <updated>1553603469083</updated>
     </task>
-    <option name="localTasksCounter" value="96" />
+    <task id="LOCAL-00096" summary="Additional check for numpy versions that are not compatible with NaNs as input to linalg.lstsq.">
+      <created>1553698251984</created>
+      <option name="number" value="00096" />
+      <option name="presentableId" value="LOCAL-00096" />
+      <option name="project" value="LOCAL" />
+      <updated>1553698251985</updated>
+    </task>
+    <option name="localTasksCounter" value="97" />
     <servers />
   </component>
   <component name="TodoView">
@@ -873,7 +882,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Minor bugfix affecting the creation of the PSF diagnostics file. Also minor change in documentation." />
     <MESSAGE value="Fixed rather serious bug in CUBEFIT that source coordinates where not properly updated when more than one CPU was used. This may affect all analyses performed with SVN revision 425 (committed 2017/05/28) or later that did not use a coordinate transformation or used polynomial fits to the coordinates." />
     <MESSAGE value="Switched off local background determination for single PSF fits in CUBEFIT. The old approach (introduced in the revision committed on 2017/05/28) lead to increased beta values for a Moffat PSF." />
     <MESSAGE value="Fixed bug in SUBTRES." />
@@ -898,7 +906,8 @@
     <MESSAGE value="Bugfix in INITFIT." />
     <MESSAGE value="Bugfix in CUBEFIT." />
     <MESSAGE value="Some additional logging in INITFIT." />
-    <option name="LAST_COMMIT_MESSAGE" value="Some additional logging in INITFIT." />
+    <MESSAGE value="Additional check for numpy versions that are not compatible with NaNs as input to linalg.lstsq." />
+    <option name="LAST_COMMIT_MESSAGE" value="Additional check for numpy versions that are not compatible with NaNs as input to linalg.lstsq." />
     <option name="PRESELECT_EXISTING_CHANGELIST" value="true" />
   </component>
   <component name="XDebuggerManager">
@@ -1099,13 +1108,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/pampelmuse/psf/profiles/moffat.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="2720">
-          <caret line="163" column="8" selection-start-line="163" selection-start-column="8" selection-end-line="163" selection-end-column="8" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/pampelmuse/psf/profiles/moffat_gaussian.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="221">
@@ -1162,34 +1164,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/pampelmuse/core/fit_cube.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="702">
-          <caret line="39" column="19" selection-start-line="39" selection-end-line="39" selection-end-column="43" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/pampelmuse/core/fit_layer.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1062">
-          <caret line="59" column="10" selection-start-line="59" selection-start-column="10" selection-end-line="59" selection-end-column="10" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/pampelmuse/routines/cubefit.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="792">
-          <caret line="47" column="23" selection-start-line="47" selection-start-column="23" selection-end-line="47" selection-end-column="23" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/pampelmuse/psf/profiles/profile.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="14688">
-          <caret line="819" column="8" selection-start-line="819" selection-start-column="8" selection-end-line="819" selection-end-column="8" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/pampelmuse/core/spectrum_writer.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="702">
@@ -1223,8 +1197,56 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/pampelmuse/core/coordinates.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="375">
-          <caret line="369" column="32" lean-forward="true" selection-start-line="369" selection-start-column="32" selection-end-line="369" selection-end-column="32" />
+        <state relative-caret-position="576">
+          <caret line="75" lean-forward="true" selection-start-line="75" selection-end-line="75" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$USER_HOME$/.pyenv/versions/3.5.2/lib/python3.5/site-packages/scipy/optimize/_lsq/least_squares.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="-9095">
+          <caret line="233" column="4" selection-start-line="233" selection-start-column="4" selection-end-line="233" selection-end-column="4" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pampelmuse/core/fit_cube.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="563">
+          <caret line="1151" column="8" selection-start-line="1151" selection-start-column="8" selection-end-line="1151" selection-end-column="8" />
+          <folding>
+            <element signature="e#923#937#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pampelmuse/core/fit_layer.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="491">
+          <caret line="785" column="54" lean-forward="true" selection-start-line="785" selection-start-column="54" selection-end-line="785" selection-end-column="54" />
+          <folding>
+            <element signature="e#2748#2766#0" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pampelmuse/routines/cubefit.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="681">
+          <caret line="47" column="23" selection-start-line="47" selection-start-column="23" selection-end-line="47" selection-end-column="23" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pampelmuse/psf/profiles/profile.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="486">
+          <caret line="222" column="27" lean-forward="true" selection-start-line="222" selection-start-column="27" selection-end-line="222" selection-end-column="27" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pampelmuse/psf/profiles/moffat.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="545">
+          <caret line="186" column="84" selection-start-line="186" selection-start-column="39" selection-end-line="186" selection-end-column="84" />
         </state>
       </provider>
     </entry>

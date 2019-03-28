@@ -184,9 +184,9 @@ class Moffat(Profile):
         if self._f is None:
             self._f = self.int_flux * moffat.flux(self.r, self.beta, self.fwhm, self.e)
         if integrate:
-            return self.sum_os(self._f)
+            return self.sum_os(self._f if not self.lut else self._f*self.lut(self.r))
         else:
-            return self._f
+            return self._f if not self.lut else self._f*self.lut(self.r)
 
     # In the following, the properties are provided to calculate the partial derivatives of the intensity distribution
     # provided by the Moffat profile wrt. the individual parameters.
