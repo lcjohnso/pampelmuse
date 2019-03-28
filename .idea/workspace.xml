@@ -15,18 +15,9 @@
   <component name="FileEditorManager">
     <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
       <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/bin/PampelMuse">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="1188">
-              <caret line="79" column="24" selection-start-line="79" selection-start-column="24" selection-end-line="79" selection-end-column="24" />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/pampelmuse/core/source_selector.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="18">
+            <state relative-caret-position="738">
               <caret line="56" column="23" selection-start-line="56" selection-start-column="23" selection-end-line="56" selection-end-column="23" />
               <folding>
                 <element signature="e#1017#1031#0" expanded="true" />
@@ -38,8 +29,8 @@
       <file pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/pampelmuse/core/coordinates.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="375">
-              <caret line="369" column="32" lean-forward="true" selection-start-line="369" selection-start-column="32" selection-end-line="369" selection-end-column="32" />
+            <state relative-caret-position="437">
+              <caret line="369" column="114" lean-forward="true" selection-start-line="369" selection-start-column="114" selection-end-line="369" selection-end-column="114" />
             </state>
           </provider>
         </entry>
@@ -47,8 +38,11 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/pampelmuse/core/fit_cube.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="702">
-              <caret line="39" column="19" selection-start-line="39" selection-end-line="39" selection-end-column="43" />
+            <state relative-caret-position="20592">
+              <caret line="1151" column="8" selection-start-line="1151" selection-start-column="8" selection-end-line="1151" selection-end-column="8" />
+              <folding>
+                <element signature="e#923#937#0" expanded="true" />
+              </folding>
             </state>
           </provider>
         </entry>
@@ -56,8 +50,11 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/pampelmuse/core/fit_layer.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="1062">
-              <caret line="59" column="10" selection-start-line="59" selection-start-column="10" selection-end-line="59" selection-end-column="10" />
+            <state relative-caret-position="13968">
+              <caret line="785" column="24" selection-start-line="785" selection-start-column="24" selection-end-line="785" selection-end-column="24" />
+              <folding>
+                <element signature="e#2748#2766#0" expanded="true" />
+              </folding>
             </state>
           </provider>
         </entry>
@@ -74,8 +71,17 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/pampelmuse/psf/profiles/profile.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="14688">
-              <caret line="819" column="8" selection-start-line="819" selection-start-column="8" selection-end-line="819" selection-end-column="8" />
+            <state relative-caret-position="3942">
+              <caret line="222" column="18" selection-start-line="222" selection-start-column="18" selection-end-line="222" selection-end-column="18" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/pampelmuse/psf/profiles/moffat.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="581">
+              <caret line="188" column="26" selection-start-line="188" selection-start-column="26" selection-end-line="188" selection-end-column="26" />
             </state>
           </provider>
         </entry>
@@ -147,7 +153,7 @@
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
     <option name="RECENT_BRANCH_BY_REPOSITORY">
       <map>
-        <entry key="$PROJECT_DIR$" value="master" />
+        <entry key="$PROJECT_DIR$" value="lookup_tables" />
       </map>
     </option>
   </component>
@@ -819,7 +825,7 @@
     </todo-panel>
   </component>
   <component name="ToolWindowManager">
-    <frame x="52" y="-11" width="1869" height="1092" extended-state="6" />
+    <frame x="52" y="1069" width="1869" height="1092" extended-state="6" />
     <editor active="true" />
     <layout>
       <window_info id="Favorites" order="0" side_tool="true" />
@@ -1099,13 +1105,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/pampelmuse/psf/profiles/moffat.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="2720">
-          <caret line="163" column="8" selection-start-line="163" selection-start-column="8" selection-end-line="163" selection-end-column="8" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/pampelmuse/psf/profiles/moffat_gaussian.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="221">
@@ -1164,15 +1163,21 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/pampelmuse/core/fit_cube.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="702">
-          <caret line="39" column="19" selection-start-line="39" selection-end-line="39" selection-end-column="43" />
+        <state relative-caret-position="20592">
+          <caret line="1151" column="8" selection-start-line="1151" selection-start-column="8" selection-end-line="1151" selection-end-column="8" />
+          <folding>
+            <element signature="e#923#937#0" expanded="true" />
+          </folding>
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/pampelmuse/core/fit_layer.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1062">
-          <caret line="59" column="10" selection-start-line="59" selection-start-column="10" selection-end-line="59" selection-end-column="10" />
+        <state relative-caret-position="13968">
+          <caret line="785" column="24" selection-start-line="785" selection-start-column="24" selection-end-line="785" selection-end-column="24" />
+          <folding>
+            <element signature="e#2748#2766#0" expanded="true" />
+          </folding>
         </state>
       </provider>
     </entry>
@@ -1185,8 +1190,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/pampelmuse/psf/profiles/profile.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="14688">
-          <caret line="819" column="8" selection-start-line="819" selection-start-column="8" selection-end-line="819" selection-end-column="8" />
+        <state relative-caret-position="3942">
+          <caret line="222" column="18" selection-start-line="222" selection-start-column="18" selection-end-line="222" selection-end-column="18" />
         </state>
       </provider>
     </entry>
@@ -1213,7 +1218,7 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/pampelmuse/core/source_selector.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="18">
+        <state relative-caret-position="738">
           <caret line="56" column="23" selection-start-line="56" selection-start-column="23" selection-end-line="56" selection-end-column="23" />
           <folding>
             <element signature="e#1017#1031#0" expanded="true" />
@@ -1221,10 +1226,17 @@
         </state>
       </provider>
     </entry>
+    <entry file="file://$PROJECT_DIR$/pampelmuse/psf/profiles/moffat.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="581">
+          <caret line="188" column="26" selection-start-line="188" selection-start-column="26" selection-end-line="188" selection-end-column="26" />
+        </state>
+      </provider>
+    </entry>
     <entry file="file://$PROJECT_DIR$/pampelmuse/core/coordinates.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="375">
-          <caret line="369" column="32" lean-forward="true" selection-start-line="369" selection-start-column="32" selection-end-line="369" selection-end-column="32" />
+        <state relative-caret-position="437">
+          <caret line="369" column="114" lean-forward="true" selection-start-line="369" selection-start-column="114" selection-end-line="369" selection-end-column="114" />
         </state>
       </provider>
     </entry>

@@ -65,7 +65,7 @@ This results in the inverse transformation:
 
 Latest Git revision
 -------------------
-2019/03/27
+2019/03/28
 """
 import logging
 import sys
@@ -75,7 +75,7 @@ from ..core.parameters import Parameters
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20190327
+__revision__ = 20190328
 
 
 logger = logging.getLogger(__name__)
@@ -367,7 +367,7 @@ class Transformation(Parameters):
                 use_column[i] = False
 
         # some versions of numpy seem to have issues if the input to np.linalg.lstsq contains NaNs.
-        if np.__version__ < '1.14' or sys.version.find('Anaconda') >= 0 or not getattr(np.__config__, 'mkl_info', {}):
+        if np.__version__ < '1.14' or sys.version.find('Anaconda') >= 0 or getattr(np.__config__, 'mkl_info', {}):
             if np.isnan(b).any():
                 logger.warning('Replacing {0} NaNs using linear interpolation.'.format(np.isnan(b).sum()))
                 for i in range(b.shape[1]):

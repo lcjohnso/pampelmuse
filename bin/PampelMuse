@@ -58,7 +58,7 @@ the data into memory yet but just checks whether the file(s) are valid.
 
 Latest Git revision
 -------------------
-2019/03/26
+2019/03/28
 """
 import argparse
 import importlib
@@ -77,8 +77,8 @@ from pampelmuse.utils.fits import read_config_from_header
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__version__ = "0.102.4.1"
-__revision__ = 20190326
+__version__ = "0.102.4.2"
+__revision__ = 20190328
 
 
 logger = logging.getLogger(__name__)
