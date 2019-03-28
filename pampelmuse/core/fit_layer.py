@@ -90,7 +90,7 @@ def printoptions(*args, **kwargs):
 
 # define namedtuple for returning the results of the fit in a useful structure
 FitResult = collections.namedtuple('FitResult', ['fluxes', 'uncertainties', 'positions', 'psf', 'wave', 'profiles',
-                                                 'parameters', 'residuals'])
+                                                 'parameters', 'residuals', 'lut'])
 
 
 class FitLayer(object):
@@ -106,7 +106,7 @@ class FitLayer(object):
 
     def __init__(self, data, catalog, psf_type, psf_parameters, psf_radius=np.inf, position_parameters=None,
                  last_component_is_unresolved=False, background=None, osfactor=1, osradius=0, background_index=None,
-                 lut=None):
+                 lut=None, calculate_lut=False):
         """
         Initialize a new instance of the FitLayer class.
 
@@ -159,14 +159,15 @@ class FitLayer(object):
         osradius : float, optional
             The radius in pixels out to which the oversampling is being used.
         background_index : pandas.Index, optional
-           The index/indices of the background component(s). If None (default)
-           the background components are indexed descendingly from -1.
+            The index/indices of the background component(s). If None (default)
+            the background components are indexed descendingly from -1.
         lut : function, optional
-           If provided, must be a function that takes a set of radii and
-           returns the correction factors to be applied to the fluxes of the
-           analytical PSF profiles at those radii.
-           Note that if a LUT is provided and any of the PSF parameters are
-           optimized, the LUT will also be modified.
+            If provided, must be a function that takes a set of radii and
+            returns the correction factors to be applied to the fluxes of the
+            analytical PSF profiles at those radii.
+        calculate_lut : bool, optional
+            Determine a look-up table by averaging the residuals from the
+            individual PSF fits.
         """
         self.psf_radius = psf_radius
 
@@ -245,7 +246,7 @@ class FitLayer(object):
 
         # check if look-up table should be used
         self.lut = lut
-        self.lut = interpolate.InterpolatedUnivariateSpline([1, 2, 3, 4, 5], [1, 1, 1, 1, 1])
+        self.calculate_lut = calculate_lut
 
         for index, row in self.catalog.iterrows():
             new_psf = psf_class(transform=transform, uc=row['x'], vc=row['y'], mag=row['magnitude'],
@@ -433,32 +434,33 @@ class FitLayer(object):
 
         Returns
         -------
-        fit_result : instance of FitResult namedtuple
-            The tuple contains the following entries that can be accessed via
-            their names.
-            * 'fluxes' : pandas.Series
+        `FitResult` with the following fields defined:
+        fluxes : pandas.Series
             The fitted fluxes of the components that actually contributed to
             the observed flux. Sources entirely outside the observed field of
             view are excluded from this series.
-            * 'uncertainties' : pandas.Series
+        uncertainties : pandas.Series
             The associated uncertainties of the returned fluxes.
-            * 'positions' : pandas.Series or pandas.DataFrame
+        positions : pandas.Series or pandas.DataFrame
             The best-fit parameters of the coordinate transformation or the
             best-fit centroids of all components (in this case a DataFrame is
             returned containing columns 'x' and 'y' and one row per source),
             or None if fixed positions were used.
-            * 'psf' : pandas.Series
+        psf : pandas.Series
             The best-fit parameters of the PSF, or None if a fixed PSF was
             used.
-            * 'wave' : pandas.Series
+        wave : pandas.Series
             If dedicated wavelength information per pixel was provided with
             the data, this Series will contain the weighted wavelength value
             for each returned flux. Otherwise None is returned.
-            * 'profiles' : pandas.DataFrame
+        profiles : pandas.DataFrame
             The radial profiles of the PSF stars if requested. Otherwise None.
-            * 'parameters' : pandas.DataFrame
+        parameters : pandas.DataFrame
             The parameters of the individual PSF fits it requested. Otherwise
             None.
+        lut: instance of InterpolatedUnivariateSPline
+            The look-up table created from the average residuals of the PSF
+            fits if requested, otherwise None
         """
         # sanity check if fit is possible
         if self.n_components + self.n_background > self.n_pixel:
@@ -480,7 +482,7 @@ class FitLayer(object):
                              pd.Series(np.nan, index=self.fluxes.index),
                              return_positions, return_psf,
                              None if self.wave is None else pd.Series(np.nan, index=self.fluxes.index),
-                             None, None, None)
+                             None, None, None, None)
 
         if fluxes is not None:
             if isinstance(fluxes, (list, np.ndarray)):
@@ -497,6 +499,7 @@ class FitLayer(object):
         single_psf_results = None
         residuals = None
         included_components = None
+        lut = None
 
         # Determine initial weights for each pixel in the fit.
         self.fit_weights = 1./self.variances
@@ -563,10 +566,11 @@ class FitLayer(object):
                 if sources is not None:
                     single_psf_results, profiles, residuals = self.fit_sources_consecutively(
                         sources=sources, psf_parameters=psf_parameters_to_fit, psf_sources=psf_sources,
-                        fit_positions=(position_parameters_to_fit is not None), return_psf_profiles=analyse_psf)
+                        fit_positions=(position_parameters_to_fit is not None),
+                        return_psf_profiles=analyse_psf | self.calculate_lut)
 
-                    self.lut = self.update_look_up_table(residuals=residuals, centroids=single_psf_results)
-                    [setattr(psf, 'lut', self.lut) for psf in self.psf_instances.values()]
+                    if self.calculate_lut:
+                        lut = self.update_look_up_table(residuals=residuals, centroids=single_psf_results)
 
                     # if positions are fitted directly, update them
                     if position_parameters_to_fit is not None and 'xy' in position_parameters_to_fit:
@@ -657,7 +661,7 @@ class FitLayer(object):
             return_wave = None
 
         return FitResult(self.fluxes, uncertainties, return_positions, return_psf, return_wave, profiles,
-                         single_psf_results, residuals)
+                         single_psf_results, residuals, lut)
 
     @property
     def model(self):
@@ -919,12 +923,17 @@ class FitLayer(object):
             * ['fwhm', 'e', 'theta', ...: values of the free PSF parameters.]
             * ['xc', 'yc': the x- and y-centroids obtained in the fits]
         profiles : pandas.DataFrame
-            The radial profiles of the stars to which a PSF profile was fitted
-            if the parameter 'psf_profiles' was set. Otherwise None is
+            The radial profiles of the stars provided as 'sources' in a
+            combined data frame that uses the radii as Index and the source
+            IDs as column names. If 'return_psf_profiles' is not set, None is
+            returned instead.
+        residuals : dict
+            The residuals of the successful PSF fits. The dictionary contains
+            one entry per successful PSF fit. The source IDs are used as keys
+            and the values are data frames containing the observed flux and
+            the fit residuals for the pixels on which the PSF is defined. Only
+            returned if 'return_psf_profiles' was set. Otherwise None is
             returned.
-        residuals : pandas.Series
-            The residuals of the successful PSF fits. Only returned if the
-            parameter 'psf_parameters' was set. Otherwise None is returned.
         """
         # The keyword 'psf_sources' may be used to define a subset of 'sources' that is used to fit the PSF parameters.
         # All 'sources' are used for this purpose if psf_sources=None
@@ -1008,7 +1017,7 @@ class FitLayer(object):
             variances = 1. / self.fit_weights[used]
 
             # for following calculations, find pixels inside/outside of circle with radius of FWHM
-            pixel = np.unique(psf.osmap, return_index=True)[1]  # this makes sure every subspaxel only counted once
+            pixel = np.unique(psf.osmap, return_index=True)[1]  # this makes sure every sub-pixel only counted once
             in_fwhm = (psf.r[pixel] < psf.fwhm)
 
             # if requested, include local background in fit, get initial guess as median of residuals outside FWHM
@@ -1066,7 +1075,7 @@ class FitLayer(object):
             # fit
             try:
                 result = optimize.least_squares(
-                    self.single_psf_optimizer, x0=np.asarray(x0), bounds=bounds,  # jac=self.single_psf_jacobi,
+                    self.single_psf_optimizer, x0=np.asarray(x0), bounds=bounds, jac=self.single_psf_jacobi,
                     args=(names, psf, data.values, np.sqrt(variances.values)))
             except Exception as msg:
                 # error handler to avoid code crashes completely
@@ -1653,4 +1662,4 @@ class FitLayer(object):
         ax.plot(radii, correction, ls='None', marker='+', mew=2.5, mec='r', ms=20)
         plt.show()
 
-        return interpolate.InterpolatedUnivariateSpline(radii, self.lut(radii) + correction)
+        return interpolate.InterpolatedUnivariateSpline(radii, correction)
