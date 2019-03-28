@@ -211,9 +211,9 @@ class Moffat(Profile):
         if self._diff_beta is None:
             self._diff_beta = moffat.pderiv_beta(self.r, self.beta, self.fwhm, self.e)
         if integrate:
-            return self.sum_os(self._diff_beta)
+            return self.sum_os(self._diff_beta if not self.lut else self._diff_beta*self.lut(self.r))
         else:
-            return self._diff_beta
+            return self._diff_beta if not self.lut else self._diff_beta*self.lut(self.r)
 
     @property
     def diff_beta(self):
@@ -239,9 +239,9 @@ class Moffat(Profile):
         if self._diff_fwhm is None:
             self._diff_fwhm = moffat.pderiv_fwhm(self.r, self.beta, self.fwhm, self.e)
         if integrate:
-            return self.sum_os(self._diff_fwhm)
+            return self.sum_os(self._diff_fwhm if not self.lut else self._diff_fwhm*self.lut(self.r))
         else:
-            return self._diff_fwhm
+            return self._diff_fwhm if not self.lut else self._diff_fwhm*self.lut(self.r)
 
     @property
     def diff_fwhm(self):
@@ -321,9 +321,9 @@ class Moffat(Profile):
             r_pderiv_xc = super(Moffat, self).get_diff_xc(integrate=False)
             self._diff_xc = moffat.pderiv_r(self.r, self.beta, self.fwhm, self.e) * r_pderiv_xc
         if integrate:
-            return self.sum_os(self._diff_xc)
+            return self.sum_os(self._diff_xc if not self.lut else self._diff_xc*self.lut(self.r))
         else:
-            return self._diff_xc
+            return self._diff_xc if not self.lut else self._diff_xc*self.lut(self.r)
 
     def get_diff_yc(self, integrate=True):
         """
@@ -346,9 +346,9 @@ class Moffat(Profile):
             r_pderiv_yc = super(Moffat, self).get_diff_yc(integrate=False)
             self._diff_yc = moffat.pderiv_r(self.r, self.beta, self.fwhm, self.e) * r_pderiv_yc
         if integrate:
-            return self.sum_os(self._diff_yc)
+            return self.sum_os(self._diff_yc if not self.lut else self._diff_yc*self.lut(self.r))
         else:
-            return self._diff_yc
+            return self._diff_yc if not self.lut else self._diff_yc*self.lut(self.r)
 
     # The parameters of the coordinate transformation
     def get_diff_A(self, integrate=True):

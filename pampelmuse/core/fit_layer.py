@@ -243,9 +243,14 @@ class FitLayer(object):
         # created for each PSF!
         transform = self.data[['y', 'x']].values
 
+        # check if look-up table should be used
+        self.lut = lut
+        self.lut = interpolate.InterpolatedUnivariateSpline([1, 2, 3, 4, 5], [1, 1, 1, 1, 1])
+
         for index, row in self.catalog.iterrows():
             new_psf = psf_class(transform=transform, uc=row['x'], vc=row['y'], mag=row['magnitude'],
-                                src_id=index, maxrad=self.psf_radius, osfactor=osfactor, osradius=osradius)
+                                src_id=index, maxrad=self.psf_radius, osfactor=osfactor, osradius=osradius,
+                                lut=self.lut)
             # initialize the PSF parameters:
             for key, value in psf_parameters.items():
                 setattr(new_psf, key, value)
@@ -258,9 +263,6 @@ class FitLayer(object):
                 new_psf.xc = row['x']
                 new_psf.yc = row['y']
             self.psf_instances[index] = new_psf
-
-        # check if look-up table should be used
-        self.lut = lut
 
         # place-holder for variables defined below:
         self.source_matrix = None
@@ -563,7 +565,8 @@ class FitLayer(object):
                         sources=sources, psf_parameters=psf_parameters_to_fit, psf_sources=psf_sources,
                         fit_positions=(position_parameters_to_fit is not None), return_psf_profiles=analyse_psf)
 
-                    self.create_look_up_table(residuals=residuals, centroids=single_psf_results)
+                    self.lut = self.update_look_up_table(residuals=residuals, centroids=single_psf_results)
+                    [setattr(psf, 'lut', self.lut) for psf in self.psf_instances.values()]
 
                     # if positions are fitted directly, update them
                     if position_parameters_to_fit is not None and 'xy' in position_parameters_to_fit:
@@ -1063,7 +1066,7 @@ class FitLayer(object):
             # fit
             try:
                 result = optimize.least_squares(
-                    self.single_psf_optimizer, x0=np.asarray(x0), jac=self.single_psf_jacobi, bounds=bounds,
+                    self.single_psf_optimizer, x0=np.asarray(x0), bounds=bounds,  # jac=self.single_psf_jacobi,
                     args=(names, psf, data.values, np.sqrt(variances.values)))
             except Exception as msg:
                 # error handler to avoid code crashes completely
@@ -1599,7 +1602,7 @@ class FitLayer(object):
         combined = pd.DataFrame(np.stack(data, axis=1), columns=source_ids, index=np.nanmean(radii, axis=0))
         return combined
 
-    def create_look_up_table(self, residuals, centroids):
+    def update_look_up_table(self, residuals, centroids):
         """
         Create look-up table containing the relative residuals of the PSF fits
         averaged over all sources.
@@ -1650,4 +1653,4 @@ class FitLayer(object):
         ax.plot(radii, correction, ls='None', marker='+', mew=2.5, mec='r', ms=20)
         plt.show()
 
-        return interpolate.InterpolatedUnivariateSpline(radii, correction)
+        return interpolate.InterpolatedUnivariateSpline(radii, self.lut(radii) + correction)
