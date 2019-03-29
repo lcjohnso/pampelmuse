@@ -39,6 +39,7 @@ Latest Git revision
 import logging
 import numpy as np
 import pandas as pd
+from scipy import interpolate
 from ..core.parameters import Parameters
 
 
@@ -81,7 +82,7 @@ class Variables(Parameters):
               "fwhm2": r"$\mathrm{FWHM}_2\ [\mathrm{spaxel}]$",
               "f12": r"$f_\mathrm{12}$"}
 
-    def __init__(self, profile='moffat', data=None, free=None, **kwargs):
+    def __init__(self, profile='moffat', data=None, free=None, lut=None, **kwargs):
         """
         Initialize an instance of pampelmuse.core.psf.attributes.Parameters
         
@@ -98,6 +99,11 @@ class Variables(Parameters):
             A boolean array containing a flag for each parameter in 'data'
             indicating if the parameter is allowed to vary in a fit. By
              default, all parameters are free.
+        lut : pandas.DataFrame, optional
+            A look-up table containing correction factors for the fluxes
+            determined from the analytical PSF profiles as a function of
+            radius. The data frame should contain one column per radius and
+            have the dispersion information available as Index.
         kwargs
             Any additional keyword arguments are passed on to the call of the
             initialization method of the super-class.
@@ -114,6 +120,12 @@ class Variables(Parameters):
         # if no data provided, initialise all parameters to NaN
         if data is None:
             data = pd.DataFrame([[np.nan]*len(self.PROFILES[self.profile])], columns=self.PROFILES[self.profile])
+
+        # look-up-table
+        if lut is not None:
+            self._lut = interpolate.interp1d(lut.index, lut, axis=0)
+        else:
+            self._lut = None
 
         # call initialization method of super-class.
         super(Variables, self).__init__(data=data, free=free, **kwargs)
@@ -162,6 +174,25 @@ class Variables(Parameters):
 
         # call info method of super-class. Provide parameter names to get order right.
         super(Variables, self).info(names=names)
+
+    def fetch_lut(self, wave):
+        """
+        Retrieve look-up table for the given wavelength as an instance of
+        scipy.interpolate.InterpolatedUnivariateSpline
+
+        Parameters
+        ----------
+        wave : float
+            The wavelength for which the look-up table should be returned.
+
+        Returns
+        -------
+        lut : instance of scipy.interpolate.InterpolatedUnivariateSpline
+            The requested luck-up table. The instance can be call by providing
+            a set of radii. The correction factor for each radius is then
+            provided.
+        """
+        return self._lut(wave)
 
     def make_hdu(self, include_fit=True, header_keys=None):
         """

@@ -230,7 +230,8 @@ class FitCube(object):
     wavelength range.
     """
 
-    def __init__(self, ifs_data, sources, psf_attributes, psf_radius=np.inf, osfactor=5, osradius=2):
+    def __init__(self, ifs_data, sources, psf_attributes, psf_radius=np.inf, osfactor=5, osradius=2, lut=None,
+                 calculate_lut=False):
         """
         Initialize an instance of the `StarFit'-class.
     
@@ -258,6 +259,9 @@ class FitCube(object):
         osradius : All pixels with distances <'osradius' to the centre of a
             PSF profile are supersampled by a factor 'osfactor'. Default is
             no supersampling.
+        lut : pandas.DataFrame, optional
+
+
 
         Returns
         -------
