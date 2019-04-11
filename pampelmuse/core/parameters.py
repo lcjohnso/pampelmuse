@@ -1,7 +1,7 @@
 """
 parameters.py
 =============
-Copyright 2013-2017 Sebastian Kamann
+Copyright 2013-2019 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -32,7 +32,7 @@ coordinate transformation from reference to IFS coordinates.
 
 Latest Git revision
 -------------------
-2017/08/23
+2019/04/11
 """
 import logging
 import numpy as np
@@ -43,7 +43,7 @@ from ..utils.statistics import robust_fit
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20170823
+__revision__ = 20190411
 
 
 logger = logging.getLogger(__name__)
@@ -340,7 +340,7 @@ class Parameters(object):
             The new index used to label the data rows.
         """
         # issue warning if reindexing would remove existing data
-        if not np.in1d(self.data.index, index).all():
+        if not self.data.index.isin(index).all():
             logger.warning('Changing dispersion axis as requested will alter existing values.')
 
         self.data = self.data.reindex(index=index, method='nearest')

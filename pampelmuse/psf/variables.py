@@ -34,17 +34,17 @@ general framework for dealing with parameters within PampelMuse.
 
 Latest Git revision
 -------------------
-2019/02/03
+2019/04/11
 """
 import logging
 import numpy as np
 import pandas as pd
-from scipy import interpolate
+from astropy.io import fits
 from ..core.parameters import Parameters
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20190203
+__revision__ = 20190411
 
 
 logger = logging.getLogger(__name__)
@@ -121,14 +121,16 @@ class Variables(Parameters):
         if data is None:
             data = pd.DataFrame([[np.nan]*len(self.PROFILES[self.profile])], columns=self.PROFILES[self.profile])
 
-        # look-up-table
-        if lut is not None:
-            self._lut = interpolate.interp1d(lut.index, lut, axis=0)
-        else:
-            self._lut = None
-
         # call initialization method of super-class.
         super(Variables, self).__init__(data=data, free=free, **kwargs)
+
+        # look-up-table
+        if lut and not isinstance(lut, pd.DataFrame):
+            logger.error('If provided, parameter "lut" must be pandas DataFrame, not {0}.'.format(type(data)))
+        self.lut = lut
+
+        if not self.lut.index.equals(self.data.index):
+            logger.warning('Index data of PSF parameters and look-up table disagree.')
 
         # check if all required parameters are available
         for name in self.PROFILES[profile]:
@@ -136,7 +138,7 @@ class Variables(Parameters):
                 logger.error("Missing required PSF parameter '{0}'.".format(name))
 
     @classmethod
-    def from_hdu(cls, hdu, profile=None):
+    def from_hdu(cls, hdu, profile=None, lut_hdu=None):
 
         # if no profile is provided, the header keyword PSFTYPE must be available in the FITS header
         if profile is None and 'PSFTYPE' not in hdu.header:
@@ -148,8 +150,22 @@ class Variables(Parameters):
                     profile, hdu.header['PSFTYPE']))
             profile = hdu.header['PSFTYPE']
 
+        # open look-up table
+        if lut_hdu is not None:
+            index_lut = np.arange(lut_hdu.header['NAXIS2'])
+            index_lut *= lut_hdu.header['CDELT2']
+            index_lut += lut_hdu.header['CRVAL2']
+
+            columns_lut = np.arange(lut_hdu.header['NAXIS1'])
+            columns_lut *= lut_hdu.header['CDELT1']
+            columns_lut += lut_hdu.header['CRVAL1']
+
+            lut = pd.DataFrame(lut_hdu.data, index=index_lut, columns=columns_lut)
+        else:
+            lut = None
+
         # call class method of super-class
-        return super(Variables, cls).from_hdu(hdu=hdu, profile=profile)
+        return super(Variables, cls).from_hdu(hdu=hdu, profile=profile, lut=lut)
 
     def info(self, names=None):
         """
@@ -167,6 +183,7 @@ class Variables(Parameters):
         # print out some information about the PSF profile in use
         logger.info("Summary of current status of PSF parameters:")
         logger.info(" Type: '{0}'".format(self.profile))
+        logger.info(" Look-up table available? {0}".format(self.lut is not None))
 
         # if no order provided, use the one defined in PROFILES attribute
         if names is None:
@@ -175,24 +192,22 @@ class Variables(Parameters):
         # call info method of super-class. Provide parameter names to get order right.
         super(Variables, self).info(names=names)
 
-    def fetch_lut(self, wave):
-        """
-        Retrieve look-up table for the given wavelength as an instance of
-        scipy.interpolate.InterpolatedUnivariateSpline
+    def interpolate(self):
 
-        Parameters
-        ----------
-        wave : float
-            The wavelength for which the look-up table should be returned.
+        super(Variables, self).interpolate()
 
-        Returns
-        -------
-        lut : instance of scipy.interpolate.InterpolatedUnivariateSpline
-            The requested luck-up table. The instance can be call by providing
-            a set of radii. The correction factor for each radius is then
-            provided.
-        """
-        return self._lut(wave)
+        if self.lut is not None:
+            self.lut.interpolate(inplace=True)
+
+    def resize(self, index):
+
+        super(Variables, self).resize(index=index)
+
+        if self.lut is not None:
+            if not self.lut.index.isin(index).all():
+                logger.warning('Changing dispersion axis as requested will alter existing values of look-up table.')
+            self.lut = self.lut.reindex(index=index, method='nearest')
+            assert(np.isfinite(self.lut.data).all())  # TODO: check if end-of-range NaNs are replaced.
 
     def make_hdu(self, include_fit=True, header_keys=None):
         """
@@ -220,3 +235,21 @@ class Variables(Parameters):
         logger.info("Saving PSF parameters in BinTableHDU '{0}'...".format(header_keys['EXTNAME']))
 
         return super(Variables, self).make_hdu(include_fit=include_fit, header_keys=header_keys)
+
+    def make_lut_hdu(self, header_keys=None):
+
+        if self.lut is None:
+            return None
+
+        if header_keys is None:
+            header_keys = {}
+        header_keys['EXTNAME'] = 'PSFLUT'
+
+        logger.info("Saving PSF look-up table in Image HDU '{0}' ...".format(header_keys['EXTNAME']))
+
+        header_keys['CDELT1'] = np.diff(self.lut.columns).mean()
+        header_keys['CRVAL1'] = self.lut.columns[0]
+        header_keys['CDELT2'] = np.diff(self.lut.index).mean()
+        header_keys['CRVAL2'] = self.lut.index[0]
+
+        return fits.ImageHDU(self.lut.values, header=header_keys)
