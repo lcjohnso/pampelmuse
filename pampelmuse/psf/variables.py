@@ -34,7 +34,7 @@ general framework for dealing with parameters within PampelMuse.
 
 Latest Git revision
 -------------------
-2019/04/11
+2019/04/12
 """
 import logging
 import numpy as np
@@ -44,7 +44,7 @@ from ..core.parameters import Parameters
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20190411
+__revision__ = 20190412
 
 
 logger = logging.getLogger(__name__)
@@ -150,17 +150,14 @@ class Variables(Parameters):
                     profile, hdu.header['PSFTYPE']))
             profile = hdu.header['PSFTYPE']
 
-        # open look-up table
+        # open look-up table (if any)
         if lut_hdu is not None:
-            index_lut = np.arange(lut_hdu.header['NAXIS2'])
-            index_lut *= lut_hdu.header['CDELT2']
-            index_lut += lut_hdu.header['CRVAL2']
-
             columns_lut = np.arange(lut_hdu.header['NAXIS1'])
-            columns_lut *= lut_hdu.header['CDELT1']
-            columns_lut += lut_hdu.header['CRVAL1']
-
-            lut = pd.DataFrame(lut_hdu.data, index=index_lut, columns=columns_lut)
+            if 'CDELT1' in lut_hdu.header:
+                columns_lut *= lut_hdu.header['CDELT1']
+            if 'CRVAL1' in lut_hdu.header:
+                columns_lut += lut_hdu.header['CRVAL1']
+            lut = pd.DataFrame(lut_hdu.data, columns=columns_lut)
         else:
             lut = None
 
@@ -204,10 +201,13 @@ class Variables(Parameters):
         super(Variables, self).resize(index=index)
 
         if self.lut is not None:
-            if not self.lut.index.isin(index).all():
-                logger.warning('Changing dispersion axis as requested will alter existing values of look-up table.')
-            self.lut = self.lut.reindex(index=index, method='nearest')
-            assert(np.isfinite(self.lut.data).all())  # TODO: check if end-of-range NaNs are replaced.
+            if len(index) == len(self.lut.index):
+                self.lut.index = index
+            else:
+                if not self.lut.index.isin(index).all():
+                    logger.warning('Changing dispersion axis as requested will alter existing values of look-up table.')
+                self.lut = self.lut.reindex(index=index, method='nearest')
+                assert(np.isfinite(self.lut.data).all())  # TODO: check if end-of-range NaNs are replaced.
 
     def make_hdu(self, include_fit=True, header_keys=None):
         """
@@ -249,7 +249,5 @@ class Variables(Parameters):
 
         header_keys['CDELT1'] = np.diff(self.lut.columns).mean()
         header_keys['CRVAL1'] = self.lut.columns[0]
-        header_keys['CDELT2'] = np.diff(self.lut.index).mean()
-        header_keys['CRVAL2'] = self.lut.index[0]
 
         return fits.ImageHDU(self.lut.values, header=header_keys)

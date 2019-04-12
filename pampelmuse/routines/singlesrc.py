@@ -1,7 +1,7 @@
 """
 singlesrc.py
 ============
-Copyright 2013-2018 Sebastian Kamann
+Copyright 2013-2019 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -36,7 +36,7 @@ improved using the first order moments determined in the calculation.
  
 Latest SVN revision
 -------------------
-2018/01/24
+2019/04/12
 """
 import datetime
 import logging
@@ -47,7 +47,7 @@ from ..utils.fits import open_ifs_data, make_header_from_config, save_prm
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180124
+__revision__ = 20190412
 
 
 logger = logging.getLogger(__name__)
@@ -137,7 +137,7 @@ def singlesrc(config):
         else:
             free = False
         psf_parameters.append({'name': parameter, 'value': value, 'free': free})
-    selector.prepare_psf(profile=profile, parameters=psf_parameters)
+    selector.prepare_psf(profile=profile, parameters=psf_parameters, use_lut=config['psf'].get('lut1d'))
 
     # perform aperture spectrophotometry for PSF sources
     # need to load complete array for IFS coordinates before, otherwise it is only loaded

@@ -32,7 +32,7 @@ The provided functions facilitate working with FITS data.
 
 Latest Git revision
 -------------------
-2019/02/13
+2019/04/12
 """
 import os
 import logging
@@ -47,7 +47,7 @@ from ..psf import Variables
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20190213
+__revision__ = 20190412
 
 
 def open_ifs_data(prefix, **kwargs):
@@ -234,13 +234,20 @@ def open_prm(filename, ndisp=-1):
     logging.info("Obtaining PSF properties...")
     try:
         i = hdulist.index_of("PSFPARS")
-        psf_attributes = Variables.from_hdu(hdu=hdulist[i])
     except KeyError:  # otherwise, assume Gaussian, round with FWHM=3.0pixel
         logging.warning("No HDU 'PSFPARS' found. Using default PSF.")
 
         psf_attributes = Variables.from_dictionary({"profile": "gauss", "fwhm": 3.0})
         psf_attributes.free = np.atleast_1d([1, 0, 0])
-
+    else:
+        lut = None
+        try:
+            j = hdulist.index_of('PSFLUT')
+            lut = hdulist[j]
+        except KeyError:
+            pass
+        finally:
+            psf_attributes = Variables.from_hdu(hdu=hdulist[i], lut_hdu=lut)
     psf_attributes.info()
 
     return sources, psf_attributes
@@ -295,7 +302,10 @@ def save_prm(sources, psf_attributes, filename, header=None):
 
     # store PSF (only if a valid one exists)
     if psf_attributes.valid:
-        hdulist.append(psf_attributes.make_hdu())
+        psf_hdu, lut_hdu = psf_attributes.make_hdu()
+        hdulist.append(psf_hdu)
+        if lut_hdu is not None:  # check if look-up table is in use
+            hdulist.append(psf_hdu)
 
     # Save the file
     if os.path.exists(filename):

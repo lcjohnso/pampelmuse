@@ -57,7 +57,7 @@ parameters are not fitted.
 
 Latest Git revision
 -------------------
-2019/03/26
+2019/04/12
 """
 import collections
 import contextlib
@@ -72,7 +72,7 @@ from ..core.coordinates import Transformation
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20190326
+__revision__ = 20190412
 
 
 logger = logging.getLogger(__name__)
@@ -104,9 +104,9 @@ class FitLayer(object):
 
     _unresolved_matrix = None
 
-    def __init__(self, data, catalog, psf_type, psf_parameters, psf_radius=np.inf, position_parameters=None,
-                 last_component_is_unresolved=False, background=None, osfactor=1, osradius=0, background_index=None,
-                 lut=None, calculate_lut=False):
+    def __init__(self, data, catalog, psf_type, psf_parameters, psf_radius=np.inf, psf_lut=None,
+                 position_parameters=None, last_component_is_unresolved=False, background=None,
+                 osfactor=1, osradius=0, background_index=None):
         """
         Initialize a new instance of the FitLayer class.
 
@@ -137,6 +137,9 @@ class FitLayer(object):
              - gauss: fwhm, e, theta
              - moffat: beta, fwhm, e, theta
              - double_gauss: fwhm1, fwhm2, f12, e, theta
+        psf_lut : pandas.Series, optional
+            A look-up table for correcting the final fluxes obtained from the
+            analytical PSF profiles.
         psf_radius : float, optional
             The radius in pixels out to which the PSF profiles will be defined.
         position_parameters : dictionary
@@ -161,13 +164,6 @@ class FitLayer(object):
         background_index : pandas.Index, optional
             The index/indices of the background component(s). If None (default)
             the background components are indexed descendingly from -1.
-        lut : function, optional
-            If provided, must be a function that takes a set of radii and
-            returns the correction factors to be applied to the fluxes of the
-            analytical PSF profiles at those radii.
-        calculate_lut : bool, optional
-            Determine a look-up table by averaging the residuals from the
-            individual PSF fits.
         """
         self.psf_radius = psf_radius
 
@@ -245,8 +241,10 @@ class FitLayer(object):
         transform = self.data[['y', 'x']].values
 
         # check if look-up table should be used
-        self.lut = lut
-        self.calculate_lut = calculate_lut
+        if psf_lut is not None:
+            self.lut = interpolate.interp1d(psf_lut.index, psf_lut.values)
+        else:
+            self.lut = None
 
         for index, row in self.catalog.iterrows():
             new_psf = psf_class(transform=transform, uc=row['x'], vc=row['y'], mag=row['magnitude'],
@@ -458,7 +456,7 @@ class FitLayer(object):
         parameters : pandas.DataFrame
             The parameters of the individual PSF fits it requested. Otherwise
             None.
-        lut: instance of InterpolatedUnivariateSPline
+        lut: instance of InterpolatedUnivariateSpline
             The look-up table created from the average residuals of the PSF
             fits if requested, otherwise None
         """

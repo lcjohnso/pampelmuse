@@ -32,7 +32,7 @@ coordinate transformation from reference to IFS coordinates.
 
 Latest Git revision
 -------------------
-2019/04/11
+2019/04/12
 """
 import logging
 import numpy as np
@@ -43,7 +43,7 @@ from ..utils.statistics import robust_fit
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20190411
+__revision__ = 20190412
 
 
 logger = logging.getLogger(__name__)
@@ -328,25 +328,36 @@ class Parameters(object):
 
     def resize(self, index):
         """
-        Change the length of the dispersion axis of the data.
-         
-        Newly added rows will be filled using data from the existing rows (of
-        the same parameter and type) if possible. Otherwise, they will be set
-        to NaN.
+        Change (the length of) the dispersion axis of the data.
+
+        If the length of the provided index is the same as the current number
+        of rows in the data, the method will change the index of the array in
+        place without touching its values.
+
+        If the length of the provided index differs from the number of rows in
+        the data array, the data will be reindexed, i.e. newly added rows will
+        be filled using data from the existing rows (of the same parameter and
+        type) if possible. Otherwise, they will be set to NaN. A warning will
+        be issued if this operation will alter any of the current values in
+        the data.
 
         Parameters
         ----------
         index : pandas.Index
             The new index used to label the data rows.
         """
-        # issue warning if reindexing would remove existing data
-        if not self.data.index.isin(index).all():
-            logger.warning('Changing dispersion axis as requested will alter existing values.')
+        if len(index) == len(self.data.index):
+            logger.info('Changing dispersion axis of parameter array to [{0}..{1}].'.format(index.min(), index.max()))
+            self.data.index = index
+        else:
+            # issue warning if reindexing would remove existing data
+            if not self.data.index.isin(index).all():
+                logger.warning('Changing dispersion axis as requested will alter existing values.')
 
-        self.data = self.data.reindex(index=index, method='nearest')
-        # with method='nearest', the code will fill new rows of the data frame
-        # using existing ones. If a column contains only NaN, new values will
-        # also be filled with NaNs.
+            self.data = self.data.reindex(index=index, method='nearest')
+            # with method='nearest', the code will fill new rows of the data frame
+            # using existing ones. If a column contains only NaN, new values will
+            # also be filled with NaNs.
 
     def info(self, names=None):
         """

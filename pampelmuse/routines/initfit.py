@@ -1,7 +1,7 @@
 """
 initfit.py
 ==========
-Copyright 2013-2018 Sebastian Kamann
+Copyright 2013-2019 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -50,7 +50,7 @@ are saved in the PRM file that is written to disk.
 
 Latest GIT Revision
 -------------------
-2019/03/20
+2019/04/12
 """
 import datetime
 import logging
@@ -61,7 +61,7 @@ from ..utils.fits import open_ifs_data, make_header_from_config, save_prm
 
 
 __author__ = "Sebastian Kamann (skamann@ljmu.ac.uk)"
-__revision__ = 20190320
+__revision__ = 20190412
 
 
 logger = logging.getLogger(__name__)
@@ -174,7 +174,7 @@ def initfit(config):
         else:
             free = False
         psf_parameters.append({'name': parameter, 'value': value, 'free': free})
-    selector.prepare_psf(profile=profile, parameters=psf_parameters)
+    selector.prepare_psf(profile=profile, parameters=psf_parameters, use_lut=config['psf'].get('lut1d'))
 
     # Create mock image from photometry catalog
     n_cpu = config['global'].get('cpucount', 1)
