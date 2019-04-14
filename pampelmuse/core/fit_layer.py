@@ -57,7 +57,7 @@ parameters are not fitted.
 
 Latest Git revision
 -------------------
-2019/04/12
+2019/04/14
 """
 import collections
 import contextlib
@@ -72,7 +72,7 @@ from ..core.coordinates import Transformation
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20190412
+__revision__ = 20190414
 
 
 logger = logging.getLogger(__name__)
@@ -242,7 +242,7 @@ class FitLayer(object):
 
         # check if look-up table should be used
         if psf_lut is not None:
-            self.lut = interpolate.interp1d(psf_lut.index, psf_lut.values)
+            self.lut = interpolate.InterpolatedUnivariateSpline(psf_lut.index, psf_lut.values)
         else:
             self.lut = None
 
@@ -565,10 +565,10 @@ class FitLayer(object):
                     single_psf_results, profiles, residuals = self.fit_sources_consecutively(
                         sources=sources, psf_parameters=psf_parameters_to_fit, psf_sources=psf_sources,
                         fit_positions=(position_parameters_to_fit is not None),
-                        return_psf_profiles=analyse_psf | self.calculate_lut)
+                        return_psf_profiles=analyse_psf | self.lut is not None)
 
-                    if self.calculate_lut:
-                        lut = self.update_look_up_table(residuals=residuals, centroids=single_psf_results)
+                    if self.lut is not None:
+                        self.lut = self.update_look_up_table(residuals=residuals, centroids=single_psf_results)
 
                     # if positions are fitted directly, update them
                     if position_parameters_to_fit is not None and 'xy' in position_parameters_to_fit:
@@ -788,7 +788,7 @@ class FitLayer(object):
             psf = self.psf_instances[index]
             current_component = self.catalog.at[index, 'component']
 
-            current_pixels, current_fluxes = psf.get_flux()
+            current_pixels, current_fluxes = psf.get_flux(apply_lut=True)
             if current_pixels.size == 0:
                 logger.warning("Source #{0} entirely outside FoV.".format(index))
 
@@ -1023,7 +1023,7 @@ class FitLayer(object):
                 x0.append(np.median(data[~in_fwhm]))
 
             # add best-fit PSF-profile to residuals to get data used in fit
-            data += x0[0] * psf.f
+            data += x0[0] * psf.get_f(apply_lut=True)
 
             # calculate radial profile if requested
             if return_psf_profiles:

@@ -31,7 +31,7 @@ extraction for a data cube.
 
 Latest GIT revision
 -------------------
-2019/04/12
+2019/04/14
 """
 import logging
 import time
@@ -44,7 +44,7 @@ from ..instruments.muse import MusePixtable
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20190412
+__revision__ = 20190414
 
 
 logger = logging.getLogger(__name__)
@@ -628,7 +628,7 @@ class FitCube(object):
                         self.write_ifs_coordinates(current, result.positions)
                     else:
                         self.write_coordinate_transformation(current, result.positions)
-                    self.write_psf_parameters(current, result.psf)
+                    self.write_psf_parameters(current, result.psf, result.lut)
 
                     # save PSF if requested
                     if analyse_psf and sources is not None:
@@ -924,7 +924,7 @@ class FitCube(object):
         data = np.stack([fluxes, uncertainties, wave] if wave is not None else [fluxes, uncertainties], axis=-1)
         self.sources.data.loc[current] = data.flatten()
 
-    def write_psf_parameters(self, current, values):
+    def write_psf_parameters(self, current, values, lut=None):
         """
         This method writes the fitted PSF parameters back to the instance of
         pampelmuse.psf.Variables that was provided when initialising the
@@ -937,12 +937,17 @@ class FitCube(object):
         values : pandas.Series
             The fitted values of the PSF parameters. The indices of the Series
             should be the parameter names.
+        lut : instance of InterpolatedUnivariateSpline, optional
+            The look-up table used to correct the fluxes derived from the
+            analytical PSF profiles.
         """
         if values is None:  # nothing to do
             return
         else:
             for name, value in values.items():
                 self.psf_attributes.data.at[current, (name, 'value')] = value
+        if lut is not None:
+            self.psf_attributes.lut.loc[current] = lut(self.psf_attributes.lut.columns.values)
 
     def write_coordinate_transformation(self, current, values):
         """
@@ -999,11 +1004,11 @@ class FitCube(object):
         profiles : pandas.DataFrame
             The radial PSF profiles. The data frame should contain the radial
             data as individual columns and use the source IDs as column names.
-        parameters : pd.DataFrame
+        parameters : pandas.DataFrame
             The fitted PSF parameters, one per column. The data frame should
             contain one row per source.
         current_wavelength : float
-            The wavelength of the layer for which the results were obtained. 
+            The wavelength of the layer for which the results were obtained.
         """
         if parameters is None:
             return

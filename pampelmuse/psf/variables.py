@@ -34,7 +34,7 @@ general framework for dealing with parameters within PampelMuse.
 
 Latest Git revision
 -------------------
-2019/04/12
+2019/04/14
 """
 import logging
 import numpy as np
@@ -44,7 +44,7 @@ from ..core.parameters import Parameters
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20190412
+__revision__ = 20190414
 
 
 logger = logging.getLogger(__name__)
@@ -125,7 +125,7 @@ class Variables(Parameters):
         super(Variables, self).__init__(data=data, free=free, **kwargs)
 
         # look-up-table
-        if lut and not isinstance(lut, pd.DataFrame):
+        if lut is not None and not isinstance(lut, pd.DataFrame):
             logger.error('If provided, parameter "lut" must be pandas DataFrame, not {0}.'.format(type(data)))
         self.lut = lut
 
@@ -207,7 +207,7 @@ class Variables(Parameters):
                 if not self.lut.index.isin(index).all():
                     logger.warning('Changing dispersion axis as requested will alter existing values of look-up table.')
                 self.lut = self.lut.reindex(index=index, method='nearest')
-                assert(np.isfinite(self.lut.data).all())  # TODO: check if end-of-range NaNs are replaced.
+                assert(np.isfinite(self.lut.values).all())  # TODO: check if end-of-range NaNs are replaced.
 
     def make_hdu(self, include_fit=True, header_keys=None):
         """
