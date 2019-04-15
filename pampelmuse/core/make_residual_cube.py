@@ -1,7 +1,7 @@
 """
 make_residuals_cube.py
 ======================
-Copyright 2013-2018 Sebastian Kamann
+Copyright 2013-2019 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -32,7 +32,7 @@ Added
 rev. 343, 2016/08/01
 
 Latest Git revision
-2018/03/15
+2019/04/15
 """
 import logging
 from multiprocessing import cpu_count, Pool
@@ -43,7 +43,7 @@ from .fit_layer import FitLayer
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20180315
+__revision__ = 20190415
 
 
 logger = logging.getLogger(__name__)
@@ -98,21 +98,28 @@ def parallel_process_layers(fit_parameters):
 
     Parameters
     ----------
-    fit_parameters : dict
-        A dictionary containing the parameters necessary to launch the fit:
-        data - the value, variance, x-, and y-positions, and wavelength
-               (optional) of each pixel of the layer.
-        catalog - A pandas,.DataFrame containing at least the pixel
-                  coordinates of all sources that should be subtracted from
-                  the data.
-        psf_parameters - the values of the PSF parameters.
-        position_parameters - the values of the coordinate transformation
-                              parameters.
-        background - the matrix containing the footprints of the individual
-                     background components.
-        background_index - the index/indices used for the background
-                           components.
-        fluxes - the fluxes of all components
+    `fit_parameters` : dictionary with the following keys defined.
+        data - pandas.DataFrame
+            The value, variance, x-, and y-positions, and wavelength
+            (optional) of each pixel of the layer.
+        catalog - pandas.DataFrame
+            Containing at least the pixel coordinates of all sources that
+            should be subtracted from the data.
+        psf_parameters - dictionary
+            The initial guesses/fixed values of the PSF parameters.
+        psf_lut - pandas Series
+            The look-up table for correcting the fluxes obtained from the
+            analytical PSF profiles. None if not look-up tables is used.
+        position_parameters - dictionary
+            The initial guesses/fixed values of the coord. transformation
+            parameters (if used).
+        background - sparse matrix
+            The matrix containing the footprints of the individual background
+            components.
+        background_index - pandas.Index
+            The index/indices used for the background components.
+        fluxes - pandas.Series
+            The fluxes of all components.
 
     Returns
     -------
@@ -126,6 +133,7 @@ def parallel_process_layers(fit_parameters):
     data = fit_parameters['data']
     catalog = fit_parameters['catalog']
     psf_parameters = fit_parameters['psf_parameters']
+    psf_lut = fit_parameters['psf_lut']
     position_parameters = fit_parameters['position_parameters']
     background = fit_parameters['background']
     background_index = fit_parameters['background_index']
@@ -134,8 +142,9 @@ def parallel_process_layers(fit_parameters):
     global g_psf_type, g_psf_radius, g_osfactor, g_osradius
 
     layerfit = FitLayer(data=data, catalog=catalog, psf_type=g_psf_type, psf_parameters=psf_parameters,
-                        psf_radius=g_psf_radius, position_parameters=position_parameters, background=background,
-                        osfactor=g_osfactor, osradius=g_osradius, background_index=background_index)
+                        psf_radius=g_psf_radius, psf_lut=psf_lut, position_parameters=position_parameters,
+                        background=background, osfactor=g_osfactor, osradius=g_osradius,
+                        background_index=background_index)
 
     results = layerfit.residuals_from_fluxes(fluxes=fluxes)
 
@@ -320,7 +329,9 @@ class MakeResidualsCube(FitCube):
             fit_input[-1]['fluxes'] = fluxes[fluxes.index <= selected_components.max()]
 
             # update PSF parameters
-            fit_input[-1]['psf_parameters'] = self.read_psf_parameters(jj)
+            psf_parameters, lut = self.read_psf_parameters(jj)
+            fit_input[-1]['psf_parameters'] = psf_parameters
+            fit_input[-1]['psf_lut'] = lut
 
             # update parameters of coordinate transformation (if available and needed)
             if self.sources.transformation.valid:

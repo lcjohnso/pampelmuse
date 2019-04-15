@@ -34,7 +34,7 @@ general framework for dealing with parameters within PampelMuse.
 
 Latest Git revision
 -------------------
-2019/04/14
+2019/04/15
 """
 import logging
 import numpy as np
@@ -44,7 +44,7 @@ from ..core.parameters import Parameters
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20190414
+__revision__ = 20190415
 
 
 logger = logging.getLogger(__name__)
@@ -129,7 +129,7 @@ class Variables(Parameters):
             logger.error('If provided, parameter "lut" must be pandas DataFrame, not {0}.'.format(type(data)))
         self.lut = lut
 
-        if not self.lut.index.equals(self.data.index):
+        if self.lut is not None and not self.lut.index.equals(self.data.index):
             logger.warning('Index data of PSF parameters and look-up table disagree.')
 
         # check if all required parameters are available
@@ -152,7 +152,7 @@ class Variables(Parameters):
 
         # open look-up table (if any)
         if lut_hdu is not None:
-            columns_lut = np.arange(lut_hdu.header['NAXIS1'])
+            columns_lut = np.arange(lut_hdu.header['NAXIS1'], dtype=np.float64)
             if 'CDELT1' in lut_hdu.header:
                 columns_lut *= lut_hdu.header['CDELT1']
             if 'CRVAL1' in lut_hdu.header:
@@ -241,13 +241,15 @@ class Variables(Parameters):
         if self.lut is None:
             return None
 
-        if header_keys is None:
-            header_keys = {}
-        header_keys['EXTNAME'] = 'PSFLUT'
+        header = fits.Header()
+        if header_keys is not None:
+            for key, value in header_keys.items():
+                header[key] = value
+        header['EXTNAME'] = 'PSFLUT'
 
-        logger.info("Saving PSF look-up table in Image HDU '{0}' ...".format(header_keys['EXTNAME']))
+        logger.info("Saving PSF look-up table in Image HDU '{0}' ...".format(header['EXTNAME']))
 
-        header_keys['CDELT1'] = np.diff(self.lut.columns).mean()
-        header_keys['CRVAL1'] = self.lut.columns[0]
+        header['CDELT1'] = np.diff(self.lut.columns).mean()
+        header['CRVAL1'] = self.lut.columns[0]
 
-        return fits.ImageHDU(self.lut.values, header=header_keys)
+        return fits.ImageHDU(self.lut.values, header=header)

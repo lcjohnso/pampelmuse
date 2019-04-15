@@ -50,7 +50,7 @@ are saved in the PRM file that is written to disk.
 
 Latest GIT Revision
 -------------------
-2019/04/12
+2019/04/15
 """
 import datetime
 import logging
@@ -61,7 +61,7 @@ from ..utils.fits import open_ifs_data, make_header_from_config, save_prm
 
 
 __author__ = "Sebastian Kamann (skamann@ljmu.ac.uk)"
-__revision__ = 20190412
+__revision__ = 20190415
 
 
 logger = logging.getLogger(__name__)
@@ -174,7 +174,8 @@ def initfit(config):
         else:
             free = False
         psf_parameters.append({'name': parameter, 'value': value, 'free': free})
-    selector.prepare_psf(profile=profile, parameters=psf_parameters, use_lut=config['psf'].get('lut1d'))
+    selector.prepare_psf(profile=profile, parameters=psf_parameters, use_lut=config['psf'].get('lut1d'),
+                         lut_radius=config['psf'].get('radius'))
 
     # Create mock image from photometry catalog
     n_cpu = config['global'].get('cpucount', 1)

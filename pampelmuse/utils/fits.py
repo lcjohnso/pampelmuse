@@ -32,7 +32,7 @@ The provided functions facilitate working with FITS data.
 
 Latest Git revision
 -------------------
-2019/04/12
+2019/04/15
 """
 import os
 import logging
@@ -47,7 +47,7 @@ from ..psf import Variables
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20190412
+__revision__ = 20190415
 
 
 def open_ifs_data(prefix, **kwargs):
@@ -302,10 +302,11 @@ def save_prm(sources, psf_attributes, filename, header=None):
 
     # store PSF (only if a valid one exists)
     if psf_attributes.valid:
-        psf_hdu, lut_hdu = psf_attributes.make_hdu()
+        psf_hdu = psf_attributes.make_hdu()
         hdulist.append(psf_hdu)
-        if lut_hdu is not None:  # check if look-up table is in use
-            hdulist.append(psf_hdu)
+        if psf_attributes.lut is not None:  # check if look-up table is in use
+            lut_hdu = psf_attributes.make_lut_hdu()
+            hdulist.append(lut_hdu)
 
     # Save the file
     if os.path.exists(filename):

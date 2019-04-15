@@ -57,7 +57,7 @@ parameters are not fitted.
 
 Latest Git revision
 -------------------
-2019/04/14
+2019/04/15
 """
 import collections
 import contextlib
@@ -72,7 +72,7 @@ from ..core.coordinates import Transformation
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20190414
+__revision__ = 20190415
 
 
 logger = logging.getLogger(__name__)
@@ -497,7 +497,6 @@ class FitLayer(object):
         single_psf_results = None
         residuals = None
         included_components = None
-        lut = None
 
         # Determine initial weights for each pixel in the fit.
         self.fit_weights = 1./self.variances
@@ -565,10 +564,11 @@ class FitLayer(object):
                     single_psf_results, profiles, residuals = self.fit_sources_consecutively(
                         sources=sources, psf_parameters=psf_parameters_to_fit, psf_sources=psf_sources,
                         fit_positions=(position_parameters_to_fit is not None),
-                        return_psf_profiles=analyse_psf | self.lut is not None)
+                        return_psf_profiles=analyse_psf | (self.lut is not None))
 
                     if self.lut is not None:
                         self.lut = self.update_look_up_table(residuals=residuals, centroids=single_psf_results)
+                        [setattr(psf, 'lut', self.lut) for psf in self.psf_instances.values()]
 
                     # if positions are fitted directly, update them
                     if position_parameters_to_fit is not None and 'xy' in position_parameters_to_fit:
@@ -659,7 +659,7 @@ class FitLayer(object):
             return_wave = None
 
         return FitResult(self.fluxes, uncertainties, return_positions, return_psf, return_wave, profiles,
-                         single_psf_results, residuals, lut)
+                         single_psf_results, residuals, self.lut)
 
     @property
     def model(self):
@@ -1651,13 +1651,13 @@ class FitLayer(object):
             radii=np.sqrt(combined_residuals['dx']**2 + combined_residuals['dy']**2),
             weights=combined_residuals['weights'])
 
-        import matplotlib.pyplot as plt
-        fig = plt.figure()
-        ax = fig.add_axes([0.12, 0.12, 0.83, 0.83])
-        ax.axhline(y=0, ls='-', lw=1.5, c='0.5')
-        ax.plot(np.sqrt(combined_residuals['dx']**2 + combined_residuals['dy']**2), combined_residuals['rel_res'],
-                ls='None', marker='x', ms=5, mew=1.0, mec='g')
-        ax.plot(radii, correction, ls='None', marker='+', mew=2.5, mec='r', ms=20)
-        plt.show()
+        # import matplotlib.pyplot as plt
+        # fig = plt.figure()
+        # ax = fig.add_axes([0.12, 0.12, 0.83, 0.83])
+        # ax.axhline(y=0, ls='-', lw=1.5, c='0.5')
+        # ax.plot(np.sqrt(combined_residuals['dx']**2 + combined_residuals['dy']**2), combined_residuals['rel_res'],
+        #         ls='None', marker='x', ms=5, mew=1.0, mec='g')
+        # ax.plot(radii, correction, ls='None', marker='+', mew=2.5, mec='r', ms=20)
+        # plt.show()
 
-        return interpolate.InterpolatedUnivariateSpline(radii, correction)
+        return interpolate.InterpolatedUnivariateSpline(radii, 1. + correction)

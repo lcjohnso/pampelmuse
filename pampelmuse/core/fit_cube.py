@@ -31,7 +31,7 @@ extraction for a data cube.
 
 Latest GIT revision
 -------------------
-2019/04/14
+2019/04/15
 """
 import logging
 import time
@@ -44,7 +44,7 @@ from ..instruments.muse import MusePixtable
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20190414
+__revision__ = 20190415
 
 
 logger = logging.getLogger(__name__)
@@ -144,6 +144,9 @@ def parallel_fit_layer(fit_parameters):
             (optional) of each pixel of the layer.
         psf_parameters - dictionary
             The initial guesses/fixed values of the PSF parameters.
+        psf_lut - pandas Series
+            The look-up table for correcting the fluxes obtained from the
+            analytical PSF profiles. None if not look-up tables is used.
         coordinates - pandas.DataFrame
             The initial guesses/fixed values of the pixel coordinates if no
              coordinate transformation is being used.

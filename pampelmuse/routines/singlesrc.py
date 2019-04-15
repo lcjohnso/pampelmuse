@@ -36,7 +36,7 @@ improved using the first order moments determined in the calculation.
  
 Latest SVN revision
 -------------------
-2019/04/12
+2019/04/15
 """
 import datetime
 import logging
@@ -47,7 +47,7 @@ from ..utils.fits import open_ifs_data, make_header_from_config, save_prm
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20190412
+__revision__ = 20190415
 
 
 logger = logging.getLogger(__name__)
@@ -137,7 +137,8 @@ def singlesrc(config):
         else:
             free = False
         psf_parameters.append({'name': parameter, 'value': value, 'free': free})
-    selector.prepare_psf(profile=profile, parameters=psf_parameters, use_lut=config['psf'].get('lut1d'))
+    selector.prepare_psf(profile=profile, parameters=psf_parameters, use_lut=config['psf'].get('lut1d'),
+                         lut_radius=config['psf'].get('radius'))
 
     # perform aperture spectrophotometry for PSF sources
     # need to load complete array for IFS coordinates before, otherwise it is only loaded

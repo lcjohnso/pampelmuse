@@ -44,7 +44,7 @@ properties that are only recalculated if any of the underlying variables
 
 Latest Git revision
 -------------------
-2019/03/28
+2019/04/15
 """
 import logging
 import numbers
@@ -53,7 +53,7 @@ from ...psf import Canvas
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180928
+__revision__ = 20190415
 
 
 logger = logging.getLogger(__name__)
@@ -1144,7 +1144,7 @@ class Profile(Canvas):
     def diff_y0(self):
         return self.get_diff_y0()
 
-    def get_flux(self):
+    def get_flux(self, **kwargs):
         """
         Get the calculated fluxes in each pixel used in the calculation
 
@@ -1155,4 +1155,4 @@ class Profile(Canvas):
             calculation as the first entry, the second entry contains
             the actual fluxes per pixel.
         """
-        return self.pixel[self.used], self.f
+        return self.pixel[self.used], self.get_f(**kwargs)
