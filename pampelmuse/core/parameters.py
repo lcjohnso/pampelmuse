@@ -32,7 +32,7 @@ coordinate transformation from reference to IFS coordinates.
 
 Latest Git revision
 -------------------
-2019/04/12
+2019/04/15
 """
 import logging
 import numpy as np
@@ -43,7 +43,7 @@ from ..utils.statistics import robust_fit
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20190412
+__revision__ = 20190415
 
 
 logger = logging.getLogger(__name__)
@@ -83,35 +83,11 @@ class Parameters(object):
             logger.error('Unsupported keyword argument(s): {0}'.format(', '.join(kwargs.keys())))
             return
 
-        # Sanity check on provided data
-        if not isinstance(data, pd.DataFrame):
-            logger.error('Parameter "data" must be pandas DataFrame, not {0}.'.format(type(data)))
+        # read provided data
+        self.data = self.verify_data_frame(data)
+        if data is None:
+            logger.error('Could not initialize Parameters instance from provided data.')
             return
-
-        # check if data were provided with polynomial representations. If not, reindex data
-        if isinstance(data.columns, pd.MultiIndex):
-            # if so, make sure it has right format
-            if len(data.columns.levshape) != 2:
-                logger.error('Invalid column format in provided data.')
-                logger.error('MultiIndex must have depth=2.')
-                return
-            elif data.columns.levshape[1] != 2:
-                logger.error('Invalid column format in provided data.')
-                logger.error('Second level of MultiIndex must have length=2')
-                return
-            elif 'value' not in data.columns.levels[1].values or 'fit' not in data.columns.levels[1].values:
-                logger.error('Invalid column format in provided data.')
-                logger.error('Second level of MultiIndex must contain "value" and "fit".')
-                return
-            self.data = data
-        else:
-            # first add new level for type: value or fit
-            _columns = pd.MultiIndex.from_product([data.columns, ['value']])
-            _data = data.reindex(columns=_columns, level=0)
-
-            # then add new columns for polynomial fits
-            columns = pd.MultiIndex.from_product([data.columns, ['fit', 'value']])
-            self.data = _data.reindex(columns=columns)
 
         # if no information on free parameters was provided, assume none is free
         if free is not None:
@@ -216,6 +192,67 @@ class Parameters(object):
             The new instance of the class.
         """
         return cls(pd.DataFrame.from_dict(parameters), free=free)
+
+    @staticmethod
+    def verify_data_frame(frame):
+        """
+        The method checks if the provided pandas DataFrame has a format that
+        is compatible with its usage as a data container in the Parameters
+        class.
+
+        The class requires a pandas MultiIndex for the columns axis, which
+        contains the parameter names on the first level and the entries
+        'value' and 'fit' on the second level.
+
+        In case a DataFrame with a normal column Index is provided, the code
+        will try to convert it to the required format, under the assumption
+        that the parameter names are available as column indices and that the
+        provided values have not been fitted (i.e. are stored as 'value', not
+        'fit').
+
+        Parameters
+        ----------
+        frame : pandas.DataFrame
+            The DataFrame to be inspected.
+
+        Returns
+        -------
+        data : pandas.DataFrame
+            If the input DataFrame already has the correct format, it is
+            returned unchanged. Otherwise, the method tries to convert it to
+            the required format beforehand. If that is not possible, None is
+            returned.
+        """
+
+        # Sanity check on provided data
+        if not isinstance(frame, pd.DataFrame):
+            logger.error('Parameter "data" must be pandas DataFrame, not {0}.'.format(type(frame)))
+            return None
+
+        # check if data were provided with polynomial representations. If not, reindex data
+        if isinstance(frame.columns, pd.MultiIndex):
+            # if so, make sure it has right format
+            if len(frame.columns.levshape) != 2:
+                logger.error('Invalid column format in provided data.')
+                logger.error('MultiIndex must have depth=2.')
+                return None
+            elif frame.columns.levshape[1] != 2:
+                logger.error('Invalid column format in provided data.')
+                logger.error('Second level of MultiIndex must have length=2')
+                return None
+            elif 'value' not in frame.columns.levels[1].values or 'fit' not in frame.columns.levels[1].values:
+                logger.error('Invalid column format in provided data.')
+                logger.error('Second level of MultiIndex must contain "value" and "fit".')
+                return None
+            return frame
+        else:
+            # first add new level for type: value or fit
+            _columns = pd.MultiIndex.from_product([frame.columns, ['value']])
+            _frame = frame.reindex(columns=_columns, level=0)
+
+            # then add new columns for polynomial fits
+            columns = pd.MultiIndex.from_product([frame.columns, ['fit', 'value']])
+            return _frame.reindex(columns=columns)
 
     @property
     def names(self):

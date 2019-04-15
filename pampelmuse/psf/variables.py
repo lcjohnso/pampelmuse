@@ -40,6 +40,7 @@ import logging
 import numpy as np
 import pandas as pd
 from astropy.io import fits
+from astropy.table import Table
 from ..core.parameters import Parameters
 
 
@@ -125,9 +126,12 @@ class Variables(Parameters):
         super(Variables, self).__init__(data=data, free=free, **kwargs)
 
         # look-up-table
-        if lut is not None and not isinstance(lut, pd.DataFrame):
-            logger.error('If provided, parameter "lut" must be pandas DataFrame, not {0}.'.format(type(data)))
-        self.lut = lut
+        if lut is not None:
+            self.lut = self.verify_data_frame(lut)
+            if self.lut is None:
+                logger.error('Provided look-up table has invalid format and will be ignored.')
+        else:
+            self.lut = None
 
         if self.lut is not None and not self.lut.index.equals(self.data.index):
             logger.warning('Index data of PSF parameters and look-up table disagree.')
@@ -152,6 +156,9 @@ class Variables(Parameters):
 
         # open look-up table (if any)
         if lut_hdu is not None:
+            _lut = Table.read(lut_hdu)
+            lut = pd.DataFrame(_lut['value'].data.T, columns=_lut['radius'])
+            # TODO: continue from here
             columns_lut = np.arange(lut_hdu.header['NAXIS1'], dtype=np.float64)
             if 'CDELT1' in lut_hdu.header:
                 columns_lut *= lut_hdu.header['CDELT1']
@@ -208,6 +215,31 @@ class Variables(Parameters):
                     logger.warning('Changing dispersion axis as requested will alter existing values of look-up table.')
                 self.lut = self.lut.reindex(index=index, method='nearest')
                 assert(np.isfinite(self.lut.values).all())  # TODO: check if end-of-range NaNs are replaced.
+
+    def fit_lut(self, order, mask=None):
+        """
+        Perform polynomial fits to the look-up table data.
+
+        The data are fitted as a function of wavelength in a column-by-column
+        manner, i.e. each radial bin is fitted independently.
+
+        Parameters
+        ----------
+        order: int
+            The order of the polynomials that should be fitted to the data.
+        mask : pandas.Series, optional
+            An optional bad-pixel mask. If specified, it must be a boolean
+            pandas Series that uses the same indices as the data. Bad pixels
+            should be set to True, good ones to False.
+        """
+        if self.lut is None:  # nothing to do
+            return
+
+        # create pseudo-mask if None provided
+        if mask is None:
+            mask = pd.Series(0, index=self.lut.index)
+
+
 
     def make_hdu(self, include_fit=True, header_keys=None):
         """
