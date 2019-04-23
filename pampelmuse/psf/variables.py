@@ -34,18 +34,17 @@ general framework for dealing with parameters within PampelMuse.
 
 Latest Git revision
 -------------------
-2019/04/15
+2019/04/23
 """
 import logging
 import numpy as np
 import pandas as pd
 from astropy.io import fits
-from astropy.table import Table
 from ..core.parameters import Parameters
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20190415
+__revision__ = 20190423
 
 
 logger = logging.getLogger(__name__)
@@ -85,7 +84,7 @@ class Variables(Parameters):
 
     def __init__(self, profile='moffat', data=None, free=None, lut=None, **kwargs):
         """
-        Initialize an instance of pampelmuse.core.psf.attributes.Parameters
+        Initialize an instance of pampelmuse.psf.variables.Variables
         
         Parameters
         ----------
@@ -127,7 +126,7 @@ class Variables(Parameters):
 
         # look-up-table
         if lut is not None:
-            self.lut = self.verify_data_frame(lut)
+            self.lut = self.verify_data_frame(lut, swaplevel=True)
             if self.lut is None:
                 logger.error('Provided look-up table has invalid format and will be ignored.')
         else:
@@ -143,6 +142,21 @@ class Variables(Parameters):
 
     @classmethod
     def from_hdu(cls, hdu, profile=None, lut_hdu=None):
+        """
+
+        Parameters
+        ----------
+        hdu
+        profile
+        lut_hdu : instance of astropy.io.fits.ImageHDU, optional
+            An additional HDU containing the look-up table for the PSF.
+
+        Returns
+        -------
+        variables : instance of pampelmuse.psf.variables.Variables
+            The provided data is used to initialize a new instance of the
+            Variables class.
+        """
 
         # if no profile is provided, the header keyword PSFTYPE must be available in the FITS header
         if profile is None and 'PSFTYPE' not in hdu.header:
@@ -156,20 +170,50 @@ class Variables(Parameters):
 
         # open look-up table (if any)
         if lut_hdu is not None:
-            _lut = Table.read(lut_hdu)
-            lut = pd.DataFrame(_lut['value'].data.T, columns=_lut['radius'])
-            # TODO: continue from here
-            columns_lut = np.arange(lut_hdu.header['NAXIS1'], dtype=np.float64)
-            if 'CDELT1' in lut_hdu.header:
-                columns_lut *= lut_hdu.header['CDELT1']
-            if 'CRVAL1' in lut_hdu.header:
-                columns_lut += lut_hdu.header['CRVAL1']
-            lut = pd.DataFrame(lut_hdu.data, columns=columns_lut)
+            if not isinstance(lut_hdu, fits.ImageHDU):
+                logger.error('If provided, "lut_hdu" must be instance of astropy.io.fits.ImageHDU.')
+                lut = None
+            else:
+                # pandas requires native byte order while FITS data is big-endian.
+                data = lut_hdu.data.byteswap().newbyteorder()
+
+                # recover radii at which look-up table is defined
+                radii = np.arange(lut_hdu.header['NAXIS1'], dtype=np.float64)
+                for i in range(1, lut_hdu.header['NAXIS1'] + 1):
+                    if 'RLUT{0:04d}'.format(i) in lut_hdu.header:
+                        radii[i-1] = lut_hdu.header['RLUT{0:04d}'.format(i)]
+                    else:
+                        logger.warning('Missing header keyword "RLUT{0:04d}" in look-up table HDU.'.format(i))
+                if lut_hdu.header['NAXIS'] == 2:
+                    lut = pd.DataFrame(data, columns=pd.MultiIndex.from_product([['value', ], radii]))
+                    lut = lut.reindex(columns=pd.MultiIndex.from_product([['value', 'fit'], radii]))
+                else:
+                    lut_value = pd.DataFrame(data[0], columns=radii)
+                    lut_fit = pd.DataFrame(data[1], columns=radii)
+                    lut = pd.concat([lut_value, lut_fit], keys=('value', 'fit'), axis=1)
+
+            # _lut = Table.read(lut_hdu)
+            # lut = pd.DataFrame(_lut['value'].data.T.byteswap().newbyteorder(), columns=_lut['radius'])
+
+            # if 'polyfit' in _lut.colnames:
+            #     lut_fit = pd.DataFrame(_lut['polyfit'].data.T.byteswap().newbyteorder(), columns=_lut['radius'])
+            #     lut = pd.concat([lut, lut_fit], keys=('value', 'fit'), axis=1).swaplevel(
+            #         0, 1, axis=1).sort_index(axis=1)
         else:
             lut = None
 
         # call class method of super-class
         return super(Variables, cls).from_hdu(hdu=hdu, profile=profile, lut=lut)
+
+    @property
+    def lut_fitted(self):
+        """
+        Returns boolean flag indicating if the look-up  table has been fitted
+        using polynomials.
+        """
+        if self.lut is None:
+            return False
+        return (~self.lut['fit'].isnull()).any().any()
 
     def info(self, names=None):
         """
@@ -214,7 +258,6 @@ class Variables(Parameters):
                 if not self.lut.index.isin(index).all():
                     logger.warning('Changing dispersion axis as requested will alter existing values of look-up table.')
                 self.lut = self.lut.reindex(index=index, method='nearest')
-                assert(np.isfinite(self.lut.values).all())  # TODO: check if end-of-range NaNs are replaced.
 
     def fit_lut(self, order, mask=None):
         """
@@ -239,7 +282,11 @@ class Variables(Parameters):
         if mask is None:
             mask = pd.Series(0, index=self.lut.index)
 
-
+        for i in self.lut.columns.levels[1]:
+            mask_i = mask | self.lut[('value', i)].isnull()
+            _coeffs = np.polyfit(self.lut.index[~mask_i], self.lut.loc[~mask_i, ('value', i)], deg=order)
+            f = np.poly1d(_coeffs)
+            self.lut[('fit', i)] = f(self.lut.index)
 
     def make_hdu(self, include_fit=True, header_keys=None):
         """
@@ -268,7 +315,7 @@ class Variables(Parameters):
 
         return super(Variables, self).make_hdu(include_fit=include_fit, header_keys=header_keys)
 
-    def make_lut_hdu(self, header_keys=None):
+    def make_lut_hdu(self, include_fit=True, header_keys=None):
 
         if self.lut is None:
             return None
@@ -279,9 +326,14 @@ class Variables(Parameters):
                 header[key] = value
         header['EXTNAME'] = 'PSFLUT'
 
-        logger.info("Saving PSF look-up table in Image HDU '{0}' ...".format(header['EXTNAME']))
+        logger.info("Saving PSF look-up table in BinTableHDU '{0}' ...".format(header['EXTNAME']))
 
-        header['CDELT1'] = np.diff(self.lut.columns).mean()
-        header['CRVAL1'] = self.lut.columns[0]
+        if include_fit:
+            data = np.stack([self.lut.loc[:, 'value'], self.lut.loc[:, 'fit']], axis=0)
+        else:
+            data = self.lut['value']
 
-        return fits.ImageHDU(self.lut.values, header=header)
+        for i, r in enumerate(self.lut.columns.levels[1], start=1):
+            header['RLUT{0:04d}'.format(i)] = r
+
+        return fits.ImageHDU(data, header=header)

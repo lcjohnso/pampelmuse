@@ -32,7 +32,7 @@ coordinate transformation from reference to IFS coordinates.
 
 Latest Git revision
 -------------------
-2019/04/15
+2019/04/23
 """
 import logging
 import numpy as np
@@ -43,7 +43,7 @@ from ..utils.statistics import robust_fit
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20190415
+__revision__ = 20190423
 
 
 logger = logging.getLogger(__name__)
@@ -194,7 +194,7 @@ class Parameters(object):
         return cls(pd.DataFrame.from_dict(parameters), free=free)
 
     @staticmethod
-    def verify_data_frame(frame):
+    def verify_data_frame(frame, swaplevel=False):
         """
         The method checks if the provided pandas DataFrame has a format that
         is compatible with its usage as a data container in the Parameters
@@ -214,6 +214,9 @@ class Parameters(object):
         ----------
         frame : pandas.DataFrame
             The DataFrame to be inspected.
+        swaplevel : bool, optional
+            Set this flag if 'fit' and 'value' should compose the 0th level
+            of the multi index instead of the first.
 
         Returns
         -------
@@ -229,20 +232,22 @@ class Parameters(object):
             logger.error('Parameter "data" must be pandas DataFrame, not {0}.'.format(type(frame)))
             return None
 
-        # check if data were provided with polynomial representations. If not, reindex data
+        i = 1 if not swaplevel else 0
+
+        # check if data were provided with polynomial representations. If not, reindex data.
         if isinstance(frame.columns, pd.MultiIndex):
             # if so, make sure it has right format
             if len(frame.columns.levshape) != 2:
                 logger.error('Invalid column format in provided data.')
                 logger.error('MultiIndex must have depth=2.')
                 return None
-            elif frame.columns.levshape[1] != 2:
+            elif frame.columns.levshape[i] != 2:
                 logger.error('Invalid column format in provided data.')
-                logger.error('Second level of MultiIndex must have length=2')
+                logger.error('Level {0} of MultiIndex must have length=2'.format(i))
                 return None
-            elif 'value' not in frame.columns.levels[1].values or 'fit' not in frame.columns.levels[1].values:
+            elif 'value' not in frame.columns.levels[i].values or 'fit' not in frame.columns.levels[i].values:
                 logger.error('Invalid column format in provided data.')
-                logger.error('Second level of MultiIndex must contain "value" and "fit".')
+                logger.error('Level {0} of MultiIndex must contain "value" and "fit".'.format(i))
                 return None
             return frame
         else:
@@ -250,9 +255,13 @@ class Parameters(object):
             _columns = pd.MultiIndex.from_product([frame.columns, ['value']])
             _frame = frame.reindex(columns=_columns, level=0)
 
-            # then add new columns for polynomial fits
+            # then add new columns for polynomial fits - the new values with be initialized as NaNs
             columns = pd.MultiIndex.from_product([frame.columns, ['fit', 'value']])
-            return _frame.reindex(columns=columns)
+
+            if swaplevel:
+                return _frame.reindex(columns=columns).swaplevel(0, 1, axis=1).sort_index(axis=1)
+            else:
+                return _frame.reindex(columns=columns)
 
     @property
     def names(self):

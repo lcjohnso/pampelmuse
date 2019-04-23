@@ -31,7 +31,7 @@ extraction for a data cube.
 
 Latest GIT revision
 -------------------
-2019/04/15
+2019/04/23
 """
 import logging
 import time
@@ -44,7 +44,7 @@ from ..instruments.muse import MusePixtable
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20190415
+__revision__ = 20190423
 
 
 logger = logging.getLogger(__name__)
@@ -465,13 +465,15 @@ class FitCube(object):
         # fluxes of omitted layers are set to NaN
         self.sources.data.loc[omitted_indices] = np.nan
 
-        # Source coordinates, parameters of the coordinate transformation, or PSF parameters are first interpolated
-        # across the wavelength range to ensure valid values for all fitted layers. Afterwards - if any of the
-        # positions/parameters are fitted - all parameters of omitted layers to NaN. his is not done for any polynomial
-        # fits to the positions/parameters that may exist
+        # Source coordinates, coordinate transformation parameters, or PSF parameters are first interpolated across the
+        # wavelength range to ensure valid values exist for all fitted layers. Afterwards - if the positions or any of
+        # the parameters are fitted - all parameters of omitted layers are set to NaN. This is however not done for any
+        # polynomial fits to the positions/parameters that may exist
         self.psf_attributes.interpolate()
         if len(self.psf_parameters) > 0:
             self.psf_attributes.data.loc[omitted_indices, (slice(None), 'value')] = np.nan
+            if self.psf_attributes.lut is not None:
+                self.psf_attributes.lut.loc[omitted_indices, 'value'] = np.nan
 
         if self.sources.transformation.valid:
             self.sources.transformation.interpolate()
@@ -784,7 +786,11 @@ class FitCube(object):
         logger.info(log_string[:-1])
 
         if self.psf_attributes.lut is not None:
-            lut = self.psf_attributes.lut.loc[current]
+            print(self.psf_attributes.lut_fitted)
+            if self.psf_attributes.lut_fitted:
+                lut = self.psf_attributes.lut.loc[current, 'fit']
+            else:
+                lut = self.psf_attributes.lut.loc[current, 'value']
         else:
             lut = None
 
@@ -950,7 +956,7 @@ class FitCube(object):
             for name, value in values.items():
                 self.psf_attributes.data.at[current, (name, 'value')] = value
         if lut is not None:
-            self.psf_attributes.lut.loc[current] = lut(self.psf_attributes.lut.columns.values)
+            self.psf_attributes.lut.loc[current, 'value'] = lut(self.psf_attributes.lut.columns.levels[1].values)
 
     def write_coordinate_transformation(self, current, values):
         """
