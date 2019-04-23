@@ -2,7 +2,7 @@
 """
 pampelmuse_gui.py
 =================
-Copyright 2013-2018 Sebastian Kamann
+Copyright 2013-2019 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -37,7 +37,7 @@ defines the methods that are called by Ui_PampelMuseGui.
 
 Latest Git revision
 -------------------
-2018/04/20
+2019/04/23
 """
 import datetime
 import logging
@@ -64,7 +64,7 @@ from ..utils.fits import save_prm, read_config_from_header, make_header_from_con
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180420
+__revision__ = 20190423
 
 
 class ToolbarWithoutMessage(NavigationToolbar):
@@ -399,6 +399,13 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         if self.spectrumShowHduComboBox.findText("PSF") == -1:
             self.spectrumShowHduComboBox.addItem("PSF")
         self.available_data["PSF"] = self.psf.names
+
+        # check if look-up table available
+        if self.psf.lut is not None:
+            if self.spectrumShowHduComboBox.findText("Look-up table") == -1:
+                self.spectrumShowHduComboBox.addItem("Look-up table")
+            self.available_data["Look-up table"] = ['{0:.1f}'.format(f) for f in self.psf.lut.columns.levels[1]]
+            self.psf.lut.index = self.sources.wave
 
         self.dataLoaded()  # update status of GUI
 
@@ -994,6 +1001,12 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             fit = self.sources.transformation.data[(parameter, 'fit')]
             label = r"${{\rm {0}}}$".format(self.current_row_in_hdu)
 
+        elif self.current_hdu == 'Look-up table':
+            radius = float(self.current_row_in_hdu)
+            data = self.psf.lut[('value', radius)]
+            fit = self.psf.lut[('fit',  radius)]
+            label = r"$LUT_{{\rm r={0}}}$".format(self.current_row_in_hdu)
+
         else:
             logging.error('Unknown HDU encountered: "{0}"'.format(self.current_hdu))
             return
@@ -1060,6 +1073,8 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             self.statusBar.showMessage(
                 "Fitting coord. transf. parameters is deprecated. Directly fit IFS coordinates instead.",  5000)
             return
+        elif self.current_hdu == "Look-up table":
+            self.psf.fit_lut(order=order, mask=~self.spectrumMask)
         else:
             logging.error('Encountered unexpected HDU: "{0}"'.format(self.current_hdu))
             return
