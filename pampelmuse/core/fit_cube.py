@@ -1,7 +1,7 @@
 """
 fit_cube.py
 ===========
-Copyright 2013-2018 Sebastian Kamann
+Copyright 2013-2019 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -31,7 +31,7 @@ extraction for a data cube.
 
 Latest GIT revision
 -------------------
-2018/07/25
+2019/04/23
 """
 import logging
 import time
@@ -44,7 +44,7 @@ from ..instruments.muse import MusePixtable
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180725
+__revision__ = 20190423
 
 
 logger = logging.getLogger(__name__)
@@ -138,37 +138,62 @@ def parallel_fit_layer(fit_parameters):
 
     Parameters
     ----------
-    fit_parameters : dict
-        A dictionary containing the parameters necessary to launch the fit:
-        data - the value, variance, x-, and y-positions, and wavelength
-               (optional) of each pixel of the layer.
-        psf_parameters - the initial guesses/fixed values of the PSF
-                         parameters.
-        coordinates - the initial guesses/fixed values of the pixel
-                      coordinates if no coordinate transformation is being
-                      used.
-        position_parameters - the initial guesses/fixed values of the coord.
-                              transformation parameters (if used).
-        background - the matrix containing the footprints of the individual
-                     background components.
-        background_index - the index/indices used for the background
-                           components.
+    `fit_parameters` : dictionary with the following keys defined.
+        data - pandas.DataFrame
+            The value, variance, x-, and y-positions, and wavelength
+            (optional) of each pixel of the layer.
+        psf_parameters - dictionary
+            The initial guesses/fixed values of the PSF parameters.
+        psf_lut - pandas Series
+            The look-up table for correcting the fluxes obtained from the
+            analytical PSF profiles. None if not look-up tables is used.
+        coordinates - pandas.DataFrame
+            The initial guesses/fixed values of the pixel coordinates if no
+             coordinate transformation is being used.
+        position_parameters - dictionary
+            The initial guesses/fixed values of the coord. transformation
+            parameters (if used).
+        background - sparse matrix
+            The matrix containing the footprints of the individual background
+            components.
+        background_index - pandas.Index
+            The index/indices used for the background components.
 
     Returns
     -------
-    results : list
-        The list with the results contains the following entries:
-        fluxes - The fitted flux of each component
-        uncertainties - The flux uncertainty of each component
-        positions - The fitted values of the source positions or the coord.
-                    transformation
-        psf - The fitted values of the PSF parameters.
-        wave - The average wavelength determined for each component.
+    `FitResult` with the following fields defined.
+    fluxes : pandas.Series
+        The fitted fluxes of the components that actually contributed to
+        the observed flux. Sources entirely outside the observed field of
+        view are excluded from this series.
+    uncertainties : pandas.Series
+        The associated uncertainties of the returned fluxes.
+    positions : pandas.Series or pandas.DataFrame
+        The best-fit parameters of the coordinate transformation or the
+        best-fit centroids of all components (in this case a DataFrame is
+        returned containing columns 'x' and 'y' and one row per source),
+        or None if fixed positions were used.
+    psf : pandas.Series
+        The best-fit parameters of the PSF, or None if a fixed PSF was
+        used.
+    wave : pandas.Series
+        If dedicated wavelength information per pixel was provided with
+        the data, this Series will contain the weighted wavelength value
+        for each returned flux. Otherwise None is returned.
+    profiles : pandas.DataFrame
+        The radial profiles of the PSF stars if requested. Otherwise None.
+    parameters : pandas.DataFrame
+        The parameters of the individual PSF fits it requested. Otherwise
+        None.
+    lut: instance of InterpolatedUnivariateSpline
+        The look-up table created from the average residuals of the PSF
+        fits if requested, otherwise None
     """
     # fit parameters is a dictionary that must contain the following keys:
     # data, variances, transformation, xy, psf_parameters, position_parameters
     data = fit_parameters['data']
     psf_parameters = fit_parameters['psf_parameters']
+    psf_lut = fit_parameters['psf_lut']
     coordinates = fit_parameters['coordinates']
     position_parameters = fit_parameters['position_parameters']
     background = fit_parameters['background']
@@ -184,7 +209,7 @@ def parallel_fit_layer(fit_parameters):
         catalog = g_catalog
 
     layerfit = FitLayer(data=data, catalog=catalog, psf_type=g_psf_type, psf_parameters=psf_parameters,
-                        psf_radius=g_psf_radius, position_parameters=position_parameters,
+                        psf_radius=g_psf_radius, psf_lut=psf_lut, position_parameters=position_parameters,
                         last_component_is_unresolved=g_last_component_is_unresolved, background=background,
                         osfactor=g_osfactor, osradius=g_osradius, background_index=background_index)
 
@@ -334,15 +359,9 @@ class FitCube(object):
 
         # ensure that the instances of the PSF and the coordinate transformation (if any) use the same indices as the
         # Sources instance
-        if self.psf_attributes.n_dispersion != self.sources.n_dispersion:
-            self.psf_attributes.resize(self.sources.wave)
-        else:
-            self.psf_attributes.data.index = self.sources.wave
+        self.psf_attributes.resize(self.sources.wave)
         if self.sources.transformation.valid:
-            if self.sources.transformation.n_dispersion != self.sources.n_dispersion:
-                self.sources.transformation.resize(self.sources.wave)
-            else:
-                self.sources.transformation.data.index = self.sources.wave
+            self.sources.transformation.resize(self.sources.wave)
 
         # prepare containers for storing detailed PSF information if requested
         self.profiles = {}
@@ -446,13 +465,15 @@ class FitCube(object):
         # fluxes of omitted layers are set to NaN
         self.sources.data.loc[omitted_indices] = np.nan
 
-        # Source coordinates, parameters of the coordinate transformation, or PSF parameters are first interpolated
-        # across the wavelength range to ensure valid values for all fitted layers. Afterwards - if any of the
-        # positions/parameters are fitted - all parameters of omitted layers to NaN. his is not done for any polynomial
-        # fits to the positions/parameters that may exist
+        # Source coordinates, coordinate transformation parameters, or PSF parameters are first interpolated across the
+        # wavelength range to ensure valid values exist for all fitted layers. Afterwards - if the positions or any of
+        # the parameters are fitted - all parameters of omitted layers are set to NaN. This is however not done for any
+        # polynomial fits to the positions/parameters that may exist
         self.psf_attributes.interpolate()
         if len(self.psf_parameters) > 0:
             self.psf_attributes.data.loc[omitted_indices, (slice(None), 'value')] = np.nan
+            if self.psf_attributes.lut is not None:
+                self.psf_attributes.lut.loc[omitted_indices, 'value'] = np.nan
 
         if self.sources.transformation.valid:
             self.sources.transformation.interpolate()
@@ -558,8 +579,10 @@ class FitCube(object):
                                   use_slices=(self.sources.status == 5).any())
             fit_input.append({'data': data})
 
-            # update PSF parameters
-            fit_input[-1]['psf_parameters'] = self.read_psf_parameters(jj, last=nearest_layers)
+            # update PSF parameters & look-up table if available.
+            psf_parameters, lut = self.read_psf_parameters(jj, last=nearest_layers)
+            fit_input[-1]['psf_parameters'] = psf_parameters
+            fit_input[-1]['psf_lut'] = lut
 
             # update direct coordinates if required
             if self.sources.ifs_coordinates_fitted.any() or self.sources.ifs_coordinates_free.any():
@@ -610,7 +633,7 @@ class FitCube(object):
                         self.write_ifs_coordinates(current, result.positions)
                     else:
                         self.write_coordinate_transformation(current, result.positions)
-                    self.write_psf_parameters(current, result.psf)
+                    self.write_psf_parameters(current, result.psf, result.lut)
 
                     # save PSF if requested
                     if analyse_psf and sources is not None:
@@ -736,6 +759,9 @@ class FitCube(object):
         -------
         parameters : dictionary
             The updated value of each PSF parameter for the current layer.
+        lut : pandas Series or None
+            The look-up table for the current layer (if available). The radii
+            are provided as index.
         """
         log_string = "Initial PSF model:"
 
@@ -759,7 +785,16 @@ class FitCube(object):
             log_string += " {0}={1:.2f},".format(parameter, float(value))
         logger.info(log_string[:-1])
 
-        return parameters
+        if self.psf_attributes.lut is not None:
+            print(self.psf_attributes.lut_fitted)
+            if self.psf_attributes.lut_fitted:
+                lut = self.psf_attributes.lut.loc[current, 'fit']
+            else:
+                lut = self.psf_attributes.lut.loc[current, 'value']
+        else:
+            lut = None
+
+        return parameters, lut
 
     def read_coordinate_transformation(self, current, last=None):
         """
@@ -898,7 +933,7 @@ class FitCube(object):
         data = np.stack([fluxes, uncertainties, wave] if wave is not None else [fluxes, uncertainties], axis=-1)
         self.sources.data.loc[current] = data.flatten()
 
-    def write_psf_parameters(self, current, values):
+    def write_psf_parameters(self, current, values, lut=None):
         """
         This method writes the fitted PSF parameters back to the instance of
         pampelmuse.psf.Variables that was provided when initialising the
@@ -911,12 +946,17 @@ class FitCube(object):
         values : pandas.Series
             The fitted values of the PSF parameters. The indices of the Series
             should be the parameter names.
+        lut : instance of InterpolatedUnivariateSpline, optional
+            The look-up table used to correct the fluxes derived from the
+            analytical PSF profiles.
         """
         if values is None:  # nothing to do
             return
         else:
             for name, value in values.items():
                 self.psf_attributes.data.at[current, (name, 'value')] = value
+        if lut is not None:
+            self.psf_attributes.lut.loc[current, 'value'] = lut(self.psf_attributes.lut.columns.levels[1].values)
 
     def write_coordinate_transformation(self, current, values):
         """
@@ -973,11 +1013,11 @@ class FitCube(object):
         profiles : pandas.DataFrame
             The radial PSF profiles. The data frame should contain the radial
             data as individual columns and use the source IDs as column names.
-        parameters : pd.DataFrame
+        parameters : pandas.DataFrame
             The fitted PSF parameters, one per column. The data frame should
             contain one row per source.
         current_wavelength : float
-            The wavelength of the layer for which the results were obtained. 
+            The wavelength of the layer for which the results were obtained.
         """
         if parameters is None:
             return

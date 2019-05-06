@@ -33,7 +33,7 @@ Added
 
 Latest Git revision
 -------------------
-2019/03/26
+2019/04/15
 """
 import logging
 import sys
@@ -54,7 +54,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20190326
+__revision__ = 20190415
 
 
 logger = logging.getLogger(__name__)
@@ -426,7 +426,7 @@ class SourceSelector(object):
         # make sure instance has correct dispersion information
         self.sources.n_dispersion = self.ifs_data.nlayer
 
-    def prepare_psf(self, profile='moffat', parameters=None):
+    def prepare_psf(self, profile='moffat', parameters=None, use_lut=False, lut_radius=10):
         """
         Method to initialize the PSF that should be used in the source
         selection process.
@@ -451,8 +451,14 @@ class SourceSelector(object):
             - 'value': The (initial) value of the parameter
             - 'free': Boolean flag indicating if the parameter value should be
                       optimized in the analysis.
-            By default, a round Moffat profile with beta=2.5 and fwhm=2.5pixel
+            By default, a round Moffat profile with beta=2.5 and fwhm=2.5 pix
             is used.
+        use_lut : boolean, optional
+            Flag indicating if the fluxes derived from the analytical PSF
+            profile should be corrected using a 1dim. look-up table.
+        lut_radius : float, optional
+            The radius out to which the look-up table should be calculated, in
+            pixels.
         """
         if profile == "moffat":
             self.psf_class = Moffat
@@ -484,8 +490,14 @@ class SourceSelector(object):
             if 'beta' in Variables.PROFILES[profile]:
                 data['beta'] = 2.5
 
+        # initialise look-up table if requested
+        if use_lut:
+            lut = pd.DataFrame(1., index=data.index, columns=np.arange(lut_radius))
+        else:
+            lut = None
+
         # initialise instance with PSF parameters and print basic info about PSF
-        self.psf_attributes = Variables(profile=profile, data=data, free=free)
+        self.psf_attributes = Variables(profile=profile, data=data, free=free, lut=lut)
         self.psf_attributes.info()
 
     def create_mock_image(self, n_stars=500, n_cpu=1):

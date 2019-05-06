@@ -34,16 +34,17 @@ general framework for dealing with parameters within PampelMuse.
 
 Latest Git revision
 -------------------
-2019/02/03
+2019/04/23
 """
 import logging
 import numpy as np
 import pandas as pd
+from astropy.io import fits
 from ..core.parameters import Parameters
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20190203
+__revision__ = 20190423
 
 
 logger = logging.getLogger(__name__)
@@ -81,9 +82,9 @@ class Variables(Parameters):
               "fwhm2": r"$\mathrm{FWHM}_2\ [\mathrm{spaxel}]$",
               "f12": r"$f_\mathrm{12}$"}
 
-    def __init__(self, profile='moffat', data=None, free=None, **kwargs):
+    def __init__(self, profile='moffat', data=None, free=None, lut=None, **kwargs):
         """
-        Initialize an instance of pampelmuse.core.psf.attributes.Parameters
+        Initialize an instance of pampelmuse.psf.variables.Variables
         
         Parameters
         ----------
@@ -98,6 +99,11 @@ class Variables(Parameters):
             A boolean array containing a flag for each parameter in 'data'
             indicating if the parameter is allowed to vary in a fit. By
              default, all parameters are free.
+        lut : pandas.DataFrame, optional
+            A look-up table containing correction factors for the fluxes
+            determined from the analytical PSF profiles as a function of
+            radius. The data frame should contain one column per radius and
+            have the dispersion information available as Index.
         kwargs
             Any additional keyword arguments are passed on to the call of the
             initialization method of the super-class.
@@ -118,13 +124,39 @@ class Variables(Parameters):
         # call initialization method of super-class.
         super(Variables, self).__init__(data=data, free=free, **kwargs)
 
+        # look-up-table
+        if lut is not None:
+            self.lut = self.verify_data_frame(lut, swaplevel=True)
+            if self.lut is None:
+                logger.error('Provided look-up table has invalid format and will be ignored.')
+        else:
+            self.lut = None
+
+        if self.lut is not None and not self.lut.index.equals(self.data.index):
+            logger.warning('Index data of PSF parameters and look-up table disagree.')
+
         # check if all required parameters are available
         for name in self.PROFILES[profile]:
             if name not in self.names:
                 logger.error("Missing required PSF parameter '{0}'.".format(name))
 
     @classmethod
-    def from_hdu(cls, hdu, profile=None):
+    def from_hdu(cls, hdu, profile=None, lut_hdu=None):
+        """
+
+        Parameters
+        ----------
+        hdu
+        profile
+        lut_hdu : instance of astropy.io.fits.ImageHDU, optional
+            An additional HDU containing the look-up table for the PSF.
+
+        Returns
+        -------
+        variables : instance of pampelmuse.psf.variables.Variables
+            The provided data is used to initialize a new instance of the
+            Variables class.
+        """
 
         # if no profile is provided, the header keyword PSFTYPE must be available in the FITS header
         if profile is None and 'PSFTYPE' not in hdu.header:
@@ -136,8 +168,52 @@ class Variables(Parameters):
                     profile, hdu.header['PSFTYPE']))
             profile = hdu.header['PSFTYPE']
 
+        # open look-up table (if any)
+        if lut_hdu is not None:
+            if not isinstance(lut_hdu, fits.ImageHDU):
+                logger.error('If provided, "lut_hdu" must be instance of astropy.io.fits.ImageHDU.')
+                lut = None
+            else:
+                # pandas requires native byte order while FITS data is big-endian.
+                data = lut_hdu.data.byteswap().newbyteorder()
+
+                # recover radii at which look-up table is defined
+                radii = np.arange(lut_hdu.header['NAXIS1'], dtype=np.float64)
+                for i in range(1, lut_hdu.header['NAXIS1'] + 1):
+                    if 'RLUT{0:04d}'.format(i) in lut_hdu.header:
+                        radii[i-1] = lut_hdu.header['RLUT{0:04d}'.format(i)]
+                    else:
+                        logger.warning('Missing header keyword "RLUT{0:04d}" in look-up table HDU.'.format(i))
+                if lut_hdu.header['NAXIS'] == 2:
+                    lut = pd.DataFrame(data, columns=pd.MultiIndex.from_product([['value', ], radii]))
+                    lut = lut.reindex(columns=pd.MultiIndex.from_product([['value', 'fit'], radii]))
+                else:
+                    lut_value = pd.DataFrame(data[0], columns=radii)
+                    lut_fit = pd.DataFrame(data[1], columns=radii)
+                    lut = pd.concat([lut_value, lut_fit], keys=('value', 'fit'), axis=1)
+
+            # _lut = Table.read(lut_hdu)
+            # lut = pd.DataFrame(_lut['value'].data.T.byteswap().newbyteorder(), columns=_lut['radius'])
+
+            # if 'polyfit' in _lut.colnames:
+            #     lut_fit = pd.DataFrame(_lut['polyfit'].data.T.byteswap().newbyteorder(), columns=_lut['radius'])
+            #     lut = pd.concat([lut, lut_fit], keys=('value', 'fit'), axis=1).swaplevel(
+            #         0, 1, axis=1).sort_index(axis=1)
+        else:
+            lut = None
+
         # call class method of super-class
-        return super(Variables, cls).from_hdu(hdu=hdu, profile=profile)
+        return super(Variables, cls).from_hdu(hdu=hdu, profile=profile, lut=lut)
+
+    @property
+    def lut_fitted(self):
+        """
+        Returns boolean flag indicating if the look-up  table has been fitted
+        using polynomials.
+        """
+        if self.lut is None:
+            return False
+        return (~self.lut['fit'].isnull()).any().any()
 
     def info(self, names=None):
         """
@@ -155,6 +231,7 @@ class Variables(Parameters):
         # print out some information about the PSF profile in use
         logger.info("Summary of current status of PSF parameters:")
         logger.info(" Type: '{0}'".format(self.profile))
+        logger.info(" Look-up table available? {0}".format(self.lut is not None))
 
         # if no order provided, use the one defined in PROFILES attribute
         if names is None:
@@ -162,6 +239,54 @@ class Variables(Parameters):
 
         # call info method of super-class. Provide parameter names to get order right.
         super(Variables, self).info(names=names)
+
+    def interpolate(self):
+
+        super(Variables, self).interpolate()
+
+        if self.lut is not None:
+            self.lut.interpolate(inplace=True)
+
+    def resize(self, index):
+
+        super(Variables, self).resize(index=index)
+
+        if self.lut is not None:
+            if len(index) == len(self.lut.index):
+                self.lut.index = index
+            else:
+                if not self.lut.index.isin(index).all():
+                    logger.warning('Changing dispersion axis as requested will alter existing values of look-up table.')
+                self.lut = self.lut.reindex(index=index, method='nearest')
+
+    def fit_lut(self, order, mask=None):
+        """
+        Perform polynomial fits to the look-up table data.
+
+        The data are fitted as a function of wavelength in a column-by-column
+        manner, i.e. each radial bin is fitted independently.
+
+        Parameters
+        ----------
+        order: int
+            The order of the polynomials that should be fitted to the data.
+        mask : pandas.Series, optional
+            An optional bad-pixel mask. If specified, it must be a boolean
+            pandas Series that uses the same indices as the data. Bad pixels
+            should be set to True, good ones to False.
+        """
+        if self.lut is None:  # nothing to do
+            return
+
+        # create pseudo-mask if None provided
+        if mask is None:
+            mask = pd.Series(0, index=self.lut.index)
+
+        for i in self.lut.columns.levels[1]:
+            mask_i = mask | self.lut[('value', i)].isnull()
+            _coeffs = np.polyfit(self.lut.index[~mask_i], self.lut.loc[~mask_i, ('value', i)], deg=order)
+            f = np.poly1d(_coeffs)
+            self.lut[('fit', i)] = f(self.lut.index)
 
     def make_hdu(self, include_fit=True, header_keys=None):
         """
@@ -189,3 +314,26 @@ class Variables(Parameters):
         logger.info("Saving PSF parameters in BinTableHDU '{0}'...".format(header_keys['EXTNAME']))
 
         return super(Variables, self).make_hdu(include_fit=include_fit, header_keys=header_keys)
+
+    def make_lut_hdu(self, include_fit=True, header_keys=None):
+
+        if self.lut is None:
+            return None
+
+        header = fits.Header()
+        if header_keys is not None:
+            for key, value in header_keys.items():
+                header[key] = value
+        header['EXTNAME'] = 'PSFLUT'
+
+        logger.info("Saving PSF look-up table in BinTableHDU '{0}' ...".format(header['EXTNAME']))
+
+        if include_fit:
+            data = np.stack([self.lut.loc[:, 'value'], self.lut.loc[:, 'fit']], axis=0)
+        else:
+            data = self.lut['value']
+
+        for i, r in enumerate(self.lut.columns.levels[1], start=1):
+            header['RLUT{0:04d}'.format(i)] = r
+
+        return fits.ImageHDU(data, header=header)

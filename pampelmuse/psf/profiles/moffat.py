@@ -1,7 +1,7 @@
 """
 moffat.py
 =========
-Copyright 2013-2018 Sebastian Kamann
+Copyright 2013-2019 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -32,7 +32,7 @@ This module implements an analytical PSF profile in the form of a Moffat.
 
 Latest Git revision
 -------------------
-2018/05/08
+2019/04/14
 """
 import logging
 from numbers import Real
@@ -41,7 +41,7 @@ from ..functions import moffat
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180508
+__revision__ = 20190414
 
 
 class Moffat(Profile):
@@ -161,7 +161,7 @@ class Moffat(Profile):
             self.reset(omit=["_used", "_oversampled", "_osmap", "_ossummer", "_xos", "_yos", "_u", "_v", "_r"])
 
     # The property that returns the actual intensity profile of the Moffat
-    def get_f(self, integrate=True):
+    def get_f(self, integrate=True, apply_lut=False, **kwargs):
         """
         Method that calculates the actual intensity profile of the Moffat.
 
@@ -169,7 +169,10 @@ class Moffat(Profile):
         -----------
         integrate : bool, optional
             Whether or not the values should be averaged over the individual
-            sub-pixels before they are returned.            
+            sub-pixels before they are returned.
+        apply_lut : bool, optional
+            Whether the returned fluxes should be corrected using the look-up
+            table.
         **kwargs
             Any other keyword provided to this method will be parsed to the
             'get_f' method of the current super-class.
@@ -183,6 +186,10 @@ class Moffat(Profile):
         """
         if self._f is None:
             self._f = self.int_flux * moffat.flux(self.r, self.beta, self.fwhm, self.e)
+            if apply_lut and self.lut:
+                correction = self.lut(self.r)
+                correction *= self._f.sum()/(correction*self._f).sum()
+                self._f *= correction
         if integrate:
             return self.sum_os(self._f)
         else:

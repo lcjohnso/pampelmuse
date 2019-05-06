@@ -1,7 +1,7 @@
 """
 parameters.py
 =============
-Copyright 2013-2017 Sebastian Kamann
+Copyright 2013-2019 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -32,7 +32,7 @@ coordinate transformation from reference to IFS coordinates.
 
 Latest Git revision
 -------------------
-2017/08/23
+2019/04/23
 """
 import logging
 import numpy as np
@@ -43,7 +43,7 @@ from ..utils.statistics import robust_fit
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20170823
+__revision__ = 20190423
 
 
 logger = logging.getLogger(__name__)
@@ -83,35 +83,11 @@ class Parameters(object):
             logger.error('Unsupported keyword argument(s): {0}'.format(', '.join(kwargs.keys())))
             return
 
-        # Sanity check on provided data
-        if not isinstance(data, pd.DataFrame):
-            logger.error('Parameter "data" must be pandas DataFrame, not {0}.'.format(type(data)))
+        # read provided data
+        self.data = self.verify_data_frame(data)
+        if data is None:
+            logger.error('Could not initialize Parameters instance from provided data.')
             return
-
-        # check if data were provided with polynomial representations. If not, reindex data
-        if isinstance(data.columns, pd.MultiIndex):
-            # if so, make sure it has right format
-            if len(data.columns.levshape) != 2:
-                logger.error('Invalid column format in provided data.')
-                logger.error('MultiIndex must have depth=2.')
-                return
-            elif data.columns.levshape[1] != 2:
-                logger.error('Invalid column format in provided data.')
-                logger.error('Second level of MultiIndex must have length=2')
-                return
-            elif 'value' not in data.columns.levels[1].values or 'fit' not in data.columns.levels[1].values:
-                logger.error('Invalid column format in provided data.')
-                logger.error('Second level of MultiIndex must contain "value" and "fit".')
-                return
-            self.data = data
-        else:
-            # first add new level for type: value or fit
-            _columns = pd.MultiIndex.from_product([data.columns, ['value']])
-            _data = data.reindex(columns=_columns, level=0)
-
-            # then add new columns for polynomial fits
-            columns = pd.MultiIndex.from_product([data.columns, ['fit', 'value']])
-            self.data = _data.reindex(columns=columns)
 
         # if no information on free parameters was provided, assume none is free
         if free is not None:
@@ -216,6 +192,76 @@ class Parameters(object):
             The new instance of the class.
         """
         return cls(pd.DataFrame.from_dict(parameters), free=free)
+
+    @staticmethod
+    def verify_data_frame(frame, swaplevel=False):
+        """
+        The method checks if the provided pandas DataFrame has a format that
+        is compatible with its usage as a data container in the Parameters
+        class.
+
+        The class requires a pandas MultiIndex for the columns axis, which
+        contains the parameter names on the first level and the entries
+        'value' and 'fit' on the second level.
+
+        In case a DataFrame with a normal column Index is provided, the code
+        will try to convert it to the required format, under the assumption
+        that the parameter names are available as column indices and that the
+        provided values have not been fitted (i.e. are stored as 'value', not
+        'fit').
+
+        Parameters
+        ----------
+        frame : pandas.DataFrame
+            The DataFrame to be inspected.
+        swaplevel : bool, optional
+            Set this flag if 'fit' and 'value' should compose the 0th level
+            of the multi index instead of the first.
+
+        Returns
+        -------
+        data : pandas.DataFrame
+            If the input DataFrame already has the correct format, it is
+            returned unchanged. Otherwise, the method tries to convert it to
+            the required format beforehand. If that is not possible, None is
+            returned.
+        """
+
+        # Sanity check on provided data
+        if not isinstance(frame, pd.DataFrame):
+            logger.error('Parameter "data" must be pandas DataFrame, not {0}.'.format(type(frame)))
+            return None
+
+        i = 1 if not swaplevel else 0
+
+        # check if data were provided with polynomial representations. If not, reindex data.
+        if isinstance(frame.columns, pd.MultiIndex):
+            # if so, make sure it has right format
+            if len(frame.columns.levshape) != 2:
+                logger.error('Invalid column format in provided data.')
+                logger.error('MultiIndex must have depth=2.')
+                return None
+            elif frame.columns.levshape[i] != 2:
+                logger.error('Invalid column format in provided data.')
+                logger.error('Level {0} of MultiIndex must have length=2'.format(i))
+                return None
+            elif 'value' not in frame.columns.levels[i].values or 'fit' not in frame.columns.levels[i].values:
+                logger.error('Invalid column format in provided data.')
+                logger.error('Level {0} of MultiIndex must contain "value" and "fit".'.format(i))
+                return None
+            return frame
+        else:
+            # first add new level for type: value or fit
+            _columns = pd.MultiIndex.from_product([frame.columns, ['value']])
+            _frame = frame.reindex(columns=_columns, level=0)
+
+            # then add new columns for polynomial fits - the new values with be initialized as NaNs
+            columns = pd.MultiIndex.from_product([frame.columns, ['fit', 'value']])
+
+            if swaplevel:
+                return _frame.reindex(columns=columns).swaplevel(0, 1, axis=1).sort_index(axis=1)
+            else:
+                return _frame.reindex(columns=columns)
 
     @property
     def names(self):
@@ -328,25 +374,36 @@ class Parameters(object):
 
     def resize(self, index):
         """
-        Change the length of the dispersion axis of the data.
-         
-        Newly added rows will be filled using data from the existing rows (of
-        the same parameter and type) if possible. Otherwise, they will be set
-        to NaN.
+        Change (the length of) the dispersion axis of the data.
+
+        If the length of the provided index is the same as the current number
+        of rows in the data, the method will change the index of the array in
+        place without touching its values.
+
+        If the length of the provided index differs from the number of rows in
+        the data array, the data will be reindexed, i.e. newly added rows will
+        be filled using data from the existing rows (of the same parameter and
+        type) if possible. Otherwise, they will be set to NaN. A warning will
+        be issued if this operation will alter any of the current values in
+        the data.
 
         Parameters
         ----------
         index : pandas.Index
             The new index used to label the data rows.
         """
-        # issue warning if reindexing would remove existing data
-        if not np.in1d(self.data.index, index).all():
-            logger.warning('Changing dispersion axis as requested will alter existing values.')
+        if len(index) == len(self.data.index):
+            logger.info('Changing dispersion axis of parameter array to [{0}..{1}].'.format(index.min(), index.max()))
+            self.data.index = index
+        else:
+            # issue warning if reindexing would remove existing data
+            if not self.data.index.isin(index).all():
+                logger.warning('Changing dispersion axis as requested will alter existing values.')
 
-        self.data = self.data.reindex(index=index, method='nearest')
-        # with method='nearest', the code will fill new rows of the data frame
-        # using existing ones. If a column contains only NaN, new values will
-        # also be filled with NaNs.
+            self.data = self.data.reindex(index=index, method='nearest')
+            # with method='nearest', the code will fill new rows of the data frame
+            # using existing ones. If a column contains only NaN, new values will
+            # also be filled with NaNs.
 
     def info(self, names=None):
         """

@@ -32,7 +32,7 @@ The provided functions facilitate working with FITS data.
 
 Latest Git revision
 -------------------
-2019/02/13
+2019/04/23
 """
 import os
 import logging
@@ -47,7 +47,7 @@ from ..psf import Variables
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20190213
+__revision__ = 20190423
 
 
 def open_ifs_data(prefix, **kwargs):
@@ -216,8 +216,17 @@ def open_prm(filename, ndisp=-1):
     # Positions
     logging.info("Obtaining information about source coordinates...")
 
+    # note that if individual source positions are fitted, there may be two extensions named POSITIONS, containing
+    # the coordinates and the polynomial fits to them, respectively. To handle this case, we search for HDUs using
+    # the EXTNAME and EXTVER keywords. The latter is defaulted to 1 if missing.
     try:
-        i = hdulist.index_of("POSITIONS")
+        i = hdulist.index_of(("POSITIONS", 1))
+        sources.open_coordinates_hdu(hdulist[i])
+    except KeyError:
+        pass
+
+    try:
+        i = hdulist.index_of(("POSITIONS", 2))
         sources.open_coordinates_hdu(hdulist[i])
     except KeyError:
         pass
@@ -234,13 +243,20 @@ def open_prm(filename, ndisp=-1):
     logging.info("Obtaining PSF properties...")
     try:
         i = hdulist.index_of("PSFPARS")
-        psf_attributes = Variables.from_hdu(hdu=hdulist[i])
     except KeyError:  # otherwise, assume Gaussian, round with FWHM=3.0pixel
         logging.warning("No HDU 'PSFPARS' found. Using default PSF.")
 
         psf_attributes = Variables.from_dictionary({"profile": "gauss", "fwhm": 3.0})
         psf_attributes.free = np.atleast_1d([1, 0, 0])
-
+    else:
+        lut = None
+        try:
+            j = hdulist.index_of('PSFLUT')
+            lut = hdulist[j]
+        except KeyError:
+            pass
+        finally:
+            psf_attributes = Variables.from_hdu(hdu=hdulist[i], lut_hdu=lut)
     psf_attributes.info()
 
     return sources, psf_attributes
@@ -287,7 +303,11 @@ def save_prm(sources, psf_attributes, filename, header=None):
     if sources.ifs_coordinates_free.any():
         hdulist.append(sources.make_ifs_coordinates_hdu(fit=False))
     if sources.ifs_coordinates_fitted.any():
-        hdulist.append(sources.make_ifs_coordinates_hdu(fit=True))
+        new_positions_hdu = sources.make_ifs_coordinates_hdu(fit=True)
+        # make sure that EXTVER key is set properly if >1 POSITIONS extension exist
+        if 'POSITIONS' in [hdu.name for hdu in hdulist]:
+            new_positions_hdu.ver = 2
+        hdulist.append(new_positions_hdu)
 
     # store coordinate transformation (only if a valid one exists)
     if sources.transformation.valid:
@@ -295,14 +315,18 @@ def save_prm(sources, psf_attributes, filename, header=None):
 
     # store PSF (only if a valid one exists)
     if psf_attributes.valid:
-        hdulist.append(psf_attributes.make_hdu())
+        psf_hdu = psf_attributes.make_hdu()
+        hdulist.append(psf_hdu)
+        if psf_attributes.lut is not None:  # check if look-up table is in use
+            lut_hdu = psf_attributes.make_lut_hdu()
+            hdulist.append(lut_hdu)
 
     # Save the file
     if os.path.exists(filename):
         logging.info('Overwriting existing file {0}...'.format(filename))
         os.remove(filename)
 
-    hdulist.writeto(filename, clobber=True)
+    hdulist.writeto(filename, overwrite=True)
 
 
 def read_config_from_header(header, existing_configuration=None):

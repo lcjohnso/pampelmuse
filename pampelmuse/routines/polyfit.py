@@ -1,7 +1,7 @@
 """
 polyfit.py
 ==========
-Copyright 2013-2018 Sebastian Kamann
+Copyright 2013-2019 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -37,7 +37,7 @@ routine will automatically fit the coordinates and PSF parameters.
 
 Latest Git revision
 -------------------
-2018/08/31
+2019/04/23
 """
 import datetime
 import logging
@@ -49,7 +49,7 @@ from ..utils.fits import make_header_from_config, open_ifs_data, open_prm, save_
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180831
+__revision__ = 20190423
 
 
 def add_parser(parser):
@@ -157,9 +157,10 @@ def polyfit(config):
 
     else:  # automatically fit PSF parameters and source positions using the predefined polynomial type and degree
         
-        # prepare spectrumMask
+        # prepare mask
         if mask is not None:
             logging.info("Masked wavelength ranges: {0}".format([mask[i:i+2] for i in range(0, len(mask), 2)]))
+            mask = 1e-10*np.asarray(mask)  # need to convert from AA to m
             _mask = [(sources.wave >= mask[i]) & (sources.wave <= mask[i+1]) for i in range(0, len(mask), 2)]
             mask = np.any(_mask, axis=0)
 
@@ -169,7 +170,12 @@ def polyfit(config):
                 logging.info("Polynomial fit (function={0}, order={1}) to PSF parameter {2}...".format(
                     polytype, polydeg, psf.names[i]))
                 psf.polynomial_fit(name=psf.names[i], order=polydeg, mask=mask, polynom=polytype)
-        
+
+        # fit PSF look-up table if possible
+        if psf.free.any() and psf.lut is not None:
+            logging.info('Fitting PSF look-up table with 1D polynomials of order {0} ...'.format(polydeg))
+            psf.fit_lut(order=polydeg, mask=mask)
+
         # fit IFS coordinates
         logging.info("Polynomial fit (function={0}, order={1}) to source coordinates...".format(
             polytype, polydeg))

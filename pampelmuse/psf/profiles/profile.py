@@ -1,7 +1,7 @@
 """
 profiles.py
 ===========
-Copyright 2013-2018 Sebastian Kamann
+Copyright 2013-2019 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -44,7 +44,7 @@ properties that are only recalculated if any of the underlying variables
 
 Latest Git revision
 -------------------
-2018/04/24
+2019/04/15
 """
 import logging
 import numbers
@@ -53,7 +53,10 @@ from ...psf import Canvas
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180424
+__revision__ = 20190415
+
+
+logger = logging.getLogger(__name__)
 
 
 class Profile(Canvas):
@@ -98,7 +101,7 @@ class Profile(Canvas):
     """
 
     def __init__(self, uc, vc, mag, e=0, theta=0, A=1, B=0, C=0, D=1, x0=0, y0=0, src_id=0,
-                 maxrad=np.inf, osradius=0, osfactor=1, **kwargs):
+                 maxrad=np.inf, osradius=0, osfactor=1, lut=None, **kwargs):
         """
         Initialize an instance of the Profiles-class.
 
@@ -139,8 +142,12 @@ class Profile(Canvas):
             will be supersampled to improve the accuracy of the calculation.
             Default is no supersampling.
         osfactor : int
-           The supersampling factor. Each pixel within 'osradius' will be
-           supersampled into 'osfactor' times 'osfactor' subpixels.
+            The supersampling factor. Each pixel within 'osradius' will be
+            supersampled into 'osfactor' times 'osfactor' subpixels.
+        lut : function, optional
+            A look-up table used to modify the profile fluxes as a function of
+            radius. The function must take a set of radii as input and return
+            the correction factor for every radius provided.
         """
         # initialize parent class
         super(Profile, self).__init__(**kwargs)
@@ -160,7 +167,7 @@ class Profile(Canvas):
         self._D = D
         self._x0 = x0
         self._y0 = y0
-        self._maxrad = maxrad  # The radius (ins pixels) out to which the PSF will be calculated
+        self._maxrad = maxrad  # The radius (in pixels) out to which the PSF will be calculated
 
         # Initialize the arrays that will hold the per-pixel-information of the profile
         self._used = None  # will be a boolean array with all pixels within distance 'maxrad' to centroid set to True.
@@ -206,6 +213,14 @@ class Profile(Canvas):
             osgrid = np.linspace(-0.5 + 1. / (2 * self.osf), 0.5 - 1. / (2 * self.osf), self.osf)
             self.osxgrid = np.resize(osgrid, (self.osf * self.osf,))
             self.osygrid = np.sort(self.osxgrid)
+
+        # verify look-up table
+        if lut is not None:
+            if not callable(lut):
+                logger.error('Parameter <lut> must be callable.')
+            self.lut = lut
+        else:
+            self.lut = None
 
     @property
     def e(self):
@@ -1129,7 +1144,7 @@ class Profile(Canvas):
     def diff_y0(self):
         return self.get_diff_y0()
 
-    def get_flux(self):
+    def get_flux(self, **kwargs):
         """
         Get the calculated fluxes in each pixel used in the calculation
 
@@ -1140,4 +1155,4 @@ class Profile(Canvas):
             calculation as the first entry, the second entry contains
             the actual fluxes per pixel.
         """
-        return self.pixel[self.used], self.f
+        return self.pixel[self.used], self.get_f(**kwargs)
