@@ -44,7 +44,7 @@ properties that are only recalculated if any of the underlying variables
 
 Latest Git revision
 -------------------
-2019/04/15
+2019/06/05
 """
 import logging
 import numbers
@@ -53,7 +53,7 @@ from ...psf import Canvas
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20190415
+__revision__ = 20190605
 
 
 logger = logging.getLogger(__name__)
@@ -832,36 +832,61 @@ class Profile(Canvas):
 
     # The property 'f' returns the actual spatial intensity profile. In this class, it is basically only defined to
     # handle super() calls from instances of classes that inherit from Profile
-    def get_f(self, **kwargs):
+    @property
+    def f(self):
         """
-        Method that calculates the actual intensity profile. Note that because
-        this class is not designed to compute an actual intensity profile, the
-        method is mainly a place-holder for the `get_f`-methods of the
-        individual sub-classes.
+        A place-holder for the intensity profile. Every child class of Profile
+        should redefine this property to an actual profile.
+        """
+        return np.zeros_like(self.r)
+
+    def get_f(self, integrate=True, apply_lut=False):
+        """
+        Method that calculates the actual intensity profile.
 
         Parameters:
         -----------
+        integrate : bool, optional
+            Whether or not the values should be averaged over the individual
+            sub-pixels before they are returned.
+        apply_lut : bool, optional
+            Whether the returned fluxes should be corrected using the look-up
+            table.
+        **kwargs
+            Any other keyword provided to this method will be parsed to the
+            'get_f' method of the current super-class.
 
         Returns:
         --------
-        result : zero value integer
-            The return value is only used so that the method is fully
-            compatible with the `make_array`-methods of the individual
-            sub-classes.
+        f : nd_array
+            The intensity distribution for the pixels used in the calculation.
+            If parameter 'integrate' is set, the intensities are returned only
+            for the parents pixels after averaging over the sub-pixels.
         """
-        assert not hasattr(super(Profile, self), 'get_f')
-        # make sure no `get_f`-method is "hidden" behind this one (following recommendation from:
-        # http://rhettinger.wordpress.com/2011/05/26/super-considered-super/)
-        return 0
+        f = self.f
+        if apply_lut and self.lut:
+            correction = self.lut(self.r)
+            correction *= f.sum()/(correction*f).sum()
+            f *= correction
+        if integrate:
+            return self.sum_os(f)
+        else:
+            return f
 
     @property
-    def f(self):
-        return self.get_f()
+    def diff_e(self):
+        """
+        Returns the partial derivative of the profile with respect to e, i.e.
+        the ellipticity.
+        """
+        if self._diff_e is None:  # only re-calculate if necessary
+            self._diff_e = self.v ** 2 / (self.r * (1. - self.e) ** 3)
+        return self._diff_e
 
     def get_diff_e(self, integrate=True):
         """
-        Calculate and return the partial derivative of the profile wrt. the
-        ellipticity e.
+        Calculate and return the partial derivative of the profile with
+        respect to the e, i.e. the ellipticity.
 
         Parameters
         ----------
@@ -875,21 +900,25 @@ class Profile(Canvas):
             The partial derivative, either for all (sub-)pixels or after
             averaging over the sub-pixels.
         """
-        if self._diff_e is None:  # only re-calculate if necessary
-            self._diff_e = self.v ** 2 / (self.r * (1. - self.e) ** 3)
         if integrate:
-            return self.sum_os(self._diff_e)
+            return self.sum_os(self.diff_e)
         else:
-            return self._diff_e
+            return self.diff_e
 
     @property
-    def diff_e(self):
-        return self.get_diff_e()
+    def diff_theta(self):
+        """
+        Returns the partial derivative of the profile with respect to theta,
+        i.e. the position angle.
+        """
+        if self._diff_theta is None:  # only re-calculate if necessary
+            self._diff_theta = self.u * self.v * (1. - 1. / (1. - self.e) ** 2) / self.r
+        return self._diff_theta
 
     def get_diff_theta(self, integrate=True):
         """
-        Calculate the partial derivative of the profile wrt. the position
-        angle 'theta'.
+        Calculate and return the partial derivative of the profile with
+        respect to theta, i.e. the position angle.
 
         Parameters
         ----------
@@ -903,21 +932,25 @@ class Profile(Canvas):
             The partial derivative, either for all (sub-)pixels or after
             averaging over the sub-pixels.
         """
-        if self._diff_theta is None:  # only re-calculate if necessary
-            self._diff_theta = self.u * self.v * (1. - 1. / (1. - self.e) ** 2) / self.r
         if integrate:
-            return self.sum_os(self._diff_theta)
+            return self.sum_os(self.diff_theta)
         else:
-            return self._diff_theta
+            return self.diff_theta
 
     @property
-    def diff_theta(self):
-        return self.get_diff_theta()
+    def diff_xc(self):
+        """
+        Returns the partial derivative of the profile with respect to xc, i.e.
+        the centroid x-coordinate.
+        """
+        if self._diff_xc is None:  # only re-calculate if necessary
+            self._diff_xc = -(self.u * np.sin(self.theta) + (self.v / (1 - self.e) ** 2) * np.cos(self.theta)) / self.r
+        return self._diff_xc
 
     def get_diff_xc(self, integrate=True):
         """
-        Calculate the partial derivative of the  profile wrt. xc, the centroid
-        of the profile in x direction.
+        Calculate and return the partial derivative of the profile with
+        respect to xc, i.e. the centroid x-coordinate.
 
         Parameters
         ----------
@@ -931,21 +964,25 @@ class Profile(Canvas):
             The partial derivative, either for all (sub-)pixels or after
             averaging over the sub-pixels.
         """
-        if self._diff_xc is None:  # only re-calculate if necessary
-            self._diff_xc = -(self.u * np.sin(self.theta) + (self.v / (1 - self.e) ** 2) * np.cos(self.theta)) / self.r
         if integrate:
-            return self.sum_os(self._diff_xc)
+            return self.sum_os(self.diff_xc)
         else:
-            return self._diff_xc
+            return self.diff_xc
 
     @property
-    def diff_xc(self):
-        return self.get_diff_xc()
+    def diff_yc(self):
+        """
+        Returns the partial derivative of the profile with respect to yc, i.e.
+        the centroid y-coordinate.
+        """
+        if self._diff_yc is None:  # only re-calculate if necessary
+            self._diff_yc = (self.u * np.cos(self.theta) - (self.v / (1 - self.e) ** 2) * np.sin(self.theta)) / self.r
+        return self._diff_yc
 
     def get_diff_yc(self, integrate=True):
         """
-        Calculate the partial derivative of the  profile wrt. xc, the centroid
-        of the profile in y direction.
+        Calculate and return the partial derivative of the profile with
+        respect to yc, the centroid y-coordinate.
 
         Parameters
         ----------
@@ -959,21 +996,27 @@ class Profile(Canvas):
             The partial derivative, either for all (sub-)pixels or after
             averaging over the sub-pixels.
         """
-        if self._diff_yc is None:  # only re-calculate if necessary
-            self._diff_yc = (self.u * np.cos(self.theta) - (self.v / (1 - self.e) ** 2) * np.sin(self.theta)) / self.r
         if integrate:
-            return self.sum_os(self._diff_yc)
+            return self.sum_os(self.diff_yc)
         else:
-            return self._diff_yc
+            return self.diff_yc
 
     @property
-    def diff_yc(self):
-        return self.get_diff_yc()
+    def diff_A(self):
+        """
+        Returns the partial derivative of the profile with respect to A, i.e.
+        the [0,0] entry of the coordinate transformation matrix.
+        """
+        if self._diff_A is None:  # only re-calculate if necessary
+            self._diff_A = -self.uc * (self.u * np.sin(self.theta) + (
+                    self.v / (1. - self.e) ** 2) * np.cos(self.theta)) / self.r
+        return self._diff_A
 
     def get_diff_A(self, integrate=True):
         """
-        Calculate the partial derivative of the profile wrt. the parameter 'A'
-        of the coordinate transformation.
+        Calculate and return the partial derivative of the profile with
+        respect to A, i.e. the [0,0] entry of the coordinate transformation
+        matrix.
 
         Parameters
         ----------
@@ -987,51 +1030,27 @@ class Profile(Canvas):
             The partial derivative, either for all (sub-)pixels or after
             averaging over the sub-pixels.
         """
-        if self._diff_A is None:  # only re-calculate if necessary
-            self._diff_A = -self.uc * (self.u * np.sin(self.theta) + (
-                self.v / (1. - self.e) ** 2) * np.cos(self.theta)) / self.r
         if integrate:
-            return self.sum_os(self._diff_A)
+            return self.sum_os(self.diff_A)
         else:
-            return self._diff_A
-
-    @property
-    def diff_A(self):
-        return self.get_diff_A()
-
-    def get_diff_B(self, integrate=True):
-        """
-        Calculate the partial derivative of the profile wrt. the parameter 'B'
-        of the coordinate transformation.
-
-        Parameters
-        ----------
-        integrate : bool, optional
-            Whether or not the values should be averaged over the individual
-            sub-pixels before they are returned.
-
-        Returns
-        -------
-        diff_B : nd_array
-            The partial derivative, either for all (sub-)pixels or after
-            averaging over the sub-pixels.
-        """
-        if self._diff_B is None:  # only re-calculate if necessary
-            self._diff_B = -self.uc * (self.u * np.cos(self.theta) - (
-                self.v / (1. - self.e) ** 2) * np.sin(self.theta)) / self.r
-        if integrate:
-            return self.sum_os(self._diff_B)
-        else:
-            return self._diff_B
+            return self.diff_A
 
     @property
     def diff_B(self):
-        return self.get_diff_B()
-
-    def get_diff_C(self, integrate=True):
         """
-        Calculate the partial derivative of the profile wrt. the parameter 'C'
-        of the coordinate transformation.
+        Returns the partial derivative of the profile with respect to B, i.e.
+        the [0,1] entry of the coordinate transformation matrix.
+        """
+        if self._diff_B is None:  # only re-calculate if necessary
+            self._diff_B = -self.uc * (self.u * np.cos(self.theta) - (
+                    self.v / (1. - self.e) ** 2) * np.sin(self.theta)) / self.r
+        return self._diff_B
+
+    def get_diff_B(self, integrate=True):
+        """
+        Calculate and return the partial derivative of the profile with
+        respect to B, i.e. the [0,1] entry of the coordinate transformation
+        matrix.
 
         Parameters
         ----------
@@ -1044,23 +1063,28 @@ class Profile(Canvas):
         diff_B : nd_array
             The partial derivative, either for all (sub-)pixels or after
             averaging over the sub-pixels.
+        """
+        if integrate:
+            return self.sum_os(self.diff_B)
+        else:
+            return self.diff_B
+
+    @property
+    def diff_C(self):
+        """
+        Returns the partial derivative of the profile with respect to C, i.e.
+        the [1,0] entry of the coordinate transformation matrix.
         """
         if self._diff_C is None:  # only re-calculate if necessary
             self._diff_C = -self.vc * (self.u * np.sin(self.theta) + (
                 self.v / (1. - self.e) ** 2) * np.cos(self.theta)) / self.r
-        if integrate:
-            return self.sum_os(self._diff_C)
-        else:
-            return self._diff_C
+        return self._diff_C
 
-    @property
-    def diff_C(self):
-        return self.get_diff_C()
-
-    def get_diff_D(self, integrate=True):
+    def get_diff_C(self, integrate=True):
         """
-        Calculate the partial derivative of the profile wrt. the parameter 'D'
-        of the coordinate transformation.
+        Calculate and return the partial derivative of the profile with
+        respect to C, i.e. the [1,0] entry of the coordinate transformation
+        matrix.
 
         Parameters
         ----------
@@ -1074,22 +1098,60 @@ class Profile(Canvas):
             The partial derivative, either for all (sub-)pixels or after
             averaging over the sub-pixels.
         """
-        if self._diff_D is None:  # only re-calculate if necessary
-            self._diff_D = self.vc * (self.u * np.cos(self.theta) - (
-                self.v / (1. - self.e) ** 2) * np.sin(self.theta)) / self.r
         if integrate:
-            return self.sum_os(self._diff_D)
+            return self.sum_os(self.diff_C)
         else:
-            return self._diff_D
+            return self.diff_C
 
     @property
     def diff_D(self):
-        return self.get_diff_D()
+        """
+        Returns the partial derivative of the profile with respect to D, i.e.
+        the [1,1] entry of the coordinate transformation matrix.
+        """
+        if self._diff_D is None:  # only re-calculate if necessary
+            self._diff_D = self.vc * (self.u * np.cos(self.theta) - (
+                self.v / (1. - self.e) ** 2) * np.sin(self.theta)) / self.r
+        return self._diff_D
+
+    def get_diff_D(self, integrate=True):
+        """
+        Calculate and return the partial derivative of the profile with
+        respect to D, i.e. the [1,1] entry of the coordinate transformation
+        matrix.
+
+        Parameters
+        ----------
+        integrate : bool, optional
+            Whether or not the values should be averaged over the individual
+            sub-pixels before they are returned.
+
+        Returns
+        -------
+        diff_B : nd_array
+            The partial derivative, either for all (sub-)pixels or after
+            averaging over the sub-pixels.
+        """
+        if integrate:
+            return self.sum_os(self.diff_D)
+        else:
+            return self.diff_D
+
+    @property
+    def diff_x0(self):
+        """
+        Returns the partial derivative of the profile with respect to x0, i.e.
+        the x-coordinate shift of the coordinate transformation.
+        """
+        if self._diff_x0 is None:  # only re-calculate if necessary
+            self._diff_x0 = -(self.u * np.sin(self.theta) + (self.v / (1. - self.e) ** 2) * np.cos(self.theta)) / self.r
+        return self._diff_x0
 
     def get_diff_x0(self, integrate=True):
         """
-        Calculate the partial derivative of the profile wrt. the parameter 'y0'
-        of the coordinate transformation.
+        Calculate and return the partial derivative of the profile with
+        respect to x0, i.e. the x-coordinate shift of the coordinate
+        transformation.
 
         Parameters
         ----------
@@ -1103,23 +1165,26 @@ class Profile(Canvas):
             The partial derivative, either for all (sub-)pixels or after
             averaging over the sub-pixels.
         """
-        if self._diff_x0 is None:  # only re-calculate if necessary
-            self._diff_x0 = -(self.u * np.sin(self.theta) + (self.v / (1. - self.e) ** 2) * np.cos(self.theta)) / self.r
         if integrate:
-            return self.sum_os(self._diff_x0)
+            return self.sum_os(self.diff_x0)
         else:
-            return self._diff_x0
+            return self.diff_x0
 
     @property
-    def diff_x0(self):
-        return self.get_diff_x0()
+    def diff_y0(self):
+        """
+        Returns the partial derivative of the profile with respect to y0, i.e.
+        the y-coordinate shift of the coordinate transformation.
+        """
+        if self._diff_y0 is None:  # only re-calculate if necessary
+            self._diff_y0 = (self.u * np.cos(self.theta) - (self.v / (1. - self.e) ** 2) * np.sin(self.theta)) / self.r
+        return self._diff_y0
 
-    # The property 'diff_y0' that returns the partial derivative of the intensity profile wrt. the parameter 'y0' of the
-    # coordinate transformation.
     def get_diff_y0(self, integrate=True):
         """
-        Calculate the partial derivative of the profile wrt. the parameter 'y0'
-        of the coordinate transformation.
+        Calculate and return the partial derivative of the profile with
+        respect to y0, i.e. the y-coordinate shift of the coordinate
+        transformation.
 
         Parameters
         ----------
@@ -1133,16 +1198,10 @@ class Profile(Canvas):
             The partial derivative, either for all (sub-)pixels or after
             averaging over the sub-pixels.
         """
-        if self._diff_y0 is None:  # only re-calculate if necessary
-            self._diff_y0 = (self.u * np.cos(self.theta) - (self.v / (1. - self.e) ** 2) * np.sin(self.theta)) / self.r
         if integrate:
-            return self.sum_os(self._diff_y0)
+            return self.sum_os(self.diff_y0)
         else:
-            return self._diff_y0
-
-    @property
-    def diff_y0(self):
-        return self.get_diff_y0()
+            return self.diff_y0
 
     def get_flux(self, **kwargs):
         """

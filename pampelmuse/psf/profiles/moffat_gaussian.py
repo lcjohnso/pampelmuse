@@ -36,7 +36,7 @@ Added
 
 Latest Git revision
 -------------------
-2018/04/24
+2019/06/05
 """
 import logging
 from numbers import Real
@@ -45,7 +45,7 @@ from ..functions import gaussian, moffat
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180424
+__revision__ = 20190605
 
 
 class MoffatGaussian(Profile):
@@ -241,36 +241,34 @@ class MoffatGaussian(Profile):
         """
         return self.f12*self.fwhm1 + (1. - self.f12)*self.fwhm2
 
-    def get_f(self, integrate=True):
+    @property
+    def f(self):
         """
-        Method that calculates the intensity profile of the combined Moffat
-        and Gaussian.
-
-        Parameters:
-        -----------
-        integrate : bool, optional
-            Whether or not the values should be averaged over the individual
-            sub-pixels before they are returned.
-
-        Returns:
-        --------
-        f : nd_array
-            The intensity distribution for the pixels used in the calculation.
-            If parameter 'integrate' is set, the intensities are returned only
-            for the parents pixels after averaging over the sub-pixels.
+        Returns the intensities of the current Moffat-Gauss profile for all
+        defined (sub)pixels.
         """
         if self._f is None:
             self._f = self.int_flux * (self.f12 * moffat.flux(self.r, self.beta, self.fwhm1, self.e) + (
                 1. - self.f12) * gaussian.flux(self.r, self.fwhm2, self.e))
-        if integrate:
-            return self.sum_os(self._f)
-        else:
-            return self._f
+        return self._f
+
+    # In the following, the properties are provided to calculate the partial derivatives of the Moffat-Gaussian profile
+    # with respect to its individual parameters.
+    @property
+    def diff_f12(self):
+        """
+        Returns the partial derivative of the profile with respect to f12,
+        i.e. the flux contribution of the Moffat component.
+        """
+        if self._diff_f12 is None:
+            self._diff_f12 = self.int_flux * (moffat.flux(self.r, self.beta, self.fwhm1, self.e) - gaussian.flux(
+                self.r, self.fwhm2, self.e))
+        return self._diff_f12
 
     def get_diff_f12(self, integrate=True):
         """
-        Calculate the partial derivative of the Moffat+Gaussian profile with
-        respect to the fractional flux of the Moffat.
+        Calculate and return the partial derivative of the profile with
+        respect to f12, i.e. the flux contribution of the Moffat component.
 
         Parameters
         ----------
@@ -284,22 +282,26 @@ class MoffatGaussian(Profile):
             The partial derivative, either for all (sub-)pixels or after
             averaging over the sub-pixels.
         """
-        if self._diff_f12 is None:
-            self._diff_f12 = self.int_flux * (moffat.flux(self.r, self.beta, self.fwhm1, self.e) - gaussian.flux(
-                self.r, self.fwhm2, self.e))
         if integrate:
-            return self.sum_os(self._diff_f12)
+            return self.sum_os(self.diff_f12)
         else:
-            return self._diff_f12
+            return self.diff_f12
 
     @property
-    def diff_f12(self):
-        return self.get_diff_f12()
+    def diff_beta(self):
+        """
+        Returns the partial derivative of the profile with respect to beta,
+        i.e. the parameter controlling the kurtosis of the Moffat.
+        """
+        if self._diff_beta is None:
+            self._diff_beta = self.int_flux * self.f12 * moffat.pderiv_beta(self.r, self.beta, self.fwhm1, self.e)
+        return self._diff_beta
 
     def get_diff_beta(self, integrate=True):
         """
-        Calculate the partial derivative of the profile with respect to the
-        beta-parameter of the Moffat.
+        Calculate and return the partial derivative of the profile with
+        respect to beta, i.e. the parameter controlling the kurtosis of the
+        Moffat.
 
         Parameters
         ----------
@@ -313,21 +315,25 @@ class MoffatGaussian(Profile):
             The partial derivative, either for all (sub-)pixels or after
             averaging over the sub-pixels.
         """
-        if self._diff_beta is None:
-            self._diff_beta = self.int_flux * self.f12 * moffat.pderiv_beta(self.r, self.beta, self.fwhm1, self.e)
         if integrate:
-            return self.sum_os(self._diff_beta)
+            return self.sum_os(self.diff_beta)
         else:
-            return self._diff_beta
+            return self.diff_beta
 
     @property
-    def diff_beta(self):
-        return self.get_diff_beta()
+    def diff_fwhm1(self):
+        """
+        Returns the partial derivative of the profile with respect to fwhm1,
+        i.e. the full-width at half maximum of the Moffat.
+        """
+        if self._diff_fwhm1 is None:
+            self._diff_fwhm1 = self.int_flux * self.f12 * moffat.pderiv_fwhm(self.r, self.beta, self.fwhm1, self.e)
+        return self._diff_fwhm1
 
     def get_diff_fwhm1(self, integrate=True):
         """
-        Calculate the partial derivative of the profile with respect to the
-        FWHM of the Moffat.
+        Calculate and return the partial derivative of the profile with
+        respect to fwhm1, i.e. the full-width at half maximum of the Moffat.
 
         Parameters
         ----------
@@ -341,21 +347,25 @@ class MoffatGaussian(Profile):
             The partial derivative, either for all (sub-)pixels or after
             averaging over the sub-pixels.
         """
-        if self._diff_fwhm1 is None:
-            self._diff_fwhm1 = self.int_flux * self.f12 * moffat.pderiv_fwhm(self.r, self.beta, self.fwhm1, self.e)
         if integrate:
-            return self.sum_os(self._diff_fwhm1)
+            return self.sum_os(self.diff_fwhm1)
         else:
-            return self._diff_fwhm1
+            return self.diff_fwhm1
 
     @property
-    def diff_fwhm1(self):
-        return self.get_diff_fwhm1()
+    def diff_fwhm2(self):
+        """
+        Returns the partial derivative of the profile with respect to fwhm2,
+        i.e. the full-width at half maximum of the Gaussian.
+        """
+        if self._diff_fwhm2 is None:
+            self._diff_fwhm2 = self.int_flux * (1. - self.f12) * gaussian.pderiv_fwhm(self.r, self.fwhm2, self.e)
+        return self._diff_fwhm2
 
     def get_diff_fwhm2(self, integrate=True):
         """
-        Calculate the partial derivative of the profile with respect to the
-        FWHM of the Gaussian.
+        Calculate and return the partial derivative of the profile with
+        respect to fwhm2, i.e. the full-width at half maximum of the Gaussian.
 
         Parameters
         ----------
@@ -369,287 +379,138 @@ class MoffatGaussian(Profile):
             The partial derivative, either for all (sub-)pixels or after
             averaging over the sub-pixels.
         """
-        if self._diff_fwhm2 is None:
-            self._diff_fwhm2 = self.int_flux * (1. - self.f12) * gaussian.pderiv_fwhm(self.r, self.fwhm2, self.e)
         if integrate:
-            return self.sum_os(self._diff_fwhm2)
+            return self.sum_os(self.diff_fwhm2)
         else:
-            return self._diff_fwhm2
+            return self.diff_fwhm2
 
+    # Overwrite partial derivatives with respect to parameters already defined in parent class.
     @property
-    def diff_fwhm2(self):
-        return self.get_diff_fwhm2()
-
-    # The ellipticity 'e'
-    def get_diff_e(self, integrate=True):
+    def diff_e(self):
         """
-        Calculate the partial derivative of the profile with respect to the
-        ellipticity 'e'.
-
-        Parameters
-        ----------
-        integrate : bool, optional
-            Whether or not the values should be averaged over the individual
-            sub-pixels before they are returned.
-
-        Returns
-        -------
-        diff_e : nd_array
-            The partial derivative, either for all (sub-)pixels or after
-            averaging over the sub-pixels.
+        Returns the partial derivative of the profile with respect to e, i.e.
+        the ellipticity.
         """
         if self._diff_e is None:
-            r_pderiv_e = super(MoffatGaussian, self).get_diff_e(integrate=False)
+            r_pderiv_e = super().diff_e
             self._diff_e = self.int_flux * (
                 self.f12 * moffat.pderiv_e(self.r, self.beta, self.fwhm1, self.e, r_pderiv_e) + (
                     1. - self.f12) * gaussian.pderiv_e(self.r, self.fwhm2, self.e, r_pderiv_e))
-        if integrate:
-            return self.sum_os(self._diff_e)
-        else:
-            return self._diff_e
+        return self._diff_e
 
-    # The position angle 'theta'
-    def get_diff_theta(self, integrate=True):
+    @property
+    def diff_theta(self):
         """
-        Calculate the partial derivative of the profile with respect to the
-        position angle 'theta'.
-
-        Parameters
-        ----------
-        integrate : bool, optional
-            Whether or not the values should be averaged over the individual
-            sub-pixels before they are returned.
-
-        Returns
-        -------
-        diff_theta : nd_array
-            The partial derivative, either for all (sub-)pixels or after
-            averaging over the sub-pixels.
+        Returns the partial derivative of the profile with respect to theta,
+        i.e. the position angle.
         """
         if self._diff_theta is None:
-            r_pderiv_theta = super(MoffatGaussian, self).get_diff_theta(integrate=False)
+            r_pderiv_theta = super().diff_theta
             self._diff_theta = self.int_flux * r_pderiv_theta * (
                 self.f12 * moffat.pderiv_r(self.r, self.beta, self.fwhm1, self.e) + (
                     1. - self.f12) * gaussian.pderiv_r(self.r, self.fwhm2, self.e))
-        if integrate:
-            return self.sum_os(self._diff_theta)
-        else:
-            return self._diff_theta
+        return self._diff_theta
 
-    # The centroid coordinates
-    def get_diff_xc(self, integrate=True):
+    @property
+    def diff_xc(self):
         """
-        Calculate the partial derivative of the profile with respect to xc,
-        the centroid of the profile in x-direction.
-
-        Parameters
-        ----------
-        integrate : bool, optional
-            Whether or not the values should be averaged over the individual
-            sub-pixels before they are returned.
-
-        Returns
-        -------
-        diff_xc : nd_array
-            The partial derivative, either for all (sub-)pixels or after
-            averaging over the sub-pixels.
+        Returns the partial derivative of the profile with respect to xc, i.e.
+        the centroid x-coordinate.
         """
         if self._diff_xc is None:
-            r_pderiv_xc = super(MoffatGaussian, self).get_diff_xc(integrate=False)
+            r_pderiv_xc = super().diff_xc
             self._diff_xc = self.int_flux * r_pderiv_xc * (
                 self.f12 * moffat.pderiv_r(self.r, self.beta, self.fwhm1, self.e) + (
                     1. - self.f12) * gaussian.pderiv_r(self.r, self.fwhm2, self.e))
-        if integrate:
-            return self.sum_os(self._diff_xc)
-        else:
-            return self._diff_xc
+        return self._diff_xc
 
-    def get_diff_yc(self, integrate=True):
+    @property
+    def diff_yc(self):
         """
-        Calculate the partial derivative of the profile with respect to yc,
-        the centroid of the profile in y-direction.
-
-        Parameters
-        ----------
-        integrate : bool, optional
-            Whether or not the values should be averaged over the individual
-            sub-pixels before they are returned.
-
-        Returns
-        -------
-        diff_yc : nd_array
-            The partial derivative, either for all (sub-)pixels or after
-            averaging over the sub-pixels.
+        Returns the partial derivative of the profile with respect to yc, i.e.
+        the centroid y-coordinate.
         """
         if self._diff_yc is None:
-            r_pderiv_yc = super(MoffatGaussian, self).get_diff_yc(integrate=False)
+            r_pderiv_yc = super().diff_yc
             self._diff_yc = self.int_flux * r_pderiv_yc * (
                 self.f12 * moffat.pderiv_r(self.r, self.beta, self.fwhm1, self.e) + (
                     1. - self.f12) * gaussian.pderiv_r(self.r, self.fwhm2, self.e))
-        if integrate:
-            return self.sum_os(self._diff_yc)
-        else:
-            return self._diff_yc
+        return self._diff_yc
 
-    # The parameters of the coordinate transformation
-    def get_diff_A(self, integrate=True):
+    @property
+    def diff_A(self):
         """
-        Calculate the partial derivative of the profile with respect to the
-        parameter 'A' of the coordinate transformation.
-
-        Parameters
-        ----------
-        integrate : bool, optional
-            Whether or not the values should be averaged over the individual
-            sub-pixels before they are returned.
-
-        Returns
-        -------
-        diff_A : nd_array
-            The partial derivative, either for all (sub-)pixels or after
-            averaging over the sub-pixels.
+        Returns the partial derivative of the profile with respect to A, i.e.
+        the [0,0] entry of the coordinate transformation matrix.
         """
         if self._diff_A is None:
-            r_pderiv_A = super(MoffatGaussian, self).get_diff_A(integrate=False)
+            r_pderiv_A = super().diff_A
             self._diff_A = self.int_flux * r_pderiv_A * (
                 self.f12 * moffat.pderiv_r(self.r, self.beta, self.fwhm1, self.e) + (
                     1. - self.f12) * gaussian.pderiv_r(self.r, self.fwhm2, self.e))
-        if integrate:
-            return self.sum_os(self._diff_A)
-        else:
-            return self._diff_A
+        return self._diff_A
 
-    def get_diff_B(self, integrate=True):
+    @property
+    def diff_B(self):
         """
-        Calculate the partial derivative of the profile with respect to the
-        parameter 'B' of the coordinate transformation.
-
-        Parameters
-        ----------
-        integrate : bool, optional
-            Whether or not the values should be averaged over the individual
-            sub-pixels before they are returned.
-
-        Returns
-        -------
-        diff_B : nd_array
-            The partial derivative, either for all (sub-)pixels or after
-            averaging over the sub-pixels.
+        Returns the partial derivative of the profile with respect to B, i.e.
+        the [0,1] entry of the coordinate transformation matrix.
         """
         if self._diff_B is None:
-            r_pderiv_B = super(MoffatGaussian, self).get_diff_B(integrate=False)
+            r_pderiv_B = super().diff_B
             self._diff_B = self.int_flux * r_pderiv_B * (
                 self.f12 * moffat.pderiv_r(self.r, self.beta, self.fwhm1, self.e) + (
                     1. - self.f12) * gaussian.pderiv_r(self.r, self.fwhm2, self.e))
-        if integrate:
-            return self.sum_os(self._diff_B)
-        else:
-            return self._diff_B
+        return self._diff_B
 
-    def get_diff_C(self, integrate=True):
+    @property
+    def diff_C(self):
         """
-        Calculate the partial derivative of the profile with respect to the
-        parameter 'C' of the coordinate transformation.
-
-        Parameters
-        ----------
-        integrate : bool, optional
-            Whether or not the values should be averaged over the individual
-            sub-pixels before they are returned.
-
-        Returns
-        -------
-        diff_C : nd_array
-            The partial derivative, either for all (sub-)pixels or after
-            averaging over the sub-pixels.
+        Returns the partial derivative of the profile with respect to C, i.e.
+        the [1,0] entry of the coordinate transformation matrix.
         """
         if self._diff_C is None:
-            r_pderiv_C = super(MoffatGaussian, self).get_diff_C(integrate=False)
+            r_pderiv_C = super().diff_C
             self._diff_C = self.int_flux * r_pderiv_C * (
                 self.f12 * moffat.pderiv_r(self.r, self.beta, self.fwhm1, self.e) + (
                     1. - self.f12) * gaussian.pderiv_r(self.r, self.fwhm2, self.e))
-        if integrate:
-            return self.sum_os(self._diff_C)
-        else:
-            return self._diff_C
+        return self._diff_C
 
-    def get_diff_D(self, integrate=True):
+    @property
+    def diff_D(self):
         """
-        Calculate the partial derivative of the profile with respect to the
-        parameter 'D' of the coordinate transformation.
-
-        Parameters
-        ----------
-        integrate : bool, optional
-            Whether or not the values should be averaged over the individual
-            sub-pixels before they are returned.
-
-        Returns
-        -------
-        diff_D : nd_array
-            The partial derivative, either for all (sub-)pixels or after
-            averaging over the sub-pixels.
+        Returns the partial derivative of the profile with respect to D, i.e.
+        the [1,1] entry of the coordinate transformation matrix.
         """
         if self._diff_D is None:
-            r_pderiv_D = super(MoffatGaussian, self).get_diff_D(integrate=False)
+            r_pderiv_D = super().diff_D
             self._diff_D = self.int_flux * r_pderiv_D * (
                 self.f12 * moffat.pderiv_r(self.r, self.beta, self.fwhm1, self.e) + (
                     1. - self.f12) * gaussian.pderiv_r(self.r, self.fwhm2, self.e))
-        if integrate:
-            return self.sum_os(self._diff_D)
-        else:
-            return self._diff_D
+        return self._diff_D
 
-    def get_diff_x0(self, integrate=True):
+    @property
+    def diff_x0(self):
         """
-        Calculate the partial derivative of the profile with respect to the
-        parameter 'x0' of the coordinate transformation.
-
-        Parameters
-        ----------
-        integrate : bool, optional
-            Whether or not the values should be averaged over the individual
-            sub-pixels before they are returned.
-
-        Returns
-        -------
-        diff_x0 : nd_array
-            The partial derivative, either for all (sub-)pixels or after
-            averaging over the sub-pixels.
+        Returns the partial derivative of the profile with respect to x0, i.e.
+        the x-coordinate shift of the coordinate transformation.
         """
         if self._diff_x0 is None:
-            r_pderiv_x0 = super(MoffatGaussian, self).get_diff_x0(integrate=False)
+            r_pderiv_x0 = super().diff_x0
             self._diff_x0 = self.int_flux * r_pderiv_x0 * (
                 self.f12 * moffat.pderiv_r(self.r, self.beta, self.fwhm1, self.e) + (
                     1. - self.f12) * gaussian.pderiv_r(self.r, self.fwhm2, self.e))
-        if integrate:
-            return self.sum_os(self._diff_x0)
-        else:
-            return self._diff_x0
+        return self._diff_x0
 
-    def get_diff_y0(self, integrate=True):
+    @property
+    def diff_y0(self):
         """
-        Calculate the partial derivative of the profile with respect to the
-        parameter 'y0' of the coordinate transformation.
-
-        Parameters
-        ----------
-        integrate : bool, optional
-            Whether or not the values should be averaged over the individual
-            sub-pixels before they are returned.
-
-        Returns
-        -------
-        diff_y0 : nd_array
-            The partial derivative, either for all (sub-)pixels or after
-            averaging over the sub-pixels.
+        Returns the partial derivative of the profile with respect to y0, i.e.
+        the y-coordinate shift of the coordinate transformation.
         """
         if self._diff_y0 is None:
-            r_pderiv_y0 = super(MoffatGaussian, self).get_diff_y0(integrate=False)
+            r_pderiv_y0 = super().diff_y0
             self._diff_y0 = self.int_flux * r_pderiv_y0 * (
                 self.f12 * moffat.pderiv_r(self.r, self.beta, self.fwhm1, self.e) + (
                     1. - self.f12) * gaussian.pderiv_r(self.r, self.fwhm2, self.e))
-        if integrate:
-            return self.sum_os(self._diff_y0)
-        else:
-            return self._diff_y0
+        return self._diff_y0

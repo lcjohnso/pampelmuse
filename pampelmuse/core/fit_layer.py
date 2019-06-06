@@ -57,7 +57,7 @@ parameters are not fitted.
 
 Latest Git revision
 -------------------
-2019/04/15
+2019/06/05
 """
 import collections
 import contextlib
@@ -72,7 +72,7 @@ from ..core.coordinates import Transformation
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20190415
+__revision__ = 20190605
 
 
 logger = logging.getLogger(__name__)
@@ -1106,7 +1106,7 @@ class FitLayer(object):
                         continue
 
             # add S/N to results array
-            results.at[i, 'snr'] = result['x'][0] * np.sqrt(sum((psf.f**2)*self.fit_weights[psf.used]))
+            results.at[i, 'snr'] = result['x'][0] * np.sqrt(sum((psf.get_f()**2)*self.fit_weights[psf.used]))
 
             # if fit successful, include in data frame containing results
             if 0 < result['status'] <= 4:
@@ -1170,7 +1170,7 @@ class FitLayer(object):
                 logger.error("Encountered AssertionError: {0}".format(error))
                 raise np.linalg.linalg.LinAlgError("Invalid value '{0}' for parameter '{1}'.".format(x0[i], names[i]))
 
-        return data / sigma - x0[0] * (psf.f / sigma) - back/sigma
+        return data / sigma - x0[0] * (psf.get_f() / sigma) - back/sigma
 
     @staticmethod
     def single_psf_jacobi(x0, names, psf, data, sigma):
@@ -1199,9 +1199,9 @@ class FitLayer(object):
         fit_background = names[-1] == 'back'
 
         jacob = np.zeros((len(x0), psf.used.sum()), dtype=np.float64)
-        jacob[0] -= psf.f
+        jacob[0] -= psf.get_f()
         for i in range(1, len(x0) - int(fit_background)):
-            diff_i = getattr(psf, "diff_{0}".format(names[i]))
+            diff_i = getattr(psf, "get_diff_{0}".format(names[i]))()
             jacob[i] -= x0[0] * diff_i
         if fit_background:
             jacob[-1] = x0[-1]
@@ -1570,7 +1570,7 @@ class FitLayer(object):
         for i, r_min in enumerate(sampling[:-1]):
             r_max = sampling[i + 1]
 
-            in_bin = (radii >= r_min) & (radii <= r_max)
+            in_bin = (radii >= r_min) & (radii <= r_max) & np.isfinite(data)
             if in_bin.any():
                 output_radii[i] = np.average(radii[in_bin], weights=weights[in_bin])
                 profile[i] = np.average(data[in_bin], weights=weights[in_bin])
