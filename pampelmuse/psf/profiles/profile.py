@@ -44,7 +44,7 @@ properties that are only recalculated if any of the underlying variables
 
 Latest Git revision
 -------------------
-2019/06/05
+2019/06/11
 """
 import logging
 import numbers
@@ -53,7 +53,7 @@ from ...psf import Canvas
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20190605
+__revision__ = 20190611
 
 
 logger = logging.getLogger(__name__)
@@ -863,7 +863,7 @@ class Profile(Canvas):
             If parameter 'integrate' is set, the intensities are returned only
             for the parents pixels after averaging over the sub-pixels.
         """
-        f = self.f
+        f = np.copy(self.f)
         if apply_lut and self.lut:
             correction = self.lut(self.r)
             correction *= f.sum()/(correction*f).sum()

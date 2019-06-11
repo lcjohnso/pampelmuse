@@ -57,7 +57,7 @@ parameters are not fitted.
 
 Latest Git revision
 -------------------
-2019/06/05
+2019/06/11
 """
 import collections
 import contextlib
@@ -72,7 +72,7 @@ from ..core.coordinates import Transformation
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20190605
+__revision__ = 20190611
 
 
 logger = logging.getLogger(__name__)
@@ -546,15 +546,15 @@ class FitLayer(object):
                 break
 
             # for testing, show scatter plot with current residuals and model
-            # import matplotlib.pyplot as plt
-            # fig = plt.figure(figsize=(8, 10))
-            # ax = fig.add_axes([0.04, 0.52, 0.92, 0.46])
-            # ax.scatter(self.data.loc[:, 'x'], self.data.loc[:, 'y'], marker='s', s=3, c=self.current,
-            #            cmap=plt.cm.hot, edgecolors='face', vmin=-100, vmax=1000)
-            # ax2 = fig.add_axes([0.04, 0.02, 0.92, 0.46])
-            # ax2.scatter(self.data.loc[:, 'x'], self.data.loc[:, 'y'], marker='s', s=3,
-            #             c=self.model.sum(axis=1).getA1(), cmap=plt.cm.hot, edgecolors='face', vmin=-100, vmax=1000)
-            # plt.show()
+            import matplotlib.pyplot as plt
+            fig = plt.figure(figsize=(8, 10))
+            ax = fig.add_axes([0.04, 0.52, 0.92, 0.46])
+            ax.scatter(self.data.loc[:, 'x'], self.data.loc[:, 'y'], marker='s', s=3, c=self.current,
+                       cmap=plt.cm.hot, edgecolors='face', vmin=-100, vmax=1000)
+            ax2 = fig.add_axes([0.04, 0.02, 0.92, 0.46])
+            ax2.scatter(self.data.loc[:, 'x'], self.data.loc[:, 'y'], marker='s', s=3,
+                        c=self.model.sum(axis=1).getA1(), cmap=plt.cm.hot, edgecolors='face', vmin=-100, vmax=1000)
+            plt.show()
 
             # carry out optimization of PSF and/or source positions
             if psf_parameters_to_fit is not None or position_parameters_to_fit is not None:
@@ -1573,7 +1573,8 @@ class FitLayer(object):
             in_bin = (radii >= r_min) & (radii <= r_max) & np.isfinite(data)
             if in_bin.any():
                 output_radii[i] = np.average(radii[in_bin], weights=weights[in_bin])
-                profile[i] = np.average(data[in_bin], weights=weights[in_bin])
+                logger.warning('Using median instead of weighted mean for averaging radial profile.')
+                profile[i] = np.median(data[in_bin])  # np.average(data[in_bin], weights=weights[in_bin])
             else:
                 output_radii[i] = np.nan
                 profile[i] = np.nan
@@ -1651,13 +1652,14 @@ class FitLayer(object):
             radii=np.sqrt(combined_residuals['dx']**2 + combined_residuals['dy']**2),
             weights=combined_residuals['weights'])
 
-        # import matplotlib.pyplot as plt
-        # fig = plt.figure()
-        # ax = fig.add_axes([0.12, 0.12, 0.83, 0.83])
-        # ax.axhline(y=0, ls='-', lw=1.5, c='0.5')
-        # ax.plot(np.sqrt(combined_residuals['dx']**2 + combined_residuals['dy']**2), combined_residuals['rel_res'],
-        #         ls='None', marker='x', ms=5, mew=1.0, mec='g')
-        # ax.plot(radii, correction, ls='None', marker='+', mew=2.5, mec='r', ms=20)
-        # plt.show()
+        import matplotlib.pyplot as plt
+        fig = plt.figure()
+        ax = fig.add_axes([0.12, 0.12, 0.83, 0.83])
+        ax.axhline(y=0, ls='-', lw=1.5, c='0.5')
+        ax.plot(np.sqrt(combined_residuals['dx']**2 + combined_residuals['dy']**2), combined_residuals['rel_res'],
+                ls='None', marker='x', ms=5, mew=1.0, mec='g', alpha=0.5)
+        ax.plot(radii, correction, ls='None', marker='+', mew=2.5, mec='r', ms=20)
+        ax.set_ylim(-10, 10)
+        plt.show()
 
         return interpolate.InterpolatedUnivariateSpline(radii, 1. + correction)
