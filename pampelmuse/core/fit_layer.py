@@ -57,7 +57,7 @@ parameters are not fitted.
 
 Latest Git revision
 -------------------
-2019/06/11
+2019/06/18
 """
 import collections
 import contextlib
@@ -72,7 +72,7 @@ from ..core.coordinates import Transformation
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20190611
+__revision__ = 20190618
 
 
 logger = logging.getLogger(__name__)
@@ -546,15 +546,15 @@ class FitLayer(object):
                 break
 
             # for testing, show scatter plot with current residuals and model
-            import matplotlib.pyplot as plt
-            fig = plt.figure(figsize=(8, 10))
-            ax = fig.add_axes([0.04, 0.52, 0.92, 0.46])
-            ax.scatter(self.data.loc[:, 'x'], self.data.loc[:, 'y'], marker='s', s=3, c=self.current,
-                       cmap=plt.cm.hot, edgecolors='face', vmin=-100, vmax=1000)
-            ax2 = fig.add_axes([0.04, 0.02, 0.92, 0.46])
-            ax2.scatter(self.data.loc[:, 'x'], self.data.loc[:, 'y'], marker='s', s=3,
-                        c=self.model.sum(axis=1).getA1(), cmap=plt.cm.hot, edgecolors='face', vmin=-100, vmax=1000)
-            plt.show()
+            # import matplotlib.pyplot as plt
+            # fig = plt.figure(figsize=(8, 10))
+            # ax = fig.add_axes([0.04, 0.52, 0.92, 0.46])
+            # ax.scatter(self.data.loc[:, 'x'], self.data.loc[:, 'y'], marker='s', s=3, c=self.current,
+            #            cmap=plt.cm.hot, edgecolors='face', vmin=-100, vmax=1000)
+            # ax2 = fig.add_axes([0.04, 0.02, 0.92, 0.46])
+            # ax2.scatter(self.data.loc[:, 'x'], self.data.loc[:, 'y'], marker='s', s=3,
+            #             c=self.model.sum(axis=1).getA1(), cmap=plt.cm.hot, edgecolors='face', vmin=-100, vmax=1000)
+            # plt.show()
 
             # carry out optimization of PSF and/or source positions
             if psf_parameters_to_fit is not None or position_parameters_to_fit is not None:
@@ -1036,7 +1036,7 @@ class FitLayer(object):
                 profile = self._get_radial_profile(data=os_data, radii=psf.r, weights=weights)
                 radial_data[i] = profile  # contains radii and values
 
-            # # for debugging, show plot with current data
+            # for debugging, show plot with current data
             # import matplotlib.pyplot as plt
             # fig = plt.figure(figsize=(5, 8))
             # ax1 = fig.add_axes([0.12, 0.54, 0.83, 0.44])
@@ -1643,6 +1643,9 @@ class FitLayer(object):
             combined.append(pd.DataFrame({'dx': x - centroids.at[source_id, 'xc'],
                                           'dy': y - centroids.at[source_id, 'yc'],
                                           'rel_res': data['residuals']/(data['data'] - data['residuals']),
+                                          'residuals': data['residuals'],
+                                          # 'data': data['data']/np.sum(data['data']),
+                                          # 'model': (data['data'] - data['residuals'])/np.sum(data['data'] - data['residuals']),
                                           'weights': np.ones_like(x)}))
 
         combined_residuals = pd.concat(combined, ignore_index=True)
@@ -1652,14 +1655,18 @@ class FitLayer(object):
             radii=np.sqrt(combined_residuals['dx']**2 + combined_residuals['dy']**2),
             weights=combined_residuals['weights'])
 
-        import matplotlib.pyplot as plt
-        fig = plt.figure()
-        ax = fig.add_axes([0.12, 0.12, 0.83, 0.83])
-        ax.axhline(y=0, ls='-', lw=1.5, c='0.5')
-        ax.plot(np.sqrt(combined_residuals['dx']**2 + combined_residuals['dy']**2), combined_residuals['rel_res'],
-                ls='None', marker='x', ms=5, mew=1.0, mec='g', alpha=0.5)
-        ax.plot(radii, correction, ls='None', marker='+', mew=2.5, mec='r', ms=20)
-        ax.set_ylim(-10, 10)
-        plt.show()
+        # import matplotlib.pyplot as plt
+        # fig = plt.figure()
+        # ax = fig.add_axes([0.12, 0.12, 0.83, 0.83])
+        # ax.axhline(y=0, ls='-', lw=1.5, c='0.5')
+        # ax.plot(np.sqrt(combined_residuals['dx']**2 + combined_residuals['dy']**2), np.log10(combined_residuals['data']),
+        #        ls='None', marker='x', ms=5, mew=1.0, mec='g', alpha=0.5)
+        # ax.hexbin(np.sqrt(combined_residuals['dx']**2 + combined_residuals['dy']**2), np.log10(combined_residuals['data']),
+        #           bins='log')
+        # ax.plot(np.sqrt(combined_residuals['dx'] ** 2 + combined_residuals['dy'] ** 2), np.log10(combined_residuals['model']),
+        #         ls='None', marker='+', ms=5, mew=1.0, mec='b', alpha=0.5)
+        # ax.plot(radii, correction, ls='None', marker='+', mew=2.5, mec='r', ms=20)
+        # ax.set_ylim(-10, 10)
+        # plt.show()
 
         return interpolate.InterpolatedUnivariateSpline(radii, 1. + correction)
