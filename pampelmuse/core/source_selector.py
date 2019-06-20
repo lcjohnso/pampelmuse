@@ -33,7 +33,7 @@ Added
 
 Latest Git revision
 -------------------
-2019/04/15
+2019/06/20
 """
 import logging
 import sys
@@ -54,7 +54,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20190415
+__revision__ = 20190620
 
 
 logger = logging.getLogger(__name__)
@@ -279,7 +279,7 @@ class SourceSelector(object):
 
         # Perform sanity checks on provided source list (exclude sources with magnitudes NaN or >99):
         self.cfp_results['valid'] = np.isfinite(self.cfp_results['mag'])
-        self.cfp_results.loc[self.cfp_results['mag'] >= 99, 'valid'] = False
+        self.cfp_results.loc[abs(self.cfp_results['mag']) >= 99, 'valid'] = False
         if not self.cfp_results['valid'].all():
             logger.warning("Ignoring {0} source(s) with undefined magnitudes.".format(
                 (~self.cfp_results['valid']).sum()))

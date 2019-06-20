@@ -30,14 +30,18 @@ rev. 334, 2016/07/26
 
 Latest GIT revision
 -------------------
-2017/08/17
+2019/06/20
 """
+import logging
 import numpy as np
-from scipy import ndimage, signal
+from scipy import signal
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 20170817
+__revision__ = 20190620
+
+
+logger = logging.getLogger(__name__)
 
 
 def find_offset(reference, comparison, init_guess=(0, 0), max_off=None):
@@ -75,14 +79,29 @@ def find_offset(reference, comparison, init_guess=(0, 0), max_off=None):
         assert max_off > 0, 'search radius must be >0 but is {0}'.format(max_off)
         search_radius = int(max_off)
 
+    logger.debug('Size of reference image for cross-correlation: {0}'.format(reference.shape))
+    logger.debug('Size of comparison image for cross-correlation: {0}'.format(comparison.shape))
+
     # To avoid that the cc signal is dominated by individual bright pixels, the comparison image fluxes are
     # leveled off at the 99th percentile of the fluxes
     p = np.percentile(comparison, 99)
-    comparison[comparison > p] = p
+    if np.isfinite(p):
+        comparison[comparison > p] = p
+    else:
+        logger.warning('Comparison image for cross-correlation contains invalid values.')
+
+    if not np.isfinite(reference).all():
+        logger.warning('Reference image for cross correlation contains {0} NaN/inf value(s)'.format(
+            (~np.isfinite(reference)).sum()))
+        reference[~np.isfinite(reference)] = np.nanmedian(reference)
+    if not np.isfinite(comparison).all():
+        logger.warning('Comparison image for cross correlation contains {0} NaN/inf value(s)'.format(
+            (~np.isfinite(comparison)).sum()))
+        comparison[~np.isfinite(comparison)] = np.nanmedian(comparison)
 
     # Data are normalized to get approx. normalized cross-corr. signal
-    cc_kernel = (reference - np.median(reference)) / (np.std(reference)*reference.size)
-    cc_input = (comparison - np.median(comparison)) / np.std(comparison)
+    cc_kernel = (reference - np.nanmedian(reference)) / (np.nanstd(reference)*reference.size)
+    cc_input = (comparison - np.nanmedian(comparison)) / np.nanstd(comparison)
 
     cc_signal = signal.fftconvolve(cc_input, cc_kernel[::-1, ::-1], mode='same')
 
