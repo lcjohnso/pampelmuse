@@ -50,7 +50,7 @@ are saved in the PRM file that is written to disk.
 
 Latest GIT Revision
 -------------------
-2019/06/20
+2019/06/26
 """
 import datetime
 import logging
@@ -61,7 +61,7 @@ from ..utils.fits import open_ifs_data, make_header_from_config, save_prm
 
 
 __author__ = "Sebastian Kamann (skamann@ljmu.ac.uk)"
-__revision__ = 20190620
+__revision__ = 20190626
 
 
 logger = logging.getLogger(__name__)
@@ -126,9 +126,9 @@ def initfit(config):
     # Initialize instance of SourceSelector class
     selector = SourceSelector(photometry_file=config['catalog']['name'],
                               ifs_data=ifs_data,
-                              passband=config['catalog'].get('passband', 'f814w'),
-                              zeropoint=config['initfit'].get('zeromag'),
-                              position_fit=config['initfit'].get('posfit', 2))
+                              passband=config['catalog']['passband'],
+                              zeropoint=config['initfit']['zeromag'],
+                              position_fit=config['initfit']['posfit'])
 
     # if it is possible to match IFS data and catalogue via WCS, remove all
     # sources from catalogue that have a distance to the field of view which
@@ -174,11 +174,11 @@ def initfit(config):
         else:
             free = False
         psf_parameters.append({'name': parameter, 'value': value, 'free': free})
-    selector.prepare_psf(profile=profile, parameters=psf_parameters, use_lut=config['psf'].get('lut1d'),
-                         lut_radius=config['psf'].get('radius'))
+    selector.prepare_psf(profile=profile, parameters=psf_parameters, use_lut=config['psf']['lut1d'],
+                         lut_radius=config['psf']['radius'])
 
     # Create mock image from photometry catalog
-    n_cpu = config['global'].get('cpucount', 1)
+    n_cpu = config['global']['cpucount']
     selector.create_mock_image(n_cpu=n_cpu)
 
     # Create image from IFS data in provided passband
@@ -194,7 +194,7 @@ def initfit(config):
         selector.identify_footprint()
 
     # Perform photometric calibration and S/N estimation:
-    selector.calibrate_photometry(n_cpu=n_cpu, update_zeropoint=True)
+    selector.calibrate_photometry(n_cpu=n_cpu, update_zeropoint=not config['initfit']['zerofix'])
 
     selector.select(reslim=None,
                     sncut=config['initfit'].get('snrcut', 3),

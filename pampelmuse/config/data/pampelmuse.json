@@ -53,6 +53,7 @@
   "initfit": {
     "usesigma": true,
     "zeromag": null,
+    "zerofix": false,
     "psfmag": null,
     "ccmaxoff": -1,
     "aperrad": 3,

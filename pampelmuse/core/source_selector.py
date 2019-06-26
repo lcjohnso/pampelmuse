@@ -33,7 +33,7 @@ Added
 
 Latest Git revision
 -------------------
-2019/06/20
+2019/06/26
 """
 import logging
 import sys
@@ -54,7 +54,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20190620
+__revision__ = 20190626
 
 
 logger = logging.getLogger(__name__)
@@ -806,8 +806,6 @@ class SourceSelector(object):
             logger.warning('Need to calculate variances before estimating S/N.')
             self.create_image_from_ifs()
 
-        zeropoint = 25. if self.zeropoint is None else self.zeropoint
-
         # collect PSF parameters in dictionary for profile initialisation
         psf_parameters = {}
         for name in self.psf_attributes.names:
@@ -828,6 +826,12 @@ class SourceSelector(object):
         to_cpu[self.sources.ids < 0] = n_cpu + 1  # ignore background components
         args = []
 
+        # handling of photometric zeropoint
+        if self.zeropoint is None and not update_zeropoint:
+            logger.error('Fixed photometric zeropoint requested but no value provided.')
+        zeropoint = 25. if self.zeropoint is None else self.zeropoint
+
+        # prepare PSF instances for all sources
         for n in range(n_cpu):
             psf = self.psf_class(transform=transform, uc=0., vc=0., mag=0., maxrad=10., **psf_parameters)
             args.append({'psf': psf, 'data': self.sources.catalog.loc[to_cpu == n, ['x', 'y', 'mag']],
@@ -848,18 +852,20 @@ class SourceSelector(object):
             init_worker(*(self.var_image[np.isfinite(self.var_image)],))
             self.signal_to_noise, intflux = estimate_snr(args[0])
 
+        # Calculate ratio between expected flux and actual flux in image to update zeropoint
         logger.info("Estimating the photometric zeropoint...")
-        # Calculate ratio between expected flux for current zeropoint and flux in image
         fratio = intflux/self.data_image.sum()
         dmag = -2.5*np.log10(fratio)
+        logger.info("Estimated photometric zeropoint ({0}) is {1:.2f}".format(self.passband, zeropoint + dmag))
 
-        #  update S/N estimates
-        self.signal_to_noise /= fratio
-
-        # determine zeropoint if requested
+        # unless zeropoint fixed, update value and S/N estimates
         if update_zeropoint:
             self.zeropoint = zeropoint + dmag
-        logger.info("Estimated photometric zeropoint ({0}) is {1:.2f}".format(self.passband, zeropoint + dmag))
+            self.signal_to_noise /= fratio
+        else:
+            logger.info('Difference to requested photometric zeropoint is {0:.2f} mag.'.format(dmag))
+
+        logger.info('S/N ratios calculated based on photometric zeropoint of {0:.2f}.'.format(self.zeropoint))
 
     @property
     def fwhm(self):
