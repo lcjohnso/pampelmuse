@@ -36,16 +36,17 @@ Added
 
 Latest Git revision
 -------------------
-2019/06/05
+2019/06/30
 """
 import logging
 from numbers import Real
+from scipy import optimize
 from .profile import Profile
 from ..functions import gaussian, moffat
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20190605
+__revision__ = 20190630
 
 
 class MoffatGaussian(Profile):
@@ -70,6 +71,45 @@ class MoffatGaussian(Profile):
     Moffat component, labelled f12.
     """
     function = "moffat gauss"
+
+    @classmethod
+    def calculate_fwhm(cls, f12, beta, fwhm1, fwhm2, e=0, **kwargs):
+        """
+        Method to determine the FWHM of the full profile for a given set of
+        input parameters.
+
+        Parameters
+        ----------
+        f12 : float
+            The fractional flux in the Moffat component.
+        beta : float
+            The beta-parameter of the Moffat component.
+        fwhm1 : float
+            The full-width at half maximum of the Moffat component.
+        fwhm2 : float
+            The full-width at half maximum of the Gaussian component.
+        e : float, optional
+            The ellipticity of the full profile.
+        kwargs
+
+        Returns
+        -------
+        fwhm : float
+            The full-width at half maximum of the combined profile.
+        """
+        # mare sure no additional keywords were provided.
+        if kwargs:
+            raise IOError('Unknown argument(s) to call of MoffatGauss.fwhm: {0}'.format(kwargs))
+
+        # get central flux
+        f0 = f12*moffat.flux(0, beta=beta, fwhm=fwhm1, e=e) + (1. - f12)*gaussian.flux(0, fwhm=fwhm2, e=e)
+
+        # find FWHM by locating root of profile minus 0.5 times the central flux.
+        f = lambda r: 0.5*f0 - f12*moffat.flux(r, beta=beta, fwhm=fwhm1, e=e) - (1. - f12)*gaussian.flux(
+            r, fwhm=fwhm2, e=e)
+
+        root = optimize.root_scalar(f, method='brentq', bracket=[0, 1.1*max(fwhm1, fwhm2)])
+        return 2.*root.root
 
     def __init__(self, uc, vc, mag, f12=0.5, beta=2.5, fwhm1=3.0, fwhm2=6.0, **kwargs):
         """

@@ -33,7 +33,7 @@ Added
 
 Latest Git revision
 -------------------
-2019/06/26
+2019/06/30
 """
 import logging
 import sys
@@ -54,7 +54,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20190626
+__revision__ = 20190630
 
 
 logger = logging.getLogger(__name__)
@@ -872,11 +872,15 @@ class SourceSelector(object):
         if self.psf_class is None:
             return np.nan
         elif self.psf_class in [DoubleGaussian, MoffatGaussian]:
-            f12 = np.nanmean(self.psf_attributes.data[('f12', 'value')])
-            fwhm1 = np.nanmean(self.psf_attributes.data[('fwhm1', 'value')])
-            fwhm2 = np.nanmean(self.psf_attributes.data[('fwhm2', 'value')])
-            return f12*fwhm1 + (1. - f12)*fwhm2
+            # for combined profiles, use dedicated classmethod to determine FWHM of full profile
+            args = {}
+            for name in self.psf_attributes.names:
+                if name == 'theta':
+                    continue
+                args[name] = np.nanmean(self.psf_attributes.data[('f12', 'value')])
+            return self.psf_class.calculate_fwhm(**args)
         else:
+            # otherwise directly use FWHM parameter
             return np.nanmean(self.psf_attributes.data[('fwhm', 'value')])
 
     def select(self, reslim=None, sncut=3., confusion_density=0.4, binrad=0.2, use_unres=False, unres_range=2):

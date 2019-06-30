@@ -36,16 +36,17 @@ Added
 
 Latest Git revision
 -------------------
-2019/06/05
+2019/06/30
 """
 import logging
 from numbers import Real
+from scipy import optimize
 from .profile import Profile
 from ..functions import moffat
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20190605
+__revision__ = 20190630
 
 
 class DoubleMoffat(Profile):
@@ -66,6 +67,47 @@ class DoubleMoffat(Profile):
     component, labelled f12.
     """
     function = "double moffat"
+
+    @classmethod
+    def calculate_fwhm(cls, f12, beta1, fwhm1, beta2, fwhm2, e=0, **kwargs):
+        """
+        Method to determine the FWHM of the full profile for a given set of
+        input parameters.
+
+        Parameters
+        ----------
+        f12 : float
+            The fractional flux in the first Moffat component.
+        beta1 : float
+            The beta-parameter of the first Moffat component.
+        fwhm1 : float
+            The full-width at half maximum of the first Moffat component.
+        beta2 : float
+            The beta-parameter of the second Moffat component.
+        fwhm2 : float
+            The full-width at half maximum of the second Moffat component.
+        e : float, optional
+            The ellipticity of the full profile.
+        kwargs
+
+        Returns
+        -------
+        fwhm : float
+            The full-width at half maximum of the combined profile.
+        """
+        # mare sure no additional keywords were provided.
+        if kwargs:
+            raise IOError('Unknown argument(s) to call of DoubleMoffat.fwhm: {0}'.format(kwargs))
+
+        # get central flux
+        f0 = f12*moffat.flux(0, beta=beta1, fwhm=fwhm1, e=e) + (1. - f12)*moffat.flux(0, beta=beta2, fwhm=fwhm2, e=e)
+
+        # find FWHM by locating root of profile minus 0.5 times the central flux.
+        f = lambda r: 0.5 * f0 - f12 * moffat.flux(r, beta=beta1, fwhm=fwhm1, e=e) - (1. - f12) * moffat.flux(
+            r, beta=beta2, fwhm=fwhm2, e=e)
+
+        root = optimize.root_scalar(f, method='brentq', bracket=[0, 1.1 * max(fwhm1, fwhm2)])
+        return 2. * root.root
 
     def __init__(self, uc, vc, mag, f12=0.5, beta1=2.5, fwhm1=3.0, beta2=2.5, fwhm2=6.0, **kwargs):
         """

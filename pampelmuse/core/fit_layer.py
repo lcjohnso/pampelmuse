@@ -57,7 +57,7 @@ parameters are not fitted.
 
 Latest Git revision
 -------------------
-2019/06/18
+2019/06/30
 """
 import collections
 import contextlib
@@ -72,7 +72,7 @@ from ..core.coordinates import Transformation
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20190618
+__revision__ = 20190630
 
 
 logger = logging.getLogger(__name__)
@@ -545,7 +545,7 @@ class FitLayer(object):
             if np.nanmedian(abs(delta_flux)) < 0.005:
                 break
 
-            # for testing, show scatter plot with current residuals and model
+            # # for testing, show scatter plot with current residuals and model
             # import matplotlib.pyplot as plt
             # fig = plt.figure(figsize=(8, 10))
             # ax = fig.add_axes([0.04, 0.52, 0.92, 0.46])
@@ -567,7 +567,8 @@ class FitLayer(object):
                         return_psf_profiles=analyse_psf | (self.lut is not None))
 
                     if self.lut is not None:
-                        self.lut = self.update_look_up_table(residuals=residuals, centroids=single_psf_results)
+                        self.lut = self.update_look_up_table(residuals=residuals, centroids=single_psf_results,
+                                                             weights=single_psf_results['snr'])
                         [setattr(psf, 'lut', self.lut) for psf in self.psf_instances.values()]
 
                     # if positions are fitted directly, update them
@@ -1529,7 +1530,7 @@ class FitLayer(object):
 
         return final
 
-    def _get_radial_profile(self, data, radii, weights=None, sampling=None):
+    def _get_radial_profile(self, data, radii, weights=None, sampling=None, median=False):
         """
         Internal method to determine the radial profile of the data used in a
         PSF fit.
@@ -1549,6 +1550,9 @@ class FitLayer(object):
         sampling : array-like
             The edges of the radial bins in which the profile is measured.
             The default is to use bins of 1 pixel width out to the PSF radius.
+        median : bool, optional
+            Set this flag to use median instead of weighted mean to average
+            data.
 
         Returns
         -------
@@ -1573,8 +1577,10 @@ class FitLayer(object):
             in_bin = (radii >= r_min) & (radii <= r_max) & np.isfinite(data)
             if in_bin.any():
                 output_radii[i] = np.average(radii[in_bin], weights=weights[in_bin])
-                logger.warning('Using median instead of weighted mean for averaging radial profile.')
-                profile[i] = np.median(data[in_bin])  # np.average(data[in_bin], weights=weights[in_bin])
+                if median:
+                    profile[i] = np.median(data[in_bin])
+                else:
+                    profile[i] = np.average(data[in_bin], weights=weights[in_bin])
             else:
                 output_radii[i] = np.nan
                 profile[i] = np.nan
@@ -1610,7 +1616,7 @@ class FitLayer(object):
         combined = pd.DataFrame(np.stack(data, axis=1), columns=source_ids, index=np.nanmean(radii, axis=0))
         return combined
 
-    def update_look_up_table(self, residuals, centroids):
+    def update_look_up_table(self, residuals, centroids, weights=None):
         """
         Create look-up table containing the relative residuals of the PSF fits
         averaged over all sources.
@@ -1636,37 +1642,40 @@ class FitLayer(object):
         # for each source, measure distances of provided pixels to centroid and collect them together with the
         # relative residuals in a single DataFrame.
         combined = []
+
         for source_id, data in residuals.items():
             x = self.data.loc[data.index, 'x']
             y = self.data.loc[data.index, 'y']
+            weight = weights[source_id] if weights is not None else 1
 
             combined.append(pd.DataFrame({'dx': x - centroids.at[source_id, 'xc'],
                                           'dy': y - centroids.at[source_id, 'yc'],
                                           'rel_res': data['residuals']/(data['data'] - data['residuals']),
                                           'residuals': data['residuals'],
-                                          # 'data': data['data']/np.sum(data['data']),
-                                          # 'model': (data['data'] - data['residuals'])/np.sum(data['data'] - data['residuals']),
-                                          'weights': np.ones_like(x)}))
+                                          'data': data['data']/np.sum(data['data']),
+                                          'model': (data['data'] - data['residuals'])/np.sum(data['data'] - data['residuals']),
+                                          'weights': weight*np.ones_like(x)}))
 
         combined_residuals = pd.concat(combined, ignore_index=True)
 
         radii, correction = self._get_radial_profile(
             data=combined_residuals['rel_res'],
             radii=np.sqrt(combined_residuals['dx']**2 + combined_residuals['dy']**2),
-            weights=combined_residuals['weights'])
+            weights=combined_residuals['weights'],
+            median=True)
 
         # import matplotlib.pyplot as plt
         # fig = plt.figure()
         # ax = fig.add_axes([0.12, 0.12, 0.83, 0.83])
         # ax.axhline(y=0, ls='-', lw=1.5, c='0.5')
-        # ax.plot(np.sqrt(combined_residuals['dx']**2 + combined_residuals['dy']**2), np.log10(combined_residuals['data']),
-        #        ls='None', marker='x', ms=5, mew=1.0, mec='g', alpha=0.5)
-        # ax.hexbin(np.sqrt(combined_residuals['dx']**2 + combined_residuals['dy']**2), np.log10(combined_residuals['data']),
-        #           bins='log')
-        # ax.plot(np.sqrt(combined_residuals['dx'] ** 2 + combined_residuals['dy'] ** 2), np.log10(combined_residuals['model']),
-        #         ls='None', marker='+', ms=5, mew=1.0, mec='b', alpha=0.5)
+        # ax.scatter(np.sqrt(combined_residuals['dx']**2 + combined_residuals['dy']**2), combined_residuals['rel_res'],
+        #            marker='o', s=combined_residuals['weights']/100., c='g', alpha=0.1)
+        # # ax.hexbin(np.sqrt(combined_residuals['dx']**2 + combined_residuals['dy']**2), combined_residuals['rel_res'],
+        # #           bins='log')
+        # # ax.plot(np.sqrt(combined_residuals['dx'] ** 2 + combined_residuals['dy'] ** 2),
+        # #         np.log10(combined_residuals['model']), ls='None', marker='+', ms=5, mew=1.0, mec='b', alpha=0.5)
         # ax.plot(radii, correction, ls='None', marker='+', mew=2.5, mec='r', ms=20)
-        # ax.set_ylim(-10, 10)
+        # # ax.set_ylim(-10, 10)
         # plt.show()
 
         return interpolate.InterpolatedUnivariateSpline(radii, 1. + correction)
