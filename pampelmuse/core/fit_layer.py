@@ -57,7 +57,7 @@ parameters are not fitted.
 
 Latest Git revision
 -------------------
-2019/06/30
+2019/07/25
 """
 import collections
 import contextlib
@@ -1364,7 +1364,7 @@ class FitLayer(object):
             # for each parameter, subtract partial derivative of PSF profile (x flux) from Jacobi matrix
             for j in range(len(x0)):
 
-                diff_i = getattr(psf, "diff_{0}".format(names[j]))
+                diff_i = getattr(psf, "get_diff_{0}".format(names[j]))()
                 jacob[j, psf.used] -= self.fluxes[ii] * (diff_i * np.sqrt(self.fit_weights[psf.used].values))
 
         t1 = time.time()
