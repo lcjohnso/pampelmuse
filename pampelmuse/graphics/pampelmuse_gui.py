@@ -37,7 +37,7 @@ defines the methods that are called by Ui_PampelMuseGui.
 
 Latest Git revision
 -------------------
-2019/04/23
+2019/08/21
 """
 import datetime
 import logging
@@ -64,7 +64,7 @@ from ..utils.fits import save_prm, read_config_from_header, make_header_from_con
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20190423
+__revision__ = 20190821
 
 
 class ToolbarWithoutMessage(NavigationToolbar):
@@ -883,10 +883,10 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             directory = self.outfileName
 
         # Open dialog to select filename
-        self.outfileName = QFileDialog.getOpenFileName(self, caption="Please select a filename", directory=directory,
-                                                       filter="*.fits")
+        self.outfileName = QFileDialog.getSaveFileName(self, caption="Please select a filename", directory=directory,
+                                                       filter="*.fits")[0]
         if self.outfileName == "":
-            self.statusBar().showMessage("Can't do, no filename selected!")
+            self.statusBar.showMessage("Can't do, no filename selected!")
             return
 
         # TODO: dialog on whether file should be overwritten

@@ -1,9 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="184c2abe-3153-48a7-88ae-f3ca9af990c0" name="Default" comment="Bugfixed INITFIT for usage of manually determined photometric zeropoint.">
+    <list default="true" id="184c2abe-3153-48a7-88ae-f3ca9af990c0" name="Default" comment="Patch by Peter fixing issue that checking config keywords from FITS-Header for being None failed.">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/bin/PampelMuse" beforeDir="false" afterPath="$PROJECT_DIR$/bin/PampelMuse" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/doc/manual.tex" beforeDir="false" afterPath="$PROJECT_DIR$/doc/manual.tex" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/pampelmuse/core/fit_layer.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/core/fit_layer.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/graphics/pampelmuse_gui.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/graphics/pampelmuse_gui.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/utils/fits.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/utils/fits.py" afterDir="false" />
     </list>
     <list id="2537fcfb-7e20-4757-bbd2-3237e7f34740" name="patch" comment="Issue that CUBEFIT crashed when only PSF parameters or positions were fitted with POLYFIT. " />
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
@@ -14,9 +18,6 @@
   </component>
   <component name="FindInProjectRecents">
     <findStrings>
-      <find>transformation.data.</find>
-      <find>transformation.data.i</find>
-      <find>transformation.data.inx</find>
       <find>transformation.data.in</find>
       <find>transformation.data.inde</find>
       <find>transformation.data.index</find>
@@ -43,7 +44,10 @@
       <find>purge</find>
       <find>.cop</find>
       <find>Subtracted</find>
-      <find>zeromag</find>
+      <find>.f</find>
+      <find>psf.f</find>
+      <find>psf.</find>
+      <find>matpl</find>
     </findStrings>
   </component>
   <component name="Git.Settings">
@@ -54,7 +58,7 @@
       </map>
     </option>
   </component>
-  <component name="ProjectId" id="1OV5jYKrNpuPXej7qOjJIokx9kI" />
+  <component name="ProjectId" id="1OhfJf6wfngdQOPIyb12n7ssEkN" />
   <component name="ProjectInspectionProfilesVisibleTreeState">
     <entry key="Project Default">
       <profile-state>
@@ -75,7 +79,7 @@
   <component name="PropertiesComponent">
     <property name="Git.Branch.Popup.ShowAllRemotes" value="true" />
     <property name="SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
-    <property name="last_opened_file_path" value="$USER_HOME$/Desktop/pampelmuse.patch" />
+    <property name="last_opened_file_path" value="$USER_HOME$/Desktop/pmw_changes.diff" />
     <property name="settings.editor.selected.configurable" value="watcher.settings" />
   </component>
   <component name="RecentsManager">
@@ -234,41 +238,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1499438305310</updated>
-    </task>
-    <task id="LOCAL-00048" summary="Fixed bug in SINGLESRC routine. Also fixed issue that setting cpucount=-1 caused aperture photometry to crash. Finally, added handling for cases where total flux on integrated IFS image was still negative after subtracting median flux.">
-      <created>1516792020933</created>
-      <option name="number" value="00048" />
-      <option name="presentableId" value="LOCAL-00048" />
-      <option name="project" value="LOCAL" />
-      <updated>1516792020933</updated>
-    </task>
-    <task id="LOCAL-00049" summary="Fixed bug that when a mask for MUSE cubes was provided, only masked pixels were used.">
-      <created>1516792725135</created>
-      <option name="number" value="00049" />
-      <option name="presentableId" value="LOCAL-00049" />
-      <option name="project" value="LOCAL" />
-      <updated>1516792725135</updated>
-    </task>
-    <task id="LOCAL-00050" summary="Fixed bug in INITFIT occurring when n_cpu was None or -1. Also revised correction for negative fluxes in integrated IFU image.">
-      <created>1516960328651</created>
-      <option name="number" value="00050" />
-      <option name="presentableId" value="LOCAL-00050" />
-      <option name="project" value="LOCAL" />
-      <updated>1516960328652</updated>
-    </task>
-    <task id="LOCAL-00051" summary="Fixed bug that CUBEFIT crashed if only PSF parameters or positions were fitted.">
-      <created>1516968689295</created>
-      <option name="number" value="00051" />
-      <option name="presentableId" value="LOCAL-00051" />
-      <option name="project" value="LOCAL" />
-      <updated>1516968689296</updated>
-    </task>
-    <task id="LOCAL-00052" summary="Fixed bug in CUBEFIT and applied patch for images created from cubes with negative backgrounds in INITFIT.">
-      <created>1517496419258</created>
-      <option name="number" value="00052" />
-      <option name="presentableId" value="LOCAL-00052" />
-      <option name="project" value="LOCAL" />
-      <updated>1517496419258</updated>
     </task>
     <task id="LOCAL-00053" summary="Added polynom mask to list of changeable parameters.">
       <created>1517568900577</created>
@@ -571,14 +540,49 @@
       <option name="project" value="LOCAL" />
       <updated>1553603469083</updated>
     </task>
-    <task id="LOCAL-00096" summary="Bugfixed INITFIT for usage of manually determined photometric zeropoint.">
-      <created>1561542885460</created>
+    <task id="LOCAL-00096" summary="Experimental release of look-up table implementation. Will not work with all PSF models yet.">
+      <created>1557138196905</created>
       <option name="number" value="00096" />
       <option name="presentableId" value="LOCAL-00096" />
       <option name="project" value="LOCAL" />
-      <updated>1561542885460</updated>
+      <updated>1557138196908</updated>
     </task>
-    <option name="localTasksCounter" value="97" />
+    <task id="LOCAL-00097" summary="Revised all PSF profiles for usage of look-up tables. However, currently the fits using look-up tables appear unstable, so I suggest not using them yet.">
+      <created>1559859604694</created>
+      <option name="number" value="00097" />
+      <option name="presentableId" value="LOCAL-00097" />
+      <option name="project" value="LOCAL" />
+      <updated>1559859604695</updated>
+    </task>
+    <task id="LOCAL-00098" summary="Fixed issue with look-up table usage in CUBEFIT.">
+      <created>1560288166371</created>
+      <option name="number" value="00098" />
+      <option name="presentableId" value="LOCAL-00098" />
+      <option name="project" value="LOCAL" />
+      <updated>1560288166371</updated>
+    </task>
+    <task id="LOCAL-00099" summary="Removed debug plots from CUBEFIT.">
+      <created>1560895963102</created>
+      <option name="number" value="00099" />
+      <option name="presentableId" value="LOCAL-00099" />
+      <option name="project" value="LOCAL" />
+      <updated>1560895963103</updated>
+    </task>
+    <task id="LOCAL-00100" summary="Fixed issue that INITFIT crashed when photometry contained magnitudes less than -99.">
+      <created>1561065789803</created>
+      <option name="number" value="00100" />
+      <option name="presentableId" value="LOCAL-00100" />
+      <option name="project" value="LOCAL" />
+      <updated>1561065789804</updated>
+    </task>
+    <task id="LOCAL-00101" summary="Revised FWHM calculation for combined PSF profiles in INITFIT.">
+      <created>1561929639705</created>
+      <option name="number" value="00101" />
+      <option name="presentableId" value="LOCAL-00101" />
+      <option name="project" value="LOCAL" />
+      <updated>1561929639705</updated>
+    </task>
+    <option name="localTasksCounter" value="102" />
     <servers />
   </component>
   <component name="TodoView">
@@ -605,18 +609,15 @@
       <map>
         <entry key="MAIN">
           <value>
-            <State />
+            <State>
+              <option name="COLUMN_ORDER" />
+            </State>
           </value>
         </entry>
       </map>
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Fixed rather serious bug in CUBEFIT that source coordinates where not properly updated when more than one CPU was used. This may affect all analyses performed with SVN revision 425 (committed 2017/05/28) or later that did not use a coordinate transformation or used polynomial fits to the coordinates." />
-    <MESSAGE value="Switched off local background determination for single PSF fits in CUBEFIT. The old approach (introduced in the revision committed on 2017/05/28) lead to increased beta values for a Moffat PSF." />
-    <MESSAGE value="Fixed bug in SUBTRES." />
-    <MESSAGE value="Fixed minor issue regarding INITFIT GUI." />
-    <MESSAGE value="Fixed minor issue that vertical line in spectrum view of GUI sometimes showed wrong wavelength." />
     <MESSAGE value="Relaxed criterion for matching name of passband in reference catalog." />
     <MESSAGE value="Updated manual; removed python3 branch from clone command." />
     <MESSAGE value="Fixed bug affecting CUBEFIT when variances were not used." />
@@ -636,12 +637,24 @@
     <MESSAGE value="Bugfix in INITFIT." />
     <MESSAGE value="Bugfix in CUBEFIT." />
     <MESSAGE value="Some additional logging in INITFIT." />
-    <MESSAGE value="Bugfixed INITFIT for usage of manually determined photometric zeropoint." />
-    <option name="LAST_COMMIT_MESSAGE" value="Bugfixed INITFIT for usage of manually determined photometric zeropoint." />
+    <MESSAGE value="Experimental release of look-up table implementation. Will not work with all PSF models yet." />
+    <MESSAGE value="Revised all PSF profiles for usage of look-up tables. However, currently the fits using look-up tables appear unstable, so I suggest not using them yet." />
+    <MESSAGE value="Fixed issue with look-up table usage in CUBEFIT." />
+    <MESSAGE value="Removed debug plots from CUBEFIT." />
+    <MESSAGE value="Fixed issue that INITFIT crashed when photometry contained magnitudes less than -99." />
+    <MESSAGE value="Revised FWHM calculation for combined PSF profiles in INITFIT." />
+    <option name="LAST_COMMIT_MESSAGE" value="Revised FWHM calculation for combined PSF profiles in INITFIT." />
     <option name="PRESELECT_EXISTING_CHANGELIST" value="true" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/pampelmuse/utils/image.py</url>
+          <line>35</line>
+          <option name="timeStamp" value="1" />
+        </line-breakpoint>
+      </breakpoints>
       <default-breakpoints>
         <breakpoint type="python-exception">
           <properties notifyOnTerminate="true" exception="BaseException">

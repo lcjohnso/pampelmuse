@@ -134,7 +134,6 @@ I strongly recommend leaving the JSON-file untouched even if you want to change 
 
 When starting any subroutine of \pampelmuse, you will always have to provide a user-configuration file which should also be in plain JSON format. The user-configuration file may only contain sections and keywords available in the default configuration. Note that some parameters are left blank in the default configuration (like the prefix of the IFS data file to be analysed) and hence must be provided in the user-configuration file. Below is an example of a valid file provided by a user aiming to extract stellar spectra from MUSE data of 47Tuc.
 \begin{lstlisting}[frame=single]
- # Example configuration file
   {
     "global": {
 	"prefix": "DATACUBE_FINAL",
@@ -214,7 +213,7 @@ For \pampelmuse to recognize the reference catalogue, its file name should be pr
 
 The reference catalogue should be present as a plain csv-file with the first (non-commented) line containing the column names. \pampelmuse will recognize column names such as \texttt{ra}, \texttt{dec}, or \texttt{id} and process the column content accordingly. The reference catalogue must contain the following columns:
 \begin{enumerate}
- \item A unique identifier for every source; must be a non-negative integer
+ \item A unique identifier for every source; must be a non-negative integer of not more than 10 digits.
  \item Two columns containing the source coordinates in a reference system. Both pixel and world coordinates are accepted, and priority is given to the latter if both are present. If provided, the world coordinates should be in units of decimal degrees.
  \item A magnitude for every source in a passband that covers at least some part of the spectral range of the IFS data. Currently the filter name also needs to be specified in the configuration, using the parameter
  \pmparameter{catalog}{passband}{string}{f814w}{The name of the filter in which the magnitudes provided in the reference catalogue are given.}
@@ -222,8 +221,6 @@ The reference catalogue should be present as a plain csv-file with the first (no
 
 Here is an example of how a valid reference catalogue file may look like (but note that a fifth column labelled ``status'' is required when using the SINGLESRC routine instead of INITFIT):
 \begin{center} \begin{lstlisting}[frame=single]
- # Example reference catalogue
- # Random Cluster NGC9999, generated from HST/WFPC2 data
  id,ra,dec,f606w
  1,12.764311,-26.986152,13.29
  2,12.751325,-26.986431,14.87

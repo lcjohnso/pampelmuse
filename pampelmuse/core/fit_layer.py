@@ -545,7 +545,7 @@ class FitLayer(object):
             if np.nanmedian(abs(delta_flux)) < 0.005:
                 break
 
-            # # for testing, show scatter plot with current residuals and model
+            # for testing, show scatter plot with current residuals and model
             # import matplotlib.pyplot as plt
             # fig = plt.figure(figsize=(8, 10))
             # ax = fig.add_axes([0.04, 0.52, 0.92, 0.46])
@@ -1664,18 +1664,18 @@ class FitLayer(object):
             weights=combined_residuals['weights'],
             median=True)
 
-        # import matplotlib.pyplot as plt
-        # fig = plt.figure()
-        # ax = fig.add_axes([0.12, 0.12, 0.83, 0.83])
-        # ax.axhline(y=0, ls='-', lw=1.5, c='0.5')
-        # ax.scatter(np.sqrt(combined_residuals['dx']**2 + combined_residuals['dy']**2), combined_residuals['rel_res'],
-        #            marker='o', s=combined_residuals['weights']/100., c='g', alpha=0.1)
-        # # ax.hexbin(np.sqrt(combined_residuals['dx']**2 + combined_residuals['dy']**2), combined_residuals['rel_res'],
-        # #           bins='log')
-        # # ax.plot(np.sqrt(combined_residuals['dx'] ** 2 + combined_residuals['dy'] ** 2),
-        # #         np.log10(combined_residuals['model']), ls='None', marker='+', ms=5, mew=1.0, mec='b', alpha=0.5)
-        # ax.plot(radii, correction, ls='None', marker='+', mew=2.5, mec='r', ms=20)
-        # # ax.set_ylim(-10, 10)
-        # plt.show()
+        import matplotlib.pyplot as plt
+        fig = plt.figure()
+        ax = fig.add_axes([0.12, 0.12, 0.83, 0.83])
+        ax.axhline(y=0, ls='-', lw=1.5, c='0.5')
+        ax.scatter(np.sqrt(combined_residuals['dx']**2 + combined_residuals['dy']**2), combined_residuals['rel_res'],
+                   marker='o', s=combined_residuals['weights']/100., c='g', alpha=0.1)
+        # ax.hexbin(np.sqrt(combined_residuals['dx']**2 + combined_residuals['dy']**2), combined_residuals['rel_res'],
+        #           bins='log')
+        # ax.plot(np.sqrt(combined_residuals['dx'] ** 2 + combined_residuals['dy'] ** 2),
+        #         np.log10(combined_residuals['model']), ls='None', marker='+', ms=5, mew=1.0, mec='b', alpha=0.5)
+        ax.plot(radii, correction, ls='None', marker='+', mew=2.5, mec='r', ms=20)
+        # ax.set_ylim(-10, 10)
+        plt.show()
 
         return interpolate.InterpolatedUnivariateSpline(radii, 1. + correction)

@@ -32,7 +32,7 @@ The provided functions facilitate working with FITS data.
 
 Latest Git revision
 -------------------
-2019/04/23
+2019/08/21
 """
 import os
 import logging
@@ -47,7 +47,7 @@ from ..psf import Variables
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20190423
+__revision__ = 20190821
 
 
 def open_ifs_data(prefix, **kwargs):
@@ -368,7 +368,7 @@ def read_config_from_header(header, existing_configuration=None):
 
             # add value=key pair to section
             # empty strings are converted to None
-            if value == '':
+            if value == '' or isinstance(value, fits.card.Undefined):
                 config[section][key] = None
             elif part is None:
                 config[section][key] = value
