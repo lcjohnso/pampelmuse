@@ -50,8 +50,9 @@ are saved in the PRM file that is written to disk.
 
 Latest GIT Revision
 -------------------
-2019/06/30
+2019/08/22
 """
+import sys
 import datetime
 import logging
 import numpy as np
@@ -61,7 +62,7 @@ from ..utils.fits import open_ifs_data, make_header_from_config, save_prm
 
 
 __author__ = "Sebastian Kamann (skamann@ljmu.ac.uk)"
-__revision__ = 20190630
+__revision__ = 20190822
 
 
 logger = logging.getLogger(__name__)
@@ -144,6 +145,9 @@ def initfit(config):
         selector.cfp_results['valid'] &= (distance_to_edge > -ccmaxoff)
         logger.info('Excluded sources with large distances to IFS footprint, {0} sources remain.'.format(
             selector.cfp_results['valid'].sum()))
+        if not selector.cfp_results['valid'].any():
+            logger.error('Reference catalogue doe not contain sources near IFS field of view.')
+            sys.exit(1)
     else:
         ccmaxoff = None
 
