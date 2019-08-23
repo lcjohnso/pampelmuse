@@ -50,7 +50,7 @@ are saved in the PRM file that is written to disk.
 
 Latest GIT Revision
 -------------------
-2019/08/22
+2019/08/23
 """
 import sys
 import datetime
@@ -62,7 +62,7 @@ from ..utils.fits import open_ifs_data, make_header_from_config, save_prm
 
 
 __author__ = "Sebastian Kamann (skamann@ljmu.ac.uk)"
-__revision__ = 20190822
+__revision__ = 20190823
 
 
 logger = logging.getLogger(__name__)

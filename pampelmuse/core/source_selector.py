@@ -33,7 +33,7 @@ Added
 
 Latest Git revision
 -------------------
-2019/06/30
+2019/08/23
 """
 import logging
 import sys
@@ -54,7 +54,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20190630
+__revision__ = 20190823
 
 
 logger = logging.getLogger(__name__)
@@ -380,15 +380,21 @@ class SourceSelector(object):
         background_data['x'] = background.centroids[:, 0]
         background_data['y'] = background.centroids[:, 1]
         background_data['status'] = 4
-        # ignore sky components outside FoV (if any)
-        if skysize > 0:
-            outside_fov = (self.ifs_data.distance_to_edge(background.centroids) < -skysize)
-            background_data.loc[outside_fov, 'status'] = -1
+
         # change status of slice-only backgrounds (if any) to 5
         if slices:
             last_indices = background_data.tail(background.n_ifu*background.n_slice).index
             background_data.loc[last_indices, 'status'] = 5
         background_data['primary'] = index
+
+        # ignore sky components outside FoV (if any)
+        if skysize > 0:
+            outside_fov = self.ifs_data.distance_to_edge(
+                np.array([background_data['x'], background_data['y']]).T) < -skysize
+            background_data = background_data.loc[~outside_fov]
+            logger.info('Removed {0}/{1} background components that do not contribute to observed flux.'.format(
+                outside_fov.sum(), n_centroids))
+            n_centroids = (~outside_fov).sum()
 
         # attach background components to source catalog
         self.cfp_results = self.cfp_results.append(background_data, verify_integrity=True)
