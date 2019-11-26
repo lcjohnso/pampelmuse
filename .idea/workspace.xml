@@ -1,0 +1,663 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ChangeListManager">
+    <list default="true" id="184c2abe-3153-48a7-88ae-f3ca9af990c0" name="Default" comment="Changes to manual.">
+      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/pampelmuse/filters/data/H" afterDir="false" />
+    </list>
+    <list id="2537fcfb-7e20-4757-bbd2-3237e7f34740" name="patch" comment="Issue that CUBEFIT crashed when only PSF parameters or positions were fitted with POLYFIT. " />
+    <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FindInProjectRecents">
+    <findStrings>
+      <find>transformation.data.in</find>
+      <find>transformation.data.inde</find>
+      <find>transformation.data.index</find>
+      <find>isin</find>
+      <find>def load_sp</find>
+      <find>load_s</find>
+      <find>s</find>
+      <find>staty</find>
+      <find>stat</find>
+      <find>statu</find>
+      <find>status</find>
+      <find>status =</find>
+      <find>status ==</find>
+      <find>status == 4</find>
+      <find>range to spe</find>
+      <find>init_wa</find>
+      <find>cursor</find>
+      <find>wave</find>
+      <find>cpuc</find>
+      <find>cpuco</find>
+      <find>cpu_c</find>
+      <find>Initial P</find>
+      <find>uncons</find>
+      <find>purge</find>
+      <find>.cop</find>
+      <find>Subtracted</find>
+      <find>.f</find>
+      <find>psf.f</find>
+      <find>psf.</find>
+      <find>matpl</find>
+    </findStrings>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+    <option name="RECENT_BRANCH_BY_REPOSITORY">
+      <map>
+        <entry key="$PROJECT_DIR$" value="lookup_tables" />
+      </map>
+    </option>
+  </component>
+  <component name="ProjectId" id="1OhfJf6wfngdQOPIyb12n7ssEkN" />
+  <component name="ProjectInspectionProfilesVisibleTreeState">
+    <entry key="Project Default">
+      <profile-state>
+        <expanded-state>
+          <State>
+            <id />
+          </State>
+          <State>
+            <id>Python</id>
+          </State>
+        </expanded-state>
+      </profile-state>
+    </entry>
+  </component>
+  <component name="ProjectLevelVcsManager">
+    <OptionsSetting value="false" id="Update" />
+  </component>
+  <component name="PropertiesComponent">
+    <property name="Git.Branch.Popup.ShowAllRemotes" value="true" />
+    <property name="SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
+    <property name="last_opened_file_path" value="$USER_HOME$/Desktop/pmw_changes.diff" />
+    <property name="settings.editor.selected.configurable" value="watcher.settings" />
+  </component>
+  <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/pampelmuse/psf/profiles" />
+    </key>
+  </component>
+  <component name="RunDashboard">
+    <option name="ruleStates">
+      <list>
+        <RuleState>
+          <option name="name" value="ConfigurationTypeDashboardGroupingRule" />
+        </RuleState>
+        <RuleState>
+          <option name="name" value="StatusDashboardGroupingRule" />
+        </RuleState>
+      </list>
+    </option>
+  </component>
+  <component name="RunManager" selected="Python.Initfit">
+    <configuration name="Cubefit1_SMALLIFU" type="PythonConfigurationType" factoryName="Python">
+      <module name="pampelmuse" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="$USER_HOME$/.pyenv/versions/2.7.12/bin/python" />
+      <option name="WORKING_DIRECTORY" value="/media/datadisk/skamann/data/wifes/n1850_cubes" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/bin/PampelMuse" />
+      <option name="PARAMETERS" value="NGC1850_R7000_2016-04-01_cube CUBEFIT" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="Cubefit2_SMALLIFU" type="PythonConfigurationType" factoryName="Python">
+      <module name="pampelmuse" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="$USER_HOME$/.pyenv/versions/2.7.12/bin/python" />
+      <option name="WORKING_DIRECTORY" value="/media/datadisk/skamann/data/wifes/n1850_cubes" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/bin/PampelMuse" />
+      <option name="PARAMETERS" value="NGC1850_R7000_2016-04-01_cube --fromline layerbin=1 CUBEFIT" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="Initfit" type="PythonConfigurationType" factoryName="Python">
+      <module name="pampelmuse" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="$USER_HOME$/.pyenv/versions/2.7.12/bin/python" />
+      <option name="WORKING_DIRECTORY" value="/media/datadisk/skamann/pampelmuse_testcases/20150911T001648" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/bin/PampelMuse" />
+      <option name="PARAMETERS" value="PIXTABLE_SORTED --fromfile pampelmuse.user INITFIT" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="Initfit_SMALLIFU" type="PythonConfigurationType" factoryName="Python">
+      <module name="pampelmuse" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="$USER_HOME$/.pyenv/versions/2.7.12/bin/python" />
+      <option name="WORKING_DIRECTORY" value="/media/datadisk/skamann/data/wifes/n1850_cubes" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/bin/PampelMuse" />
+      <option name="PARAMETERS" value="NGC1850_R7000_2016-04-01_cube --fromfile pampelmuse.user INITFIT n1850_cleaned.cat2" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="Subtres" type="PythonConfigurationType" factoryName="Python">
+      <module name="pampelmuse" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="$USER_HOME$/.pyenv/versions/2.7.12/bin/python" />
+      <option name="WORKING_DIRECTORY" value="/media/datadisk/skamann/data/wifes/n1850_cubes" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/bin/PampelMuse" />
+      <option name="PARAMETERS" value="NGC1850_R7000_2016-04-01_cube SUBTRES" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration default="true" type="tests" factoryName="Unittests">
+      <module name="pampelmuse" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="_new_additionalArguments" value="&quot;&quot;" />
+      <option name="_new_target" value="&quot;.&quot;" />
+      <option name="_new_targetType" value="&quot;PATH&quot;" />
+      <method v="2" />
+    </configuration>
+    <list>
+      <item itemvalue="Python.Cubefit1_SMALLIFU" />
+      <item itemvalue="Python.Cubefit2_SMALLIFU" />
+      <item itemvalue="Python.Initfit" />
+      <item itemvalue="Python.Initfit_SMALLIFU" />
+      <item itemvalue="Python.Subtres" />
+    </list>
+  </component>
+  <component name="SvnConfiguration">
+    <configuration />
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="184c2abe-3153-48a7-88ae-f3ca9af990c0" name="Default" comment="" />
+      <changelist id="2537fcfb-7e20-4757-bbd2-3237e7f34740" name="patch" comment="Issue that CUBEFIT crashed when only PSF parameters or positions were fitted with POLYFIT. " />
+      <created>1499438305310</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1499438305310</updated>
+    </task>
+    <task id="LOCAL-00054" summary="Added new configuration parameters usesigma and psfmag to initfit-section">
+      <created>1518429523269</created>
+      <option name="number" value="00054" />
+      <option name="presentableId" value="LOCAL-00054" />
+      <option name="project" value="LOCAL" />
+      <updated>1518429523269</updated>
+    </task>
+    <task id="LOCAL-00055" summary="Added some logging">
+      <created>1518433784960</created>
+      <option name="number" value="00055" />
+      <option name="presentableId" value="LOCAL-00055" />
+      <option name="project" value="LOCAL" />
+      <updated>1518433784960</updated>
+    </task>
+    <task id="LOCAL-00056" summary="Adopted new wavelength policy: Internally, meters are used, but I/O is in Angstrom.">
+      <created>1518549399614</created>
+      <option name="number" value="00056" />
+      <option name="presentableId" value="LOCAL-00056" />
+      <option name="project" value="LOCAL" />
+      <updated>1518549399615</updated>
+    </task>
+    <task id="LOCAL-00057" summary="Fixed bug in GETSPECTRA.">
+      <created>1518689135625</created>
+      <option name="number" value="00057" />
+      <option name="presentableId" value="LOCAL-00057" />
+      <option name="project" value="LOCAL" />
+      <updated>1518689135627</updated>
+    </task>
+    <task id="LOCAL-00058" summary="Fixed another bug in GETSPECTRA.">
+      <created>1518690317445</created>
+      <option name="number" value="00058" />
+      <option name="presentableId" value="LOCAL-00058" />
+      <option name="project" value="LOCAL" />
+      <updated>1518690317445</updated>
+    </task>
+    <task id="LOCAL-00059" summary="Corrected logging message">
+      <created>1518690767254</created>
+      <option name="number" value="00059" />
+      <option name="presentableId" value="LOCAL-00059" />
+      <option name="project" value="LOCAL" />
+      <updated>1518690767254</updated>
+    </task>
+    <task id="LOCAL-00060" summary="Revised wavelength array calculation">
+      <created>1519216411241</created>
+      <option name="number" value="00060" />
+      <option name="presentableId" value="LOCAL-00060" />
+      <option name="project" value="LOCAL" />
+      <updated>1519216411241</updated>
+    </task>
+    <task id="LOCAL-00061" summary="Again working on WCS and wavelength units">
+      <created>1519223822931</created>
+      <option name="number" value="00061" />
+      <option name="presentableId" value="LOCAL-00061" />
+      <option name="project" value="LOCAL" />
+      <updated>1519223822931</updated>
+    </task>
+    <task id="LOCAL-00062" summary="Recognizing extension 'data_quality' as bad-pixel mask">
+      <created>1519226087195</created>
+      <option name="number" value="00062" />
+      <option name="presentableId" value="LOCAL-00062" />
+      <option name="project" value="LOCAL" />
+      <updated>1519226087195</updated>
+    </task>
+    <task id="LOCAL-00063" summary="Revised definition of FoV edge for pixtables.">
+      <created>1520262963449</created>
+      <option name="number" value="00063" />
+      <option name="presentableId" value="LOCAL-00063" />
+      <option name="project" value="LOCAL" />
+      <updated>1520262963449</updated>
+    </task>
+    <task id="LOCAL-00064" summary="Minor bugfix affecting the creation of the PSF diagnostics file. Also minor change in documentation.">
+      <created>1520351510103</created>
+      <option name="number" value="00064" />
+      <option name="presentableId" value="LOCAL-00064" />
+      <option name="project" value="LOCAL" />
+      <updated>1520351510104</updated>
+    </task>
+    <task id="LOCAL-00065" summary="Fixed rather serious bug in CUBEFIT that source coordinates where not properly updated when more than one CPU was used. This may affect all analyses performed with SVN revision 425 (committed 2017/05/28) or later that did not use a coordinate transformation or used polynomial fits to the coordinates.">
+      <created>1520855233575</created>
+      <option name="number" value="00065" />
+      <option name="presentableId" value="LOCAL-00065" />
+      <option name="project" value="LOCAL" />
+      <updated>1520855233575</updated>
+    </task>
+    <task id="LOCAL-00066" summary="Switched off local background determination for single PSF fits in CUBEFIT. The old approach (introduced in the revision committed on 2017/05/28) lead to increased beta values for a Moffat PSF.">
+      <created>1520967012499</created>
+      <option name="number" value="00066" />
+      <option name="presentableId" value="LOCAL-00066" />
+      <option name="project" value="LOCAL" />
+      <updated>1520967012500</updated>
+    </task>
+    <task id="LOCAL-00067" summary="Switched off local background determination for single PSF fits in CUBEFIT. The old approach (introduced in the revision committed on 2017/05/28) lead to increased beta values for a Moffat PSF.">
+      <created>1520967028061</created>
+      <option name="number" value="00067" />
+      <option name="presentableId" value="LOCAL-00067" />
+      <option name="project" value="LOCAL" />
+      <updated>1520967028061</updated>
+    </task>
+    <task id="LOCAL-00068" summary="Fixed bug.">
+      <created>1521024170512</created>
+      <option name="number" value="00068" />
+      <option name="presentableId" value="LOCAL-00068" />
+      <option name="project" value="LOCAL" />
+      <updated>1521024170512</updated>
+    </task>
+    <task id="LOCAL-00069" summary="Fixed bug in SUBTRES.">
+      <created>1521125411999</created>
+      <option name="number" value="00069" />
+      <option name="presentableId" value="LOCAL-00069" />
+      <option name="project" value="LOCAL" />
+      <updated>1521125411999</updated>
+    </task>
+    <task id="LOCAL-00070" summary="Fixed minor issue regarding INITFIT GUI.">
+      <created>1523371931705</created>
+      <option name="number" value="00070" />
+      <option name="presentableId" value="LOCAL-00070" />
+      <option name="project" value="LOCAL" />
+      <updated>1523371931706</updated>
+    </task>
+    <task id="LOCAL-00071" summary="Fixed minor issue that vertical line in spectrum view of GUI sometimes showed wrong wavelength.">
+      <created>1523446587709</created>
+      <option name="number" value="00071" />
+      <option name="presentableId" value="LOCAL-00071" />
+      <option name="project" value="LOCAL" />
+      <updated>1523446587709</updated>
+    </task>
+    <task id="LOCAL-00072" summary="Relaxed criterion for matching name of passband in reference catalog.">
+      <created>1526986422848</created>
+      <option name="number" value="00072" />
+      <option name="presentableId" value="LOCAL-00072" />
+      <option name="project" value="LOCAL" />
+      <updated>1526986422848</updated>
+    </task>
+    <task id="LOCAL-00073" summary="Updated manual; removed python3 branch from clone command.">
+      <created>1527095825488</created>
+      <option name="number" value="00073" />
+      <option name="presentableId" value="LOCAL-00073" />
+      <option name="project" value="LOCAL" />
+      <updated>1527095825488</updated>
+    </task>
+    <task id="LOCAL-00074" summary="Fixed bug.">
+      <created>1527865963281</created>
+      <option name="number" value="00074" />
+      <option name="presentableId" value="LOCAL-00074" />
+      <option name="project" value="LOCAL" />
+      <updated>1527865963281</updated>
+    </task>
+    <task id="LOCAL-00075" summary="Fixed bug.">
+      <created>1527866062526</created>
+      <option name="number" value="00075" />
+      <option name="presentableId" value="LOCAL-00075" />
+      <option name="project" value="LOCAL" />
+      <updated>1527866062526</updated>
+    </task>
+    <task id="LOCAL-00076" summary="Fixed bug affecting CUBEFIT when variances were not used.">
+      <created>1528992828127</created>
+      <option name="number" value="00076" />
+      <option name="presentableId" value="LOCAL-00076" />
+      <option name="project" value="LOCAL" />
+      <updated>1528992828127</updated>
+    </task>
+    <task id="LOCAL-00077" summary="Fixed bug affecting CUBEFIT when variances were not used.">
+      <created>1528993610421</created>
+      <option name="number" value="00077" />
+      <option name="presentableId" value="LOCAL-00077" />
+      <option name="project" value="LOCAL" />
+      <updated>1528993610421</updated>
+    </task>
+    <task id="LOCAL-00078" summary="Added SUBTRES parameters include/exclude to list of changeable parameters. Also included SUBTRES in manual.">
+      <created>1530715406408</created>
+      <option name="number" value="00078" />
+      <option name="presentableId" value="LOCAL-00078" />
+      <option name="project" value="LOCAL" />
+      <updated>1530715406409</updated>
+    </task>
+    <task id="LOCAL-00079" summary="Fixed bug in CUBEFIT causing code to crash when background components did not contribute to the measured flux.">
+      <created>1532532590776</created>
+      <option name="number" value="00079" />
+      <option name="presentableId" value="LOCAL-00079" />
+      <option name="project" value="LOCAL" />
+      <updated>1532532590777</updated>
+    </task>
+    <task id="LOCAL-00080" summary="Slight changes to INITFIT. Apparently Anaconda installations have troubles with NaNs when calling the likes of scipy.optimize.leastsq">
+      <created>1534178190734</created>
+      <option name="number" value="00080" />
+      <option name="presentableId" value="LOCAL-00080" />
+      <option name="project" value="LOCAL" />
+      <updated>1534178190734</updated>
+    </task>
+    <task id="LOCAL-00081" summary="Minor changes in SUBTRES.">
+      <created>1534411965130</created>
+      <option name="number" value="00081" />
+      <option name="presentableId" value="LOCAL-00081" />
+      <option name="project" value="LOCAL" />
+      <updated>1534411965131</updated>
+    </task>
+    <task id="LOCAL-00082" summary="Fixed bug in CUBEFIT">
+      <created>1534935835918</created>
+      <option name="number" value="00082" />
+      <option name="presentableId" value="LOCAL-00082" />
+      <option name="project" value="LOCAL" />
+      <updated>1534935835918</updated>
+    </task>
+    <task id="LOCAL-00083" summary="Added functionality for shrinking PampelMuse GUI. Useful when using screens with low resolution.">
+      <created>1535731358499</created>
+      <option name="number" value="00083" />
+      <option name="presentableId" value="LOCAL-00083" />
+      <option name="project" value="LOCAL" />
+      <updated>1535731358499</updated>
+    </task>
+    <task id="LOCAL-00084" summary="Fixed bug.">
+      <created>1535994029628</created>
+      <option name="number" value="00084" />
+      <option name="presentableId" value="LOCAL-00084" />
+      <option name="project" value="LOCAL" />
+      <updated>1535994029628</updated>
+    </task>
+    <task id="LOCAL-00085" summary="Fixed bug in INITFIT affecting usage of unresolved component.">
+      <created>1537450364888</created>
+      <option name="number" value="00085" />
+      <option name="presentableId" value="LOCAL-00085" />
+      <option name="project" value="LOCAL" />
+      <updated>1537450364888</updated>
+    </task>
+    <task id="LOCAL-00086" summary="Fixed another bug in INITFIT affecting usage of unresolved component.">
+      <created>1537891227205</created>
+      <option name="number" value="00086" />
+      <option name="presentableId" value="LOCAL-00086" />
+      <option name="project" value="LOCAL" />
+      <updated>1537891227206</updated>
+    </task>
+    <task id="LOCAL-00087" summary="Fixed minor bugs in CUBEFIT.">
+      <created>1538735273275</created>
+      <option name="number" value="00087" />
+      <option name="presentableId" value="LOCAL-00087" />
+      <option name="project" value="LOCAL" />
+      <updated>1538735273275</updated>
+    </task>
+    <task id="LOCAL-00088" summary="Now checking for prefix for output spectra when running GETSPECTRA.">
+      <created>1544013394578</created>
+      <option name="number" value="00088" />
+      <option name="presentableId" value="LOCAL-00088" />
+      <option name="project" value="LOCAL" />
+      <updated>1544013394579</updated>
+    </task>
+    <task id="LOCAL-00089" summary="Added double-Moffat to options for PSF profile.">
+      <created>1549227954243</created>
+      <option name="number" value="00089" />
+      <option name="presentableId" value="LOCAL-00089" />
+      <option name="project" value="LOCAL" />
+      <updated>1549227954243</updated>
+    </task>
+    <task id="LOCAL-00090" summary="Added double-Moffat to options for PSF profile.">
+      <created>1549230845605</created>
+      <option name="number" value="00090" />
+      <option name="presentableId" value="LOCAL-00090" />
+      <option name="project" value="LOCAL" />
+      <updated>1549230845605</updated>
+    </task>
+    <task id="LOCAL-00091" summary="Bugfix for writing configuration to FITS header.">
+      <created>1550077214314</created>
+      <option name="number" value="00091" />
+      <option name="presentableId" value="LOCAL-00091" />
+      <option name="project" value="LOCAL" />
+      <updated>1550077214315</updated>
+    </task>
+    <task id="LOCAL-00092" summary="Bugfix in INITFIT.">
+      <created>1553095978638</created>
+      <option name="number" value="00092" />
+      <option name="presentableId" value="LOCAL-00092" />
+      <option name="project" value="LOCAL" />
+      <updated>1553095978638</updated>
+    </task>
+    <task id="LOCAL-00093" summary="Bugfix in CUBEFIT.">
+      <created>1553192767378</created>
+      <option name="number" value="00093" />
+      <option name="presentableId" value="LOCAL-00093" />
+      <option name="project" value="LOCAL" />
+      <updated>1553192767378</updated>
+    </task>
+    <task id="LOCAL-00094" summary="Bugfix in CUBEFIT.">
+      <created>1553594960302</created>
+      <option name="number" value="00094" />
+      <option name="presentableId" value="LOCAL-00094" />
+      <option name="project" value="LOCAL" />
+      <updated>1553594960302</updated>
+    </task>
+    <task id="LOCAL-00095" summary="Some additional logging in INITFIT.">
+      <created>1553603469083</created>
+      <option name="number" value="00095" />
+      <option name="presentableId" value="LOCAL-00095" />
+      <option name="project" value="LOCAL" />
+      <updated>1553603469083</updated>
+    </task>
+    <task id="LOCAL-00096" summary="Experimental release of look-up table implementation. Will not work with all PSF models yet.">
+      <created>1557138196905</created>
+      <option name="number" value="00096" />
+      <option name="presentableId" value="LOCAL-00096" />
+      <option name="project" value="LOCAL" />
+      <updated>1557138196908</updated>
+    </task>
+    <task id="LOCAL-00097" summary="Revised all PSF profiles for usage of look-up tables. However, currently the fits using look-up tables appear unstable, so I suggest not using them yet.">
+      <created>1559859604694</created>
+      <option name="number" value="00097" />
+      <option name="presentableId" value="LOCAL-00097" />
+      <option name="project" value="LOCAL" />
+      <updated>1559859604695</updated>
+    </task>
+    <task id="LOCAL-00098" summary="Fixed issue with look-up table usage in CUBEFIT.">
+      <created>1560288166371</created>
+      <option name="number" value="00098" />
+      <option name="presentableId" value="LOCAL-00098" />
+      <option name="project" value="LOCAL" />
+      <updated>1560288166371</updated>
+    </task>
+    <task id="LOCAL-00099" summary="Removed debug plots from CUBEFIT.">
+      <created>1560895963102</created>
+      <option name="number" value="00099" />
+      <option name="presentableId" value="LOCAL-00099" />
+      <option name="project" value="LOCAL" />
+      <updated>1560895963103</updated>
+    </task>
+    <task id="LOCAL-00100" summary="Fixed issue that INITFIT crashed when photometry contained magnitudes less than -99.">
+      <created>1561065789803</created>
+      <option name="number" value="00100" />
+      <option name="presentableId" value="LOCAL-00100" />
+      <option name="project" value="LOCAL" />
+      <updated>1561065789804</updated>
+    </task>
+    <task id="LOCAL-00101" summary="Revised FWHM calculation for combined PSF profiles in INITFIT.">
+      <created>1561929639705</created>
+      <option name="number" value="00101" />
+      <option name="presentableId" value="LOCAL-00101" />
+      <option name="project" value="LOCAL" />
+      <updated>1561929639705</updated>
+    </task>
+    <task id="LOCAL-00102" summary="Changes to manual.">
+      <created>1566422715836</created>
+      <option name="number" value="00102" />
+      <option name="presentableId" value="LOCAL-00102" />
+      <option name="project" value="LOCAL" />
+      <updated>1566422715836</updated>
+    </task>
+    <option name="localTasksCounter" value="103" />
+    <servers />
+  </component>
+  <component name="TodoView">
+    <todo-panel id="selected-file">
+      <is-autoscroll-to-source value="true" />
+    </todo-panel>
+    <todo-panel id="all">
+      <are-packages-shown value="true" />
+      <is-autoscroll-to-source value="true" />
+    </todo-panel>
+  </component>
+  <component name="Vcs.Log.History.Properties">
+    <option name="COLUMN_ORDER">
+      <list>
+        <option value="0" />
+        <option value="2" />
+        <option value="3" />
+        <option value="1" />
+      </list>
+    </option>
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State>
+              <option name="COLUMN_ORDER" />
+            </State>
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="Updated manual; removed python3 branch from clone command." />
+    <MESSAGE value="Fixed bug affecting CUBEFIT when variances were not used." />
+    <MESSAGE value="Added SUBTRES parameters include/exclude to list of changeable parameters. Also included SUBTRES in manual." />
+    <MESSAGE value="Fixed bug in CUBEFIT causing code to crash when background components did not contribute to the measured flux." />
+    <MESSAGE value="Slight changes to INITFIT. Apparently Anaconda installations have troubles with NaNs when calling the likes of scipy.optimize.leastsq" />
+    <MESSAGE value="Minor changes in SUBTRES." />
+    <MESSAGE value="Fixed bug in CUBEFIT" />
+    <MESSAGE value="Added functionality for shrinking PampelMuse GUI. Useful when using screens with low resolution." />
+    <MESSAGE value="Fixed bug." />
+    <MESSAGE value="Fixed bug in INITFIT affecting usage of unresolved component." />
+    <MESSAGE value="Fixed another bug in INITFIT affecting usage of unresolved component." />
+    <MESSAGE value="Fixed minor bugs in CUBEFIT." />
+    <MESSAGE value="Now checking for prefix for output spectra when running GETSPECTRA." />
+    <MESSAGE value="Added double-Moffat to options for PSF profile." />
+    <MESSAGE value="Bugfix for writing configuration to FITS header." />
+    <MESSAGE value="Bugfix in INITFIT." />
+    <MESSAGE value="Bugfix in CUBEFIT." />
+    <MESSAGE value="Some additional logging in INITFIT." />
+    <MESSAGE value="Experimental release of look-up table implementation. Will not work with all PSF models yet." />
+    <MESSAGE value="Revised all PSF profiles for usage of look-up tables. However, currently the fits using look-up tables appear unstable, so I suggest not using them yet." />
+    <MESSAGE value="Fixed issue with look-up table usage in CUBEFIT." />
+    <MESSAGE value="Removed debug plots from CUBEFIT." />
+    <MESSAGE value="Fixed issue that INITFIT crashed when photometry contained magnitudes less than -99." />
+    <MESSAGE value="Revised FWHM calculation for combined PSF profiles in INITFIT." />
+    <MESSAGE value="Changes to manual." />
+    <option name="LAST_COMMIT_MESSAGE" value="Changes to manual." />
+    <option name="PRESELECT_EXISTING_CHANGELIST" value="true" />
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/pampelmuse/utils/image.py</url>
+          <line>35</line>
+          <option name="timeStamp" value="1" />
+        </line-breakpoint>
+      </breakpoints>
+      <default-breakpoints>
+        <breakpoint type="python-exception">
+          <properties notifyOnTerminate="true" exception="BaseException">
+            <option name="notifyOnTerminate" value="true" />
+          </properties>
+        </breakpoint>
+      </default-breakpoints>
+    </breakpoint-manager>
+  </component>
+</project>
