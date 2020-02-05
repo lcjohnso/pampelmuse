@@ -1,7 +1,7 @@
 """
 make_residuals_cube.py
 ======================
-Copyright 2013-2019 Sebastian Kamann
+Copyright 2013-2020 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -32,7 +32,7 @@ Added
 rev. 343, 2016/08/01
 
 Latest Git revision
-2019/04/15
+2020/02/05
 """
 import logging
 from multiprocessing import cpu_count, Pool
@@ -43,7 +43,7 @@ from .fit_layer import FitLayer
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20190415
+__revision__ = 20200205
 
 
 logger = logging.getLogger(__name__)
@@ -216,19 +216,25 @@ class MakeResidualsCube(FitCube):
         if include is not None and exclude is not None:
             raise IOError('Either parameter "include" or "exclude" may be set, not both.')
 
-        # check if any sources should be included/excluded, define boolean array of included (resolved) sources
+        # check if only certain sources should be subtracted
         elif include is not None:
             logging.info('Only subtracting the following source(s): {0}'.format(', '.join(map(str, include))))
             selected_ids = pd.Index(include)
-        elif exclude is not None:
-            logging.info('Not subtracting the following source(s): {0}'.format(', '.join(map(str, exclude))))
-            selected_ids = self.sources.ids.drop(exclude)
-        else:
-            selected_ids = self.sources.ids
 
-        # remove sky components if they should not be subtracted
-        if not subtract_background:
-            selected_ids = selected_ids.drop(self.sources.ids[self.sources.is_background])
+            # add sky components if they should be subtracted
+            if subtract_background:
+                selected_ids = selected_ids.append(self.sources.ids[self.sources.is_background])
+        else:
+            selected_ids = self.sources.ids.copy()
+
+            # remove any stellar components that should not be subtracted
+            if exclude is not None:
+                logging.info('Not subtracting the following source(s): {0}'.format(', '.join(map(str, exclude))))
+                selected_ids = selected_ids.drop(exclude)
+
+            # remove sky components if they should not be subtracted
+            if not subtract_background:
+                selected_ids = selected_ids.drop(self.sources.ids[self.sources.is_background])
 
         # get corresponding rows in spectrum data
         selected_components = self.sources.specrow[selected_ids].unique()
