@@ -1,7 +1,7 @@
 """
 fit_array.py
 ============
-Copyright 2013-2019 Sebastian Kamann
+Copyright 2013-2020 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -57,7 +57,7 @@ parameters are not fitted.
 
 Latest Git revision
 -------------------
-2019/07/25
+2020/02/06
 """
 import collections
 import contextlib
@@ -72,7 +72,7 @@ from ..core.coordinates import Transformation
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20190630
+__revision__ = 20200206
 
 
 logger = logging.getLogger(__name__)
@@ -776,7 +776,7 @@ class FitLayer(object):
 
         # define which sources should be included
         if not update_unresolved:
-            resolved_sources = self.catalog[self.catalog['Component'] < self.catalog['Component'].max()].index
+            resolved_sources = self.catalog[self.catalog['component'] < self.catalog['component'].max()].index
             if sources is None:
                 sources = resolved_sources
             else:
