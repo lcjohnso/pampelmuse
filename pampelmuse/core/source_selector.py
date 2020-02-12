@@ -2,7 +2,7 @@
 source_selector.py
 ==================
 
-Copyright 2013-2019 Sebastian Kamann
+Copyright 2013-2020 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -33,7 +33,7 @@ Added
 
 Latest Git revision
 -------------------
-2019/08/23
+2020/02/12
 """
 import logging
 import sys
@@ -54,7 +54,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20190823
+__revision__ = 20200212
 
 
 logger = logging.getLogger(__name__)
@@ -227,11 +227,14 @@ class SourceSelector(object):
         logger.info('Reading photometry results from file "{0}".'.format(photometry_file))
 
         # open reference catalog. It should be in plain csv-format. the source IDs are used as index
+        self.cfp_results = pd.read_csv(photometry_file)
         try:
-            self.cfp_results = pd.read_csv(photometry_file, index_col='id')
-        except ValueError:
+            self.cfp_results.set_index('id', inplace=True)
+        except KeyError:
             logger.critical("Did not find IDs in photometry file.")
-            raise IOError("Source IDs must be provided with photometry")
+            raise IOError("Source IDs must be provided with photometry.")
+        finally:
+            logger.info('Found the following columns: {0}'.format(', '.join([c for c in self.cfp_results.columns])))
 
         # make sure magnitudes are available
         if self.passband not in self.cfp_results.columns and self.passband.lower() not in self.cfp_results.columns:
@@ -397,7 +400,7 @@ class SourceSelector(object):
             n_centroids = (~outside_fov).sum()
 
         # attach background components to source catalog
-        self.cfp_results = self.cfp_results.append(background_data, verify_integrity=True)
+        self.cfp_results = self.cfp_results.append(background_data, verify_integrity=True, sort=False)
 
         return n_centroids
 
@@ -410,7 +413,7 @@ class SourceSelector(object):
         copy the dispersion information from the IFs data to the new instance.
         Afterwards, the instance can be accessed as SourceSelector().sources.
         """
-        self.sources = Sources(catalog=self.cfp_results[self.cfp_results['valid']])
+        self.sources = Sources(catalog=self.cfp_results[self.cfp_results['valid']].copy())
 
         # unless a MUSE pixtable is being analysed, copy dispersion information to sources class
         if not isinstance(self.ifs_data, MusePixtable):

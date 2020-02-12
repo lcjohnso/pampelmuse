@@ -1,7 +1,7 @@
 """
 coordinates.py
 ==============
-Copyright 2013-2019 Sebastian Kamann
+Copyright 2013-2020 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -65,7 +65,7 @@ This results in the inverse transformation:
 
 Latest Git revision
 -------------------
-2019/03/28
+2020/02/12
 """
 import logging
 import sys
@@ -75,7 +75,7 @@ from ..core.parameters import Parameters
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20190328
+__revision__ = 20200212
 
 
 logger = logging.getLogger(__name__)
@@ -375,7 +375,8 @@ class Transformation(Parameters):
                     b[mask, i] = np.interp(np.flatnonzero(mask), np.flatnonzero(~mask), b[~mask, i])
 
         # for linear fit, the dispersion axis of b must be the last axis, so b needs to be transposed
-        best_fit = np.linalg.lstsq(in_matrix[:, use_column], b.T)[0]  # -> returns array with shape (6 - n_fixed, K)
+        best_fit = np.linalg.lstsq(in_matrix[:, use_column], b.T, rcond=None)[0]
+        # -> returns array with shape (6 - n_fixed, K)
 
         # create residuals
         # for dot-product, last dimension of 1st argument must be equal to first dimension of 2nd argument

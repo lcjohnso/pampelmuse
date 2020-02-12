@@ -1,7 +1,7 @@
 """
 sources.py
 ==========
-Copyright 2013-2018 Sebastian Kamann
+Copyright 2013-2020 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -37,7 +37,7 @@ memory but only on request.
 
 Latest Git revision
 -------------------
-2018/06/01
+2020/02/12
 """
 import collections
 import logging
@@ -60,7 +60,7 @@ except ImportError:
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180601
+__revision__ = 20200212
 
 
 logger = logging.getLogger(__name__)
@@ -113,7 +113,7 @@ class Sources(object):
             self.catalog = catalog
 
         # assert that data frame is NOT a view of another one.
-        if self.catalog.values.base.size != self.catalog.values.size or self.catalog.is_copy:
+        if self.catalog.values.base.size != self.catalog.values.size:
             logger.warning('Need to copy catalog as it is a view to another pandas.DataFrame.')
             self.catalog = self.catalog.copy()
 

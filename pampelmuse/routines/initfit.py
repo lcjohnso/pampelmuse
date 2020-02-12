@@ -1,7 +1,7 @@
 """
 initfit.py
 ==========
-Copyright 2013-2019 Sebastian Kamann
+Copyright 2013-2020 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -50,7 +50,7 @@ are saved in the PRM file that is written to disk.
 
 Latest GIT Revision
 -------------------
-2019/08/23
+2020/02/12
 """
 import sys
 import datetime
@@ -62,7 +62,7 @@ from ..utils.fits import open_ifs_data, make_header_from_config, save_prm
 
 
 __author__ = "Sebastian Kamann (skamann@ljmu.ac.uk)"
-__revision__ = 20190823
+__revision__ = 20200212
 
 
 logger = logging.getLogger(__name__)

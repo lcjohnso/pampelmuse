@@ -1,8 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="184c2abe-3153-48a7-88ae-f3ca9af990c0" name="Default" comment="Added H-band to list of filters.">
+    <list default="true" id="184c2abe-3153-48a7-88ae-f3ca9af990c0" name="Default" comment="Fixed bug in SUBTRES.">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/bin/PampelMuse" beforeDir="false" afterPath="$PROJECT_DIR$/bin/PampelMuse" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/core/coordinates.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/core/coordinates.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/core/source_selector.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/core/source_selector.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/core/sources.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/core/sources.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/routines/initfit.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/routines/initfit.py" afterDir="false" />
     </list>
     <list id="2537fcfb-7e20-4757-bbd2-3237e7f34740" name="patch" comment="Issue that CUBEFIT crashed when only PSF parameters or positions were fitted with POLYFIT. " />
     <option name="SHOW_DIALOG" value="false" />
@@ -574,12 +579,12 @@
       <option name="project" value="LOCAL" />
       <updated>1566422715836</updated>
     </task>
-    <task id="LOCAL-00103" summary="Added H-band to list of filters.">
-      <created>1574808634034</created>
+    <task id="LOCAL-00103" summary="Fixed bug in SUBTRES.">
+      <created>1580925284087</created>
       <option name="number" value="00103" />
       <option name="presentableId" value="LOCAL-00103" />
       <option name="project" value="LOCAL" />
-      <updated>1574808634036</updated>
+      <updated>1580925284087</updated>
     </task>
     <option name="localTasksCounter" value="104" />
     <servers />
@@ -641,15 +646,19 @@
     <MESSAGE value="Fixed issue that INITFIT crashed when photometry contained magnitudes less than -99." />
     <MESSAGE value="Revised FWHM calculation for combined PSF profiles in INITFIT." />
     <MESSAGE value="Changes to manual." />
-    <MESSAGE value="Added H-band to list of filters." />
-    <option name="LAST_COMMIT_MESSAGE" value="Added H-band to list of filters." />
+    <MESSAGE value="Fixed bug in SUBTRES." />
+    <option name="LAST_COMMIT_MESSAGE" value="Fixed bug in SUBTRES." />
     <option name="PRESELECT_EXISTING_CHANGELIST" value="true" />
   </component>
   <component name="WindowStateProjectService">
-    <state x="680" y="267" key="#com.intellij.openapi.updateSettings.impl.PluginUpdateInfoDialog" timestamp="1576578116770">
-      <screen x="65" y="24" width="1855" height="1056" />
+    <state x="638" y="136" key="CommitChangelistDialog2" timestamp="1580925283898">
+      <screen x="53" y="24" width="1867" height="1056" />
     </state>
-    <state x="680" y="267" key="#com.intellij.openapi.updateSettings.impl.PluginUpdateInfoDialog/65.24.1855.1056@65.24.1855.1056" timestamp="1576578116770" />
+    <state x="638" y="136" key="CommitChangelistDialog2/53.24.1867.1056@53.24.1867.1056" timestamp="1580925283898" />
+    <state x="586" y="275" key="Vcs.Push.Dialog.v2" timestamp="1580925286518">
+      <screen x="53" y="24" width="1867" height="1056" />
+    </state>
+    <state x="586" y="275" key="Vcs.Push.Dialog.v2/53.24.1867.1056@53.24.1867.1056" timestamp="1580925286518" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
