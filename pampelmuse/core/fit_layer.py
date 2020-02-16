@@ -57,7 +57,7 @@ parameters are not fitted.
 
 Latest Git revision
 -------------------
-2020/02/06
+2020/02/16
 """
 import collections
 import contextlib
@@ -72,7 +72,7 @@ from ..core.coordinates import Transformation
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20200206
+__revision__ = 20200216
 
 
 logger = logging.getLogger(__name__)
@@ -1444,6 +1444,9 @@ class FitLayer(object):
         ybin :  ndarray
             The MAD determined for each bin.
         """
+        x = np.asarray(x)
+        y = np.asarray(y)
+
         indices = np.argsort(x)
 
         bincenters = np.arange(n//2, indices.size, n)
@@ -1454,7 +1457,6 @@ class FitLayer(object):
         for i, j in enumerate(bincenters):
             imin = j - n//2
             imax = min(j + n//2, len(x))
-
             xbin[i] = x[indices[j]]
 
             # use robust median absolute deviation (MAD) around an initial median value of zero
