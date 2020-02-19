@@ -57,12 +57,13 @@ parameters are not fitted.
 
 Latest Git revision
 -------------------
-2020/02/16
+2020/02/19
 """
 import collections
 import contextlib
 import logging
 import time
+import traceback
 import numpy as np
 import pandas as pd
 from scipy import interpolate, optimize, sparse
@@ -72,7 +73,7 @@ from ..core.coordinates import Transformation
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20200216
+__revision__ = 20200219
 
 
 logger = logging.getLogger(__name__)
@@ -1079,7 +1080,8 @@ class FitLayer(object):
             except Exception as msg:
                 # error handler to avoid code crashes completely
                 # note that type of exception thrown seems to depend on scipy version
-                logger.error('PSF fit failed for source #{0}: {1}.'.format(i, msg))
+                logger.error('PSF fit failed for source #{0}: {1}.'.format(i, msg),
+                             exc_info=True if logger.getEffectiveLevel() <= 10 else False)
                 continue
             else:
                 if return_psf_profiles:
