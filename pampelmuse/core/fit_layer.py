@@ -57,7 +57,7 @@ parameters are not fitted.
 
 Latest Git revision
 -------------------
-2020/02/19
+2020/03/06
 """
 import collections
 import contextlib
@@ -73,7 +73,7 @@ from ..core.coordinates import Transformation
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20200219
+__revision__ = 20200306
 
 
 logger = logging.getLogger(__name__)
@@ -642,7 +642,7 @@ class FitLayer(object):
         else:
             return_psf = pd.Series()
         if position_parameters_to_fit is None:
-            return_positions = pd.Series()
+            return_positions = pd.Series(dtype=np.float64)
         elif 'xy' in position_parameters_to_fit:
             return_positions = single_psf_results[['xc', 'yc']]
         else:

@@ -1,11 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="184c2abe-3153-48a7-88ae-f3ca9af990c0" name="Default" comment="Fixed issues with pandas version 1.0 in INITFIT.">
+    <list default="true" id="184c2abe-3153-48a7-88ae-f3ca9af990c0" name="Default" comment="Printing exception stacks for failed PSF fits when logging level set to debug.">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/bin/PampelMuse" beforeDir="false" afterPath="$PROJECT_DIR$/bin/PampelMuse" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/core/fit_layer.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/core/fit_layer.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/routines/cubefit.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/routines/cubefit.py" afterDir="false" />
     </list>
     <list id="2537fcfb-7e20-4757-bbd2-3237e7f34740" name="patch" comment="Issue that CUBEFIT crashed when only PSF parameters or positions were fitted with POLYFIT. " />
     <option name="SHOW_DIALOG" value="false" />
@@ -206,13 +203,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1499438305310</updated>
-    </task>
-    <task id="LOCAL-00056" summary="Adopted new wavelength policy: Internally, meters are used, but I/O is in Angstrom.">
-      <created>1518549399614</created>
-      <option name="number" value="00056" />
-      <option name="presentableId" value="LOCAL-00056" />
-      <option name="project" value="LOCAL" />
-      <updated>1518549399615</updated>
     </task>
     <task id="LOCAL-00057" summary="Fixed bug in GETSPECTRA.">
       <created>1518689135625</created>
@@ -550,7 +540,14 @@
       <option name="project" value="LOCAL" />
       <updated>1581528398972</updated>
     </task>
-    <option name="localTasksCounter" value="105" />
+    <task id="LOCAL-00105" summary="Printing exception stacks for failed PSF fits when logging level set to debug.">
+      <created>1582118076725</created>
+      <option name="number" value="00105" />
+      <option name="presentableId" value="LOCAL-00105" />
+      <option name="project" value="LOCAL" />
+      <updated>1582118076726</updated>
+    </task>
+    <option name="localTasksCounter" value="106" />
     <servers />
   </component>
   <component name="TodoView">
@@ -586,7 +583,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Added SUBTRES parameters include/exclude to list of changeable parameters. Also included SUBTRES in manual." />
     <MESSAGE value="Fixed bug in CUBEFIT causing code to crash when background components did not contribute to the measured flux." />
     <MESSAGE value="Slight changes to INITFIT. Apparently Anaconda installations have troubles with NaNs when calling the likes of scipy.optimize.leastsq" />
     <MESSAGE value="Minor changes in SUBTRES." />
@@ -611,14 +607,15 @@
     <MESSAGE value="Changes to manual." />
     <MESSAGE value="Fixed bug in SUBTRES." />
     <MESSAGE value="Fixed issues with pandas version 1.0 in INITFIT." />
-    <option name="LAST_COMMIT_MESSAGE" value="Fixed issues with pandas version 1.0 in INITFIT." />
+    <MESSAGE value="Printing exception stacks for failed PSF fits when logging level set to debug." />
+    <option name="LAST_COMMIT_MESSAGE" value="Printing exception stacks for failed PSF fits when logging level set to debug." />
     <option name="PRESELECT_EXISTING_CHANGELIST" value="true" />
   </component>
   <component name="WindowStateProjectService">
-    <state x="638" y="136" key="CommitChangelistDialog2" timestamp="1581528398839">
+    <state x="638" y="136" key="CommitChangelistDialog2" timestamp="1583513485803">
       <screen x="53" y="24" width="1867" height="1056" />
     </state>
-    <state x="638" y="136" key="CommitChangelistDialog2/53.24.1867.1056@53.24.1867.1056" timestamp="1581528398839" />
+    <state x="638" y="136" key="CommitChangelistDialog2/53.24.1867.1056@53.24.1867.1056" timestamp="1583513485803" />
     <state x="774" y="297" key="FileChooserDialogImpl" timestamp="1581951015413">
       <screen x="53" y="24" width="1867" height="1056" />
     </state>
@@ -627,10 +624,10 @@
       <screen x="53" y="24" width="1867" height="1056" />
     </state>
     <state x="696" y="257" key="MultipleFileMergeDialog/53.24.1867.1056@53.24.1867.1056" timestamp="1581952268501" />
-    <state x="586" y="275" key="Vcs.Push.Dialog.v2" timestamp="1581528400635">
+    <state x="586" y="275" key="Vcs.Push.Dialog.v2" timestamp="1582118078200">
       <screen x="53" y="24" width="1867" height="1056" />
     </state>
-    <state x="586" y="275" key="Vcs.Push.Dialog.v2/53.24.1867.1056@53.24.1867.1056" timestamp="1581528400635" />
+    <state x="586" y="275" key="Vcs.Push.Dialog.v2/53.24.1867.1056@53.24.1867.1056" timestamp="1582118078200" />
     <state x="634" y="249" width="704" height="578" key="find.popup" timestamp="1581687569100">
       <screen x="53" y="24" width="1867" height="1056" />
     </state>

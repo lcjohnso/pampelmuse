@@ -1,7 +1,7 @@
 """
 spectrum_writer.py
 ==================
-Copyright 2013-2018 Sebastian Kamann
+Copyright 2013-2020 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -31,7 +31,7 @@ Added
 
 Latest Git revision
 -------------------
-2018/12/12
+2020/03/06
 """
 import datetime
 import logging
@@ -47,7 +47,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20181212
+__revision__ = 20200306
 
 
 logger = logging.getLogger(__name__)
@@ -486,7 +486,7 @@ class SpectrumWriter(object):
                 outfile.extend(image_hdus)
             if wave_hdu is not None:
                 outfile.append(wave_hdu)
-            outfile.writeto(os.path.join(folder, "{0}.fits".format(outfile_prefix)), clobber=True)
+            outfile.writeto(os.path.join(folder, "{0}.fits".format(outfile_prefix)), overwrite=True)
 
             logger.info("Wrote spectrum '{0}' [{1}/{2}]".format(os.path.join(folder, "{0}.fits".format(outfile_prefix)),
                                                                 i + 1, self.sources.n_components))
