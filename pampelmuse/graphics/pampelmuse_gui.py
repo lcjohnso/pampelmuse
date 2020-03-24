@@ -2,7 +2,7 @@
 """
 pampelmuse_gui.py
 =================
-Copyright 2013-2019 Sebastian Kamann
+Copyright 2013-2020 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -37,7 +37,7 @@ defines the methods that are called by Ui_PampelMuseGui.
 
 Latest Git revision
 -------------------
-2019/08/21
+2020/03/24
 """
 import datetime
 import logging
@@ -64,7 +64,7 @@ from ..utils.fits import save_prm, read_config_from_header, make_header_from_con
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20190821
+__revision__ = 20200324
 
 
 class ToolbarWithoutMessage(NavigationToolbar):
@@ -270,6 +270,9 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
 
         # add new property indicating which stars are currently plotted
         self.sources.plotted = pd.Index([], dtype=np.bool)
+
+        # define default sizes for plotting stars
+        self.sources.symbol_size = pd.Series(10, index=self.sources.ids)
 
         self.actionSaveAs.setEnabled(True)
 
@@ -547,8 +550,8 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         logging.debug("Successfully loaded IFS data into GUI.")
 
         # log current position of mouse cursor in status bar
-        self.ifsPlot.pointer_position_changed.connect(lambda x, y, f: self.statusBar.showMessage(
-            "x={0}, y={1}, f={2:.3g}".format(x, y, f), 5000))
+        self.ifsPlot.pointer_position_changed.connect(
+            lambda x, y, f: self.statusBar.showMessage("x={0}, y={1}, f={2:.3g}".format(x, y, f), 5000))
 
         self.dataLoaded()
 
@@ -597,6 +600,9 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
 
         logging.debug("Successfully loaded reference image into GUI.")
         self.dataLoaded()
+
+        self.refPlot.pointer_position_changed.connect(
+            lambda x, y, f: self.statusBar.showMessage("x={0}, y={1}, f={2:.3g}".format(x, y, f), 5000))
 
     def addFovToReference(self, dx, dy, angle=0, scaling=1.):
         """
@@ -1442,17 +1448,9 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
                 kwargs['facecolors'] = self.ifsPlot.data_plot.get_facecolors()
                 kwargs['s'] = self.ifsPlot.data_plot.get_sizes()
             else:
+                kwargs['s'] = self.sources.symbol_size[self.sources.plotted]
                 kwargs['edgecolor'] = 'r'
                 kwargs['facecolor'] = None
-                if self.sources.mag is not None:
-                    # determine size of datapoints representing the sources (as for the IFU plot, the magnitudes from
-                    # the source catalogue are used for this purpose if available)
-                    logging.debug('Calculating sizes of source symbols ...')
-                    sizes = 2.*(10**(-0.2*(self.sources.mag[self.sources.plotted] - self.sources.mag.max())))
-                    sizes[sizes <= 1] = 0
-                else:
-                    sizes = 10*np.ones(self.sources.n_sources, dtype=np.float32)
-                kwargs['s'] = sizes
 
             logging.debug('Updating plot ...')
             # if dedicated pixel coordinates for reference image available, use them, otherwise reference coordinates
@@ -1492,13 +1490,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
                 x = self.ifsOffsets['x'].loc[index, self.sources.plotted]
                 y = self.ifsOffsets['y'].loc[index, self.sources.plotted]
 
-                # if magnitudes are available in the sources catalogue, we use them to scale the circles representing
-                # the sources.
-                if not np.isnan(self.sources.mag).all():
-                    sizes = 10.*(10**(-0.2*(self.sources.mag[self.sources.plotted] - max(self.sources.mag))))
-                else:
-                    sizes = 20*np.ones(len(self.sources.plotted), dtype=np.float32)
-
+                sizes = self.sources.symbol_size[self.sources.plotted]
                 edgecolors = colors.ColorConverter().to_rgba_array(self.edgeColors[self.sources.plotted].values)
                 facecolors = np.zeros((len(self.sources.plotted), 4), dtype=np.float32)
 

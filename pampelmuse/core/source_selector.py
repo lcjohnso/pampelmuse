@@ -33,7 +33,7 @@ Added
 
 Latest Git revision
 -------------------
-2020/02/12
+2020/03/24
 """
 import logging
 import sys
@@ -54,7 +54,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20200212
+__revision__ = 20200324
 
 
 logger = logging.getLogger(__name__)
@@ -735,6 +735,11 @@ class SourceSelector(object):
 
         identifier = PampelMuseGui(sources=self.sources, ifsData=self.ifs_data, refImage=self.identification_image)
 
+        # determine sizes for plotting sources
+        sizes = 10. * (10 ** (-0.2 * (self.sources.mag - mag - 1.)))
+        sizes[sizes <= 1] = 1
+        identifier.sources.symbol_size = sizes
+
         # account for offset between reference image and true coordinates
         (dx, dy) = (self.sources.x.min(), self.sources.y.min())
         identifier.refOffsets = {'x': pd.Series(self.sources.x - dx, index=self.sources.ids),
@@ -748,8 +753,6 @@ class SourceSelector(object):
                                          self.ccyoff - self.sources.y.min() + self.ifs_data.shape[0]//2)
 
             # overplot positions of sources on IFS as determined via cross-correlation
-            sizes = 10.*(10**(-0.2*(self.sources.mag - mag - 1.)))
-            sizes[sizes <= 1] = 0
             select = (self.sources.status < 4) & (
                 self.sources.mag <= mag) & (
                 self.ifs_data.infov(np.vstack((self.sources.x - self.ccxoff, self.sources.y - self.ccyoff)).T))
