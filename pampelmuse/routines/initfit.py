@@ -131,6 +131,11 @@ def initfit(config):
                               zeropoint=config['initfit']['zeromag'],
                               position_fit=config['initfit']['posfit'])
 
+    # Create image from IFS data in provided passband
+    # This is done first because for some instruments (e.g. MUSE cubes) the image is needed to determine the edge of
+    # the field of view.
+    selector.create_image_from_ifs(apply_variances=config['initfit']['usesigma'])
+
     # if it is possible to match IFS data and catalogue via WCS, remove all
     # sources from catalogue that have a distance to the field of view which
     # is larger than the maximum allowed offset provided via the configuration
@@ -184,9 +189,6 @@ def initfit(config):
     # Create mock image from photometry catalog
     n_cpu = config['global']['cpucount']
     selector.create_mock_image(n_cpu=n_cpu)
-
-    # Create image from IFS data in provided passband
-    selector.create_image_from_ifs(apply_variances=config['initfit']['usesigma'])
 
     # if WCS information is available for both the IFS data and the catalog, estimate position in sky via
     # cross correlation

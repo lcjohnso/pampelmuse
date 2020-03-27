@@ -33,7 +33,7 @@ Added
 
 Latest Git revision
 -------------------
-2020/03/24
+2020/03/29
 """
 import logging
 import sys
@@ -54,7 +54,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20200324
+__revision__ = 20200329
 
 
 logger = logging.getLogger(__name__)
@@ -392,11 +392,13 @@ class SourceSelector(object):
 
         # ignore sky components outside FoV (if any)
         if skysize > 0:
-            outside_fov = self.ifs_data.distance_to_edge(
-                np.array([background_data['x'], background_data['y']]).T) < -skysize
-            background_data = background_data.loc[~outside_fov]
-            logger.info('Removed {0}/{1} background components that do not contribute to observed flux.'.format(
+            edge_distance = self.ifs_data.distance_to_edge(np.array([background_data['x'], background_data['y']]).T)
+            outside_fov = edge_distance < -skysize
+            logger.info('Removing {0}/{1} background components that do not contribute to observed flux.'.format(
                 outside_fov.sum(), n_centroids))
+            logger.debug('Centroids of removed background components: {0}'.format(
+                background_data.loc[outside_fov, ['x', 'y']]))
+            background_data.drop(index=background_data.index[outside_fov], inplace=True)
             n_centroids = (~outside_fov).sum()
 
         # attach background components to source catalog
