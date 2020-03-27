@@ -37,7 +37,7 @@ defines the methods that are called by Ui_PampelMuseGui.
 
 Latest Git revision
 -------------------
-2020/03/24
+2020/03/27
 """
 import datetime
 import logging
@@ -64,7 +64,7 @@ from ..utils.fits import save_prm, read_config_from_header, make_header_from_con
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20200324
+__revision__ = 20200327
 
 
 class ToolbarWithoutMessage(NavigationToolbar):
@@ -272,8 +272,8 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         self.sources.plotted = pd.Index([], dtype=np.bool)
 
         # define default sizes for plotting stars
-        self.sources.symbol_size = pd.Series(10, index=self.sources.ids)
-
+        mag0 = self.sources.mag[self.sources.status < 4.].min() + 5.
+        self.sources.symbol_size = pd.Series(10. * (10 ** (-0.2 * (self.sources.mag - mag0))))
         self.actionSaveAs.setEnabled(True)
 
         if np.isfinite(self.sources.mag[~self.sources.is_background]).any():

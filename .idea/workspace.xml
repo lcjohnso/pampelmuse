@@ -1,11 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="184c2abe-3153-48a7-88ae-f3ca9af990c0" name="Default" comment="Fixed issue with circle sizes overplotted on reference view in INITFIT GUI.">
+    <list default="true" id="184c2abe-3153-48a7-88ae-f3ca9af990c0" name="Default" comment="Revised removal of unused background tiles in INITFIT">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/bin/PampelMuse" beforeDir="false" afterPath="$PROJECT_DIR$/bin/PampelMuse" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/core/source_selector.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/core/source_selector.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/routines/initfit.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/routines/initfit.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/graphics/pampelmuse_gui.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/graphics/pampelmuse_gui.py" afterDir="false" />
     </list>
     <list id="2537fcfb-7e20-4757-bbd2-3237e7f34740" name="patch" comment="Issue that CUBEFIT crashed when only PSF parameters or positions were fitted with POLYFIT. " />
     <option name="SHOW_DIALOG" value="false" />
@@ -206,13 +204,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1499438305310</updated>
-    </task>
-    <task id="LOCAL-00058" summary="Fixed another bug in GETSPECTRA.">
-      <created>1518690317445</created>
-      <option name="number" value="00058" />
-      <option name="presentableId" value="LOCAL-00058" />
-      <option name="project" value="LOCAL" />
-      <updated>1518690317445</updated>
     </task>
     <task id="LOCAL-00059" summary="Corrected logging message">
       <created>1518690767254</created>
@@ -550,7 +541,14 @@
       <option name="project" value="LOCAL" />
       <updated>1585068138187</updated>
     </task>
-    <option name="localTasksCounter" value="107" />
+    <task id="LOCAL-00107" summary="Revised removal of unused background tiles in INITFIT">
+      <created>1585305616454</created>
+      <option name="number" value="00107" />
+      <option name="presentableId" value="LOCAL-00107" />
+      <option name="project" value="LOCAL" />
+      <updated>1585305616455</updated>
+    </task>
+    <option name="localTasksCounter" value="108" />
     <servers />
   </component>
   <component name="TodoView">
@@ -586,7 +584,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Slight changes to INITFIT. Apparently Anaconda installations have troubles with NaNs when calling the likes of scipy.optimize.leastsq" />
     <MESSAGE value="Minor changes in SUBTRES." />
     <MESSAGE value="Fixed bug in CUBEFIT" />
     <MESSAGE value="Added functionality for shrinking PampelMuse GUI. Useful when using screens with low resolution." />
@@ -611,26 +608,23 @@
     <MESSAGE value="Fixed bug in CUBEFIT." />
     <MESSAGE value="Fixed issue with estimating uncertainties in CUBEFIT." />
     <MESSAGE value="Fixed issue with circle sizes overplotted on reference view in INITFIT GUI." />
-    <option name="LAST_COMMIT_MESSAGE" value="Fixed issue with circle sizes overplotted on reference view in INITFIT GUI." />
+    <MESSAGE value="Revised removal of unused background tiles in INITFIT" />
+    <option name="LAST_COMMIT_MESSAGE" value="Revised removal of unused background tiles in INITFIT" />
     <option name="PRESELECT_EXISTING_CHANGELIST" value="true" />
   </component>
   <component name="WindowStateProjectService">
-    <state x="680" y="267" key="#com.intellij.openapi.updateSettings.impl.PluginUpdateInfoDialog" timestamp="1576578116770">
+    <state x="644" y="134" key="CommitChangelistDialog2" timestamp="1585305616288">
       <screen x="65" y="24" width="1855" height="1056" />
     </state>
-    <state x="680" y="267" key="#com.intellij.openapi.updateSettings.impl.PluginUpdateInfoDialog/65.24.1855.1056@65.24.1855.1056" timestamp="1576578116770" />
-    <state x="644" y="134" key="CommitChangelistDialog2" timestamp="1585068137882">
-      <screen x="65" y="24" width="1855" height="1056" />
-    </state>
-    <state x="644" y="134" key="CommitChangelistDialog2/65.24.1855.1056@65.24.1855.1056" timestamp="1585068137882" />
+    <state x="644" y="134" key="CommitChangelistDialog2/65.24.1855.1056@65.24.1855.1056" timestamp="1585305616288" />
     <state x="702" y="257" key="MultipleFileMergeDialog" timestamp="1585057493021">
       <screen x="65" y="24" width="1855" height="1056" />
     </state>
     <state x="702" y="257" key="MultipleFileMergeDialog/65.24.1855.1056@65.24.1855.1056" timestamp="1585057493021" />
-    <state x="592" y="275" key="Vcs.Push.Dialog.v2" timestamp="1585068141224">
+    <state x="592" y="275" key="Vcs.Push.Dialog.v2" timestamp="1585305627587">
       <screen x="65" y="24" width="1855" height="1056" />
     </state>
-    <state x="592" y="275" key="Vcs.Push.Dialog.v2/65.24.1855.1056@65.24.1855.1056" timestamp="1585068141224" />
+    <state x="592" y="275" key="Vcs.Push.Dialog.v2/65.24.1855.1056@65.24.1855.1056" timestamp="1585305627587" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>

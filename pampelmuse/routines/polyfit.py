@@ -1,7 +1,7 @@
 """
 polyfit.py
 ==========
-Copyright 2013-2019 Sebastian Kamann
+Copyright 2013-2020 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -37,7 +37,7 @@ routine will automatically fit the coordinates and PSF parameters.
 
 Latest Git revision
 -------------------
-2019/04/23
+2020/03/27
 """
 import datetime
 import logging
@@ -49,7 +49,7 @@ from ..utils.fits import make_header_from_config, open_ifs_data, open_prm, save_
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20190423
+__revision__ = 20200327
 
 
 def add_parser(parser):
