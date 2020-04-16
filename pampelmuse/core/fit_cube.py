@@ -1,7 +1,7 @@
 """
 fit_cube.py
 ===========
-Copyright 2013-2019 Sebastian Kamann
+Copyright 2013-2020 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -31,7 +31,7 @@ extraction for a data cube.
 
 Latest GIT revision
 -------------------
-2019/04/23
+2020/04/16
 """
 import logging
 import time
@@ -44,7 +44,7 @@ from ..instruments.muse import MusePixtable
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20190423
+__revision__ = 20200416
 
 
 logger = logging.getLogger(__name__)
@@ -1064,7 +1064,7 @@ class FitCube(object):
             # if it is a new source, initialize and add new instance os StarCube class.
             if source_id not in self.residuals:
                 # spatial shape of minicube will be 2x the PSF radius along x and y
-                shape = (2 * self.psf_radius, 2 * self.psf_radius)
+                shape = (2 * int(self.psf_radius), 2 * int(self.psf_radius))
                 self.residuals[source_id] = StarCube(shape, offset=(xy.loc[source_data.index, 'x'].min(),
                                                                     xy.loc[source_data.index, 'y'].min()))
             # add current layer to StarCube instance
