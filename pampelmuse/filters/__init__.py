@@ -49,7 +49,8 @@ __revision__ = 421
 
 
 # ALIASES is a dictionary containing for each available filter a list of alternative names
-ALIASES = {"f555w": ["v", "vvega"], "f606w": ["vvega", "v"], "f814w": ["ivega", "i"], "k": ["kmag", ]}
+ALIASES = {"f555w": ["vvega", ], "f606w": ["vvega", ], "f814w": ["ivega", ], "k": ["kmag", ],
+           "u": ["umag", ], "b": ["bmag", ], "v": ["vmag", ], "r": ["rmag", ], "i": ["imag", ]}
 
 # FWHM values of the individual filters, given in Angstroms, FWHM values for HST filters from ACS
 # FILTERFWHM = {"f555w": 847.79, "f606w": 1583.2, "f814w": 1541.6, "k": 3900.}

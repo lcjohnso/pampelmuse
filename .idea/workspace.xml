@@ -1,8 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="184c2abe-3153-48a7-88ae-f3ca9af990c0" name="Default" comment="Changed sizes of circles around extracted sources in POLYFIT.">
+    <list default="true" id="184c2abe-3153-48a7-88ae-f3ca9af990c0" name="Default" comment="Fixed issue with creating PSF cubes when running CUBEFIT with enabled psf|inspect parameter.">
+      <change afterPath="$PROJECT_DIR$/pampelmuse/filters/data/B" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/pampelmuse/filters/data/I" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/pampelmuse/filters/data/R" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/pampelmuse/filters/data/U" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/pampelmuse/filters/data/V" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/pampelmuse.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/pampelmuse.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/filters/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/filters/__init__.py" afterDir="false" />
     </list>
     <list id="2537fcfb-7e20-4757-bbd2-3237e7f34740" name="patch" comment="Issue that CUBEFIT crashed when only PSF parameters or positions were fitted with POLYFIT. " />
     <option name="SHOW_DIALOG" value="false" />
@@ -44,7 +52,7 @@
     <property name="Git.Branch.Popup.ShowAllRemotes" value="true" />
     <property name="SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
     <property name="last_opened_file_path" value="$USER_HOME$/Desktop/pmw_changes.diff" />
-    <property name="settings.editor.selected.configurable" value="watcher.settings" />
+    <property name="settings.editor.selected.configurable" value="com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable" />
   </component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
@@ -190,13 +198,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1499438305310</updated>
-    </task>
-    <task id="LOCAL-00060" summary="Revised wavelength array calculation">
-      <created>1519216411241</created>
-      <option name="number" value="00060" />
-      <option name="presentableId" value="LOCAL-00060" />
-      <option name="project" value="LOCAL" />
-      <updated>1519216411241</updated>
     </task>
     <task id="LOCAL-00061" summary="Again working on WCS and wavelength units">
       <created>1519223822931</created>
@@ -534,7 +535,14 @@
       <option name="project" value="LOCAL" />
       <updated>1585326876799</updated>
     </task>
-    <option name="localTasksCounter" value="109" />
+    <task id="LOCAL-00109" summary="Fixed issue with creating PSF cubes when running CUBEFIT with enabled psf|inspect parameter.">
+      <created>1587048120669</created>
+      <option name="number" value="00109" />
+      <option name="presentableId" value="LOCAL-00109" />
+      <option name="project" value="LOCAL" />
+      <updated>1587048120669</updated>
+    </task>
+    <option name="localTasksCounter" value="110" />
     <servers />
   </component>
   <component name="TodoView">
@@ -569,7 +577,6 @@
     <option name="oldMeFiltersMigrated" value="true" />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Fixed bug in CUBEFIT" />
     <MESSAGE value="Added functionality for shrinking PampelMuse GUI. Useful when using screens with low resolution." />
     <MESSAGE value="Fixed bug." />
     <MESSAGE value="Fixed bug in INITFIT affecting usage of unresolved component." />
@@ -594,22 +601,35 @@
     <MESSAGE value="Fixed issue with circle sizes overplotted on reference view in INITFIT GUI." />
     <MESSAGE value="Revised removal of unused background tiles in INITFIT" />
     <MESSAGE value="Changed sizes of circles around extracted sources in POLYFIT." />
-    <option name="LAST_COMMIT_MESSAGE" value="Changed sizes of circles around extracted sources in POLYFIT." />
+    <MESSAGE value="Fixed issue with creating PSF cubes when running CUBEFIT with enabled psf|inspect parameter." />
+    <option name="LAST_COMMIT_MESSAGE" value="Fixed issue with creating PSF cubes when running CUBEFIT with enabled psf|inspect parameter." />
     <option name="PRESELECT_EXISTING_CHANGELIST" value="true" />
   </component>
   <component name="WindowStateProjectService">
-    <state x="644" y="134" key="CommitChangelistDialog2" timestamp="1585326876564">
+    <state x="644" y="134" key="CommitChangelistDialog2" timestamp="1587048120509">
       <screen x="65" y="24" width="1855" height="1056" />
     </state>
-    <state x="644" y="134" key="CommitChangelistDialog2/65.24.1855.1056@65.24.1855.1056" timestamp="1585326876564" />
+    <state x="644" y="134" key="CommitChangelistDialog2/65.24.1855.1056@65.24.1855.1056" timestamp="1587048120509" />
+    <state x="631" y="334" width="719" height="452" key="EditFileWatcherDialog" timestamp="1588258128895">
+      <screen x="72" y="27" width="1848" height="1053" />
+    </state>
+    <state x="631" y="334" width="719" height="452" key="EditFileWatcherDialog/72.27.1848.1053@72.27.1848.1053" timestamp="1588258128895" />
+    <state x="769" y="320" width="424" height="491" key="FileChooserDialogImpl" timestamp="1588274239670">
+      <screen x="72" y="27" width="1848" height="1053" />
+    </state>
+    <state x="769" y="320" width="424" height="491" key="FileChooserDialogImpl/72.27.1848.1053@72.27.1848.1053" timestamp="1588274239670" />
     <state x="702" y="257" key="MultipleFileMergeDialog" timestamp="1585057493021">
       <screen x="65" y="24" width="1855" height="1056" />
     </state>
     <state x="702" y="257" key="MultipleFileMergeDialog/65.24.1855.1056@65.24.1855.1056" timestamp="1585057493021" />
-    <state x="592" y="275" key="Vcs.Push.Dialog.v2" timestamp="1585326879184">
+    <state x="485" y="188" width="1022" height="737" key="SettingsEditor" timestamp="1588274264943">
+      <screen x="72" y="27" width="1848" height="1053" />
+    </state>
+    <state x="485" y="188" width="1022" height="737" key="SettingsEditor/72.27.1848.1053@72.27.1848.1053" timestamp="1588274264943" />
+    <state x="592" y="275" key="Vcs.Push.Dialog.v2" timestamp="1587048122032">
       <screen x="65" y="24" width="1855" height="1056" />
     </state>
-    <state x="592" y="275" key="Vcs.Push.Dialog.v2/65.24.1855.1056@65.24.1855.1056" timestamp="1585326879184" />
+    <state x="592" y="275" key="Vcs.Push.Dialog.v2/65.24.1855.1056@65.24.1855.1056" timestamp="1587048122032" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
