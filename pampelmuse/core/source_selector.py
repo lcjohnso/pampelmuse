@@ -105,7 +105,7 @@ def image_from_psf(sources_data):
         The model image created from the input data.
     """
     psf = sources_data['psf']
-    image = np.zeros((psf.n_pixel, ), dtype='<f4')
+    image = np.zeros((psf.n_pixel, ), dtype=np.float64)
 
     offset = sources_data.get('offset', (0., 0.))
     zeropoint = sources_data.get('zeropoint', 0.)
@@ -481,6 +481,8 @@ class SourceSelector(object):
             self.psf_class = MoffatGaussian
         elif profile == "double_moffat":
             self.psf_class = DoubleMoffat
+        elif profile == 'maoppy':
+            self.psf_class = Maoppy
         else:
             logger.error('Unknown PSF type: "{0}"'.format(profile))
             return
@@ -569,7 +571,7 @@ class SourceSelector(object):
         psf = None
         for n in range(n_cpu):
             used = used_ids[to_cpu == n]
-            psf = self.psf_class.from_shape(shape=shape, uc=0., vc=0., mag=0., maxrad=10., **psf_parameters)
+            psf = self.psf_class.from_shape(shape=shape, uc=0., vc=0., mag=0., maxrad=20., **psf_parameters)
             args.append({'psf': psf, 'data': self.sources.catalog.loc[used, ['x', 'y', 'mag']],
                          'offset': (self.sources.x.min(), self.sources.y.min()), 'zeropoint': zeropoint})
 
@@ -885,13 +887,13 @@ class SourceSelector(object):
     def fwhm(self):
         if self.psf_class is None:
             return np.nan
-        elif self.psf_class in [DoubleGaussian, MoffatGaussian]:
+        elif self.psf_class in [DoubleGaussian, MoffatGaussian, Maoppy]:
             # for combined profiles, use dedicated classmethod to determine FWHM of full profile
             args = {}
             for name in self.psf_attributes.names:
                 if name == 'theta':
                     continue
-                args[name] = np.nanmean(self.psf_attributes.data[('f12', 'value')])
+                args[name] = np.nanmean(self.psf_attributes.data[(name, 'value')])
             return self.psf_class.calculate_fwhm(**args)
         else:
             # otherwise directly use FWHM parameter

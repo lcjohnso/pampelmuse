@@ -158,6 +158,8 @@ def parallel_fit_layer(fit_parameters):
             components.
         background_index - pandas.Index
             The index/indices used for the background components.
+        wvl : float, optional
+            The wavelength of the current layer (in m).
 
     Returns
     -------
@@ -198,6 +200,7 @@ def parallel_fit_layer(fit_parameters):
     position_parameters = fit_parameters['position_parameters']
     background = fit_parameters['background']
     background_index = fit_parameters['background_index']
+    wvl = fit_parameters['wvl']
 
     global g_catalog, g_psf_type, g_psf_radius, g_psf_parameters_to_fit, g_position_parameters_to_fit
     global g_last_component_is_unresolved, g_osfactor, g_osradius, g_sources, g_psf_sources, g_max_iterations
@@ -211,7 +214,7 @@ def parallel_fit_layer(fit_parameters):
     layerfit = FitLayer(data=data, catalog=catalog, psf_type=g_psf_type, psf_parameters=psf_parameters,
                         psf_radius=g_psf_radius, psf_lut=psf_lut, position_parameters=position_parameters,
                         last_component_is_unresolved=g_last_component_is_unresolved, background=background,
-                        osfactor=g_osfactor, osradius=g_osradius, background_index=background_index)
+                        osfactor=g_osfactor, osradius=g_osradius, background_index=background_index, wvl=wvl)
 
     results = layerfit(fluxes=None, psf_parameters_to_fit=g_psf_parameters_to_fit,
                        position_parameters_to_fit=g_position_parameters_to_fit,
@@ -255,7 +258,7 @@ class FitCube(object):
     wavelength range.
     """
 
-    def __init__(self, ifs_data, sources, psf_attributes, psf_radius=np.inf, osfactor=5, osradius=2):
+    def __init__(self, ifs_data, sources, psf_attributes, psf_radius=np.inf, osfactor=None, osradius=None):
         """
         Initialize an instance of the `StarFit'-class.
     
@@ -276,13 +279,16 @@ class FitCube(object):
         psf_radius : float, optional
             The radius out to which each PSF will be defined, measured in
             pixels and from the centre of the profile.
-        osfactor : The improve the accuracy of the PSF modelling close to the
+        osfactor : float, optional
+            The improve the accuracy of the PSF modelling close to the
             centre of a profile, the central pixels can be supersampled by a
             factor 'osfactor' along x and y, i.e. each pixel is split into
-            'osfactor'^2 subpixels. Default is no supersampling.
-        osradius : All pixels with distances <'osradius' to the centre of a
-            PSF profile are supersampled by a factor 'osfactor'. Default is
-            no supersampling.
+            'osfactor'^2 subpixels. By default, the supersampling is chosen
+            based on the selected PSF profile.
+        osradius : float, optional
+            All pixels with distances <'osradius' to the centre of a PSF
+            profile are supersampled by a factor 'osfactor'. By default, the
+            supersampling is chosen based on the selected PSF profile.
 
         Returns
         -------
@@ -295,8 +301,14 @@ class FitCube(object):
         self.sources = sources
         self.psf_attributes = psf_attributes
         self.psf_radius = psf_radius
-        self.osfactor = osfactor
-        self.osradius = osradius
+
+        # MAOPPY internally supersamples the PSF, so supersampling is turned off in PampelMuse
+        if self.psf_attributes.profile == 'maoppy':
+            self.osfactor = 1.
+            self.osradius = 0.
+        else:
+            self.osfactor = 5.
+            self.osradius = 2.
 
         # The following two dictionaries will contain the name of ALL parameters needed to define the source
         # positions and the PSF. The keys are flags indicating if the should be optimized during the fit
@@ -613,6 +625,7 @@ class FitCube(object):
                 background_matrix = background_components = None
             fit_input[-1]['background'] = background_matrix
             fit_input[-1]['background_index'] = background_components
+            fit_input[-1]['wvl'] = jj
 
             # The first two layers are fitted sequentially in order to obtain useful initial guesses for the
             # following ones. Otherwise a parallel fit is triggered every n_cpu's layer

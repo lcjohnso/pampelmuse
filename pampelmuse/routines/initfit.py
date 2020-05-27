@@ -176,7 +176,10 @@ def initfit(config):
     # loop over parameters for chosen profile, get values and see if the are free or fixed
     for parameter in Variables.PROFILES[profile][::-1]:
         i = Variables.PROFILES[profile].index(parameter) + 1
-        value = config['psf'].get(parameter)
+        try:
+            value = config['psf'][parameter]
+        except KeyError:
+            raise IOError('Missing initial value for PSF parameter "{0}"'.format(parameter))
         if psffit >= 2**i:
             free = True
             psffit -= 2**i

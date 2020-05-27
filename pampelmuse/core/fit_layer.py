@@ -107,7 +107,7 @@ class FitLayer(object):
 
     def __init__(self, data, catalog, psf_type, psf_parameters, psf_radius=np.inf, psf_lut=None,
                  position_parameters=None, last_component_is_unresolved=False, background=None,
-                 osfactor=1, osradius=0, background_index=None):
+                 osfactor=1, osradius=0, background_index=None, wvl=None):
         """
         Initialize a new instance of the FitLayer class.
 
@@ -165,6 +165,9 @@ class FitLayer(object):
         background_index : pandas.Index, optional
             The index/indices of the background component(s). If None (default)
             the background components are indexed descendingly from -1.
+        wvl : float, optional
+            The wavelength of the data (in m). This is needed for the set up
+            of certain PSF models.
         """
         self.psf_radius = psf_radius
 
@@ -230,11 +233,13 @@ class FitLayer(object):
             psf_class = MoffatGaussian
         elif psf_type.lower() == 'double_moffat':
             psf_class = DoubleMoffat
+        elif psf_type.lower() == 'maoppy':
+            psf_class = Maoppy
         else:
             logger.error('Unknown PSF type provided: {0}'.format(psf_type))
             psf_class = None
 
-        # define PSF profile for each source, check if direct positions were provided for some sources
+        # define PSF profile for each source, check if di   rect positions were provided for some sources
         self.psf_instances = {}
 
         # Important: Extract transformation out of following loop as otherwise a new copy will be
@@ -251,6 +256,9 @@ class FitLayer(object):
             new_psf = psf_class(transform=transform, uc=row['x'], vc=row['y'], mag=row['magnitude'],
                                 src_id=index, maxrad=self.psf_radius, osfactor=osfactor, osradius=osradius,
                                 lut=self.lut)
+            if isinstance(psf_class, Maoppy) and wvl is not None:
+                new_psf.wvl = wvl
+
             # initialize the PSF parameters:
             for key, value in psf_parameters.items():
                 setattr(new_psf, key, value)
@@ -546,7 +554,7 @@ class FitLayer(object):
             if np.nanmedian(abs(delta_flux)) < 0.005:
                 break
 
-            # for testing, show scatter plot with current residuals and model
+            # # for testing, show scatter plot with current residuals and model
             # import matplotlib.pyplot as plt
             # fig = plt.figure(figsize=(8, 10))
             # ax = fig.add_axes([0.04, 0.52, 0.92, 0.46])

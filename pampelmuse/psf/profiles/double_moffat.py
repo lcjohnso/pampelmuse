@@ -95,7 +95,7 @@ class DoubleMoffat(Profile):
         fwhm : float
             The full-width at half maximum of the combined profile.
         """
-        # mare sure no additional keywords were provided.
+        # make sure no additional keywords were provided.
         if kwargs:
             raise IOError('Unknown argument(s) to call of DoubleMoffat.fwhm: {0}'.format(kwargs))
 

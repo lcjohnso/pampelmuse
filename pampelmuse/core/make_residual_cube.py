@@ -120,6 +120,8 @@ def parallel_process_layers(fit_parameters):
             The index/indices used for the background components.
         fluxes - pandas.Series
             The fluxes of all components.
+        wvl - float
+            The wavelength of the layer (in m).
 
     Returns
     -------
@@ -138,13 +140,14 @@ def parallel_process_layers(fit_parameters):
     background = fit_parameters['background']
     background_index = fit_parameters['background_index']
     fluxes = fit_parameters['fluxes']
+    wvl = fit_parameters['wvl']
 
     global g_psf_type, g_psf_radius, g_osfactor, g_osradius
 
     layerfit = FitLayer(data=data, catalog=catalog, psf_type=g_psf_type, psf_parameters=psf_parameters,
                         psf_radius=g_psf_radius, psf_lut=psf_lut, position_parameters=position_parameters,
                         background=background, osfactor=g_osfactor, osradius=g_osradius,
-                        background_index=background_index)
+                        background_index=background_index, wvl=wvl)
 
     results = layerfit.residuals_from_fluxes(fluxes=fluxes)
 
@@ -364,6 +367,7 @@ class MakeResidualsCube(FitCube):
                 background_matrix = background_components = None
             fit_input[-1]['background'] = background_matrix
             fit_input[-1]['background_index'] = background_components
+            fit_input[-1]['wvl'] = jj
 
             # A parallel processing is triggered every n_cpu's layer
             if np.mod(i + 1, n_cpu) == 0 or jj == indices_to_analyse[-1]:
