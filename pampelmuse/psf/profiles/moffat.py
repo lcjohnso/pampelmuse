@@ -35,6 +35,7 @@ Latest Git revision
 2019/06/05
 """
 import logging
+import numpy as np
 from numbers import Real
 from .profile import Profile
 from ..functions import moffat
@@ -348,3 +349,10 @@ class Moffat(Profile):
             r_pderiv_y0 = super().diff_y0
             self._diff_y0 = moffat.pderiv_r(self.r, self.beta, self.fwhm, self.e) * r_pderiv_y0
         return self._diff_y0
+
+    @property
+    def bounds(self):
+        bounds = super(Moffat, self).bounds
+        bounds['fwhm'] = (0, np.inf)
+        bounds['beta'] = (1, np.inf)
+        return bounds

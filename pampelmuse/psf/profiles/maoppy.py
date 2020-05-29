@@ -1,13 +1,76 @@
 import logging
 import numpy as np
-from scipy.interpolate import RectBivariateSpline
-from .profile import Profile
+from scipy.interpolate import RectBivariateSpline, interp2d
+from .profile import Profile, FitResult
 
-from maoppy.psfmodel import Psfao
+from maoppy.psfmodel import Psfao, psffit, oversample
 from maoppy.instrument import MUSE_NFM
 
 
 logger = logging.getLogger(__name__)
+
+
+def resample_to_2d(x, y, z, shape=None):
+    """
+    Given a set of values z defined on arbitrary coordinates (x, y), the method
+    will translate the data to a regularly sampled 2d array.
+
+    Parameters
+    ----------
+    x
+    y
+    z
+    shape
+
+    Returns
+    -------
+
+    """
+    if shape is None:
+        shape = (int(y.max()) + 1 - int(y.min()), int(x.max()) + 1 - int(x.min()))
+
+    is_int = np.all(x == x.astype(np.int32)) & np.all(y == y.astype(np.int32))
+
+    if is_int:
+        out = np.zeros(shape, dtype=z.dtype)
+        out[y.astype(np.int32) - int(y.min()), x.astype(np.int32) - int(x.min())] = z
+    else:
+        logger.warning('Input data irregularly sampled. Need to interpolate.')
+
+        ip = interp2d(x=x, y=y, z=z, kind='linear')
+        out = ip(np.arange(shape[1], dtype=np.int32), np.arange(shape[0], dtype=np.int32), assume_sorted=True)
+
+    return out
+
+
+def resample_to_1d(z, x, y,):
+    """
+    Given a regularly sampled 2D array of values z, the method will convert
+    the data to the provided (randomly sampled) coordinates x and y.
+
+    Parameters
+    ----------
+    z
+    x
+    y
+
+    Returns
+    -------
+
+    """
+    is_int = np.all(x == x.astype(np.int32)) & np.all(y == y.astype(np.int32))
+
+    if x.min() < 0 or y.min() < 0 or x.max() > (z.shape[1] - 1) or y.max() > (z.shape[0] - 1):
+        raise IOError('Provided output coordinates extend beyond grid.')
+
+    if is_int:
+        return z[y.astype(np.int32), x.astype(np.int32)]
+    else:
+        logger.warning('Output data irregularly sampled. Need to interpolate.')
+
+        ip = RectBivariateSpline(x=np.arange(z.shape[1], dtype=np.in32), y=np.arange(z.shape[0], dtype=np.in32),
+                                 z=z, kx=1, ky=1)
+        return ip(x, y, grid=False)
 
 
 class Maoppy(Profile):
@@ -119,8 +182,10 @@ class Maoppy(Profile):
     def maoppy_shape(self):
         return 2*int(self.maxrad), 2*int(self.maxrad)
 
-    def get_maoppy_centre(self, k):
-        return self.maoppy_shape[0]/2 - (k - 1.)/(2.*k), self.maoppy_shape[1]/2 - (k - 1.)/(2.*k)
+    def get_maoppy_centre(self, k, shape=None):
+        if shape is None:
+            shape = self.maoppy_shape
+        return shape[0]/2 - (k - 1.)/(2.*k), shape[1]/2 - (k - 1.)/(2.*k)
 
     @classmethod
     def calculate_fwhm(cls, r0, bck, amp, alpha, e, beta, wvl=6e-7, **kwargs):
@@ -135,5 +200,84 @@ class Maoppy(Profile):
 
         return f[f > (0.5*f.max())].sum()
 
-    # def fitter(self, fluxes, x0, fit_positions=True, fit_background=False):
-    #
+    def fitter(self, psf, weights, parameters, fit_positions=True, fit_background=False, psf_padding=0, **kwargs):
+
+        if kwargs:
+            raise IOError('Unknown parameter(s) {} for method Maoppy.fitter.'.format(kwargs))
+
+        if not fit_positions:
+            logger.warning('Maoppy.fitter always includes the centroid coordinates in the fit.')
+
+        x0 = []
+        names = ['r0', 'bck', 'amp', 'alpha', 'e', 'theta', 'beta']
+        fixed = []
+        for parameter in names:
+            fixed.append(False if parameter in parameters else True)
+            if parameter == 'e':
+                x0.append(self.q)
+            else:
+                x0.append(getattr(self, parameter))
+
+        # subtract minimum of x- and y-coordinates, so that array starts at (0, 0)
+        x_min = int(self.x[self.used].min())
+        y_min = int(self.y[self.used].min())
+
+        # code requires 2D array with even number of pixels along both axes
+        psf2d = resample_to_2d(x=self.x[self.used] - x_min, y=self.y[self.used] - y_min, z=psf)
+        weights2d = resample_to_2d(x=self.x[self.used] - x_min, y=self.y[self.used] - y_min, z=weights)
+
+        pad = ((0, 1) if psf2d.shape[0] % 2> 0 else (0, 0), (0, 1) if psf2d.shape[1] % 2> 0 else (0, 0))
+        psf2d = np.pad(psf2d, pad)
+        weights2d = np.pad(weights2d, pad)
+
+        # get initial guess for shifts along x- and y-axis
+        y_center, x_center = self.get_maoppy_centre(k=oversample(self.samp)[1], shape=psf2d.shape)
+        dx = self.xc - x_min - x_center
+        dy = self.yc - y_min - y_center
+
+        # weights = 1. / (psf2d + MUSE_NFM.ron ** 2.0)  # np.ones_like(psf_data)
+        # weights[psf2d < 0.01] = 0
+
+        if psf_padding > 0:
+            npix = max(psf2d.shape)
+            npixfit = npix + 2*psf_padding
+        else:
+            npixfit = None
+
+        # print("PSFAO fitting (please wait)")
+        fitresult = psffit(psf2d, Psfao, x0, weights=weights2d, system=MUSE_NFM, samp=self.samp, dxdy=(dx, dy),
+                           fixed=fixed, flux_bck=(True, fit_background), positive_bck=False, npixfit=npixfit)
+
+        if fitresult.success:
+            centroid = (x_min + x_center + fitresult.dxdy[0], y_min + y_center + fitresult.dxdy[1])
+
+            if psf_padding is None:
+                bestfit_model = fitresult.psf
+            else:
+                # note that max(psf2d.shape) - psf2d.shape[?] is always even, given that both axes not to have even
+                # number of pixels
+                pad_x = psf_padding + (max(psf2d.shape) - psf2d.shape[1])//2
+                pad_y = psf_padding + (max(psf2d.shape) - psf2d.shape[0])//2
+                bestfit_model = fitresult.psf[pad_y:-pad_y, pad_x:-pad_x]
+
+            residuals_2d = psf2d - fitresult.flux_bck[1] - fitresult.flux_bck[0] * bestfit_model
+            residuals_1d = resample_to_1d(z=residuals_2d, x=self.x[self.used] - x_min, y=self.y[self.used] - y_min)
+
+            return FitResult(names=parameters,
+                             x0=[x0[names.index(p)] for p in parameters],
+                             values=[fitresult.x[names.index(p)] for p in parameters],
+                             flux=fitresult.flux_bck[0],
+                             background=fitresult.flux_bck[1] if fit_background else None,
+                             centroid=centroid if fit_positions else None,
+                             success=fitresult.success,
+                             residuals=residuals_1d)
+
+        else:
+            return FitResult(names=parameters,
+                             x0=[x0[names.index(p)] for p in parameters],
+                             values=np.nan*np.ones_like(x0),
+                             flux=np.nan,
+                             background=np.nan if fit_background else None,
+                             centroid=(np.nan, np.nan) if fit_positions else None,
+                             success=fitresult.success,
+                             residuals=None)

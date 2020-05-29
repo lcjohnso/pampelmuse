@@ -1,19 +1,30 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
+  <component name="BranchesTreeState">
+    <expand>
+      <path>
+        <item name="ROOT" type="e8cecc67:BranchNodeDescriptor" />
+        <item name="LOCAL_ROOT" type="e8cecc67:BranchNodeDescriptor" />
+      </path>
+      <path>
+        <item name="ROOT" type="e8cecc67:BranchNodeDescriptor" />
+        <item name="REMOTE_ROOT" type="e8cecc67:BranchNodeDescriptor" />
+      </path>
+      <path>
+        <item name="ROOT" type="e8cecc67:BranchNodeDescriptor" />
+        <item name="REMOTE_ROOT" type="e8cecc67:BranchNodeDescriptor" />
+        <item name="GROUP_NODE:origin" type="e8cecc67:BranchNodeDescriptor" />
+      </path>
+    </expand>
+    <select />
+  </component>
   <component name="ChangeListManager">
-    <list default="true" id="184c2abe-3153-48a7-88ae-f3ca9af990c0" name="Default" comment="Added Johnson UBVRI to available filters.">
-      <change afterPath="$PROJECT_DIR$/pampelmuse/psf/profiles/maoppy.py" afterDir="false" />
+    <list default="true" id="184c2abe-3153-48a7-88ae-f3ca9af990c0" name="Default" comment="Started implementation of MAOPPY PSF model. Initializing model via INITFIT works. CUBEFIT can use model with fixed parameters.">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/config/data/pampelmuse.json" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/config/data/pampelmuse.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/core/fit_cube.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/core/fit_cube.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/core/fit_layer.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/core/fit_layer.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/core/make_residual_cube.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/core/make_residual_cube.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/core/source_selector.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/core/source_selector.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/psf/canvas.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/psf/canvas.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/psf/profiles/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/psf/profiles/__init__.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/psf/profiles/double_moffat.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/psf/profiles/double_moffat.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/psf/variables.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/psf/variables.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/routines/initfit.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/routines/initfit.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/psf/profiles/gaussian.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/psf/profiles/gaussian.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/psf/profiles/maoppy.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/psf/profiles/maoppy.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/psf/profiles/moffat.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/psf/profiles/moffat.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/psf/profiles/profile.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/psf/profiles/profile.py" afterDir="false" />
     </list>
     <list id="2537fcfb-7e20-4757-bbd2-3237e7f34740" name="patch" comment="Issue that CUBEFIT crashed when only PSF parameters or positions were fitted with POLYFIT. " />
     <option name="SHOW_DIALOG" value="false" />
@@ -208,13 +219,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1499438305310</updated>
-    </task>
-    <task id="LOCAL-00062" summary="Recognizing extension 'data_quality' as bad-pixel mask">
-      <created>1519226087195</created>
-      <option name="number" value="00062" />
-      <option name="presentableId" value="LOCAL-00062" />
-      <option name="project" value="LOCAL" />
-      <updated>1519226087195</updated>
     </task>
     <task id="LOCAL-00063" summary="Revised definition of FoV edge for pixtables.">
       <created>1520262963449</created>
@@ -552,7 +556,14 @@
       <option name="project" value="LOCAL" />
       <updated>1588592047048</updated>
     </task>
-    <option name="localTasksCounter" value="111" />
+    <task id="LOCAL-00111" summary="Started implementation of MAOPPY PSF model. Initializing model via INITFIT works. CUBEFIT can use model with fixed parameters.">
+      <created>1590594889093</created>
+      <option name="number" value="00111" />
+      <option name="presentableId" value="LOCAL-00111" />
+      <option name="project" value="LOCAL" />
+      <updated>1590594889093</updated>
+    </task>
+    <option name="localTasksCounter" value="112" />
     <servers />
   </component>
   <component name="TodoView">
@@ -587,7 +598,6 @@
     <option name="oldMeFiltersMigrated" value="true" />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Fixed bug." />
     <MESSAGE value="Fixed bug in INITFIT affecting usage of unresolved component." />
     <MESSAGE value="Fixed another bug in INITFIT affecting usage of unresolved component." />
     <MESSAGE value="Fixed minor bugs in CUBEFIT." />
@@ -612,15 +622,16 @@
     <MESSAGE value="Changed sizes of circles around extracted sources in POLYFIT." />
     <MESSAGE value="Fixed issue with creating PSF cubes when running CUBEFIT with enabled psf|inspect parameter." />
     <MESSAGE value="Added Johnson UBVRI to available filters." />
-    <option name="LAST_COMMIT_MESSAGE" value="Added Johnson UBVRI to available filters." />
+    <MESSAGE value="Started implementation of MAOPPY PSF model. Initializing model via INITFIT works. CUBEFIT can use model with fixed parameters." />
+    <option name="LAST_COMMIT_MESSAGE" value="Started implementation of MAOPPY PSF model. Initializing model via INITFIT works. CUBEFIT can use model with fixed parameters." />
     <option name="PRESELECT_EXISTING_CHANGELIST" value="true" />
   </component>
   <component name="WindowStateProjectService">
-    <state x="649" y="137" width="1089" height="911" key="CommitChangelistDialog2" timestamp="1588592046930">
+    <state x="649" y="137" width="1089" height="911" key="CommitChangelistDialog2" timestamp="1590596101940">
       <screen x="72" y="27" width="1848" height="1053" />
     </state>
     <state x="644" y="134" key="CommitChangelistDialog2/65.24.1855.1056@65.24.1855.1056" timestamp="1587048120509" />
-    <state x="649" y="137" width="1089" height="911" key="CommitChangelistDialog2/72.27.1848.1053@72.27.1848.1053" timestamp="1588592046930" />
+    <state x="649" y="137" width="1089" height="911" key="CommitChangelistDialog2/72.27.1848.1053@72.27.1848.1053" timestamp="1590596101940" />
     <state x="631" y="334" width="719" height="452" key="EditFileWatcherDialog" timestamp="1588258128895">
       <screen x="72" y="27" width="1848" height="1053" />
     </state>
@@ -637,11 +648,11 @@
       <screen x="72" y="27" width="1848" height="1053" />
     </state>
     <state x="485" y="188" width="1022" height="737" key="SettingsEditor/72.27.1848.1053@72.27.1848.1053" timestamp="1588274264943" />
-    <state x="597" y="277" width="800" height="535" key="Vcs.Push.Dialog.v2" timestamp="1588592048467">
+    <state x="597" y="277" width="800" height="535" key="Vcs.Push.Dialog.v2" timestamp="1590594892737">
       <screen x="72" y="27" width="1848" height="1053" />
     </state>
     <state x="592" y="275" key="Vcs.Push.Dialog.v2/65.24.1855.1056@65.24.1855.1056" timestamp="1587048122032" />
-    <state x="597" y="277" width="800" height="535" key="Vcs.Push.Dialog.v2/72.27.1848.1053@72.27.1848.1053" timestamp="1588592048467" />
+    <state x="597" y="277" width="800" height="535" key="Vcs.Push.Dialog.v2/72.27.1848.1053@72.27.1848.1053" timestamp="1590594892737" />
     <state x="748" y="341" width="618" height="522" key="find.popup" timestamp="1590569078875">
       <screen x="72" y="27" width="1848" height="1053" />
     </state>

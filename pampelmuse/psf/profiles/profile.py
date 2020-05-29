@@ -46,9 +46,11 @@ Latest Git revision
 -------------------
 2019/06/11
 """
+import collections
 import logging
 import numbers
 import numpy as np
+from scipy import optimize
 from ...psf import Canvas
 
 
@@ -59,39 +61,44 @@ __revision__ = 20190611
 logger = logging.getLogger(__name__)
 
 
+# define namedtuple for returning the results of the fit in a useful structure
+FitResult = collections.namedtuple('FitResult',
+                                   ['names', 'x0', 'values', 'flux', 'background', 'centroid', 'success', 'residuals'])
+
+
 class Profile(Canvas):
     """
     This class implements a function of the form
-    
+
     F(r) = r.
-    
+
     The radius r is given as a function of u, v, and e as follows.
-    
+
     r = SQRT(u^2 + v^2/(1 - e)^2)
-    
+
     The coordinates (u, v) correspond to the semi-major and semi-minor axes in
     an elliptical coordinate system that is centred on the source. They can be
     related to the coordinates (x, y) in an image by the position angle theta
     as follows.
-    
+
     u = (x - x_c) * SIN(theta) - (y - y_c) * COS(theta),
     v = (y - y_c) * SIN(theta) + (x - x_c) * COS(theta),
-    
+
     where (x_c, y_c) are the centroid coordinates of the source. Note that in
     this definition, theta is measured from the y-axis in counterclockwise
     direction.
-    
+
     In a common situation for PampelMuse, the centroid coordinates are
     obtained by applying a coordinate transformation to reference coordinates
     (x_ref, y_ref) as follows.
-    
+
     x_c = A * x_ref + C * y_ref + x0
     y_c = D * y_ref - B * x_ref + y0
-    
+
     This class provides the partial derivatives of F(r) with respect to all
     relevant parameters used in the equations above, i.e. e, theta, x_c, y_c,
     A, B, C, D, x0, y0.
-     
+
     F(r) is not supposed to be an actual PSF profile (obviously0. Instead, it
     serves as a parent class for all classes that define a PSF profile. It
     provides the basic functionality to calculate the centroid distance of
@@ -1210,8 +1217,188 @@ class Profile(Canvas):
         Returns
         -------
         values : tuple
-            The tuple contains the indices of the pixels used in the 
+            The tuple contains the indices of the pixels used in the
             calculation as the first entry, the second entry contains
             the actual fluxes per pixel.
         """
         return self.pixel[self.used], self.get_f(**kwargs)
+
+    @property
+    def bounds(self):
+        return {'e': (0, 1), 'theta': (0, np.pi)}
+
+    def fitter(self, psf, weights, parameters, fit_positions=False, fit_background=False, flux_x0=None,
+               background_x0=None, **kwargs):
+
+        if kwargs:
+            raise IOError('Unknown parameter(s) {} for method Profile.fitter.'.format(kwargs))
+
+        # make sure psf and variances are defined on same pixels as the profile
+        if not len(psf) == len(weights):
+            raise IOError('Parameters "psf" and "weights" must have same number of pixels.')
+        elif len(psf) == self.n_used:
+            psf2fit = np.zeros(self.n_pixel, dtype=np.float64)
+            psf2fit[self.used] = psf
+            weights2fit = np.zeros_like(psf2fit)
+            weights2fit[self.used] = weights
+        elif len(psf) == self.n_pixel:
+            psf2fit = np.asarray(psf, dtype=np.float64)
+            weights2fit = np.asarray(weights, dtype=np.float64)
+        else:
+            raise IOError('Input data to Profile.fitter has inconsistent shape.')
+
+        # collect initial guesses, set boundary conditions
+        x0 = []
+        names = []
+        bounds = ([], [])
+
+        # always fit flux of PSF
+        x0.append(flux_x0 if flux_x0 is not None else np.nansum(psf))
+        names.append('flux')
+        bounds[0].append(-np.inf)
+        bounds[1].append(np.inf)
+
+        # PSF parameters
+        for parameter in parameters:
+            x0.append(getattr(self, parameter))
+            names.append(parameter)
+            if parameter in self.bounds.keys():
+                bounds[0].append(self.bounds[parameter][0])
+                bounds[1].append(self.bounds[parameter][1])
+            else:
+                bounds[0].append(-np.inf)
+                bounds[1].append(np.inf)
+
+        # positions if requested
+        if fit_positions:
+            x0.extend([self.xc, self.yc])
+            names.extend(['xc', 'yc'])
+            bounds[0].extend([-np.inf, -np.inf])
+            bounds[1].extend([np.inf, np.inf])
+
+        # background if requested
+        if fit_background:
+            x0.append(background_x0 if background_x0 is not None else psf.nanmin())
+            names.append('back')
+            bounds[0].append(-np.inf)
+            bounds[1].append(np.inf)
+
+        # need to update pixel-to-xy transformation and radius of current PSF
+        true_maxrad = self.maxrad
+        self.maxrad = np.inf
+
+        # fit
+        try:
+            result = optimize.least_squares(
+                self.single_psf_optimizer, x0=np.asarray(x0), bounds=bounds, jac=self.single_psf_jacobi,
+                args=(names, psf2fit, weights2fit))
+        except Exception as msg:
+            # error handler to avoid code crashes completely
+            # note that type of exception thrown seems to depend on scipy version
+            logger.error('PSF fit failed for source #{0}: {1}.'.format(self.src_id, msg),
+                         exc_info=True if logger.getEffectiveLevel() <= 10 else False)
+            values = np.nan*np.ones_like(x0)
+            residuals = None
+            success = False
+        else:
+            values = result['x']
+            residuals = np.where(weights > 0, result['fun'] / np.sqrt(weights), np.nan)
+            success = True
+        finally:
+            # reset radius und transformation of PSF instance to status before fit
+            self.maxrad = true_maxrad
+
+        return FitResult(names=parameters,
+                         x0=[x0[names.index(p)] for p in parameters],
+                         values=[values[names.index(p)] for p in parameters],
+                         flux=values[names.index('flux')],
+                         background=values[names.index('back')] if fit_background else None,
+                         centroid=(values[names.index('xc')], values[names.index('yc')]) if fit_positions else None,
+                         success=success,
+                         residuals=residuals[self.used] if success else None)
+
+    def single_psf_optimizer(self, x0, names, data, weights):
+        """
+        This is the optimization routine that is passed to the Levenberg-
+        Marquardt solver scipy.optimize.leastsq.
+
+        During each iteration, a PSF array is created, scaled and subtracted
+        from the data. The residuals of the fit are returned.
+
+        Parameters
+        ----------
+        x0 : array_like
+            The initial guesses of the parameters that are fitted. The first
+            parameter must be the flux of the source.
+        names :  array_like
+            The names of the parameters that are fitted. Must have same length
+            as 'x0' of course.
+        psf : an instance of class pampelmuse.core.psf.profiles.Profile or
+              one of its subclasses
+            The PSF model for the source.
+        data : nd_array
+            The data array used to fit the parameters. Note that the pixel
+            values should be normalized by their respective uncertainties.
+        weights : nd_array
+            The pixel weights used in the optimization. Inverse-variance
+            weighting is assumed.
+
+        Returns
+        -------
+        nd_array
+            The sigma-weighted residuals after subtracting the PSF from the
+            data.
+        """
+        # get local background if provided
+        fit_background = names[-1] == 'back'
+        back = x0[-1] if fit_background else 0
+
+        # update PSF using current parameter estimates
+        for i in range(1, len(x0) - int(fit_background)):
+            try:
+                # the attribute is only set in the 'psf'-instance of the class, not in all instances! This is different
+                # from the behaviour of getattr(self.PSF, "set_<PAR>")(<VALUE>)
+                setattr(self, names[i], x0[i])
+            except AssertionError as error:  # if parameter cannot be updated, raise LinAlgError
+                logger.error("Encountered AssertionError: {0}".format(error))
+                raise np.linalg.linalg.LinAlgError("Invalid value '{0}' for parameter '{1}'.".format(x0[i], names[i]))
+
+        return np.sqrt(weights)*(data - x0[0] * self.get_f() - back)
+
+    def single_psf_jacobi(self, x0, names, psf, weights):
+        """
+        Calculate the Jacobi matrix for the optimization carried out in
+        StarFit.optimize_single_psf.
+
+        The method is passed to the Levenberg-Marquard solver
+        scipy.optimize.leastsq as parameter Dfun.
+
+        Parameters
+        ----------
+        x0
+        names
+        psf
+        weights
+            This method takes the same arguments as StarFit.optimize_single_psf.
+
+        Returns
+        -------
+        jacob : nd_array
+            The Jacobi matrix with respect to the model parameters included
+            in 'x0'.
+        """
+        fit_background = names[-1] == 'back'
+
+        _jacob = np.zeros((len(x0), self.n_used), dtype=np.float64)
+        _jacob[0] -= self.get_f()
+        for i in range(1, len(x0) - int(fit_background)):
+            diff_i = getattr(self, "get_diff_{0}".format(names[i]))()
+            _jacob[i] -= x0[0] * diff_i
+        if fit_background:
+            _jacob[-1] = x0[-1]
+
+        jacob = np.zeros((len(x0), self.n_pixel), dtype=np.float64)
+        jacob[:, self.used] = _jacob
+
+        # Note that to get the right shape for the optimization, the matrix needs to be transposed.
+        return (np.sqrt(weights)*jacob).T

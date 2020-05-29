@@ -258,3 +258,9 @@ class Gaussian(Profile):
             r_pderiv_y0 = super().diff_y0
             self._diff_y0 = gaussian.pderiv_r(self.r, self.fwhm, self.e)*r_pderiv_y0
         return self._diff_y0
+
+    @property
+    def bounds(self):
+        bounds = super(Gaussian, self).bounds
+        bounds['fwhm'] = (0, np.inf)
+        return bounds
