@@ -27,13 +27,14 @@ def resample_to_2d(x, y, z, shape=None):
 
     """
     if shape is None:
-        shape = (int(y.max()) + 1 - int(y.min()), int(x.max()) + 1 - int(x.min()))
+        shape = (int(y.max()) + 1, int(x.max()) + 1)
 
     is_int = np.all(x == x.astype(np.int32)) & np.all(y == y.astype(np.int32))
 
     if is_int:
         out = np.zeros(shape, dtype=z.dtype)
-        out[y.astype(np.int32) - int(y.min()), x.astype(np.int32) - int(x.min())] = z
+        slc = (y >= 0) & (y < shape[0]) & (x >= 0) & (x < shape[1])
+        out[y[slc].astype(np.int32), x[slc].astype(np.int32)] = z[slc]
     else:
         logger.warning('Input data irregularly sampled. Need to interpolate.')
 
@@ -198,12 +199,17 @@ class Maoppy(Profile):
         theta = 0.
         f = psf((r0, bck, amp, alpha, 1-e, theta, beta))[:15]
 
-        return f[f > (0.5*f.max())].sum()
+        return np.sqrt(np.sum(f > (0.5*f.max()))/np.pi)
+
+    @property
+    def fwhm(self):
+
+        return np.sqrt(np.sum(self.f > (0.5*np.max(self.f)))/np.pi)
 
     def fitter(self, psf, weights, parameters, fit_positions=True, fit_background=False, psf_padding=0, **kwargs):
 
-        if kwargs:
-            raise IOError('Unknown parameter(s) {} for method Maoppy.fitter.'.format(kwargs))
+        # if kwargs:
+        #     raise IOError('Unknown parameter(s) {} for method Maoppy.fitter.'.format(kwargs))
 
         if not fit_positions:
             logger.warning('Maoppy.fitter always includes the centroid coordinates in the fit.')
@@ -218,22 +224,30 @@ class Maoppy(Profile):
             else:
                 x0.append(getattr(self, parameter))
 
-        # subtract minimum of x- and y-coordinates, so that array starts at (0, 0)
-        x_min = int(self.x[self.used].min())
-        y_min = int(self.y[self.used].min())
+        y_center, x_center = self.get_maoppy_centre(k=oversample(self.samp)[1])
+        shift_x = int(round(x_center - self.xc))
+        shift_y = int(round(y_center - self.yc))
+
+        # # subtract minimum of x- and y-coordinates, so that array starts at (0, 0)
+        # x_min = int(self.x[self.used].min()) + max(0, self.maxrad - int(self.xc))
+        # y_min = int(self.y[self.used].min()) + max(0, self.maxrad - int(self.yc))
 
         # code requires 2D array with even number of pixels along both axes
-        psf2d = resample_to_2d(x=self.x[self.used] - x_min, y=self.y[self.used] - y_min, z=psf)
-        weights2d = resample_to_2d(x=self.x[self.used] - x_min, y=self.y[self.used] - y_min, z=weights)
+        psf2d = resample_to_2d(x=self.x[self.used] + shift_x, y=self.y[self.used] + shift_y, z=psf,
+                               shape=self.maoppy_shape)
+        weights2d = resample_to_2d(x=self.x[self.used] + shift_x, y=self.y[self.used] + shift_y, z=weights,
+                                   shape=self.maoppy_shape)
 
-        pad = ((0, 1) if psf2d.shape[0] % 2> 0 else (0, 0), (0, 1) if psf2d.shape[1] % 2> 0 else (0, 0))
-        psf2d = np.pad(psf2d, pad)
-        weights2d = np.pad(weights2d, pad)
+        # pad = ((0, 1) if psf2d.shape[0] % 2 > 0 else (0, 0), (0, 1) if psf2d.shape[1] % 2 > 0 else (0, 0))
+        # psf2d = np.pad(psf2d, pad)
+        # weights2d = np.pad(weights2d, pad)
 
         # get initial guess for shifts along x- and y-axis
-        y_center, x_center = self.get_maoppy_centre(k=oversample(self.samp)[1], shape=psf2d.shape)
-        dx = self.xc - x_min - x_center
-        dy = self.yc - y_min - y_center
+        # y_center, x_center = self.get_maoppy_centre(k=oversample(self.samp)[1], shape=psf2d.shape)
+        # dx = self.maxrad + self.xc - int(self.xc) - x_center
+        # dy = self.maxrad + self.yc - int(self.yc) - y_center
+        dx = round(x_center - self.xc) - (x_center - self.xc)
+        dy = round(y_center - self.yc) - (y_center - self.yc)
 
         # weights = 1. / (psf2d + MUSE_NFM.ron ** 2.0)  # np.ones_like(psf_data)
         # weights[psf2d < 0.01] = 0
@@ -249,9 +263,9 @@ class Maoppy(Profile):
                            fixed=fixed, flux_bck=(True, fit_background), positive_bck=False, npixfit=npixfit)
 
         if fitresult.success:
-            centroid = (x_min + x_center + fitresult.dxdy[0], y_min + y_center + fitresult.dxdy[1])
+            centroid = (x_center + fitresult.dxdy[0] - shift_x, y_center + fitresult.dxdy[1] - shift_y)
 
-            if psf_padding is None:
+            if psf_padding == 0:
                 bestfit_model = fitresult.psf
             else:
                 # note that max(psf2d.shape) - psf2d.shape[?] is always even, given that both axes not to have even
@@ -261,7 +275,9 @@ class Maoppy(Profile):
                 bestfit_model = fitresult.psf[pad_y:-pad_y, pad_x:-pad_x]
 
             residuals_2d = psf2d - fitresult.flux_bck[1] - fitresult.flux_bck[0] * bestfit_model
-            residuals_1d = resample_to_1d(z=residuals_2d, x=self.x[self.used] - x_min, y=self.y[self.used] - y_min)
+            residuals_2d = np.pad(residuals_2d, 1, mode='constant', constant_values=1)
+            residuals_1d = resample_to_1d(z=residuals_2d, x=self.x[self.used] + shift_x + 1,
+                                          y=self.y[self.used] + shift_y + 1)
 
             return FitResult(names=parameters,
                              x0=[x0[names.index(p)] for p in parameters],
@@ -270,7 +286,8 @@ class Maoppy(Profile):
                              background=fitresult.flux_bck[1] if fit_background else None,
                              centroid=centroid if fit_positions else None,
                              success=fitresult.success,
-                             residuals=residuals_1d)
+                             residuals=residuals_1d,
+                             message=fitresult.message)
 
         else:
             return FitResult(names=parameters,
@@ -280,4 +297,5 @@ class Maoppy(Profile):
                              background=np.nan if fit_background else None,
                              centroid=(np.nan, np.nan) if fit_positions else None,
                              success=fitresult.success,
-                             residuals=None)
+                             residuals=None,
+                             message=fitresult.message)

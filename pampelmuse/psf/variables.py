@@ -70,7 +70,7 @@ class Variables(Parameters):
                 "double_gauss": ["f12", "fwhm1", "fwhm2", "e", "theta"],
                 "moffat_gauss": ["f12", "beta", "fwhm1", "fwhm2", "e", "theta"],
                 "double_moffat": ["f12", "beta1", "fwhm1", "beta2", "fwhm2", "e", "theta"],
-                "maoppy": ["r0", "bck", "amp", "alpha", "e", "theta", "beta"]}
+                "maoppy": ["r0", "bck", "amp", "alpha", "beta", "e", "theta"]}
 
     #  define dictionary providing tex-style representations of each parameter name for plotting
     LABELS = {"fwhm": r"$\mathrm{FWHM}\,[\mathrm{spaxel}]$",

@@ -20,11 +20,15 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="184c2abe-3153-48a7-88ae-f3ca9af990c0" name="Default" comment="Started implementation of MAOPPY PSF model. Initializing model via INITFIT works. CUBEFIT can use model with fixed parameters.">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/core/fit_cube.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/core/fit_cube.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/core/fit_layer.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/core/fit_layer.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/psf/profiles/double_gaussian.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/psf/profiles/double_gaussian.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/psf/profiles/double_moffat.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/psf/profiles/double_moffat.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/pampelmuse/psf/profiles/gaussian.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/psf/profiles/gaussian.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/pampelmuse/psf/profiles/maoppy.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/psf/profiles/maoppy.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/psf/profiles/moffat.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/psf/profiles/moffat.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/psf/profiles/moffat_gaussian.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/psf/profiles/moffat_gaussian.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/pampelmuse/psf/profiles/profile.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/psf/profiles/profile.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/psf/variables.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/psf/variables.py" afterDir="false" />
     </list>
     <list id="2537fcfb-7e20-4757-bbd2-3237e7f34740" name="patch" comment="Issue that CUBEFIT crashed when only PSF parameters or positions were fitted with POLYFIT. " />
     <option name="SHOW_DIALOG" value="false" />
@@ -657,6 +661,10 @@
       <screen x="72" y="27" width="1848" height="1053" />
     </state>
     <state x="748" y="341" width="618" height="522" key="find.popup/72.27.1848.1053@72.27.1848.1053" timestamp="1590569078875" />
+    <state x="721" y="247" width="539" height="619" key="git4idea.branch.GitSmartOperationDialog" timestamp="1591086397717">
+      <screen x="72" y="27" width="1848" height="1053" />
+    </state>
+    <state x="721" y="247" width="539" height="619" key="git4idea.branch.GitSmartOperationDialog/72.27.1848.1053@72.27.1848.1053" timestamp="1591086397717" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>

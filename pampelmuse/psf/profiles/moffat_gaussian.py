@@ -39,6 +39,7 @@ Latest Git revision
 2019/06/30
 """
 import logging
+import numpy as np
 from numbers import Real
 from scipy import optimize
 from .profile import Profile
@@ -554,3 +555,11 @@ class MoffatGaussian(Profile):
                 self.f12 * moffat.pderiv_r(self.r, self.beta, self.fwhm1, self.e) + (
                     1. - self.f12) * gaussian.pderiv_r(self.r, self.fwhm2, self.e))
         return self._diff_y0
+
+    @property
+    def bounds(self):
+        bounds = super(MoffatGaussian, self).bounds
+        bounds['fwhm1'] = (self.fwhm2, np.inf)
+        bounds['fwhm2'] = (0, self.fwhm1)
+        bounds['beta'] = (0, np.inf)
+        return bounds

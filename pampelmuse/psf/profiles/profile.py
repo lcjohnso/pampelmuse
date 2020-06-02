@@ -62,8 +62,8 @@ logger = logging.getLogger(__name__)
 
 
 # define namedtuple for returning the results of the fit in a useful structure
-FitResult = collections.namedtuple('FitResult',
-                                   ['names', 'x0', 'values', 'flux', 'background', 'centroid', 'success', 'residuals'])
+FitResult = collections.namedtuple(
+    'FitResult', ['names', 'x0', 'values', 'flux', 'background', 'centroid', 'success', 'residuals', 'message'])
 
 
 class Profile(Canvas):
@@ -1237,13 +1237,11 @@ class Profile(Canvas):
         if not len(psf) == len(weights):
             raise IOError('Parameters "psf" and "weights" must have same number of pixels.')
         elif len(psf) == self.n_used:
-            psf2fit = np.zeros(self.n_pixel, dtype=np.float64)
-            psf2fit[self.used] = psf
-            weights2fit = np.zeros_like(psf2fit)
-            weights2fit[self.used] = weights
-        elif len(psf) == self.n_pixel:
             psf2fit = np.asarray(psf, dtype=np.float64)
             weights2fit = np.asarray(weights, dtype=np.float64)
+        elif len(psf) == self.n_pixel:
+            psf2fit = np.asarray(psf, dtype=np.float64)[self.used]
+            weights2fit = np.asarray(weights, dtype=np.float64)[self.used]
         else:
             raise IOError('Input data to Profile.fitter has inconsistent shape.')
 
@@ -1283,9 +1281,8 @@ class Profile(Canvas):
             bounds[0].append(-np.inf)
             bounds[1].append(np.inf)
 
-        # need to update pixel-to-xy transformation and radius of current PSF
-        true_maxrad = self.maxrad
-        self.maxrad = np.inf
+        # need to avoid that grid of used pixels changes during optimization
+        self.profile_properties.remove('_used')
 
         # fit
         try:
@@ -1300,13 +1297,19 @@ class Profile(Canvas):
             values = np.nan*np.ones_like(x0)
             residuals = None
             success = False
+            message = msg
         else:
             values = result['x']
-            residuals = np.where(weights > 0, result['fun'] / np.sqrt(weights), np.nan)
+            residuals = result['fun'] / np.sqrt(weights2fit)
             success = True
+            message = result['message']
         finally:
-            # reset radius und transformation of PSF instance to status before fit
-            self.maxrad = true_maxrad
+            # add grid of used pixels to list of derived properties again
+            self.profile_properties.insert(0, '_used')
+
+            # reset fitted parameters back to initial guesses (i.e. recover state of Profile instance prior to fit)
+            for i in range(1, len(names) - fit_background):
+                setattr(self, names[i], x0[i])
 
         return FitResult(names=parameters,
                          x0=[x0[names.index(p)] for p in parameters],
@@ -1315,7 +1318,8 @@ class Profile(Canvas):
                          background=values[names.index('back')] if fit_background else None,
                          centroid=(values[names.index('xc')], values[names.index('yc')]) if fit_positions else None,
                          success=success,
-                         residuals=residuals[self.used] if success else None)
+                         residuals=residuals,
+                         message=message)
 
     def single_psf_optimizer(self, x0, names, data, weights):
         """
@@ -1397,8 +1401,5 @@ class Profile(Canvas):
         if fit_background:
             _jacob[-1] = x0[-1]
 
-        jacob = np.zeros((len(x0), self.n_pixel), dtype=np.float64)
-        jacob[:, self.used] = _jacob
-
         # Note that to get the right shape for the optimization, the matrix needs to be transposed.
-        return (np.sqrt(weights)*jacob).T
+        return (np.sqrt(weights)*_jacob).T

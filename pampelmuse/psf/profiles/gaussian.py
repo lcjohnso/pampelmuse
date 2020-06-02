@@ -35,6 +35,7 @@ Latest Git revision
 2019/06/05
 """
 from numbers import Real
+import numpy as np
 from .profile import Profile
 from ..functions import gaussian
 

@@ -304,10 +304,10 @@ class FitCube(object):
 
         # MAOPPY internally supersamples the PSF, so supersampling is turned off in PampelMuse
         if self.psf_attributes.profile == 'maoppy':
-            self.osfactor = 1.
+            self.osfactor = 1
             self.osradius = 0.
         else:
-            self.osfactor = 5.
+            self.osfactor = 5
             self.osradius = 2.
 
         # The following two dictionaries will contain the name of ALL parameters needed to define the source

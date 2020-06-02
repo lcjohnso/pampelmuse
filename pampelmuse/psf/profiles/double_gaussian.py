@@ -35,6 +35,7 @@ Latest Git revision
 -------------------
 2019/06/05
 """
+import numpy as np
 from numbers import Real
 from .profile import Profile
 from ..functions import gaussian
@@ -436,3 +437,10 @@ class DoubleGaussian(Profile):
                 self.f12 * gaussian.pderiv_r(self.r, self.fwhm1, self.e) + (
                     1. - self.f12) * gaussian.pderiv_r(self.r, self.fwhm2, self.e))
         return self._diff_y0
+
+    @property
+    def bounds(self):
+        bounds = super(DoubleGaussian, self).bounds
+        bounds['fwhm1'] = (self.fwhm2, np.inf)
+        bounds['fwhm2'] = (0, self.fwhm1)
+        return bounds
