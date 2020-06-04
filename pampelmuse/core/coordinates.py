@@ -168,13 +168,13 @@ class Transformation(Parameters):
         ----------
         xy_in : pandas.DataFrame
             The input coordinates. The rows of the data frame must use the
-            source identifiers as indices and the x- and y-coordinates as
-            should be available as columns 'x' and 'y'.
+            source identifiers as indices and the x- and y-coordinates should
+            be available as columns 'x' and 'y'.
         xy_out : pandas.DataFrame
-            The output coordinates. Again, the columns of the data frame must
-            contain the source identifiers and the x- and y-coordinates as a
-            pandas MultiIndex. If the data frame contains N rows, the
-            transformation will be calculated for each row independently.
+            The output coordinates. The columns of the data frame must contain
+            the source identifiers and the x- and y-coordinates as a pandas
+            MultiIndex. If the data frame contains N rows, the transformation
+            will be calculated for each row independently.
         fixed : pandas.DataFrame, optional
             If any parameters of the coordinate transformation should be fixed
             to given values, the fixed parameters and their values can be
@@ -473,6 +473,33 @@ class Transformation(Parameters):
         # finally, x- and y-axes need to be merged again
         return pd.DataFrame(_xy_out.reshape((_xy_out.shape[0], -1)), index=self.data.index[layers],
                             columns=pd.MultiIndex.from_product([xy_in.index, ['x', 'y']]))
+
+    def inverse(self, xy_out):
+        """
+        Given a set of output coordinates, the method will apply the inverse
+        coordinates transformation to obtain the input coordinates
+
+        Parameters
+        ----------
+        xy_out
+
+        Returns
+        -------
+
+        """
+        if not self._validate_input(xy_out):
+            logger.error('Data provided for parameter xy_out is invalid. Check previous errors.')
+            return
+
+        xy_in = xy_out.copy()
+
+        for i, row in xy_out.iterrows():
+            xy_out_i = row.values.reshape((-1, 2))
+
+            xy_in_i = np.dot(np.linalg.inv(self.f_matrix[i]), xy_out_i.T - np.dot(self.z_matrix[i],
+                                                                                  np.ones(xy_out_i.shape).T))
+            xy_in.loc[i] = xy_in_i.T.reshape((1, -1))
+        return xy_in
 
     def info(self, names=None):
         """

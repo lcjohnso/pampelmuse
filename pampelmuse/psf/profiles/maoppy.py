@@ -181,7 +181,7 @@ class Maoppy(Profile):
 
     @property
     def maoppy_shape(self):
-        return 2*int(self.maxrad), 2*int(self.maxrad)
+        return 2*int(round(self.maxrad)), 2*int(round(self.maxrad))
 
     def get_maoppy_centre(self, k, shape=None):
         if shape is None:
@@ -275,7 +275,7 @@ class Maoppy(Profile):
                 bestfit_model = fitresult.psf[pad_y:-pad_y, pad_x:-pad_x]
 
             residuals_2d = psf2d - fitresult.flux_bck[1] - fitresult.flux_bck[0] * bestfit_model
-            residuals_2d = np.pad(residuals_2d, 1, mode='constant', constant_values=1)
+            residuals_2d = np.pad(residuals_2d, 1, mode='constant', constant_values=0)
             residuals_1d = resample_to_1d(z=residuals_2d, x=self.x[self.used] + shift_x + 1,
                                           y=self.y[self.used] + shift_y + 1)
 

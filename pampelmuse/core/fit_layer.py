@@ -105,8 +105,8 @@ class FitLayer(object):
 
     _unresolved_matrix = None
 
-    def __init__(self, data, catalog, psf_type, psf_parameters, psf_radius=np.inf, psf_lut=None,
-                 position_parameters=None, last_component_is_unresolved=False, background=None,
+    def __init__(self, data, catalog, psf_type, psf_parameters, psf_radius=np.inf, psf_radius_scaling=None,
+                 psf_lut=None, position_parameters=None, last_component_is_unresolved=False, background=None,
                  osfactor=1, osradius=0, background_index=None, wvl=None):
         """
         Initialize a new instance of the FitLayer class.
@@ -138,6 +138,12 @@ class FitLayer(object):
              - gauss: fwhm, e, theta
              - moffat: beta, fwhm, e, theta
              - double_gauss: fwhm1, fwhm2, f12, e, theta
+             ...
+        psf_radius_scaling : float, optional
+            The PSF radius can be adapted based on the fitted flux of each
+            star. If provided, 'psf_radius_scaling' defines the fractional
+            flux (relative to the brightest star in the fit) that corresponds
+            to a reduction of psf_radius by a factor of 2.
         psf_lut : pandas.Series, optional
             A look-up table for correcting the final fluxes obtained from the
             analytical PSF profiles.
@@ -170,6 +176,7 @@ class FitLayer(object):
             of certain PSF models.
         """
         self.psf_radius = psf_radius
+        self.psf_radius_scaling = psf_radius_scaling
 
         # check consistency of provided data
         if not isinstance(data, pd.DataFrame):
@@ -283,6 +290,8 @@ class FitLayer(object):
             if background_index is None or len(background_index) != self.n_background:
                 background_index = np.arange(-1, -(self.n_background + 1), -1)
             self.fluxes = self.fluxes.append(pd.Series(0., index=background_index))
+
+        self.offsets = None
 
     def _check_background(self, background):
         """
@@ -798,6 +807,18 @@ class FitLayer(object):
             psf = self.psf_instances[index]
             current_component = self.catalog.at[index, 'component']
 
+            if self.offsets is not None and index in self.offsets.index:
+                psf.uc = self.catalog.at[index, 'x'] - self.offsets.at[index, 'x']
+                psf.vc = self.catalog.at[index, 'y'] - self.offsets.at[index, 'y']
+
+            # scale PSF radius based on flux (if requested) - the minimum PSF radius is set to (0.5^3) x PSF radius
+            if np.isfinite(self.fluxes[current_component]) and self.fluxes.max() > 0 and self.psf_radius_scaling:
+                flux_ratio = max(self.psf_radius_scaling**3, self.fluxes[current_component]/self.fluxes.max())
+                radius = self.psf_radius*(2**(np.log10(flux_ratio)/np.log10(1./self.psf_radius_scaling)))
+            else:
+                radius = self.psf_radius
+            psf.maxrad = radius
+
             current_pixels, current_fluxes = psf.get_flux(apply_lut=True)
             if current_pixels.size == 0:
                 logger.warning("Source #{0} entirely outside FoV.".format(index))
@@ -998,7 +1019,7 @@ class FitLayer(object):
             #             vmax=10000)
             # ax2 = fig.add_axes([0.12, 0.05, 0.83, 0.44])
             # ax2.scatter(psf.x[used], psf.y[used], marker='o', s=50,
-            #             c=psf.f*self.fluxes[self.catalog.at[i, 'component']], cmap=plt.cm.hot, vmin=-1000, vmax=10000)
+            #             c=self.current[used], cmap=plt.cm.hot, vmin=-1000, vmax=10000)
             # plt.show()
 
             # prior to fit, check if enough pixels available and source is actually detected
@@ -1030,9 +1051,8 @@ class FitLayer(object):
             #     x0.append(np.median(data[~in_fwhm]))
 
             result = psf.fitter(psf=data, weights=weights, parameters=psf_parameters, fit_positions=fit_positions,
-                                fit_background=local_background, flux_x0=self.fluxes[self.catalog.at[i, 'component']])
-
-            print(np.sum((result.residuals**2)*weights), self.fluxes[self.catalog.at[i, 'component']])
+                                fit_background=local_background, flux_x0=self.fluxes[self.catalog.at[i, 'component']],
+                                psf_padding=int(round(self.psf_radius-psf.maxrad)))
 
             # check if result of a successful fit makes any sense:
             if not result.success:
@@ -1060,7 +1080,7 @@ class FitLayer(object):
             if i in psf_sources and psf_parameters is not None:
                 results.loc[i, psf_parameters] = result.values
                 _string = ", ".join(
-                    ["{0}={1:.2f}".format(result.names[k], result.values[k]) for k in range(len(result.names))])
+                    ["{0}={1:.2g}".format(result.names[k], result.values[k]) for k in range(len(result.names))])
                 logger.info(' Best-fit PSF parameters: {0}'.format(_string))
             if fit_positions:
                 results.loc[i, ['xc', 'yc']] = result.centroid
@@ -1348,6 +1368,9 @@ class FitLayer(object):
         -------
         best_fit : pandas.Series
             The results of the least squares fit.
+        offsets : pandas.DataFrame
+            The offsets relative to the reference coordinates when applying
+            the inverted coordinate transformation to the fitetd coordinates.
 
         Raises
         ------
@@ -1355,20 +1378,38 @@ class FitLayer(object):
             If provided data does not allow to fit the coordinate
             transformation.
         """
-        # find overlapping indices in coordinate sets
-        indices = np.intersect1d(xy_reference.index, xy_true.index, assume_unique=True)
+        # need to change structure of array with best-fit coordinates; source IDs and (x,y) coordinates must be two
+        # levels of a pandas MultiIndex
+        xy_out = pd.DataFrame(xy_true[['xc', 'yc']].values.reshape(1, -1),
+                              columns=pd.MultiIndex.from_product([xy_true.index, ['x', 'y']]))
 
-        # check if enough sources were provided
-        if len(indices) < 4:
-            logger.error('Cannot fit coordinate transformation. Less than 4 sources provided.')
-            raise IOError('Len of first axis of input arrays must be >=4 but is {0}'.format(len(indices)))
+        # need to convert fixed parameters dictionary to pandas DataFrame
+        if fixed is not None and len(fixed) > 0:
+            fixed = pd.DataFrame(fixed, index=xy_out.index)
+        else:
+            fixed = None
 
-        # perform fit
-        best_fit, residuals = Transformation.quick_fit(xy_reference.loc[indices, ['x', 'y']].values,
-                                                       xy_true.loc[indices, ['xc', 'yc']].values, fixed=fixed)
+        try:
+            tf = Transformation.from_coordinates(xy_in=xy_reference[['x', 'y']], xy_out=xy_out, fixed=fixed)
+        except IOError:
+            logger.error('Fit of coordinate transformation failed.')
+            return None
+
+        # use fitted coordinate transformation to determine reference coordinates corresponding to best-fit
+        # coordinates
+        xy_inverted = tf.inverse(xy_out)
+        xy_reference_recovered = pd.DataFrame(xy_inverted.values.reshape((-1, 2)),
+                                              columns=xy_inverted.columns.levels[1],
+                                              index=xy_inverted.columns.levels[0])
+
+        # calculate offsets for sources
+        indices = np.intersect1d(xy_reference.index, xy_reference_recovered.index, assume_unique=True)
+        offsets = xy_reference.loc[indices, ['x', 'y']] - xy_reference_recovered.loc[indices, ['x', 'y']]
 
         # return Series containing only fitted parameters
-        return pd.Series(best_fit[0], index=[p for p in Transformation.PARAMETERS if p not in fixed.keys()])
+        best_fit = tf.data.loc[tf.data.index[0], (tf.data.columns.levels[0][tf.free], 'value')]
+
+        return best_fit.droplevel(level=1), offsets
 
     @staticmethod
     def calc_running_mad(x, y, n=500):
@@ -1483,8 +1524,8 @@ class FitLayer(object):
 
             # perform fit
             try:
-                _final = FitLayer._update_coordinate_transformation(self.catalog, results.loc[valid, ['xc', 'yc']],
-                                                                    fixed=fixed)
+                _final, self.offsets = FitLayer._update_coordinate_transformation(
+                    self.catalog, results.loc[valid, ['xc', 'yc']], fixed=fixed)
             except IOError:
                 logging.error('Fit of coordinate transformation failed.')
             else:

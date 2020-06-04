@@ -1085,7 +1085,8 @@ class SourceSelector(object):
         self.sources.status = self.cfp_results.loc[self.sources.ids, 'status']
         self.sources.load_spectra(init_wave=isinstance(self.ifs_data, MusePixtable))
 
-    def search_psf_stars(self, saturated=None, max_mag=None, psf_radius=10, aperture_noise=0.1):
+    def search_psf_stars(self, saturated=None, max_mag=None, psf_radius=10, psf_radius_scaling=None,
+                         aperture_noise=0.1):
         """
         This method searches the photometry for stars suited to constrain the
         the PSF.
@@ -1125,6 +1126,11 @@ class SourceSelector(object):
         psf_radius : float, optional
             The radius out to which the PSF profiles are calculated. The
             isolation criterion will be checked in a circle with this radius.
+        psf_radius_scaling : float <1, optional
+            The PSF radius can be adapted based on the predicted flux of each
+            star. If provided, 'psf_radius_scaling' defines the fractional
+            flux (relative to the brightest star in the field of view) that
+            corresponds to a reduction of psf_radius by a factor of 2.
         aperture_noise : float, optional
             The maximum allowed contamination of a nearby source inside the
             area where the PSF profile is defined.
@@ -1149,6 +1155,12 @@ class SourceSelector(object):
         xy = pd.DataFrame(np.stack((_x.values[0], _y.values[0]), axis=1), index=_x.columns.levels[0],
                           columns=['x', 'y'])
 
+        # measure distances of sources to edge of field of view
+        distance_to_edge = pd.Series(self.ifs_data.distance_to_edge(xy.values), index=xy.index)
+
+        # find magnitude of brightest star in field of view
+        min_mag = self.sources.mag[(self.sources.status == 2) & (distance_to_edge > 0)].min()
+
         logger.info('IDs of stars that fulfill criteria for PSF stars:')
         logger.info('      ID|   mag| d_edge [pixel]| shoulder_drop')
         logger.info('--------+------+---------------+--------------')
@@ -1162,13 +1174,12 @@ class SourceSelector(object):
                 continue
             if source_id in saturated:
                 continue
-            if (self.sources.primary == source_id).sum() != 1:
+            if np.sum(self.sources.primary == source_id) != 1:
                 continue
 
-            distance_to_edge = self.ifs_data.distance_to_edge(np.atleast_2d(xy.loc[source_id].values))[0]
-            if distance_to_edge < self.fwhm:
+            if distance_to_edge[source_id] < self.fwhm:
                 continue
-            elif distance_to_edge < 2*self.fwhm and isinstance(self.ifs_data, (Muse, MusePixtable)):
+            elif distance_to_edge[source_id] < 2*self.fwhm and isinstance(self.ifs_data, (Muse, MusePixtable)):
                 continue
 
             # calculate shoulder drop
@@ -1176,8 +1187,16 @@ class SourceSelector(object):
             dr[source_id] = np.inf  # handle the source itself
             dr[self.sources.status >= 4] = np.inf  # handle background components
 
-            if dr.min() < psf_radius:
-                dmag = (self.sources.mag[dr[dr < psf_radius].index] - mag).min()
+            # check if PSF radius should be adapted based on predicted flux
+            if psf_radius_scaling is not None:
+                r_i = psf_radius*(2**(-0.4*(mag - min_mag)/np.log10(1./psf_radius_scaling)))
+            else:
+                r_i = psf_radius
+
+            if r_i < (0.5*self.fwhm):
+                continue
+            if dr.min() < r_i:
+                dmag = (self.sources.mag[dr[dr < r_i].index] - mag).min()
                 shoulder_drop = 10**(-0.4*dmag)
                 if shoulder_drop > aperture_noise:
                     continue
@@ -1189,7 +1208,8 @@ class SourceSelector(object):
                 continue
 
             self.sources.catalog.at[source_id, 'status'] = 3
-            logger.info("{0:8d}|{1:6.2f}|{2:15.1f}|{3:14.2f}".format(source_id, mag, distance_to_edge, shoulder_drop))
+            logger.info("{0:8d}|{1:6.2f}|{2:15.1f}|{3:14.2f}".format(source_id, mag, distance_to_edge[source_id],
+                                                                     shoulder_drop))
 
         if len(self.sources.psf_indices) == 0:
             logger.error("No possible PSF sources found!")

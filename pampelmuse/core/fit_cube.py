@@ -50,7 +50,7 @@ __revision__ = 20200416
 logger = logging.getLogger(__name__)
 
 
-def init_worker(catalog, psf_type, psf_radius, psf_parameters_to_fit, position_parameters_to_fit,
+def init_worker(catalog, psf_type, psf_radius, psf_radius_scaling, psf_parameters_to_fit, position_parameters_to_fit,
                 last_component_is_unresolved, osfactor, osradius, sources, psf_sources, max_iterations, analyse_psf,
                 *args):
     """
@@ -68,7 +68,10 @@ def init_worker(catalog, psf_type, psf_radius, psf_parameters_to_fit, position_p
     psf_type : string
         The name of the PSF profile in use.
     psf_radius : int
-        The radius in pixels out to which the PSF profiles are calculated
+        The radius in pixels out to which the PSF profiles are calculated.
+    psf_radius_scaling : float
+        The scaling applied to the PSF radius depending of the flux of a
+        source.
     psf_parameters_to_fit : array_like
         The names of the PSF parameters that should be fitted, or None for a
         fixed PSF.
@@ -103,6 +106,7 @@ def init_worker(catalog, psf_type, psf_radius, psf_parameters_to_fit, position_p
     global g_catalog
     global g_psf_type
     global g_psf_radius
+    global g_psf_radius_scaling
     global g_psf_parameters_to_fit
     global g_position_parameters_to_fit
     global g_last_component_is_unresolved
@@ -116,6 +120,7 @@ def init_worker(catalog, psf_type, psf_radius, psf_parameters_to_fit, position_p
     g_catalog = catalog
     g_psf_type = psf_type
     g_psf_radius = psf_radius
+    g_psf_radius_scaling = psf_radius_scaling
     g_psf_parameters_to_fit = psf_parameters_to_fit
     g_position_parameters_to_fit = position_parameters_to_fit
     g_last_component_is_unresolved = last_component_is_unresolved
@@ -202,9 +207,9 @@ def parallel_fit_layer(fit_parameters):
     background_index = fit_parameters['background_index']
     wvl = fit_parameters['wvl']
 
-    global g_catalog, g_psf_type, g_psf_radius, g_psf_parameters_to_fit, g_position_parameters_to_fit
-    global g_last_component_is_unresolved, g_osfactor, g_osradius, g_sources, g_psf_sources, g_max_iterations
-    global g_analyse_psf
+    global g_catalog, g_psf_type, g_psf_radius, g_psf_radius_scaling, g_psf_parameters_to_fit
+    global g_position_parameters_to_fit, g_last_component_is_unresolved, g_osfactor, g_osradius, g_sources
+    global g_psf_sources, g_max_iterations, g_analyse_psf
 
     if coordinates is not None:
         catalog = pd.merge(coordinates, g_catalog[['component', 'magnitude']], left_index=True, right_index=True)
@@ -212,7 +217,8 @@ def parallel_fit_layer(fit_parameters):
         catalog = g_catalog
 
     layerfit = FitLayer(data=data, catalog=catalog, psf_type=g_psf_type, psf_parameters=psf_parameters,
-                        psf_radius=g_psf_radius, psf_lut=psf_lut, position_parameters=position_parameters,
+                        psf_radius=g_psf_radius, psf_radius_scaling=g_psf_radius_scaling, psf_lut=psf_lut,
+                        position_parameters=position_parameters,
                         last_component_is_unresolved=g_last_component_is_unresolved, background=background,
                         osfactor=g_osfactor, osradius=g_osradius, background_index=background_index, wvl=wvl)
 
@@ -258,7 +264,8 @@ class FitCube(object):
     wavelength range.
     """
 
-    def __init__(self, ifs_data, sources, psf_attributes, psf_radius=np.inf, osfactor=None, osradius=None):
+    def __init__(self, ifs_data, sources, psf_attributes, psf_radius=np.inf, psf_radius_scaling=None,
+                 osfactor=None, osradius=None):
         """
         Initialize an instance of the `StarFit'-class.
     
@@ -279,6 +286,11 @@ class FitCube(object):
         psf_radius : float, optional
             The radius out to which each PSF will be defined, measured in
             pixels and from the centre of the profile.
+        psf_radius_scaling : float, optional
+            The PSF radius can be adapted based on the fitted flux of each
+            star. If provided, 'psf_radius_scaling' defines the fractional
+            flux (relative to the brightest star in the fit) that corresponds
+            to a reduction of psf_radius by a factor of 2.
         osfactor : float, optional
             The improve the accuracy of the PSF modelling close to the
             centre of a profile, the central pixels can be supersampled by a
@@ -301,14 +313,15 @@ class FitCube(object):
         self.sources = sources
         self.psf_attributes = psf_attributes
         self.psf_radius = psf_radius
+        self.psf_radius_scaling = psf_radius_scaling
 
         # MAOPPY internally supersamples the PSF, so supersampling is turned off in PampelMuse
         if self.psf_attributes.profile == 'maoppy':
             self.osfactor = 1
             self.osradius = 0.
         else:
-            self.osfactor = 5
-            self.osradius = 2.
+            self.osfactor = osfactor if osfactor is not None else 5
+            self.osradius = osradius if osradius is not None else 2
 
         # The following two dictionaries will contain the name of ALL parameters needed to define the source
         # positions and the PSF. The keys are flags indicating if the should be optimized during the fit
@@ -544,6 +557,7 @@ class FitCube(object):
         initial_arguments = (catalog,
                              self.psf_attributes.profile,
                              self.psf_radius,
+                             self.psf_radius_scaling,
                              psf_parameters_to_fit,
                              position_parameters_to_fit,
                              self.sources.includes_unresolved,

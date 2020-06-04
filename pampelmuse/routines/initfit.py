@@ -228,6 +228,7 @@ def initfit(config):
         selector.search_psf_stars(saturated=saturated,
                                   max_mag=max_mag,
                                   psf_radius=config['psf'].get('radius', 15),
+                                  psf_radius_scaling=config['psf']['scaling'],
                                   aperture_noise=config['initfit'].get('apernois', 0.1))
 
         # perform aperture spectrophotometry for PSF stars
