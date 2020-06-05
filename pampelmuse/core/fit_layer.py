@@ -403,7 +403,7 @@ class FitLayer(object):
             return pd.Series(1., index=self.data.index)
 
     def __call__(self, fluxes=None, psf_parameters_to_fit=None, position_parameters_to_fit=None,
-                 sources=None, psf_sources=None, max_iterations=5, analyse_psf=False):
+                 sources=None, psf_sources=None, max_iterations=5, fit_psf_background=False, analyse_psf=False):
         """
         This method carries out a least-squares fir to the data.
 
@@ -442,6 +442,9 @@ class FitLayer(object):
             shape of the PSF right than to get its centroid.
         max_iterations : int, optional
             The maximum number of iterations.
+        fit_psf_background : bool, optional
+            Flag indicating if a local background should be included in the
+            individual PSF fits.
         analyse_psf : bool, optional
             Set this flag to return the radial profiles of the stars that were
             used to fit the PSF and position parameters. This parameter only
@@ -581,7 +584,7 @@ class FitLayer(object):
                 if sources is not None:
                     single_psf_results, profiles, residuals = self.fit_sources_consecutively(
                         sources=sources, psf_parameters=psf_parameters_to_fit, psf_sources=psf_sources,
-                        fit_positions=(position_parameters_to_fit is not None),
+                        fit_positions=(position_parameters_to_fit is not None), local_background=fit_psf_background,
                         return_psf_profiles=analyse_psf | (self.lut is not None))
 
                     if self.lut is not None:
