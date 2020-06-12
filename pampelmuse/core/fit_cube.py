@@ -620,7 +620,7 @@ class FitCube(object):
 
         # if offsets were fitted, average and add to Sources instance
         all_offsets = pd.concat(offsets)
-        offsets_per_star = all_offsets.groupby(level=0).agg(np.median)
+        offsets_per_star = all_offsets.groupby(level=0).agg(np.nanmedian)
         self.sources.dx = offsets_per_star['x']
         self.sources.dy = offsets_per_star['y']
 
