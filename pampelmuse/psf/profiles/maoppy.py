@@ -1,5 +1,7 @@
+import io
 import logging
 import numpy as np
+from contextlib import redirect_stdout
 from scipy.interpolate import RectBivariateSpline, interp2d
 from .profile import Profile, FitResult
 
@@ -258,9 +260,14 @@ class Maoppy(Profile):
         else:
             npixfit = None
 
-        # print("PSFAO fitting (please wait)")
-        fitresult = psffit(psf2d, Psfao, x0, weights=weights2d, system=MUSE_NFM, samp=self.samp, dxdy=(dx, dy),
-                           fixed=fixed, flux_bck=(True, fit_background), positive_bck=False, npixfit=npixfit)
+        # perform fit
+        # code prints out some "-" symbols to indicidate progression, which are captured so that is does not interfere
+        # with the logging
+        f = io.StringIO()
+        with redirect_stdout(f):
+            fitresult = psffit(psf2d, Psfao, x0, weights=weights2d, system=MUSE_NFM, samp=self.samp, dxdy=(dx, dy),
+                               fixed=fixed, flux_bck=(True, fit_background), positive_bck=False, npixfit=npixfit)
+            logger.debug(f.getvalue())
 
         if fitresult.success:
             centroid = (x_center + fitresult.dxdy[0] - shift_x, y_center + fitresult.dxdy[1] - shift_y)

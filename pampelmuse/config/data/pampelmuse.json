@@ -71,7 +71,8 @@
   },
   "cubefit": {
     "usesigma": true,
-    "iterations": 5
+    "iterations": 5,
+    "offsets" : false
   },
   "ptsort": {
     "outfilename": null

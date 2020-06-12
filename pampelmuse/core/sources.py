@@ -299,6 +299,78 @@ class Sources(object):
         else:
             self.catalog.loc[:, 'y'] = value
 
+    # Offsets to reference x-coordinates
+    @property
+    def dx(self):
+        """
+        Returns
+        -------
+        dx : pandas.Series
+            A 1dim. of length Sources.n_sources containing the offset applied
+            to the coordinate along the x-axis of each source in the reference
+            system.
+        """
+        if 'dx' in self.catalog.columns:
+            return self.catalog['dx']
+        else:
+            return pd.Series(0., self.catalog.index)
+
+    @dx.setter
+    def dx(self, value):
+        """
+        The setter method for the Sources.dx-property, containing the
+        coordinate offsets of each source along the x-axis of the reference
+        system.
+
+        Parameters
+        ----------
+        value : array_like
+            The dx offsets. Must be a 1dim. list of length Sources.n_sources
+            or a pandas Series providing the indices of the available sources.
+        """
+        try:
+            value = self._check_consistency(value)
+        except (IOError, ValueError) as msg:
+            logger.error('Cannot update values for source property "x": {0}'.format(msg))
+        else:
+            self.catalog.loc[:, 'dx'] = value
+
+    # Offsets to reference y-coordinates
+    @property
+    def dy(self):
+        """
+        Returns
+        -------
+        dy : pandas.Series
+            A 1dim. of length Sources.n_sources containing the offset applied
+            to the coordinate along the y-axis of each source in the reference
+            system.
+        """
+        if 'dy' in self.catalog.columns:
+            return self.catalog['dy']
+        else:
+            return pd.Series(0., self.catalog.index)
+
+    @dy.setter
+    def dy(self, value):
+        """
+        The setter method for the Sources.dy-property, containing the
+        coordinate offsets of each source along the x-axis of the reference
+        system.
+
+        Parameters
+        ----------
+        value : array_like
+            The dy offsets. Must be a 1dim. list of length Sources.n_sources
+            or a pandas Series providing the indices of the available sources.
+        """
+        try:
+            value = self._check_consistency(value)
+        except (IOError, ValueError) as msg:
+            logger.error('Cannot update values for source property "dy": {0}'.format(msg))
+        else:
+            self.catalog.loc[:, 'dy'] = value
+
     # Broadband magnitudes
     @property
     def mag(self):

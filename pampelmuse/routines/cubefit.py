@@ -109,7 +109,7 @@ def cubefit(config):
                       max_iterations=config['cubefit'].get('iterations', 5),
                       use_variances=config['cubefit'].get('usesigma', True),
                       n_bin=config['layers'].get('binning', 1), fit_psf_background=config['psf']['background'],
-                      analyse_psf=config['psf'].get('inspect', False))
+                      analyse_psf=config['psf'].get('inspect', False), fit_offsets=config['cubefit']['offsets'])
 
     logging.info("Saving results...")
 

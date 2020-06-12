@@ -231,13 +231,16 @@ class Transformation(Parameters):
         for i, parameter in enumerate(cls.PARAMETERS):
             logger.info("   {0} = {1:8.3f}".format(parameter, np.nanmean(data[parameter])))
 
-        logger.info("Offsets of individual sources:")
-        logger.info("       ID     dx     dy")
+        logger.info('RMS scatter between predicted and actual coordinates: STD(dx)={0:.2g}, STD(dy)={1:.2g}'.format(
+            np.nanstd(residuals[:, :, 0]), np.nanstd(residuals[:, :, 1])))
+
+        logger.debug("Offsets of individual sources:")
+        logger.debug("       ID     dx     dy")
 
         for i, source_id in enumerate(common_ids):
-            logger.info("   {0:6d}  {1:+5.2f}  {2:+5.2f}".format(source_id,
-                                                                 np.nanmean(residuals[:, i, 0]),
-                                                                 np.nanmean(residuals[:, i, 1])))
+            logger.debug("   {0:6d}  {1:+5.2f}  {2:+5.2f}".format(source_id,
+                                                                  np.nanmean(residuals[:, i, 0]),
+                                                                  np.nanmean(residuals[:, i, 1])))
 
         # define which parameters are free/fixed
         free = np.ones((len(cls.PARAMETERS)), dtype=np.bool)
