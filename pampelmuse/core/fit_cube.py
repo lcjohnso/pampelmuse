@@ -58,7 +58,7 @@ FitInput = collections.namedtuple('FitInput', ['catalog', 'psf_type', 'psf_radiu
                                                'apply_offsets'])
 
 
-def init_worker(fit_input):
+def init_worker(fit_input, *args):
     global gfit_input
     assert isinstance(fit_input, FitInput)
     gfit_input = fit_input
@@ -497,7 +497,7 @@ class FitCube(object):
 
         # initialize processes pool
         if n_cpu > 1:
-            pool = Pool(n_cpu, initializer=init_worker, initargs=initial_arguments)
+            pool = Pool(n_cpu, initializer=init_worker, initargs=[initial_arguments])
         else:
             pool = None
             init_worker(initial_arguments)

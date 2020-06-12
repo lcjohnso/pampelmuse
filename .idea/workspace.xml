@@ -19,8 +19,7 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="184c2abe-3153-48a7-88ae-f3ca9af990c0" name="Default" comment="Added option to fit offsets from reference coordinates in CUBEFIT. Still need to implement usage in subsequent CUBEFIT runs.">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+    <list default="true" id="184c2abe-3153-48a7-88ae-f3ca9af990c0" name="Default" comment="Small bugfix.">
       <change beforePath="$PROJECT_DIR$/pampelmuse/core/fit_cube.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/core/fit_cube.py" afterDir="false" />
     </list>
     <list id="2537fcfb-7e20-4757-bbd2-3237e7f34740" name="patch" comment="Issue that CUBEFIT crashed when only PSF parameters or positions were fitted with POLYFIT. " />
@@ -216,13 +215,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1499438305310</updated>
-    </task>
-    <task id="LOCAL-00067" summary="Switched off local background determination for single PSF fits in CUBEFIT. The old approach (introduced in the revision committed on 2017/05/28) lead to increased beta values for a Moffat PSF.">
-      <created>1520967028061</created>
-      <option name="number" value="00067" />
-      <option name="presentableId" value="LOCAL-00067" />
-      <option name="project" value="LOCAL" />
-      <updated>1520967028061</updated>
     </task>
     <task id="LOCAL-00068" summary="Fixed bug.">
       <created>1521024170512</created>
@@ -560,7 +552,14 @@
       <option name="project" value="LOCAL" />
       <updated>1591979809032</updated>
     </task>
-    <option name="localTasksCounter" value="116" />
+    <task id="LOCAL-00116" summary="Small bugfix.">
+      <created>1591988462847</created>
+      <option name="number" value="00116" />
+      <option name="presentableId" value="LOCAL-00116" />
+      <option name="project" value="LOCAL" />
+      <updated>1591988462847</updated>
+    </task>
+    <option name="localTasksCounter" value="117" />
     <servers />
   </component>
   <component name="Vcs.Log.History.Properties">
@@ -586,7 +585,6 @@
     <option name="oldMeFiltersMigrated" value="true" />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Added double-Moffat to options for PSF profile." />
     <MESSAGE value="Bugfix for writing configuration to FITS header." />
     <MESSAGE value="Bugfix in INITFIT." />
     <MESSAGE value="Bugfix in CUBEFIT." />
@@ -611,15 +609,16 @@
     <MESSAGE value="Implemented new parameter psf|scaling to scale radii out to which PSF profiles are defined based on source fluxes. Also started working on code to measure offsets from coordinates predicted by coordinate transformation." />
     <MESSAGE value="Added option to include local background in single PSF fits." />
     <MESSAGE value="Added option to fit offsets from reference coordinates in CUBEFIT. Still need to implement usage in subsequent CUBEFIT runs." />
-    <option name="LAST_COMMIT_MESSAGE" value="Added option to fit offsets from reference coordinates in CUBEFIT. Still need to implement usage in subsequent CUBEFIT runs." />
+    <MESSAGE value="Small bugfix." />
+    <option name="LAST_COMMIT_MESSAGE" value="Small bugfix." />
     <option name="PRESELECT_EXISTING_CHANGELIST" value="true" />
   </component>
   <component name="WindowStateProjectService">
-    <state x="649" y="137" width="1089" height="911" key="CommitChangelistDialog2" timestamp="1591979808902">
+    <state x="649" y="137" width="1089" height="911" key="CommitChangelistDialog2" timestamp="1591988462749">
       <screen x="72" y="27" width="1848" height="1053" />
     </state>
     <state x="644" y="134" key="CommitChangelistDialog2/65.24.1855.1056@65.24.1855.1056" timestamp="1587048120509" />
-    <state x="649" y="137" width="1089" height="911" key="CommitChangelistDialog2/72.27.1848.1053@72.27.1848.1053" timestamp="1591979808902" />
+    <state x="649" y="137" width="1089" height="911" key="CommitChangelistDialog2/72.27.1848.1053@72.27.1848.1053" timestamp="1591988462749" />
     <state x="631" y="334" width="719" height="452" key="EditFileWatcherDialog" timestamp="1588258128895">
       <screen x="72" y="27" width="1848" height="1053" />
     </state>
@@ -636,11 +635,11 @@
       <screen x="72" y="27" width="1848" height="1053" />
     </state>
     <state x="485" y="188" width="1022" height="737" key="SettingsEditor/72.27.1848.1053@72.27.1848.1053" timestamp="1588274264943" />
-    <state x="597" y="277" width="800" height="535" key="Vcs.Push.Dialog.v2" timestamp="1591979810951">
+    <state x="597" y="277" width="800" height="535" key="Vcs.Push.Dialog.v2" timestamp="1591988464695">
       <screen x="72" y="27" width="1848" height="1053" />
     </state>
     <state x="592" y="275" key="Vcs.Push.Dialog.v2/65.24.1855.1056@65.24.1855.1056" timestamp="1587048122032" />
-    <state x="597" y="277" width="800" height="535" key="Vcs.Push.Dialog.v2/72.27.1848.1053@72.27.1848.1053" timestamp="1591979810951" />
+    <state x="597" y="277" width="800" height="535" key="Vcs.Push.Dialog.v2/72.27.1848.1053@72.27.1848.1053" timestamp="1591988464695" />
     <state x="748" y="341" width="618" height="522" key="find.popup" timestamp="1590569078875">
       <screen x="72" y="27" width="1848" height="1053" />
     </state>
