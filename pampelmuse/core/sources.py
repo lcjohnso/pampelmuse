@@ -1403,7 +1403,14 @@ class Sources(object):
         # second choice: use coordinate transformation if available
         elif self.transformation.valid:
             # collect input coordinates in array of shape (n_sources, 2)
-            xy_in = self.catalog.loc[ids, ['x', 'y']]
+            xy_in = self.catalog.loc[ids, ['x', 'y']].copy()
+
+            # apply shifts to input coordinates if available
+            if self.dx is not None and self.dy is not None:
+                delta = self.catalog.loc[ids, ['dx', 'dy']].copy()
+                delta.fillna(0, inplace=True)
+                xy_in['x'] -= delta['dx']
+                xy_in['y'] -= delta['dy']
 
             # coordinate transformation may needs to be resized
             if not np.array_equal(self.transformation.data.index, self.wave):

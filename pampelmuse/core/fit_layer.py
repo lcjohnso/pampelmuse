@@ -87,6 +87,8 @@ class TqdmToLogger(io.StringIO):
     """
         Output stream for TQDM which will output to logger module instead of
         the StdOut.
+
+        See https://stackoverflow.com/questions/14897756/python-progress-bar-through-logging-module/41224909#41224909
     """
     logger = None
     level = None
@@ -645,6 +647,8 @@ class FitLayer(object):
                     final = self.average_psf_fits(
                         single_psf_results, psf_parameters_to_fit, _position_parameters_to_fit)
 
+                    # make sure only results for PSF sources are returned
+                    single_psf_results = single_psf_results[self.catalog.index[self.catalog['psf']]]
                 else:
                     final = pd.Series()
                     # first fit positions

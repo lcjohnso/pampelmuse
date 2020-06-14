@@ -468,6 +468,9 @@ class FitCube(object):
         psf_parameters_to_fit = [key for key in self.psf_parameters.keys() if self.psf_parameters[key]]
         if len(psf_parameters_to_fit) == 0:
             psf_parameters_to_fit = None
+            # do not store detailed PSF fit results if no PSF parameters fitted
+            if analyse_psf:
+                analyse_psf = False
 
         # check if/how the source positions should be fitted
         position_parameters_to_fit = [key for key in self.position_parameters.keys() if self.position_parameters[key]]
