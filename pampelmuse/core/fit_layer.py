@@ -702,7 +702,7 @@ class FitLayer(object):
             return_psf = pd.Series([getattr(self.psf_instances[i], p) for p in psf_parameters_to_fit],
                                    index=psf_parameters_to_fit)
         else:
-            return_psf = pd.Series()
+            return_psf = pd.Series(dtype=np.float64)
         if position_parameters_to_fit is None:
             return_positions = pd.Series(dtype=np.float64)
         elif 'xy' in position_parameters_to_fit:

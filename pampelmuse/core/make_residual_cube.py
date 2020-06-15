@@ -34,6 +34,7 @@ rev. 343, 2016/08/01
 Latest Git revision
 2020/02/05
 """
+import collections
 import logging
 from multiprocessing import cpu_count, Pool
 import numpy as np
@@ -49,7 +50,20 @@ __revision__ = 20200205
 logger = logging.getLogger(__name__)
 
 
-def init_worker(psf_type, psf_radius, osfactor, osradius, *args):
+FitLayerInit = collections.namedtuple('FitLayerInit', ['psf_type', 'psf_radius', 'psf_radius_scaling', 'osfactor',
+                                                       'osradius'])
+FitLayerInit.__new__.__defaults__ = (None,) * len(FitLayerInit._fields)
+# see https://stackoverflow.com/questions/11351032/namedtuple-and-default-values-for-optional-keyword-arguments
+
+
+FitLayerCall = collections.namedtuple('FitLayerCall', ['data', 'fluxes', 'psf_parameters', 'psf_lut', 'catalog',
+                                                       'position_parameters', 'background', 'background_index', 'wvl'])
+
+
+init_arguments = FitLayerInit()
+
+
+def init_worker(cube_parameters, *args):
     """
     This function defines the global parameters for the parallel part of the
     processing.
@@ -59,34 +73,20 @@ def init_worker(psf_type, psf_radius, osfactor, osradius, *args):
 
     Parameters
     ----------
-    psf_type : string
-        The name of the PSF profile in use.
-    psf_radius : int
-        The radius in pixels out to which the PSF profiles are calculated
-    osfactor : int
-        The oversampling factor used to improve the accuracy for the central
-        PSF pixels.
-    osradius : float
-        The radius out to which oversampling is being used.
+    cube_parameters : instance of FitLayerInit
+        The global parameters.
     args
-
-    Returns
-    -------
-    Nothing is returned, only the global variables are set. Their names are
-    derived from the names of the parameters by adding a prefix 'g_'
+        This function does not support additional arguments.
     """
-    global g_psf_type
-    global g_psf_radius
-    global g_osfactor
-    global g_osradius
+    global init_arguments
 
-    g_psf_type = psf_type
-    g_psf_radius = psf_radius
-    g_osfactor = osfactor
-    g_osradius = osradius
+    assert not args
+    assert isinstance(cube_parameters, FitLayerInit)
+
+    init_arguments = cube_parameters
 
 
-def parallel_process_layers(fit_parameters):
+def parallel_process_layers(layer_parameters):
     """
     This function is designed to calculate the fit residuals for several
     layers in parallel.
@@ -98,58 +98,32 @@ def parallel_process_layers(fit_parameters):
 
     Parameters
     ----------
-    `fit_parameters` : dictionary with the following keys defined.
-        data - pandas.DataFrame
-            The value, variance, x-, and y-positions, and wavelength
-            (optional) of each pixel of the layer.
-        catalog - pandas.DataFrame
-            Containing at least the pixel coordinates of all sources that
-            should be subtracted from the data.
-        psf_parameters - dictionary
-            The initial guesses/fixed values of the PSF parameters.
-        psf_lut - pandas Series
-            The look-up table for correcting the fluxes obtained from the
-            analytical PSF profiles. None if not look-up tables is used.
-        position_parameters - dictionary
-            The initial guesses/fixed values of the coord. transformation
-            parameters (if used).
-        background - sparse matrix
-            The matrix containing the footprints of the individual background
-            components.
-        background_index - pandas.Index
-            The index/indices used for the background components.
-        fluxes - pandas.Series
-            The fluxes of all components.
-        wvl - float
-            The wavelength of the layer (in m).
+    layer_parameters : instance of FitLayerCall
+        The paramters required to create the residuals for ta given layer
 
     Returns
     -------
     residuals : ndarray
         An array containing the fit residuals for all pixels provided via the
-        'data' parameter.
+        FitLayerCall.data input parameter.
     """
+    global init_arguments
 
-    # fit parameters is a dictionary that must contain the following keys:
-    # data, variances, transformation, xy, psf_parameters, position_parameters
-    data = fit_parameters['data']
-    catalog = fit_parameters['catalog']
-    psf_parameters = fit_parameters['psf_parameters']
-    psf_lut = fit_parameters['psf_lut']
-    position_parameters = fit_parameters['position_parameters']
-    background = fit_parameters['background']
-    background_index = fit_parameters['background_index']
-    fluxes = fit_parameters['fluxes']
-    wvl = fit_parameters['wvl']
+    layerfit = FitLayer(data=layer_parameters.data,
+                        catalog=layer_parameters.catalog,
+                        psf_type=init_arguments.psf_type,
+                        psf_parameters=layer_parameters.psf_parameters,
+                        psf_radius=init_arguments.psf_radius,
+                        psf_radius_scaling=init_arguments.psf_radius_scaling,
+                        psf_lut=layer_parameters.psf_lut,
+                        position_parameters=layer_parameters.position_parameters,
+                        osfactor=init_arguments.osfactor,
+                        osradius=init_arguments.osradius,
+                        background=layer_parameters.background,
+                        background_index=layer_parameters.background_index,
+                        wvl=layer_parameters.wvl)
 
-    global g_psf_type, g_psf_radius, g_osfactor, g_osradius
-
-    layerfit = FitLayer(data=data, catalog=catalog, psf_type=g_psf_type, psf_parameters=psf_parameters,
-                        psf_radius=g_psf_radius, psf_lut=psf_lut, position_parameters=position_parameters,
-                        background=background, osfactor=g_osfactor, osradius=g_osradius,
-                        background_index=background_index, wvl=wvl)
-
-    results = layerfit.residuals_from_fluxes(fluxes=fluxes)
+    results = layerfit.residuals_from_fluxes(fluxes=layer_parameters.fluxes)
 
     return results
 
@@ -288,13 +262,14 @@ class MakeResidualsCube(FitCube):
         logger.info("Starting processing using {0} CPU(s).".format(n_cpu))
 
         # Set global values for processing of individual layers and initialize pool of processes
-        initial_arguments = (self.psf_attributes.profile,
-                             self.psf_radius,
-                             self.osfactor,
-                             self.osradius
-                             )
+        initial_arguments = FitLayerInit(psf_type=self.psf_attributes.profile,
+                                         psf_radius=self.psf_radius,
+                                         psf_radius_scaling=self.psf_radius_scaling,
+                                         osfactor=self.osfactor,
+                                         osradius=self.osradius)
+
         if n_cpu > 1:
-            pool = Pool(n_cpu, initializer=init_worker, initargs=initial_arguments)
+            pool = Pool(n_cpu, initializer=init_worker, initargs=[initial_arguments])
         else:
             pool = None
             init_worker(*initial_arguments)
@@ -331,29 +306,23 @@ class MakeResidualsCube(FitCube):
             # get 1D arrays containing valid data pixels
             data = self.get_layer(self.sources.wave.get_loc(jj), use_variances=False, n_bin=1, skip_nan=False,
                                   use_slices=(self.sources.status == 5).any())
-            fit_input.append({'data': data})
 
             # update fluxes
             fluxes = self.read_fluxes(jj)
-            fit_input[-1]['fluxes'] = fluxes[fluxes.index <= selected_components.max()]
+            fluxes = fluxes[fluxes.index <= selected_components.max()]
 
             # update PSF parameters
             psf_parameters, lut = self.read_psf_parameters(jj)
-            fit_input[-1]['psf_parameters'] = psf_parameters
-            fit_input[-1]['psf_lut'] = lut
 
             # update parameters of coordinate transformation (if available and needed)
+            position_parameters = None
             if self.sources.transformation.valid:
                 if not self.sources.ifs_coordinates_fitted[~self.sources.is_background].all():
-                    fit_input[-1]['position_parameters'] = self.read_coordinate_transformation(jj)
+                    position_parameters = self.read_coordinate_transformation(jj)
 
             # update direct coordinates if required
             if self.sources.ifs_coordinates_fitted.any() or self.sources.ifs_coordinates_free.any():
                 catalog[['x', 'y']] = self.read_ifs_coordinates(jj)
-                fit_input[-1]['position_parameters'] = None
-
-            # add sources catalog to fit input
-            fit_input[-1]['catalog'] = catalog
 
             # add background if requested
             if subtract_background and self.background is not None:
@@ -365,9 +334,10 @@ class MakeResidualsCube(FitCube):
                     offset=self.sources.n_components - self.sources.n_background)
             else:
                 background_matrix = background_components = None
-            fit_input[-1]['background'] = background_matrix
-            fit_input[-1]['background_index'] = background_components
-            fit_input[-1]['wvl'] = jj
+
+            fit_input.append(FitLayerCall(data=data, fluxes=fluxes, psf_parameters=psf_parameters, psf_lut=lut,
+                                          position_parameters=position_parameters, catalog=catalog,
+                                          background=background_matrix, background_index=background_components, wvl=jj))
 
             # A parallel processing is triggered every n_cpu's layer
             if np.mod(i + 1, n_cpu) == 0 or jj == indices_to_analyse[-1]:

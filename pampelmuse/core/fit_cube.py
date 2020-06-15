@@ -51,20 +51,45 @@ __revision__ = 20200416
 logger = logging.getLogger(__name__)
 
 
-FitInput = collections.namedtuple('FitInput', ['catalog', 'psf_type', 'psf_radius', 'psf_radius_scaling',
-                                               'psf_parameters_to_fit', 'position_parameters_to_fit',
-                                               'last_component_is_unresolved', 'osfactor', 'osradius',
-                                               'max_iterations', 'fit_psf_background', 'analyse_psf',
-                                               'apply_offsets'])
+FitLayerInit = collections.namedtuple('FitLayerInit', ['catalog', 'psf_type', 'psf_radius', 'psf_radius_scaling',
+                                                       'psf_parameters_to_fit', 'position_parameters_to_fit',
+                                                       'last_component_is_unresolved', 'osfactor', 'osradius',
+                                                       'max_iterations', 'fit_psf_background', 'analyse_psf',
+                                                       'apply_offsets'])
+FitLayerInit.__new__.__defaults__ = (None,) * len(FitLayerInit._fields)
+# see https://stackoverflow.com/questions/11351032/namedtuple-and-default-values-for-optional-keyword-arguments
 
 
-def init_worker(fit_input, *args):
-    global gfit_input
-    assert isinstance(fit_input, FitInput)
-    gfit_input = fit_input
+FitLayerCall = collections.namedtuple('FitLayerCall', ['data', 'fluxes', 'psf_parameters', 'psf_lut', 'coordinates',
+                                                       'position_parameters', 'background', 'background_index', 'wvl'])
 
 
-def parallel_fit_layer(fit_parameters):
+init_arguments = FitLayerInit()
+
+
+def init_worker(cube_parameters, *args):
+    """
+    This function is provided as initializer to the multiprocessing Pool used
+    to run the analysis of several layers in parallel. It merely makes some
+    parameters that do not change from one layer to the next available to the
+    parallel_fit_layer function performing the parallel fit.
+
+    Parameters
+    ----------
+    cube_parameters : instance of FitLayerInit
+        The global parameters.
+    args
+        No additional arguments are supported.
+    """
+    global init_arguments
+
+    assert not args
+    assert isinstance(cube_parameters, FitLayerInit)
+
+    init_arguments = cube_parameters
+
+
+def parallel_fit_layer(layer_parameters):
     """
     This function is designed to carry out the fit to several layers in
     parallel.
@@ -75,92 +100,49 @@ def parallel_fit_layer(fit_parameters):
 
     Parameters
     ----------
-    fit_parameters : dictionary with the following keys defined.
-        data - pandas.DataFrame
-            The value, variance, x-, and y-positions, and wavelength
-            (optional) of each pixel of the layer.
-        psf_parameters - dictionary
-            The initial guesses/fixed values of the PSF parameters.
-        psf_lut - pandas Series
-            The look-up table for correcting the fluxes obtained from the
-            analytical PSF profiles. None if not look-up tables is used.
-        coordinates - pandas.DataFrame
-            The initial guesses/fixed values of the pixel coordinates if no
-             coordinate transformation is being used.
-        position_parameters - dictionary
-            The initial guesses/fixed values of the coord. transformation
-            parameters (if used).
-        background - sparse matrix
-            The matrix containing the footprints of the individual background
-            components.
-        background_index - pandas.Index
-            The index/indices used for the background components.
-        wvl : float, optional
-            The wavelength of the current layer (in m).
+    layer_parameters : instance of FitLayerCall
+        The parameters required to perform the analysis of the given layer.
 
     Returns
     -------
-    `FitResult` with the following fields defined.
-    fluxes : pandas.Series
-        The fitted fluxes of the components that actually contributed to
-        the observed flux. Sources entirely outside the observed field of
-        view are excluded from this series.
-    uncertainties : pandas.Series
-        The associated uncertainties of the returned fluxes.
-    positions : pandas.Series or pandas.DataFrame
-        The best-fit parameters of the coordinate transformation or the
-        best-fit centroids of all components (in this case a DataFrame is
-        returned containing columns 'x' and 'y' and one row per source),
-        or None if fixed positions were used.
-    psf : pandas.Series
-        The best-fit parameters of the PSF, or None if a fixed PSF was
-        used.
-    wave : pandas.Series
-        If dedicated wavelength information per pixel was provided with
-        the data, this Series will contain the weighted wavelength value
-        for each returned flux. Otherwise None is returned.
-    profiles : pandas.DataFrame
-        The radial profiles of the PSF stars if requested. Otherwise None.
-    parameters : pandas.DataFrame
-        The parameters of the individual PSF fits it requested. Otherwise
-        None.
-    lut: instance of InterpolatedUnivariateSpline
-        The look-up table created from the average residuals of the PSF
-        fits if requested, otherwise None
+    Instance of `FitResult` with the following fields defined.
+        See documentation of pampelmuse.core.fit_layer.FitLayer.__call__ for
+        the contents of FitResult
     """
-    # fit parameters is a dictionary that must contain the following keys:
-    # data, variances, transformation, xy, psf_parameters, position_parameters
-    data = fit_parameters['data']
-    fluxes = fit_parameters['fluxes']
-    psf_parameters = fit_parameters['psf_parameters']
-    psf_lut = fit_parameters['psf_lut']
-    coordinates = fit_parameters['coordinates']
-    position_parameters = fit_parameters['position_parameters']
-    background = fit_parameters['background']
-    background_index = fit_parameters['background_index']
-    wvl = fit_parameters['wvl']
+    global init_arguments
 
-    global gfit_input
+    assert isinstance(layer_parameters, FitLayerCall)
 
-    if coordinates is not None:
-        catalog = pd.merge(coordinates, gfit_input.catalog[['component', 'magnitude']], left_index=True,
-                           right_index=True)
+    if layer_parameters.coordinates is not None:
+        catalog = pd.merge(layer_parameters.coordinates, init_arguments.catalog[['component', 'magnitude']],
+                           left_index=True, right_index=True)
     else:
-        catalog = gfit_input.catalog
+        catalog = init_arguments.catalog
 
-    layerfit = FitLayer(data=data, catalog=catalog, psf_type=gfit_input.psf_type, psf_parameters=psf_parameters,
-                        psf_radius=gfit_input.psf_radius, psf_radius_scaling=gfit_input.psf_radius_scaling,
-                        psf_lut=psf_lut, position_parameters=position_parameters,
-                        last_component_is_unresolved=gfit_input.last_component_is_unresolved, background=background,
-                        osfactor=gfit_input.osfactor, osradius=gfit_input.osradius, background_index=background_index,
-                        wvl=wvl)
+    fit_layer = FitLayer(data=layer_parameters.data,
+                         catalog=catalog,
+                         psf_type=init_arguments.psf_type,
+                         psf_parameters=layer_parameters.psf_parameters,
+                         psf_radius=init_arguments.psf_radius,
+                         psf_radius_scaling=init_arguments.psf_radius_scaling,
+                         psf_lut=layer_parameters.psf_lut,
+                         position_parameters=layer_parameters.position_parameters,
+                         last_component_is_unresolved=init_arguments.last_component_is_unresolved,
+                         background=layer_parameters.background,
+                         osfactor=init_arguments.osfactor,
+                         osradius=init_arguments.osradius,
+                         background_index=layer_parameters.background_index,
+                         wvl=layer_parameters.wvl)
 
-    results = layerfit(fluxes=fluxes, psf_parameters_to_fit=gfit_input.psf_parameters_to_fit,
-                       position_parameters_to_fit=gfit_input.position_parameters_to_fit,
-                       max_iterations=gfit_input.max_iterations, fit_psf_background=gfit_input.fit_psf_background,
-                       analyse_psf=gfit_input.analyse_psf, apply_offsets=gfit_input.apply_offsets)
+    results = fit_layer(fluxes=layer_parameters.fluxes,
+                        psf_parameters_to_fit=init_arguments.psf_parameters_to_fit,
+                        position_parameters_to_fit=init_arguments.position_parameters_to_fit,
+                        max_iterations=init_arguments.max_iterations,
+                        fit_psf_background=init_arguments.fit_psf_background,
+                        analyse_psf=init_arguments.analyse_psf,
+                        apply_offsets=init_arguments.apply_offsets)
 
-    del layerfit
+    del fit_layer
     return results
 
 
@@ -485,19 +467,19 @@ class FitCube(object):
         offsets = []
 
         # initialize fitting process by providing arguments that do not change between layers and creating process pool
-        initial_arguments = FitInput(catalog=catalog,
-                                     psf_type=self.psf_attributes.profile,
-                                     psf_radius=self.psf_radius,
-                                     psf_radius_scaling=self.psf_radius_scaling,
-                                     psf_parameters_to_fit=psf_parameters_to_fit,
-                                     position_parameters_to_fit=position_parameters_to_fit,
-                                     last_component_is_unresolved=self.sources.includes_unresolved,
-                                     osfactor=self.osfactor,
-                                     osradius=self.osradius,
-                                     max_iterations=max_iterations,
-                                     fit_psf_background=fit_psf_background,
-                                     analyse_psf=analyse_psf,
-                                     apply_offsets=fit_offsets)
+        initial_arguments = FitLayerInit(catalog=catalog,
+                                         psf_type=self.psf_attributes.profile,
+                                         psf_radius=self.psf_radius,
+                                         psf_radius_scaling=self.psf_radius_scaling,
+                                         psf_parameters_to_fit=psf_parameters_to_fit,
+                                         position_parameters_to_fit=position_parameters_to_fit,
+                                         last_component_is_unresolved=self.sources.includes_unresolved,
+                                         osfactor=self.osfactor,
+                                         osradius=self.osradius,
+                                         max_iterations=max_iterations,
+                                         fit_psf_background=fit_psf_background,
+                                         analyse_psf=analyse_psf,
+                                         apply_offsets=fit_offsets)
 
         # initialize processes pool
         if n_cpu > 1:
@@ -508,7 +490,6 @@ class FitCube(object):
 
         # loop over all layers in cube that should be analysed
         for i, jj in enumerate(indices_to_analyse):
-            fit_input.append({})
 
             # Add a common prefix for all logging messages related to the analysis of the current layer.
             n_digits = int(np.log10(indices_to_analyse.size)) + 1  # for logging prefix, get number of digits of N_layer
@@ -534,24 +515,21 @@ class FitCube(object):
             # get 1D arrays containing valid data pixels, also sigma-values if requested
             data = self.get_layer(layers_to_analyse[i], n_bin=n_bin, use_variances=use_variances,
                                   use_slices=(self.sources.status == 5).any())
-            fit_input[-1]['data'] = data
 
             # get fluxes
-            fit_input[-1]['fluxes'] = self.read_fluxes(jj, last=nearest_layers)
+            fluxes = self.read_fluxes(jj, last=nearest_layers)
 
             # update PSF parameters & look-up table if available.
             psf_parameters, lut = self.read_psf_parameters(jj, last=nearest_layers)
-            fit_input[-1]['psf_parameters'] = psf_parameters
-            fit_input[-1]['psf_lut'] = lut
 
+            position_parameters = None
+            coordinates = None
             # update direct coordinates if required
             if self.sources.ifs_coordinates_fitted.any() or self.sources.ifs_coordinates_free.any():
-                fit_input[-1]['coordinates'] = self.read_ifs_coordinates(jj, last=nearest_layers)
-                fit_input[-1]['position_parameters'] = None
+                coordinates = self.read_ifs_coordinates(jj, last=nearest_layers)
             # otherwise try to update parameters of coordinate transformation
             elif self.sources.transformation.valid:
-                fit_input[-1]['coordinates'] = None
-                fit_input[-1]['position_parameters'] = self.read_coordinate_transformation(jj, last=nearest_layers)
+                position_parameters = self.read_coordinate_transformation(jj, last=nearest_layers)
             else:
                 logger.critical('Cannot determine IFS coordinates of sources.')
 
@@ -571,10 +549,11 @@ class FitCube(object):
                     offset=self.sources.n_components - self.sources.n_background, purge_empty=True)
             else:
                 background_matrix = background_components = None
-            fit_input[-1]['background'] = background_matrix
-            fit_input[-1]['background_index'] = background_components
 
-            fit_input[-1]['wvl'] = jj
+            fit_input.append(FitLayerCall(data=data, fluxes=fluxes, psf_parameters=psf_parameters, psf_lut=lut,
+                                          coordinates=coordinates, position_parameters=position_parameters,
+                                          background=background_matrix, background_index=background_components,
+                                          wvl=jj))
 
             # The first two layers are fitted sequentially in order to obtain useful initial guesses for the
             # following ones. Otherwise a parallel fit is triggered every n_cpu's layer
@@ -600,7 +579,7 @@ class FitCube(object):
                     # save PSF if requested
                     if analyse_psf and result.profiles is not None:
                         self._write_psf_properties(result.profiles, result.parameters, current_wavelength=current)
-                        self._write_minicubes(current, result.residuals, fit_input[k - 1]['data'])
+                        self._write_minicubes(current, result.residuals, fit_input[k - 1].data)
 
                     # collect offsets if requested
                     if result.offsets is not None:
@@ -627,10 +606,11 @@ class FitCube(object):
                         last_layers = indices_to_analyse[i - 2:max(0, i - 2 - 2 * n_track):-1]
 
         # if offsets were fitted, average and add to Sources instance
-        all_offsets = pd.concat(offsets)
-        offsets_per_star = all_offsets.groupby(level=0).agg(np.nanmedian)
-        self.sources.dx = offsets_per_star['x']
-        self.sources.dy = offsets_per_star['y']
+        if len(offsets) > 0:
+            all_offsets = pd.concat(offsets)
+            offsets_per_star = all_offsets.groupby(level=0).agg(np.nanmedian)
+            self.sources.dx = offsets_per_star['x']
+            self.sources.dy = offsets_per_star['y']
 
         # if available, return results of detailed PSF analysis
         return self._make_psf_hdus() if analyse_psf else None
