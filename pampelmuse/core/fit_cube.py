@@ -131,6 +131,7 @@ def parallel_fit_layer(fit_parameters):
     # fit parameters is a dictionary that must contain the following keys:
     # data, variances, transformation, xy, psf_parameters, position_parameters
     data = fit_parameters['data']
+    fluxes = fit_parameters['fluxes']
     psf_parameters = fit_parameters['psf_parameters']
     psf_lut = fit_parameters['psf_lut']
     coordinates = fit_parameters['coordinates']
@@ -154,7 +155,7 @@ def parallel_fit_layer(fit_parameters):
                         osfactor=gfit_input.osfactor, osradius=gfit_input.osradius, background_index=background_index,
                         wvl=wvl)
 
-    results = layerfit(fluxes=None, psf_parameters_to_fit=gfit_input.psf_parameters_to_fit,
+    results = layerfit(fluxes=fluxes, psf_parameters_to_fit=gfit_input.psf_parameters_to_fit,
                        position_parameters_to_fit=gfit_input.position_parameters_to_fit,
                        max_iterations=gfit_input.max_iterations, fit_psf_background=gfit_input.fit_psf_background,
                        analyse_psf=gfit_input.analyse_psf, apply_offsets=gfit_input.apply_offsets)
@@ -507,6 +508,7 @@ class FitCube(object):
 
         # loop over all layers in cube that should be analysed
         for i, jj in enumerate(indices_to_analyse):
+            fit_input.append({})
 
             # Add a common prefix for all logging messages related to the analysis of the current layer.
             n_digits = int(np.log10(indices_to_analyse.size)) + 1  # for logging prefix, get number of digits of N_layer
@@ -532,7 +534,10 @@ class FitCube(object):
             # get 1D arrays containing valid data pixels, also sigma-values if requested
             data = self.get_layer(layers_to_analyse[i], n_bin=n_bin, use_variances=use_variances,
                                   use_slices=(self.sources.status == 5).any())
-            fit_input.append({'data': data})
+            fit_input[-1]['data'] = data
+
+            # get fluxes
+            fit_input[-1]['fluxes'] = self.read_fluxes(jj, last=nearest_layers)
 
             # update PSF parameters & look-up table if available.
             psf_parameters, lut = self.read_psf_parameters(jj, last=nearest_layers)
@@ -702,7 +707,42 @@ class FitCube(object):
 
         # return, make sure byte-ordering is correct, see
         # https://pandas.pydata.org/pandas-docs/stable/gotchas.html#byte-ordering-issues
-        return pd.DataFrame(data, index=np.flatnonzero(~mask), dtype='<f4')
+        return pd.DataFrame(data, index=pd.Index(np.flatnonzero(~mask)), dtype='<f4')
+
+    def read_fluxes(self, current, last=None):
+        """
+        Method to fluxes of all components for a given layer.
+
+        If possible and requested, the method obtains updated values by
+        averaging over the results from the nearest layers, otherwise it uses
+        the values in the sources instance.
+
+        Parameters
+        ----------
+        current : integer
+            The index of the layer for which the parameters should be obtained
+        last : list of integers, optional
+            A list containing the indices of the layers that are averaged to
+            get the new value.
+
+        Returns
+        -------
+        fluxes : pd.Series
+            The updated value of the flux of each component for the current
+            layer.
+        """
+        logger.info("Updating fluxes of individual components ...")
+
+        if last is None:
+            fluxes = self.sources.data.loc[current, (slice(None), 'flux')]
+        else:
+            fluxes = self.sources.data.loc[last, (slice(None), 'flux')].mean(axis=0, skipna=True)
+
+        # replace NaN with zeros
+        fluxes.fillna(value=0, inplace=True)
+
+        # remove second level from MultiIndex which is not needed any more.
+        return fluxes.reset_index(level=1, drop=True)
 
     def read_psf_parameters(self, current, last=None):
         """
@@ -753,7 +793,6 @@ class FitCube(object):
         logger.info(log_string[:-1])
 
         if self.psf_attributes.lut is not None:
-            print(self.psf_attributes.lut_fitted)
             if self.psf_attributes.lut_fitted:
                 lut = self.psf_attributes.lut.loc[current, 'fit']
             else:

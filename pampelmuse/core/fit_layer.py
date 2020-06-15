@@ -520,7 +520,7 @@ class FitLayer(object):
             logger.error('Encountered ill-defined data. Returning NanNs ...')
 
             if position_parameters_to_fit is None:
-                return_positions = pd.Series()
+                return_positions = pd.Series(dtype=np.float64)
             elif 'xy' in position_parameters_to_fit:
                 return_positions = pd.DataFrame(np.nan, columns=['xc', 'yc'], index=self.catalog.index)
             else:
@@ -529,7 +529,7 @@ class FitLayer(object):
             if psf_parameters_to_fit is not None:
                 return_psf = pd.Series(np.nan, index=psf_parameters_to_fit)
             else:
-                return_psf = pd.Series()
+                return_psf = pd.Series(dtype=np.float64)
 
             return FitResult(pd.Series(np.nan, index=self.fluxes.index),
                              pd.Series(np.nan, index=self.fluxes.index),

@@ -50,7 +50,6 @@ from astropy.io import fits
 from astropy.table import Table
 from ..core.coordinates import Transformation
 from ..filters import get_filter
-from ..utils.statistics import robust_fit
 
 # check if PyQt is available 
 try:
@@ -776,7 +775,7 @@ class Sources(object):
         logger.info("Current status of catalogue of sources:")
         logger.info("   no. of PSF sources: {0}".format(self.psf_indices.size))
         logger.info("   no. of resolved sources: {0}".format(self.is_resolved.sum()))
-        logger.info("   no. of nearby sources: {0}".format((self.status == 1).sum()))
+        logger.info("   no. of nearby sources: {0}".format(np.sum(self.status == 1)))
         logger.info("   no. of unresolved sources: {0}".format(self.is_unresolved.sum()))
         logger.info("   no. of background components: {0}".format(self.n_background))
 
@@ -1144,19 +1143,21 @@ class Sources(object):
         if self.spectrum_loaded is None and self.data_hdu is None:
             logging.error("No spectra have been loaded using Sources.load_spectra() or Sources.open_spectra_hdu().")
             return None
+
         # get index of component (i.e. specrow)
-        else:
-            # check if ID was provided
-            try:
-                name = int(name)
-            # otherwise, check if unresolved or background component requested
-            except ValueError:
-                if name == 'Unresolved':
-                    i = self.specrow_unresolved
-                elif name[:4] == 'Back':
-                    i = self.specrow_background.iloc[int(name[4:])]
+        # check if ID was provided
+        try:
+            name = int(name)
+        # otherwise, check if unresolved or background component requested
+        except ValueError:
+            if name == 'Unresolved':
+                i = self.specrow_unresolved
+            elif name[:4] == 'Back':
+                i = self.specrow_background.iloc[int(name[4:])]
             else:
-                i = self.specrow[name]
+                raise ValueError("Spectrum requested for unknown component {0}.".format(name))
+        else:
+            i = self.specrow[name]
 
         # load the spectrum if it has not been loaded previously
         if self.spectrum_loaded is None or not self.spectrum_loaded[i]:
@@ -1190,6 +1191,35 @@ class Sources(object):
             return True
         else:
             return self.transformation.contains_free_parameters
+
+    def _get_reference_coordinates(self, index):
+        """
+        Calculate and return the reference coordinates - including offsets
+        when available - for the requested sources.
+
+        Parameters
+        ----------
+        index : pandas.Index
+            The indices of the sources for which the coordinates should be
+            returned.
+
+        Returns
+        -------
+        xy_in : pandas.DataFrame
+            The reference coordinates for the requested sources, using 'x' and
+            'y' as column names and the provided index as index.
+        """
+        # collect input coordinates in array of shape (n_sources, 2)
+        xy_in = self.catalog.loc[index, ['x', 'y']].copy()
+
+        # apply shifts to input coordinates if available
+        if self.dx is not None and self.dy is not None:
+            delta = self.catalog.loc[index, ['dx', 'dy']].copy()
+            delta.fillna(0, inplace=True)
+            xy_in['x'] -= delta['dx']
+            xy_in['y'] -= delta['dy']
+
+        return xy_in
 
     def open_coordinates_hdu(self, hdu):
         """
@@ -1402,15 +1432,7 @@ class Sources(object):
 
         # second choice: use coordinate transformation if available
         elif self.transformation.valid:
-            # collect input coordinates in array of shape (n_sources, 2)
-            xy_in = self.catalog.loc[ids, ['x', 'y']].copy()
-
-            # apply shifts to input coordinates if available
-            if self.dx is not None and self.dy is not None:
-                delta = self.catalog.loc[ids, ['dx', 'dy']].copy()
-                delta.fillna(0, inplace=True)
-                xy_in['x'] -= delta['dx']
-                xy_in['y'] -= delta['dy']
+            xy_in = self._get_reference_coordinates(index=ids)
 
             # coordinate transformation may needs to be resized
             if not np.array_equal(self.transformation.data.index, self.wave):
@@ -1509,7 +1531,7 @@ class Sources(object):
                 logger.error('Layer selection must be consecutive.')
 
         # collect input coordinates in (n_sources, 2) array
-        xy_in = self.catalog.loc[self.ifs_coordinates_loaded, ['x', 'y']]
+        xy_in = self._get_reference_coordinates(index=self.ifs_coordinates_loaded.index[self.ifs_coordinates_loaded])
 
         # get output coordinates
         xy_out = self.ifs_coordinates.loc[self.wave[layers], (slice(None), slice(None), 'value')]

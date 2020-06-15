@@ -383,35 +383,3 @@ class MakeResidualsCube(FitCube):
                 fit_input = []
 
         return self.residuals
-
-    def read_fluxes(self, current, last=None):
-        """
-        Method to fluxes of all components for a given layer.
-        
-        If possible and requested, the method obtains updated values by
-        averaging over the results from the nearest layers, otherwise it uses
-        the values in the sources instance.
-
-        Parameters
-        ----------
-        current : integer
-            The index of the layer for which the parameters should be obtained
-        last : list of integers, optional
-            A list containing the indices of the layers that are averaged to
-            get the new value.
-
-        Returns
-        -------
-        fluxes : pd.Series
-            The updated value of the flux of each component for the current
-            layer.
-        """
-        logger.info("Updating fluxes of individual components ...")
-
-        if last is None:
-            fluxes = self.sources.data.loc[current, (slice(None), 'flux')]
-        else:
-            fluxes = np.nanmean(self.sources.loc[last, (slice(None), 'flux')], axis=0)
-
-        # remove second level from MultiIndex which is not needed any more.
-        return fluxes.reset_index(level=1, drop=True)
