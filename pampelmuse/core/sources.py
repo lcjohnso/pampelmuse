@@ -1213,11 +1213,8 @@ class Sources(object):
         xy_in = self.catalog.loc[index, ['x', 'y']].copy()
 
         # apply shifts to input coordinates if available
-        if self.dx is not None and self.dy is not None:
-            delta = self.catalog.loc[index, ['dx', 'dy']].copy()
-            delta.fillna(0, inplace=True)
-            xy_in['x'] -= delta['dx']
-            xy_in['y'] -= delta['dy']
+        xy_in['x'] -= self.dx[index].fillna(value=0)
+        xy_in['y'] -= self.dy[index].fillna(value=0)
 
         return xy_in
 
