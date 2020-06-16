@@ -240,6 +240,10 @@ class Maoppy(Profile):
         weights2d = resample_to_2d(x=self.x[self.used] + shift_x, y=self.y[self.used] + shift_y, z=weights,
                                    shape=self.maoppy_shape)
 
+        # from astropy.io import fits
+        # out = fits.HDUList([fits.PrimaryHDU(psf2d), fits.ImageHDU(weights2d)])
+        # out.writeto('test_{0}.fits'.format(self.src_id), overwrite=1)
+
         # pad = ((0, 1) if psf2d.shape[0] % 2 > 0 else (0, 0), (0, 1) if psf2d.shape[1] % 2 > 0 else (0, 0))
         # psf2d = np.pad(psf2d, pad)
         # weights2d = np.pad(weights2d, pad)

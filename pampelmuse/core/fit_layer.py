@@ -299,7 +299,7 @@ class FitLayer(object):
             new_psf = psf_class(transform=transform, uc=row['x'], vc=row['y'], mag=row['magnitude'],
                                 src_id=index, maxrad=self.psf_radius, osfactor=osfactor, osradius=osradius,
                                 lut=self.lut)
-            if isinstance(psf_class, Maoppy) and wvl is not None:
+            if isinstance(new_psf, Maoppy) and wvl is not None:
                 new_psf.wvl = wvl
 
             # initialize the PSF parameters:
@@ -648,7 +648,7 @@ class FitLayer(object):
                         single_psf_results, psf_parameters_to_fit, _position_parameters_to_fit)
 
                     # make sure only results for PSF sources are returned
-                    single_psf_results = single_psf_results[self.catalog.index[self.catalog['psf']]]
+                    single_psf_results = single_psf_results.loc[self.catalog.index[self.catalog['psf']]]
                 else:
                     final = pd.Series()
                     # first fit positions
@@ -1052,19 +1052,19 @@ class FitLayer(object):
             if return_psf_profiles and is_psf_source[i]:
                 # calculate weight of every sub-pixel (=inverse of number of sub-pixels in pixel)
                 _, unique_inverse, unique_counts = np.unique(psf.osmap, return_inverse=True, return_counts=True)
-                weights = 1./unique_counts[unique_inverse]
+                pixel_weights = 1./unique_counts[unique_inverse]
                 # account for sub-pixels by duplicating data of every pixel containing sub-pixels.
                 os_data = data[self.data.index[psf.osmap]]
                 # calculate profile
-                profile = self._get_radial_profile(data=os_data, radii=psf.r, weights=weights)
+                profile = self._get_radial_profile(data=os_data, radii=psf.r, weights=pixel_weights)
                 radial_data[i] = profile  # contains radii and values
 
             # # for debugging, show plot with current data
             # import matplotlib.pyplot as plt
             # fig = plt.figure(figsize=(5, 8))
             # ax1 = fig.add_axes([0.12, 0.54, 0.83, 0.44])
-            # ax1.scatter(psf.x[used], psf.y[used], marker='o', s=50, c=data, cmap=plt.cm.hot, vmin=-1000,
-            #             vmax=10000)
+            # ax1.scatter(psf.x[used], psf.y[used], marker='o', s=50, c=weights, cmap=plt.cm.bwr, vmin=-0.01,
+            #             vmax=0.01)
             # ax2 = fig.add_axes([0.12, 0.05, 0.83, 0.44])
             # ax2.scatter(psf.x[used], psf.y[used], marker='o', s=50,
             #             c=self.current[used], cmap=plt.cm.hot, vmin=-1000, vmax=10000)
