@@ -19,11 +19,9 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="184c2abe-3153-48a7-88ae-f3ca9af990c0" name="Default" comment="Providing initial values for fluxes now when analysing layers in CUBEFIT. This enables the PSF radius scaling from the first iteration onwards, reducing computation times.">
+    <list default="true" id="184c2abe-3153-48a7-88ae-f3ca9af990c0" name="Default" comment="Revised parallelization in CUBEFIT and SUBTRES. Also fixed bug in CUBEFIT.">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/core/fit_cube.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/core/fit_cube.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/core/fit_layer.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/core/fit_layer.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/core/make_residual_cube.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/core/make_residual_cube.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/routines/subtres.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/routines/subtres.py" afterDir="false" />
     </list>
     <list id="2537fcfb-7e20-4757-bbd2-3237e7f34740" name="patch" comment="Issue that CUBEFIT crashed when only PSF parameters or positions were fitted with POLYFIT. " />
     <option name="SHOW_DIALOG" value="false" />
@@ -218,13 +216,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1499438305310</updated>
-    </task>
-    <task id="LOCAL-00071" summary="Fixed minor issue that vertical line in spectrum view of GUI sometimes showed wrong wavelength.">
-      <created>1523446587709</created>
-      <option name="number" value="00071" />
-      <option name="presentableId" value="LOCAL-00071" />
-      <option name="project" value="LOCAL" />
-      <updated>1523446587709</updated>
     </task>
     <task id="LOCAL-00072" summary="Relaxed criterion for matching name of passband in reference catalog.">
       <created>1526986422848</created>
@@ -562,7 +553,14 @@
       <option name="project" value="LOCAL" />
       <updated>1592239234158</updated>
     </task>
-    <option name="localTasksCounter" value="120" />
+    <task id="LOCAL-00120" summary="Revised parallelization in CUBEFIT and SUBTRES. Also fixed bug in CUBEFIT.">
+      <created>1592257749296</created>
+      <option name="number" value="00120" />
+      <option name="presentableId" value="LOCAL-00120" />
+      <option name="project" value="LOCAL" />
+      <updated>1592257749296</updated>
+    </task>
+    <option name="localTasksCounter" value="121" />
     <servers />
   </component>
   <component name="Vcs.Log.History.Properties">
@@ -588,7 +586,6 @@
     <option name="oldMeFiltersMigrated" value="true" />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Some additional logging in INITFIT." />
     <MESSAGE value="Experimental release of look-up table implementation. Will not work with all PSF models yet." />
     <MESSAGE value="Revised all PSF profiles for usage of look-up tables. However, currently the fits using look-up tables appear unstable, so I suggest not using them yet." />
     <MESSAGE value="Fixed issue with look-up table usage in CUBEFIT." />
@@ -613,15 +610,16 @@
     <MESSAGE value="Fixed issue with multiprocessing in CUBEFIT." />
     <MESSAGE value="Implemented usage of fitted offsets from reference coordinates in POLYFIT." />
     <MESSAGE value="Providing initial values for fluxes now when analysing layers in CUBEFIT. This enables the PSF radius scaling from the first iteration onwards, reducing computation times." />
-    <option name="LAST_COMMIT_MESSAGE" value="Providing initial values for fluxes now when analysing layers in CUBEFIT. This enables the PSF radius scaling from the first iteration onwards, reducing computation times." />
+    <MESSAGE value="Revised parallelization in CUBEFIT and SUBTRES. Also fixed bug in CUBEFIT." />
+    <option name="LAST_COMMIT_MESSAGE" value="Revised parallelization in CUBEFIT and SUBTRES. Also fixed bug in CUBEFIT." />
     <option name="PRESELECT_EXISTING_CHANGELIST" value="true" />
   </component>
   <component name="WindowStateProjectService">
-    <state x="649" y="137" width="1089" height="911" key="CommitChangelistDialog2" timestamp="1592239234073">
+    <state x="649" y="137" width="1089" height="911" key="CommitChangelistDialog2" timestamp="1592257749184">
       <screen x="72" y="27" width="1848" height="1053" />
     </state>
     <state x="644" y="134" key="CommitChangelistDialog2/65.24.1855.1056@65.24.1855.1056" timestamp="1587048120509" />
-    <state x="649" y="137" width="1089" height="911" key="CommitChangelistDialog2/72.27.1848.1053@72.27.1848.1053" timestamp="1592239234073" />
+    <state x="649" y="137" width="1089" height="911" key="CommitChangelistDialog2/72.27.1848.1053@72.27.1848.1053" timestamp="1592257749184" />
     <state x="631" y="334" width="719" height="452" key="EditFileWatcherDialog" timestamp="1588258128895">
       <screen x="72" y="27" width="1848" height="1053" />
     </state>
@@ -638,11 +636,11 @@
       <screen x="72" y="27" width="1848" height="1053" />
     </state>
     <state x="485" y="188" width="1022" height="737" key="SettingsEditor/72.27.1848.1053@72.27.1848.1053" timestamp="1588274264943" />
-    <state x="597" y="277" width="800" height="535" key="Vcs.Push.Dialog.v2" timestamp="1592239240573">
+    <state x="597" y="277" width="800" height="535" key="Vcs.Push.Dialog.v2" timestamp="1592257752871">
       <screen x="72" y="27" width="1848" height="1053" />
     </state>
     <state x="592" y="275" key="Vcs.Push.Dialog.v2/65.24.1855.1056@65.24.1855.1056" timestamp="1587048122032" />
-    <state x="597" y="277" width="800" height="535" key="Vcs.Push.Dialog.v2/72.27.1848.1053@72.27.1848.1053" timestamp="1592239240573" />
+    <state x="597" y="277" width="800" height="535" key="Vcs.Push.Dialog.v2/72.27.1848.1053@72.27.1848.1053" timestamp="1592257752871" />
     <state x="748" y="341" width="618" height="522" key="find.popup" timestamp="1590569078875">
       <screen x="72" y="27" width="1848" height="1053" />
     </state>

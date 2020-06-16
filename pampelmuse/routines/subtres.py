@@ -106,7 +106,7 @@ def subtres(config):
     logging.info("Starting source subtraction...")
 
     fitter = MakeResidualsCube(ifs_data=ifs_data, sources=sources, psf_attributes=psf_attributes,
-                               psf_radius=config['psf']['radius'])
+                               psf_radius=config['psf']['radius'], psf_radius_scaling=config['psf']['scaling'])
 
     residuals = fitter(layer_range=(first_layer, last_layer),
                        n_cpu=config['global']['cpucount'],
