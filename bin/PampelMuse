@@ -77,7 +77,7 @@ from pampelmuse.utils.fits import read_config_from_header
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__version__ = "0.106.0.2"
+__version__ = "1.0"
 __revision__ = 20200416
 
 
@@ -90,7 +90,7 @@ if __name__ == "__main__":
        (::;;)   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   (::;;)
         `;:'                                             `;:'
 
-    (c) 2013-2019 {1}
+    (c) 2013-2020 {1}
     """.format(__version__, __author__))
 
     sys.stdout.write("""

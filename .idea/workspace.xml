@@ -19,8 +19,12 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="184c2abe-3153-48a7-88ae-f3ca9af990c0" name="Default" comment="Fixed bugs in computing MAOPPY PSF in CUBEFIT/SUBTRES.">
-      <change beforePath="$PROJECT_DIR$/pampelmuse/config/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/config/__init__.py" afterDir="false" />
+    <list default="true" id="184c2abe-3153-48a7-88ae-f3ca9af990c0" name="Default" comment="Slight modification to list of changeable configuration parameters">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/bin/PampelMuse" beforeDir="false" afterPath="$PROJECT_DIR$/bin/PampelMuse" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/core/spectrum_writer.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/core/spectrum_writer.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/psf/variables.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/psf/variables.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/setup.py" beforeDir="false" afterPath="$PROJECT_DIR$/setup.py" afterDir="false" />
     </list>
     <list id="2537fcfb-7e20-4757-bbd2-3237e7f34740" name="patch" comment="Issue that CUBEFIT crashed when only PSF parameters or positions were fitted with POLYFIT. " />
     <option name="SHOW_DIALOG" value="false" />
@@ -69,7 +73,7 @@
     <property name="Git.Branch.Popup.ShowAllRemotes" value="true" />
     <property name="SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
     <property name="last_opened_file_path" value="$USER_HOME$/Desktop/pmw_changes.diff" />
-    <property name="settings.editor.selected.configurable" value="com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable" />
+    <property name="settings.editor.selected.configurable" value="configurable.group.build" />
   </component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
@@ -215,13 +219,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1499438305310</updated>
-    </task>
-    <task id="LOCAL-00075" summary="Fixed bug.">
-      <created>1527866062526</created>
-      <option name="number" value="00075" />
-      <option name="presentableId" value="LOCAL-00075" />
-      <option name="project" value="LOCAL" />
-      <updated>1527866062526</updated>
     </task>
     <task id="LOCAL-00076" summary="Fixed bug affecting CUBEFIT when variances were not used.">
       <created>1528992828127</created>
@@ -559,7 +556,14 @@
       <option name="project" value="LOCAL" />
       <updated>1592344662546</updated>
     </task>
-    <option name="localTasksCounter" value="124" />
+    <task id="LOCAL-00124" summary="Slight modification to list of changeable configuration parameters">
+      <created>1592347322787</created>
+      <option name="number" value="00124" />
+      <option name="presentableId" value="LOCAL-00124" />
+      <option name="project" value="LOCAL" />
+      <updated>1592347322787</updated>
+    </task>
+    <option name="localTasksCounter" value="125" />
     <servers />
   </component>
   <component name="Vcs.Log.History.Properties">
@@ -585,7 +589,6 @@
     <option name="oldMeFiltersMigrated" value="true" />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Removed debug plots from CUBEFIT." />
     <MESSAGE value="Fixed issue that INITFIT crashed when photometry contained magnitudes less than -99." />
     <MESSAGE value="Revised FWHM calculation for combined PSF profiles in INITFIT." />
     <MESSAGE value="Changes to manual." />
@@ -610,15 +613,16 @@
     <MESSAGE value="Added PSF radius scaling to SUBTRES routine." />
     <MESSAGE value="Fixed bug in applying offsets to reference coordinates" />
     <MESSAGE value="Fixed bugs in computing MAOPPY PSF in CUBEFIT/SUBTRES." />
-    <option name="LAST_COMMIT_MESSAGE" value="Fixed bugs in computing MAOPPY PSF in CUBEFIT/SUBTRES." />
+    <MESSAGE value="Slight modification to list of changeable configuration parameters" />
+    <option name="LAST_COMMIT_MESSAGE" value="Slight modification to list of changeable configuration parameters" />
     <option name="PRESELECT_EXISTING_CHANGELIST" value="true" />
   </component>
   <component name="WindowStateProjectService">
-    <state x="649" y="137" width="1089" height="911" key="CommitChangelistDialog2" timestamp="1592344662439">
+    <state x="649" y="137" width="1089" height="911" key="CommitChangelistDialog2" timestamp="1592347322699">
       <screen x="72" y="27" width="1848" height="1053" />
     </state>
     <state x="644" y="134" key="CommitChangelistDialog2/65.24.1855.1056@65.24.1855.1056" timestamp="1587048120509" />
-    <state x="649" y="137" width="1089" height="911" key="CommitChangelistDialog2/72.27.1848.1053@72.27.1848.1053" timestamp="1592344662439" />
+    <state x="649" y="137" width="1089" height="911" key="CommitChangelistDialog2/72.27.1848.1053@72.27.1848.1053" timestamp="1592347322699" />
     <state x="631" y="334" width="719" height="452" key="EditFileWatcherDialog" timestamp="1588258128895">
       <screen x="72" y="27" width="1848" height="1053" />
     </state>
@@ -631,15 +635,15 @@
       <screen x="65" y="24" width="1855" height="1056" />
     </state>
     <state x="702" y="257" key="MultipleFileMergeDialog/65.24.1855.1056@65.24.1855.1056" timestamp="1585057493021" />
-    <state x="485" y="188" width="1022" height="737" key="SettingsEditor" timestamp="1588274264943">
+    <state x="485" y="188" width="1022" height="737" key="SettingsEditor" timestamp="1592387405648">
       <screen x="72" y="27" width="1848" height="1053" />
     </state>
-    <state x="485" y="188" width="1022" height="737" key="SettingsEditor/72.27.1848.1053@72.27.1848.1053" timestamp="1588274264943" />
-    <state x="597" y="277" width="800" height="535" key="Vcs.Push.Dialog.v2" timestamp="1592344664347">
+    <state x="485" y="188" width="1022" height="737" key="SettingsEditor/72.27.1848.1053@72.27.1848.1053" timestamp="1592387405648" />
+    <state x="597" y="277" width="800" height="535" key="Vcs.Push.Dialog.v2" timestamp="1592347336733">
       <screen x="72" y="27" width="1848" height="1053" />
     </state>
     <state x="592" y="275" key="Vcs.Push.Dialog.v2/65.24.1855.1056@65.24.1855.1056" timestamp="1587048122032" />
-    <state x="597" y="277" width="800" height="535" key="Vcs.Push.Dialog.v2/72.27.1848.1053@72.27.1848.1053" timestamp="1592344664347" />
+    <state x="597" y="277" width="800" height="535" key="Vcs.Push.Dialog.v2/72.27.1848.1053@72.27.1848.1053" timestamp="1592347336733" />
     <state x="748" y="341" width="618" height="522" key="find.popup" timestamp="1590569078875">
       <screen x="72" y="27" width="1848" height="1053" />
     </state>

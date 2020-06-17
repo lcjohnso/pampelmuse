@@ -85,7 +85,7 @@ class Variables(Parameters):
               "r0": r"$r_{\rm 0}\,[\mathrm{m}]$",
               "bck": r"$C\,[\mathrm{rad}^2\mathrm{m}^2]$",
               "amp": r"$A\,[\mathrm{rad}^2]$",
-              "alpha": r"$\alpha$\,[\mathrm{m}^-1$"}
+              "alpha": r"$\alpha\,[\mathrm{m}^{-1}]$"}
 
     def __init__(self, profile='moffat', data=None, free=None, lut=None, **kwargs):
         """
