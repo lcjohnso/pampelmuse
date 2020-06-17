@@ -689,7 +689,7 @@ class FitCube(object):
         # https://pandas.pydata.org/pandas-docs/stable/gotchas.html#byte-ordering-issues
         return pd.DataFrame(data, index=pd.Index(np.flatnonzero(~mask)), dtype='<f4')
 
-    def read_fluxes(self, current, last=None):
+    def read_fluxes(self, current, last=None, fillna=True):
         """
         Method to fluxes of all components for a given layer.
 
@@ -704,6 +704,9 @@ class FitCube(object):
         last : list of integers, optional
             A list containing the indices of the layers that are averaged to
             get the new value.
+        fillna : bool, optional
+            Flag indicating whether NaN values are replaced with zeros before
+            the data are returned.
 
         Returns
         -------
@@ -718,8 +721,9 @@ class FitCube(object):
         else:
             fluxes = self.sources.data.loc[last, (slice(None), 'flux')].mean(axis=0, skipna=True)
 
-        # replace NaN with zeros
-        fluxes.fillna(value=0, inplace=True)
+        # replace NaN with zeros if requested
+        if fillna:
+            fluxes.fillna(value=0, inplace=True)
 
         # remove second level from MultiIndex which is not needed any more.
         return fluxes.reset_index(level=1, drop=True)

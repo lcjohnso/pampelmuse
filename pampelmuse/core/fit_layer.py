@@ -778,6 +778,11 @@ class FitLayer(object):
             return
         self.fluxes = fluxes
 
+        # if only invalid fluxes were provided, return NaNs
+        if np.isnan(self.fluxes).all():
+            logger.error('Cannot create residuals. Provided fluxes contain only NaNs.')
+            return pd.Series(np.nan, index=self.data.index)
+
         # calculate source matrix
         self.source_matrix, included_components = self.build_matrix()
 

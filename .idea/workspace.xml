@@ -19,12 +19,11 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="184c2abe-3153-48a7-88ae-f3ca9af990c0" name="Default" comment="Slight modification to list of changeable configuration parameters">
+    <list default="true" id="184c2abe-3153-48a7-88ae-f3ca9af990c0" name="Default" comment="Switched from distutils to setuptools. Also, revised FWHM calculated in GETSPECTRA.">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/bin/PampelMuse" beforeDir="false" afterPath="$PROJECT_DIR$/bin/PampelMuse" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/core/spectrum_writer.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/core/spectrum_writer.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/psf/variables.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/psf/variables.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/setup.py" beforeDir="false" afterPath="$PROJECT_DIR$/setup.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/core/fit_cube.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/core/fit_cube.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/core/fit_layer.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/core/fit_layer.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pampelmuse/core/make_residual_cube.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/core/make_residual_cube.py" afterDir="false" />
     </list>
     <list id="2537fcfb-7e20-4757-bbd2-3237e7f34740" name="patch" comment="Issue that CUBEFIT crashed when only PSF parameters or positions were fitted with POLYFIT. " />
     <option name="SHOW_DIALOG" value="false" />
@@ -219,13 +218,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1499438305310</updated>
-    </task>
-    <task id="LOCAL-00076" summary="Fixed bug affecting CUBEFIT when variances were not used.">
-      <created>1528992828127</created>
-      <option name="number" value="00076" />
-      <option name="presentableId" value="LOCAL-00076" />
-      <option name="project" value="LOCAL" />
-      <updated>1528992828127</updated>
     </task>
     <task id="LOCAL-00077" summary="Fixed bug affecting CUBEFIT when variances were not used.">
       <created>1528993610421</created>
@@ -563,7 +555,14 @@
       <option name="project" value="LOCAL" />
       <updated>1592347322787</updated>
     </task>
-    <option name="localTasksCounter" value="125" />
+    <task id="LOCAL-00125" summary="Switched from distutils to setuptools. Also, revised FWHM calculated in GETSPECTRA.">
+      <created>1592411713786</created>
+      <option name="number" value="00125" />
+      <option name="presentableId" value="LOCAL-00125" />
+      <option name="project" value="LOCAL" />
+      <updated>1592411713786</updated>
+    </task>
+    <option name="localTasksCounter" value="126" />
     <servers />
   </component>
   <component name="Vcs.Log.History.Properties">
@@ -589,7 +588,6 @@
     <option name="oldMeFiltersMigrated" value="true" />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Fixed issue that INITFIT crashed when photometry contained magnitudes less than -99." />
     <MESSAGE value="Revised FWHM calculation for combined PSF profiles in INITFIT." />
     <MESSAGE value="Changes to manual." />
     <MESSAGE value="Added H-band to list of filters." />
@@ -614,15 +612,16 @@
     <MESSAGE value="Fixed bug in applying offsets to reference coordinates" />
     <MESSAGE value="Fixed bugs in computing MAOPPY PSF in CUBEFIT/SUBTRES." />
     <MESSAGE value="Slight modification to list of changeable configuration parameters" />
-    <option name="LAST_COMMIT_MESSAGE" value="Slight modification to list of changeable configuration parameters" />
+    <MESSAGE value="Switched from distutils to setuptools. Also, revised FWHM calculated in GETSPECTRA." />
+    <option name="LAST_COMMIT_MESSAGE" value="Switched from distutils to setuptools. Also, revised FWHM calculated in GETSPECTRA." />
     <option name="PRESELECT_EXISTING_CHANGELIST" value="true" />
   </component>
   <component name="WindowStateProjectService">
-    <state x="649" y="137" width="1089" height="911" key="CommitChangelistDialog2" timestamp="1592347322699">
+    <state x="649" y="137" width="1089" height="911" key="CommitChangelistDialog2" timestamp="1592411713675">
       <screen x="72" y="27" width="1848" height="1053" />
     </state>
     <state x="644" y="134" key="CommitChangelistDialog2/65.24.1855.1056@65.24.1855.1056" timestamp="1587048120509" />
-    <state x="649" y="137" width="1089" height="911" key="CommitChangelistDialog2/72.27.1848.1053@72.27.1848.1053" timestamp="1592347322699" />
+    <state x="649" y="137" width="1089" height="911" key="CommitChangelistDialog2/72.27.1848.1053@72.27.1848.1053" timestamp="1592411713675" />
     <state x="631" y="334" width="719" height="452" key="EditFileWatcherDialog" timestamp="1588258128895">
       <screen x="72" y="27" width="1848" height="1053" />
     </state>
@@ -639,11 +638,11 @@
       <screen x="72" y="27" width="1848" height="1053" />
     </state>
     <state x="485" y="188" width="1022" height="737" key="SettingsEditor/72.27.1848.1053@72.27.1848.1053" timestamp="1592387405648" />
-    <state x="597" y="277" width="800" height="535" key="Vcs.Push.Dialog.v2" timestamp="1592347336733">
+    <state x="597" y="277" width="800" height="535" key="Vcs.Push.Dialog.v2" timestamp="1592411715714">
       <screen x="72" y="27" width="1848" height="1053" />
     </state>
     <state x="592" y="275" key="Vcs.Push.Dialog.v2/65.24.1855.1056@65.24.1855.1056" timestamp="1587048122032" />
-    <state x="597" y="277" width="800" height="535" key="Vcs.Push.Dialog.v2/72.27.1848.1053@72.27.1848.1053" timestamp="1592347336733" />
+    <state x="597" y="277" width="800" height="535" key="Vcs.Push.Dialog.v2/72.27.1848.1053@72.27.1848.1053" timestamp="1592411715714" />
     <state x="748" y="341" width="618" height="522" key="find.popup" timestamp="1590569078875">
       <screen x="72" y="27" width="1848" height="1053" />
     </state>

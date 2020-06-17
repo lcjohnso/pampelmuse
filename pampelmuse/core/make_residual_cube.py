@@ -308,7 +308,7 @@ class MakeResidualsCube(FitCube):
                                   use_slices=(self.sources.status == 5).any())
 
             # update fluxes
-            fluxes = self.read_fluxes(jj)
+            fluxes = self.read_fluxes(jj, fillna=False)
             fluxes = fluxes[fluxes.index <= selected_components.max()]
 
             # update PSF parameters
