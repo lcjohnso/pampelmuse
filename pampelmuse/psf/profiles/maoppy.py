@@ -240,23 +240,18 @@ class Maoppy(Profile):
         weights2d = resample_to_2d(x=self.x[self.used] + shift_x, y=self.y[self.used] + shift_y, z=weights,
                                    shape=self.maoppy_shape)
 
+        if np.isnan(psf2d).any() or np.isnan(weights2d).any():
+            logger.warning('Input to Maoppy PSF fit contains invalid data.')
+            psf2d[np.isnan(psf2d) | np.isnan(weights2d)] = 0
+            weights2d[np.isnan(psf2d) | np.isnan(weights2d)] = 0
+
         # from astropy.io import fits
         # out = fits.HDUList([fits.PrimaryHDU(psf2d), fits.ImageHDU(weights2d)])
         # out.writeto('test_{0}.fits'.format(self.src_id), overwrite=1)
 
-        # pad = ((0, 1) if psf2d.shape[0] % 2 > 0 else (0, 0), (0, 1) if psf2d.shape[1] % 2 > 0 else (0, 0))
-        # psf2d = np.pad(psf2d, pad)
-        # weights2d = np.pad(weights2d, pad)
-
         # get initial guess for shifts along x- and y-axis
-        # y_center, x_center = self.get_maoppy_centre(k=oversample(self.samp)[1], shape=psf2d.shape)
-        # dx = self.maxrad + self.xc - int(self.xc) - x_center
-        # dy = self.maxrad + self.yc - int(self.yc) - y_center
         dx = round(x_center - self.xc) - (x_center - self.xc)
         dy = round(y_center - self.yc) - (y_center - self.yc)
-
-        # weights = 1. / (psf2d + MUSE_NFM.ron ** 2.0)  # np.ones_like(psf_data)
-        # weights[psf2d < 0.01] = 0
 
         if psf_padding > 0:
             npix = max(psf2d.shape)

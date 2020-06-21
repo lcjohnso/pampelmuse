@@ -1183,7 +1183,7 @@ class SourceSelector(object):
                 continue
 
             # calculate shoulder drop
-            dr = np.sqrt((xy.at[source_id, 'x'] - xy['x'])**2 * (xy.at[source_id, 'y'] - xy['y'])**2)
+            dr = np.sqrt((xy.at[source_id, 'x'] - xy['x'])**2 + (xy.at[source_id, 'y'] - xy['y'])**2)
             dr[source_id] = np.inf  # handle the source itself
             dr[self.sources.status >= 4] = np.inf  # handle background components
 
@@ -1204,7 +1204,7 @@ class SourceSelector(object):
                 shoulder_drop = 0
 
             # check if brighter star inside 1.5x PSFRAD:
-            if dr.min() < 1.5*psf_radius and self.sources.mag[dr[dr < 1.5*psf_radius].index].min() < mag:
+            if dr.min() < 1.5*r_i and self.sources.mag[dr[dr < 1.5*r_i].index].min() < mag:
                 continue
 
             self.sources.catalog.at[source_id, 'status'] = 3
