@@ -395,7 +395,7 @@ class FitLayer(object):
         if 'variance' in self.data:
             return self.data['variance']
         # otherwise, we only can estimate the variances if a model exists
-        elif self.fluxes.max() > 0:
+        elif self.fluxes.max() > 0 and self.source_matrix is not None:
             model_fluxes = self.model.sum(axis=1).getA1()
             x_bin, y_bin = FitLayer.calc_running_mad(model_fluxes, self.current)
             return pd.Series((1.4826*np.interp(model_fluxes, x_bin, y_bin))**2, index=self.data.index)

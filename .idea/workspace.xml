@@ -19,10 +19,8 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="184c2abe-3153-48a7-88ae-f3ca9af990c0" name="Default" comment="Modified SUBTRES routine such that the residuals are not determined when all fluxes are NaN.">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/core/source_selector.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/core/source_selector.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pampelmuse/psf/profiles/maoppy.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/psf/profiles/maoppy.py" afterDir="false" />
+    <list default="true" id="184c2abe-3153-48a7-88ae-f3ca9af990c0" name="Default" comment="Fixed bug in determining suitable PSF sources in INITFIT.">
+      <change beforePath="$PROJECT_DIR$/pampelmuse/core/fit_layer.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/core/fit_layer.py" afterDir="false" />
     </list>
     <list id="2537fcfb-7e20-4757-bbd2-3237e7f34740" name="patch" comment="Issue that CUBEFIT crashed when only PSF parameters or positions were fitted with POLYFIT. " />
     <option name="SHOW_DIALOG" value="false" />
@@ -217,13 +215,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1499438305310</updated>
-    </task>
-    <task id="LOCAL-00078" summary="Added SUBTRES parameters include/exclude to list of changeable parameters. Also included SUBTRES in manual.">
-      <created>1530715406408</created>
-      <option name="number" value="00078" />
-      <option name="presentableId" value="LOCAL-00078" />
-      <option name="project" value="LOCAL" />
-      <updated>1530715406409</updated>
     </task>
     <task id="LOCAL-00079" summary="Fixed bug in CUBEFIT causing code to crash when background components did not contribute to the measured flux.">
       <created>1532532590776</created>
@@ -561,7 +552,14 @@
       <option name="project" value="LOCAL" />
       <updated>1592425738231</updated>
     </task>
-    <option name="localTasksCounter" value="127" />
+    <task id="LOCAL-00127" summary="Fixed bug in determining suitable PSF sources in INITFIT.">
+      <created>1592739613268</created>
+      <option name="number" value="00127" />
+      <option name="presentableId" value="LOCAL-00127" />
+      <option name="project" value="LOCAL" />
+      <updated>1592739613268</updated>
+    </task>
+    <option name="localTasksCounter" value="128" />
     <servers />
   </component>
   <component name="Vcs.Log.History.Properties">
@@ -587,7 +585,6 @@
     <option name="oldMeFiltersMigrated" value="true" />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Changes to manual." />
     <MESSAGE value="Added H-band to list of filters." />
     <MESSAGE value="Fixed bug in CUBEFIT." />
     <MESSAGE value="Fixed issue with estimating uncertainties in CUBEFIT." />
@@ -612,15 +609,16 @@
     <MESSAGE value="Slight modification to list of changeable configuration parameters" />
     <MESSAGE value="Switched from distutils to setuptools. Also, revised FWHM calculated in GETSPECTRA." />
     <MESSAGE value="Modified SUBTRES routine such that the residuals are not determined when all fluxes are NaN." />
-    <option name="LAST_COMMIT_MESSAGE" value="Modified SUBTRES routine such that the residuals are not determined when all fluxes are NaN." />
+    <MESSAGE value="Fixed bug in determining suitable PSF sources in INITFIT." />
+    <option name="LAST_COMMIT_MESSAGE" value="Fixed bug in determining suitable PSF sources in INITFIT." />
     <option name="PRESELECT_EXISTING_CHANGELIST" value="true" />
   </component>
   <component name="WindowStateProjectService">
-    <state x="649" y="137" width="1089" height="911" key="CommitChangelistDialog2" timestamp="1592425738147">
+    <state x="649" y="137" width="1089" height="911" key="CommitChangelistDialog2" timestamp="1592739613134">
       <screen x="72" y="27" width="1848" height="1053" />
     </state>
     <state x="644" y="134" key="CommitChangelistDialog2/65.24.1855.1056@65.24.1855.1056" timestamp="1587048120509" />
-    <state x="649" y="137" width="1089" height="911" key="CommitChangelistDialog2/72.27.1848.1053@72.27.1848.1053" timestamp="1592425738147" />
+    <state x="649" y="137" width="1089" height="911" key="CommitChangelistDialog2/72.27.1848.1053@72.27.1848.1053" timestamp="1592739613134" />
     <state x="631" y="334" width="719" height="452" key="EditFileWatcherDialog" timestamp="1588258128895">
       <screen x="72" y="27" width="1848" height="1053" />
     </state>
@@ -637,11 +635,11 @@
       <screen x="72" y="27" width="1848" height="1053" />
     </state>
     <state x="485" y="188" width="1022" height="737" key="SettingsEditor/72.27.1848.1053@72.27.1848.1053" timestamp="1592387405648" />
-    <state x="597" y="277" width="800" height="535" key="Vcs.Push.Dialog.v2" timestamp="1592425740224">
+    <state x="597" y="277" width="800" height="535" key="Vcs.Push.Dialog.v2" timestamp="1592739614975">
       <screen x="72" y="27" width="1848" height="1053" />
     </state>
     <state x="592" y="275" key="Vcs.Push.Dialog.v2/65.24.1855.1056@65.24.1855.1056" timestamp="1587048122032" />
-    <state x="597" y="277" width="800" height="535" key="Vcs.Push.Dialog.v2/72.27.1848.1053@72.27.1848.1053" timestamp="1592425740224" />
+    <state x="597" y="277" width="800" height="535" key="Vcs.Push.Dialog.v2/72.27.1848.1053@72.27.1848.1053" timestamp="1592739614975" />
     <state x="748" y="341" width="618" height="522" key="find.popup" timestamp="1590569078875">
       <screen x="72" y="27" width="1848" height="1053" />
     </state>
