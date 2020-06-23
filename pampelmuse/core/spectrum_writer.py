@@ -334,8 +334,10 @@ class SpectrumWriter(object):
             also be included in the name used to store its FITS-file.
         """
         if not os.path.exists(folder):
-            logging.info("Creating folder '{0}' to store spectra...".format(folder))
+            logger.info("Creating folder '{0}' to store spectra...".format(folder))
             os.mkdir(folder)
+        elif len(os.listdir(folder)) > 0:
+            logger.warning('Target folder "{0}" is not empty.'.format(folder))
 
         if filter_names is not None:
             if isinstance(filter_names, str):
