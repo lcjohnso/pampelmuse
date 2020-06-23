@@ -1230,8 +1230,9 @@ class Profile(Canvas):
     def fitter(self, psf, weights, parameters, fit_positions=False, fit_background=False, flux_x0=None,
                background_x0=None, **kwargs):
 
-        if kwargs:
-            raise IOError('Unknown parameter(s) {} for method Profile.fitter.'.format(kwargs))
+        # TODO: find way to provide only parameters used by the different fitter() methods
+        # if kwargs:
+        #     raise IOError('Unknown parameter(s) {} for method Profile.fitter.'.format(kwargs))
 
         # make sure psf and variances are defined on same pixels as the profile
         if not len(psf) == len(weights):
@@ -1403,3 +1404,29 @@ class Profile(Canvas):
 
         # Note that to get the right shape for the optimization, the matrix needs to be transposed.
         return (np.sqrt(weights)*_jacob).T
+
+    @property
+    def curve_of_growth(self):
+
+        radii = np.arange(1, min(self.maxrad, 100), 1, dtype=np.float64)
+        cog_flux = np.zeros_like(radii)
+
+        for i, r_max in enumerate(radii):
+            r_min = radii[i-1] if i > 0 else 0
+
+            # get fraction of each pixel between r_min and r_max;
+            # assume fraction increases/decreases linearly from 0 to 1 between r_min/max-0.5 and r_min/max+0.5
+            weights = np.where(self.r < (r_max - 0.5), 1., r_max + 0.5 - self.r)
+            weights[weights < 0] = 0.
+
+            if i > 0:
+                _weights = np.where(self.r < (r_min - 0.5), 1., r_min + 0.5 - self.r)
+                _weights[_weights < 0] = 0
+                weights -= _weights
+
+            # get fraction of area between r_min and r_max covered by defined PSF pixels
+            frac = weights.sum()/(np.pi*(r_max**2 - r_min**2))
+
+            cog_flux[i] = (self.f*weights).sum()/frac
+
+        return radii, np.cumsum(cog_flux)

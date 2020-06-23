@@ -180,26 +180,27 @@ class Transformation(Parameters):
             to given values, the fixed parameters and their values can be
             provided as a pandas DataFrame using the same indices as 'xy_out'
             and the fixed parameters as column names.
+
+        Raises
+        ------
+        IOError
+            If input data do not allow the determination of the coordinate
+            transformation.
         """
         logger.info("Initialising coordinate transformation from provided data...")
 
         # perform sanity checks on input data
         if not isinstance(xy_in, pd.DataFrame):
-            logger.error('Parameter "xy_in" must be pandas DataFrame, not {0}.'.format(type(xy_in)))
-            return
+            raise IOError('Parameter "xy_in" must be pandas DataFrame, not {0}.'.format(type(xy_in)))
         if 'x' not in xy_in.columns or 'y' not in xy_in.columns:
-            logger.error('Cannot find coordinates in input coordinates ("xy_in" misses column "x" or "y").')
-            return
-
+            raise IOError('Cannot find coordinates in input coordinates ("xy_in" misses column "x" or "y").')
         if not cls._validate_input(xy_out):
-            logger.error('Data provided for parameter xy_out is invalid. Check previous errors.')
-            return
+            raise IOError('Data provided for parameter xy_out is invalid. Check previous errors.')
 
         # find sources that overlap between input and output coordinates
         common_ids = np.intersect1d(xy_in.index, np.unique(xy_out.columns.get_level_values(0)), assume_unique=True)
         if len(common_ids) < 4:
-            logger.error('Need at least 4 sources to fit coordinate transformation.')
-            return
+            raise IOError('Need at least 4 sources to fit coordinate transformation.')
 
         # for the fitting, plain numpy arrays are used
         in_data = np.zeros((len(common_ids), 2), dtype=np.float32)
