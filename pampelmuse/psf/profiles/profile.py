@@ -1408,7 +1408,7 @@ class Profile(Canvas):
     @property
     def curve_of_growth(self):
 
-        radii = np.arange(1, min(self.maxrad, 100), 1, dtype=np.float64)
+        radii = np.arange(1, min(self.maxrad + 1, 100), 1, dtype=np.float64)
         cog_flux = np.zeros_like(radii)
 
         for i, r_max in enumerate(radii):

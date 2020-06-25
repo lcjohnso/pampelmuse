@@ -267,20 +267,20 @@ class FitLayer(object):
 
         # Initialize PSF
         if psf_type.lower() == 'gauss':
-            psf_class = Gaussian
+            self.psf_class = Gaussian
         elif psf_type.lower() == 'moffat':
-            psf_class = Moffat
+            self.psf_class = Moffat
         elif psf_type.lower() == 'double_gauss':
-            psf_class = DoubleGaussian
+            self.psf_class = DoubleGaussian
         elif psf_type.lower() == 'moffat_gauss':
-            psf_class = MoffatGaussian
+            self.psf_class = MoffatGaussian
         elif psf_type.lower() == 'double_moffat':
-            psf_class = DoubleMoffat
+            self.psf_class = DoubleMoffat
         elif psf_type.lower() == 'maoppy':
-            psf_class = Maoppy
+            self.psf_class = Maoppy
         else:
             logger.error('Unknown PSF type provided: {0}'.format(psf_type))
-            psf_class = None
+            self.psf_class = None
 
         # define PSF profile for each source, check if di   rect positions were provided for some sources
         self.psf_instances = {}
@@ -296,9 +296,9 @@ class FitLayer(object):
             self.lut = None
 
         for index, row in self.catalog.iterrows():
-            new_psf = psf_class(transform=transform, uc=row['x'], vc=row['y'], mag=row['magnitude'],
-                                src_id=index, maxrad=self.psf_radius, osfactor=osfactor, osradius=osradius,
-                                lut=self.lut)
+            new_psf = self.psf_class(transform=transform, uc=row['x'], vc=row['y'], mag=row['magnitude'],
+                                     src_id=index, maxrad=self.psf_radius, osfactor=osfactor, osradius=osradius,
+                                     lut=self.lut)
             if isinstance(new_psf, Maoppy) and wvl is not None:
                 new_psf.wvl = wvl
 
@@ -314,6 +314,12 @@ class FitLayer(object):
                 new_psf.xc = row['x']
                 new_psf.yc = row['y']
             self.psf_instances[index] = new_psf
+
+        # get reference source for curve-of-growth determination
+        if 'psf' in self.catalog.columns and self.catalog['psf'].any():
+            self.reference_index = self.catalog.loc[self.catalog['psf'], 'magnitude'].idxmin()
+        else:
+            self.reference_index = self.catalog['magnitude'].idxmin()
 
         # place-holder for variables defined below:
         self.source_matrix = None
@@ -855,6 +861,8 @@ class FitLayer(object):
         elif sources is None:
             sources = self.catalog.index
 
+        psf_radii, psf_flux_scaling = self.scale_psf_radii()
+
         # loop over sources & extract information from PSF instances
         for index in sources:
             psf = self.psf_instances[index]
@@ -864,13 +872,10 @@ class FitLayer(object):
                 psf.uc = self.catalog.at[index, 'x'] - self.offsets.at[index, 'x']
                 psf.vc = self.catalog.at[index, 'y'] - self.offsets.at[index, 'y']
 
-            # scale PSF radius based on flux (if requested) - the minimum PSF radius is set to (0.5^3) x PSF radius
-            if np.isfinite(self.fluxes[current_component]) and self.fluxes.max() > 0 and self.psf_radius_scaling:
-                flux_ratio = max(self.psf_radius_scaling**3, self.fluxes[current_component]/self.fluxes.max())
-                radius = self.psf_radius*(2**(np.log10(flux_ratio)/np.log10(1./self.psf_radius_scaling)))
-            else:
-                radius = self.psf_radius
-            psf.maxrad = radius
+            # apply flux-dependent PSF radius (if requested); scale PSF flux if necessary
+            psf.maxrad = psf_radii[index]
+            if psf_flux_scaling is not None:
+                psf.mag = self.catalog.at[index, "magnitude"] - 2.5*np.log10(psf_flux_scaling[index])
 
             current_pixels, current_fluxes = psf.get_flux(apply_lut=True)
             if current_pixels.size == 0:
@@ -955,6 +960,34 @@ class FitLayer(object):
             source_indices = source_indices.append(self.fluxes.index[-self.n_background:])
 
         return _psf_matrix.tocsc(), source_indices
+
+    def scale_psf_radii(self):
+
+        if not self.psf_radius_scaling or self.fluxes.max() <= 0:
+            return pd.Series(self.psf_radius, index=self.catalog.index), None
+
+        # MAOPPY PSFs are automatically normalized to a flux of 1 inside the defined grid. Hence, the total PSF flux
+        # (when integrating to INF) will increase the smaller the PSF radius is chosen. To account for that, the curve
+        # of growth is determined for the PSF of the reference source and used to apply a correction factor to each PSF
+        if self.psf_radius_scaling and self.psf_class == Maoppy:
+            # make sure reference source is defined out to maximum radius
+            self.psf_instances[self.reference_index].maxrad = self.psf_radius
+
+            # create interpolator on curve of growth of reference source
+            r, f = self.psf_instances[self.reference_index].curve_of_growth
+            ip = interpolate.interp1d(x=r, y=f/f[-1])
+        else:
+            ip = None
+
+        # scale PSF radius based on flux - the minimum PSF radius is set to (0.5^3) x PSF radius
+        flux_ratios = self.fluxes/self.fluxes.max()
+        flux_ratios[(flux_ratios < self.psf_radius_scaling**3) | flux_ratios.isna()] = self.psf_radius_scaling**3
+
+        radii = self.psf_radius * (2 ** (np.log10(flux_ratios) / np.log10(1. / self.psf_radius_scaling)))
+        psf_radii = radii[self.catalog['component'].values]
+        psf_radii.index = self.catalog.index
+
+        return psf_radii, pd.Series(ip(psf_radii), index=psf_radii.index) if ip is not None else None
 
     def fit_sources_consecutively(self, sources, is_psf_source=None, psf_parameters=None, fit_positions=True,
                                   local_background=False, return_psf_profiles=True):
