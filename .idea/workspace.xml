@@ -19,7 +19,7 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="184c2abe-3153-48a7-88ae-f3ca9af990c0" name="Default" comment="Transform.from_coordinates() raising IOError for ill-defined input data.">
+    <list default="true" id="184c2abe-3153-48a7-88ae-f3ca9af990c0" name="Default" comment="Implemented fix for issue that integrated flux of MAOPPY PSF depends on chosen array size.">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/pampelmuse/core/fit_layer.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/core/fit_layer.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/pampelmuse/psf/profiles/profile.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/psf/profiles/profile.py" afterDir="false" />
@@ -217,13 +217,6 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1499438305310</updated>
-    </task>
-    <task id="LOCAL-00082" summary="Fixed bug in CUBEFIT">
-      <created>1534935835918</created>
-      <option name="number" value="00082" />
-      <option name="presentableId" value="LOCAL-00082" />
-      <option name="project" value="LOCAL" />
-      <updated>1534935835918</updated>
     </task>
     <task id="LOCAL-00083" summary="Added functionality for shrinking PampelMuse GUI. Useful when using screens with low resolution.">
       <created>1535731358499</created>
@@ -561,7 +554,14 @@
       <option name="project" value="LOCAL" />
       <updated>1592951863413</updated>
     </task>
-    <option name="localTasksCounter" value="131" />
+    <task id="LOCAL-00131" summary="Implemented fix for issue that integrated flux of MAOPPY PSF depends on chosen array size.">
+      <created>1593106069327</created>
+      <option name="number" value="00131" />
+      <option name="presentableId" value="LOCAL-00131" />
+      <option name="project" value="LOCAL" />
+      <updated>1593106069327</updated>
+    </task>
+    <option name="localTasksCounter" value="132" />
     <servers />
   </component>
   <component name="Vcs.Log.History.Properties">
@@ -587,7 +587,6 @@
     <option name="oldMeFiltersMigrated" value="true" />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Fixed issue with circle sizes overplotted on reference view in INITFIT GUI." />
     <MESSAGE value="Revised removal of unused background tiles in INITFIT" />
     <MESSAGE value="Changed sizes of circles around extracted sources in POLYFIT." />
     <MESSAGE value="Fixed issue with creating PSF cubes when running CUBEFIT with enabled psf|inspect parameter." />
@@ -612,15 +611,16 @@
     <MESSAGE value="Fixed bug in CUBEFIT routine." />
     <MESSAGE value="Added warning message when output folder for SUBTRES is not empty." />
     <MESSAGE value="Transform.from_coordinates() raising IOError for ill-defined input data." />
-    <option name="LAST_COMMIT_MESSAGE" value="Transform.from_coordinates() raising IOError for ill-defined input data." />
+    <MESSAGE value="Implemented fix for issue that integrated flux of MAOPPY PSF depends on chosen array size." />
+    <option name="LAST_COMMIT_MESSAGE" value="Implemented fix for issue that integrated flux of MAOPPY PSF depends on chosen array size." />
     <option name="PRESELECT_EXISTING_CHANGELIST" value="true" />
   </component>
   <component name="WindowStateProjectService">
-    <state x="649" y="137" width="1089" height="911" key="CommitChangelistDialog2" timestamp="1592951863272">
+    <state x="649" y="137" width="1089" height="911" key="CommitChangelistDialog2" timestamp="1593106069160">
       <screen x="72" y="27" width="1848" height="1053" />
     </state>
     <state x="644" y="134" key="CommitChangelistDialog2/65.24.1855.1056@65.24.1855.1056" timestamp="1587048120509" />
-    <state x="649" y="137" width="1089" height="911" key="CommitChangelistDialog2/72.27.1848.1053@72.27.1848.1053" timestamp="1592951863272" />
+    <state x="649" y="137" width="1089" height="911" key="CommitChangelistDialog2/72.27.1848.1053@72.27.1848.1053" timestamp="1593106069160" />
     <state x="631" y="334" width="719" height="452" key="EditFileWatcherDialog" timestamp="1588258128895">
       <screen x="72" y="27" width="1848" height="1053" />
     </state>
@@ -637,11 +637,11 @@
       <screen x="72" y="27" width="1848" height="1053" />
     </state>
     <state x="485" y="188" width="1022" height="737" key="SettingsEditor/72.27.1848.1053@72.27.1848.1053" timestamp="1592387405648" />
-    <state x="597" y="277" width="800" height="535" key="Vcs.Push.Dialog.v2" timestamp="1592951866264">
+    <state x="597" y="277" width="800" height="535" key="Vcs.Push.Dialog.v2" timestamp="1593106071273">
       <screen x="72" y="27" width="1848" height="1053" />
     </state>
     <state x="592" y="275" key="Vcs.Push.Dialog.v2/65.24.1855.1056@65.24.1855.1056" timestamp="1587048122032" />
-    <state x="597" y="277" width="800" height="535" key="Vcs.Push.Dialog.v2/72.27.1848.1053@72.27.1848.1053" timestamp="1592951866264" />
+    <state x="597" y="277" width="800" height="535" key="Vcs.Push.Dialog.v2/72.27.1848.1053@72.27.1848.1053" timestamp="1593106071273" />
     <state x="748" y="341" width="618" height="522" key="find.popup" timestamp="1590569078875">
       <screen x="72" y="27" width="1848" height="1053" />
     </state>

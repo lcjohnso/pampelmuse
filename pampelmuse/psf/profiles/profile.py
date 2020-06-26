@@ -1427,6 +1427,11 @@ class Profile(Canvas):
             # get fraction of area between r_min and r_max covered by defined PSF pixels
             frac = weights.sum()/(np.pi*(r_max**2 - r_min**2))
 
+            if frac == 0:
+                logger.warning("Empty annulus ({0:.1f}<r<{1:.1f}) encountered in curve-of-growth determination.".format(
+                    r_min, r_max))
+                continue
+
             cog_flux[i] = (self.f*weights).sum()/frac
 
         return radii, np.cumsum(cog_flux)

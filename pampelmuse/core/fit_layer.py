@@ -319,7 +319,8 @@ class FitLayer(object):
         if 'psf' in self.catalog.columns and self.catalog['psf'].any():
             self.reference_index = self.catalog.loc[self.catalog['psf'], 'magnitude'].idxmin()
         else:
-            self.reference_index = self.catalog['magnitude'].idxmin()
+            self.reference_index = ((self.catalog['x'] - self.catalog['x'].median())**2 + (
+                    self.catalog['y'] - self.catalog['y'].median())**2).idxmin()
 
         # place-holder for variables defined below:
         self.source_matrix = None
