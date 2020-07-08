@@ -1,7 +1,7 @@
 """
 dynamic_ima_canvas.py
 =====================
-Copyright 2013-2018 Sebastian Kamann
+Copyright 2013-2020 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -35,20 +35,20 @@ pampelmuse.core.cube
 
 Latest Git revision
 -------------------
-2018/01/04
+2020/07/08
 """
 import logging
 import numpy as np
 from matplotlib import collections, patches
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
-from PyQt5 import QtCore
+from PyQt5 import QtCore, QtWidgets
 from ..instruments import Instrument
 from ..utils.fits import open_ifs_data
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180104
+__revision__ = 20200708
 
 
 class DynamicImaCanvas(FigureCanvasQTAgg):
@@ -93,6 +93,11 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
         # FigureCanvasQTAgg.__init__(self, self.fig)
         super(DynamicImaCanvas, self).__init__(self.fig)
         self.setParent(parent)
+
+        FigureCanvasQTAgg.setSizePolicy(self,
+                                        QtWidgets.QSizePolicy.Expanding,
+                                        QtWidgets.QSizePolicy.Expanding)
+        FigureCanvasQTAgg.updateGeometry(self)
 
         # Default setup
         self.cuts = None
