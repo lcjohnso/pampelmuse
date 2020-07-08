@@ -2,11 +2,13 @@
 
 # Form implementation generated from reading ui file 'pampelmuse_gui.ui'
 #
-# Created by: PyQt5 UI code generator 5.8.2
+# Created by: PyQt5 UI code generator 5.14.2
 #
 # WARNING! All changes made in this file will be lost!
 
+
 from PyQt5 import QtCore, QtGui, QtWidgets
+
 
 class Ui_PampelMuseGui(object):
     def setupUi(self, PampelMuseGui):
@@ -27,10 +29,9 @@ class Ui_PampelMuseGui(object):
         self.scrollArea.setWidgetResizable(True)
         self.scrollArea.setObjectName("scrollArea")
         self.scrollAreaWidgetContents_2 = QtWidgets.QWidget()
-        self.scrollAreaWidgetContents_2.setGeometry(QtCore.QRect(0, 0, 962, 844))
+        self.scrollAreaWidgetContents_2.setGeometry(QtCore.QRect(0, 0, 962, 848))
         self.scrollAreaWidgetContents_2.setObjectName("scrollAreaWidgetContents_2")
         self.horizontalLayout_3 = QtWidgets.QHBoxLayout(self.scrollAreaWidgetContents_2)
-        self.horizontalLayout_3.setContentsMargins(0, 0, 0, 0)
         self.horizontalLayout_3.setObjectName("horizontalLayout_3")
         self.centralVBox = QtWidgets.QVBoxLayout()
         self.centralVBox.setObjectName("centralVBox")
@@ -54,7 +55,7 @@ class Ui_PampelMuseGui(object):
         self.spectrumHeaderLabel.setObjectName("spectrumHeaderLabel")
         self.spectrumViewVBox.addWidget(self.spectrumHeaderLabel)
         self.spectrumWidget = QtWidgets.QWidget(self.scrollAreaWidgetContents_2)
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.spectrumWidget.sizePolicy().hasHeightForWidth())
@@ -153,6 +154,11 @@ class Ui_PampelMuseGui(object):
         self.refHeaderHBox.addWidget(self.refHeaderLabel)
         self.refViewVBox.addLayout(self.refHeaderHBox)
         self.refViewWidget = QtWidgets.QWidget(self.scrollAreaWidgetContents_2)
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.refViewWidget.sizePolicy().hasHeightForWidth())
+        self.refViewWidget.setSizePolicy(sizePolicy)
         self.refViewWidget.setMinimumSize(QtCore.QSize(300, 300))
         self.refViewWidget.setObjectName("refViewWidget")
         self.refViewVBox.addWidget(self.refViewWidget)
@@ -265,7 +271,7 @@ class Ui_PampelMuseGui(object):
         self.ifuWidgetHBox = QtWidgets.QHBoxLayout()
         self.ifuWidgetHBox.setObjectName("ifuWidgetHBox")
         self.ifuViewWidget = QtWidgets.QWidget(self.scrollAreaWidgetContents_2)
-        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Maximum)
+        sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.ifuViewWidget.sizePolicy().hasHeightForWidth())
@@ -343,7 +349,7 @@ class Ui_PampelMuseGui(object):
         self.gridLayout.addWidget(self.scrollArea, 0, 0, 1, 1)
         PampelMuseGui.setCentralWidget(self.centralWidget)
         self.menuBar = QtWidgets.QMenuBar(PampelMuseGui)
-        self.menuBar.setGeometry(QtCore.QRect(0, 0, 982, 25))
+        self.menuBar.setGeometry(QtCore.QRect(0, 0, 982, 22))
         self.menuBar.setObjectName("menuBar")
         self.menuFile = QtWidgets.QMenu(self.menuBar)
         self.menuFile.setObjectName("menuFile")
@@ -440,7 +446,7 @@ class Ui_PampelMuseGui(object):
         self.spectrumFitGo.setText(_translate("PampelMuseGui", "..."))
         self.refHeaderLabel.setText(_translate("PampelMuseGui", "Reference View"))
         self.refCutsLabel.setText(_translate("PampelMuseGui", "Cuts:"))
-        self.refCutsComboBox.setProperty("currentText", _translate("PampelMuseGui", "100%"))
+        self.refCutsComboBox.setCurrentText(_translate("PampelMuseGui", "100%"))
         self.refCutsComboBox.setItemText(0, _translate("PampelMuseGui", "100%"))
         self.refCutsComboBox.setItemText(1, _translate("PampelMuseGui", "99.9%"))
         self.refCutsComboBox.setItemText(2, _translate("PampelMuseGui", "99.8%"))
@@ -459,7 +465,7 @@ class Ui_PampelMuseGui(object):
         self.plotStarsCheckBoxUnresolved.setText(_translate("PampelMuseGui", "Unresolved"))
         self.ifuHeadLabel.setText(_translate("PampelMuseGui", "IFS View"))
         self.ifuCutsLabel.setText(_translate("PampelMuseGui", "Cuts:"))
-        self.ifuCutsComboBox.setProperty("currentText", _translate("PampelMuseGui", "100%"))
+        self.ifuCutsComboBox.setCurrentText(_translate("PampelMuseGui", "100%"))
         self.ifuCutsComboBox.setItemText(0, _translate("PampelMuseGui", "100%"))
         self.ifuCutsComboBox.setItemText(1, _translate("PampelMuseGui", "99.9%"))
         self.ifuCutsComboBox.setItemText(2, _translate("PampelMuseGui", "99.5%"))
@@ -491,5 +497,4 @@ class Ui_PampelMuseGui(object):
         self.actionResiduals.setToolTip(_translate("PampelMuseGui", "Display the residuals of the fit (if available)"))
         self.actionLoadImage.setText(_translate("PampelMuseGui", "&Load image"))
         self.actionLoadImage.setToolTip(_translate("PampelMuseGui", "Load FITS image from disk"))
-
 from . import pampelmuse_gui_rc

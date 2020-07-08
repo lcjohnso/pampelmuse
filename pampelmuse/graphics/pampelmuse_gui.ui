@@ -38,7 +38,7 @@
          <x>0</x>
          <y>0</y>
          <width>962</width>
-         <height>844</height>
+         <height>848</height>
         </rect>
        </property>
        <layout class="QHBoxLayout" name="horizontalLayout_3">
@@ -79,7 +79,7 @@
             <item>
              <widget class="QWidget" name="spectrumWidget" native="true">
               <property name="sizePolicy">
-               <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+               <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
                 <horstretch>0</horstretch>
                 <verstretch>0</verstretch>
                </sizepolicy>
@@ -276,6 +276,12 @@
               </item>
               <item>
                <widget class="QWidget" name="refViewWidget" native="true">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
                 <property name="minimumSize">
                  <size>
                   <width>300</width>
@@ -301,7 +307,7 @@
                 </item>
                 <item>
                  <widget class="QComboBox" name="refCutsComboBox">
-                  <property name="currentText" stdset="0">
+                  <property name="currentText">
                    <string>100%</string>
                   </property>
                   <item>
@@ -516,7 +522,7 @@
                 <item>
                  <widget class="QWidget" name="ifuViewWidget" native="true">
                   <property name="sizePolicy">
-                   <sizepolicy hsizetype="Maximum" vsizetype="Maximum">
+                   <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
                     <horstretch>0</horstretch>
                     <verstretch>0</verstretch>
                    </sizepolicy>
@@ -574,7 +580,7 @@
                     <height>0</height>
                    </size>
                   </property>
-                  <property name="currentText" stdset="0">
+                  <property name="currentText">
                    <string>100%</string>
                   </property>
                   <item>
@@ -678,7 +684,7 @@
      <x>0</x>
      <y>0</y>
      <width>982</width>
-     <height>25</height>
+     <height>22</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
