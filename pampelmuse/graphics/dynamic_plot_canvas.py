@@ -1,7 +1,7 @@
 """
 dynamic_plot_canvas.py
 ======================
-Copyright 2013-2018 Sebastian Kamann
+Copyright 2013-2020 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -39,7 +39,7 @@ top panel, named 'Spectrum Viewer'.
 
 Latest Git revision
 -------------------
-2018/01/04
+2020/07/09
 """
 import inspect
 import logging
@@ -50,12 +50,12 @@ from matplotlib.figure import Figure
 from matplotlib.patches import Rectangle
 from matplotlib.transforms import blended_transform_factory
 from matplotlib.widgets import Cursor, SpanSelector
-from PyQt5 import QtCore
+from PyQt5 import QtCore, QtWidgets
 matplotlib.pyplot.rcParams["axes.linewidth"] = 1.5
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180104
+__revision__ = 20200709
 
 
 class DynamicPlotCanvas(FigureCanvasQTAgg):
@@ -92,6 +92,11 @@ class DynamicPlotCanvas(FigureCanvasQTAgg):
 
         super(DynamicPlotCanvas, self).__init__(self.fig)
         self.setParent(parent)
+
+        FigureCanvasQTAgg.setSizePolicy(self,
+                                        QtWidgets.QSizePolicy.Expanding,
+                                        QtWidgets.QSizePolicy.Expanding)
+        FigureCanvasQTAgg.updateGeometry(self)
 
         # dictionary to keep track of the data sets that are plotted.
         self.thePlots = {}

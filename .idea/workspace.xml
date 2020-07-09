@@ -19,7 +19,9 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="184c2abe-3153-48a7-88ae-f3ca9af990c0" name="Default" comment="Small change in GUI code." />
+    <list default="true" id="184c2abe-3153-48a7-88ae-f3ca9af990c0" name="Default" comment="Small change in GUI code.">
+      <change beforePath="$PROJECT_DIR$/pampelmuse/graphics/dynamic_plot_canvas.py" beforeDir="false" afterPath="$PROJECT_DIR$/pampelmuse/graphics/dynamic_plot_canvas.py" afterDir="false" />
+    </list>
     <list id="2537fcfb-7e20-4757-bbd2-3237e7f34740" name="patch" comment="Issue that CUBEFIT crashed when only PSF parameters or positions were fitted with POLYFIT. " />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
