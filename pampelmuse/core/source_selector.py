@@ -688,11 +688,15 @@ class SourceSelector(object):
         if init_guess is None:  # need to correct for shift between image and catalogue.
             init_guess = (-self.sources.x.min(), -self.sources.y.min())
 
-        self.ccxoff, self.ccyoff = find_offset(self.data_image, self.identification_image, max_off=ccmaxoff,
-                                               init_guess=init_guess)
-        # Note that the offset are provided with negative signs because the cross-correlation routine determines
-        # the offset from the reference image to the IFS data, while we need it vice versa.
-        logger.info("   pointing offset from cross-correlation dx={0:.1f}, dy={1:.1f}".format(self.ccxoff, self.ccyoff))
+        if ccmaxoff > 0:
+            self.ccxoff, self.ccyoff = find_offset(self.data_image, self.identification_image, max_off=ccmaxoff,
+                                                   init_guess=init_guess)
+            # Note that the offset are provided with negative signs because the cross-correlation routine determines
+            # the offset from the reference image to the IFS data, while we need it vice versa.
+            logger.info("Estimated pointing offset from catalogue: dx={0:.1f}, dy={1:.1f}".format(self.ccxoff,
+                                                                                                  self.ccyoff))
+        else:
+            logger.warning("Skipping determination of offset between IFS data and catalogue.")
 
         # initialize/update coordinate transformation
         self.sources.transformation = Transformation(
