@@ -117,6 +117,8 @@ class Variables(Parameters):
         self.profile = profile
         if self.profile in self.PROFILES:
             logger.info('Initializing PSF parameters for type "{0}" ...'.format(self.profile))
+            if self.profile == 'maoppy':
+                logger.info('Please cite Fetick et al. (2019, A&A, 628, A99) as reference for the MAOPPY PSF.')
         else:
             logger.error('Invalid PSF type "{0}" provided.'.format(self.profile))
             logger.error('Supported PSF types: "{0}"'.format('", "'.join([p for p in self.PROFILES.keys()])))

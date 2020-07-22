@@ -240,7 +240,7 @@ The transmission curve of the filter must be available as a plain ascii file, co
 \section{The PSF models}
 \label{sec:psf}
 
-\pampelmuse currently uses purely analytical PSF profiles. The user can choose between a Gaussian and a Moffat profile. An extensive discussion of the profiles and all associated formulae can be found in Appendix~\ref{app:profiles}. Here we restrict the discussion to the main formulae and most important properties. The analytical profile of the Gaussian is 
+\pampelmuse currently uses purely analytical PSF profiles. Most of the available profiles are based on either a Gaussian or a Moffat profile. An extensive discussion of the profiles and all associated formulae can be found in Appendix~\ref{app:profiles}. Here we restrict the discussion to the main formulae and most important properties. The analytical profile of the Gaussian is 
 %
 \begin{equation}
  G(r) = \Sigma_\text{0}\exp\left\{\frac{-r^2}{2\sigma^2}\right\}\,,
@@ -254,12 +254,14 @@ whereas the Moffat profile is described via
 %
 For either profile, $\Sigma_\mathrm{0}$ is the central intensity. The width of the Gaussian is controlled by the standard deviation $\sigma$, while the effective radius $\rd$ defines the width of the Moffat. However, instead of $\sigma$ and $\beta$, \pampelmuse uses the FWHM as a measure for the profile width (see Appendix~\ref{app:profiles}). Note that the FWHM is always measured in units of spaxels.
 
-The Moffat profile has a second shape parameter, $\beta$. It measures the kurtosis of the profile, i.e. the strength of the wings of the PSF. Note that higher values of $\beta$ correspond to less pronounced wings. From my experience, $\beta\sim2.5$ is a typical value for a seeing-limited PSF. For this value, a Moffat profile has much more pronounced wings than a Gaussian profile. Therefore I strongly recommend using the Moffat profile because the Gaussian profile will almost certainly underestimate the wings of the PSF. Since version 0.100, \pampelmuse also supports combinations of the two profiles, namely a double Gaussian and a Moffat-Gaussian profile.
+The Moffat profile has a second shape parameter, $\beta$. It measures the kurtosis of the profile, i.e. the strength of the wings of the PSF. Note that higher values of $\beta$ correspond to less pronounced wings. From my experience, $\beta\sim2.5$ is a typical value for a seeing-limited PSF. For this value, a Moffat profile has much more pronounced wings than a Gaussian profile. Therefore I strongly recommend using the Moffat profile because the Gaussian profile will almost certainly underestimate the wings of the PSF. Note that \pampelmuse also supports combinations of the two profiles, as listed below.
 
 The radius $r$ incorporates the ellipticity $e$ and the position angle $\theta$ of each profile. Thus, besides the actual centroid coordinates, the Moffat profile has $4$ free parameters, the Gaussian profile has $3$.
 
+To facilitate the handling of adaptive optics (AO) data, in particular MUSE narrow field mode (NFM) observations, the MAOPPY PSF model developed by \citet{2019A&A...628A..99F} is made available in \pampelmuse. Besides the parameters $e$ and $\theta$ that it shares with the other PSF models, the MAOPPY PSF has five parameters that can be optimized during the analysis. They are the Fried parameter $r_0$, the kurtosis $\beta$ of the Moffat contribution, the effective radius $\alpha$ of the Moffat contribution, the AO-corrected phase power spectral density (PSD) background $bck$, and the residual variance $amp$. Note that some parameters have been renamed compared to the names provided in Table~2 of \citet{2019A&A...628A..99F} in order to avoid confusion with other fitting parameters. In case you use this PSF model, please cite \citet{2019A&A...628A..99F}.
+
 The properties of the the PSF during the analysis are controlled via the \emph{psf} section of the configuration. The profile in use can be set using the \emph{profile} keyword.
-\pmparameter{psf}{profile}{string}{moffat}{The name of analytical PSF profile to be used. Currently supported are 'moffat', 'gauss', 'double\_gauss', and 'moffat\_gauss'.}
+\pmparameter{psf}{profile}{string}{moffat}{The name of analytical PSF profile to be used. Currently supported are 'moffat', 'gauss', 'double\_gauss', 'moffat\_gauss', 'double\_moffat', and 'maoppy'.}
 
 The initial values of the PSF parameters can be specified directly in the \emph{psf}-section of the configuration.
 \pmparameter{psf}{e}{float}{0.0}{The initial value of the ellipticity of the PSF.}

@@ -2,11 +2,13 @@
 
 # Form implementation generated from reading ui file 'pampelmuse_gui.ui'
 #
-# Created by: PyQt5 UI code generator 5.8.2
+# Created by: PyQt5 UI code generator 5.14.2
 #
 # WARNING! All changes made in this file will be lost!
 
+
 from PyQt5 import QtCore, QtGui, QtWidgets
+
 
 class Ui_PampelMuseGui(object):
     def setupUi(self, PampelMuseGui):
@@ -30,7 +32,6 @@ class Ui_PampelMuseGui(object):
         self.scrollAreaWidgetContents_2.setGeometry(QtCore.QRect(0, 0, 962, 844))
         self.scrollAreaWidgetContents_2.setObjectName("scrollAreaWidgetContents_2")
         self.horizontalLayout_3 = QtWidgets.QHBoxLayout(self.scrollAreaWidgetContents_2)
-        self.horizontalLayout_3.setContentsMargins(0, 0, 0, 0)
         self.horizontalLayout_3.setObjectName("horizontalLayout_3")
         self.centralVBox = QtWidgets.QVBoxLayout()
         self.centralVBox.setObjectName("centralVBox")
@@ -491,5 +492,4 @@ class Ui_PampelMuseGui(object):
         self.actionResiduals.setToolTip(_translate("PampelMuseGui", "Display the residuals of the fit (if available)"))
         self.actionLoadImage.setText(_translate("PampelMuseGui", "&Load image"))
         self.actionLoadImage.setToolTip(_translate("PampelMuseGui", "Load FITS image from disk"))
-
 from . import pampelmuse_gui_rc

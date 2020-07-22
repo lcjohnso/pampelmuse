@@ -862,7 +862,8 @@ class FitLayer(object):
         elif sources is None:
             sources = self.catalog.index
 
-        psf_radii, psf_flux_scaling = self.scale_psf_radii()
+        # scale PSF radii with fluxes of sources
+        psf_radii = self.scale_psf_radii()
 
         # loop over sources & extract information from PSF instances
         for index in sources:
@@ -873,10 +874,8 @@ class FitLayer(object):
                 psf.uc = self.catalog.at[index, 'x'] - self.offsets.at[index, 'x']
                 psf.vc = self.catalog.at[index, 'y'] - self.offsets.at[index, 'y']
 
-            # apply flux-dependent PSF radius (if requested); scale PSF flux if necessary
+            # apply flux-dependent PSF radius (if requested)
             psf.maxrad = psf_radii[index]
-            if psf_flux_scaling is not None:
-                psf.mag = self.catalog.at[index, "magnitude"] - 2.5*np.log10(psf_flux_scaling[index])
 
             current_pixels, current_fluxes = psf.get_flux(apply_lut=True)
             if current_pixels.size == 0:
@@ -963,22 +962,33 @@ class FitLayer(object):
         return _psf_matrix.tocsc(), source_indices
 
     def scale_psf_radii(self):
+        """
+        This method scales the radii out to which the individual PSF profiles
+        are defined according to the current fluxes of the sources.
 
+        Notes
+        -----
+        The idea is that the PSF radius is halved every time for every
+        decrease of the flux by a factor :math:`\\xi`. The radius scaling is
+        capped for sources fainter then :math:`\\xi^3` relative to the
+        brightest source, which means that the maximum scaling is :math:`2^3`.
+
+        The scaling is performed according to the equation:
+
+        .. math::
+
+            r_i = r_\mathtt{PSF} 2^{(\log \frac{f_i}{max(f)} / \log \frac{1}{\\xi})}
+
+        for :math:`0<\\xi<1`.
+
+        Returns
+        -------
+        psf_radii : pandas.Series
+            The scaled PSF radii for all available sources.
+        """
+        # if no fluxes available, all sources get maximum radius
         if not self.psf_radius_scaling or self.fluxes.max() <= 0:
-            return pd.Series(self.psf_radius, index=self.catalog.index), None
-
-        # MAOPPY PSFs are automatically normalized to a flux of 1 inside the defined grid. Hence, the total PSF flux
-        # (when integrating to INF) will increase the smaller the PSF radius is chosen. To account for that, the curve
-        # of growth is determined for the PSF of the reference source and used to apply a correction factor to each PSF
-        if self.psf_radius_scaling and self.psf_class == Maoppy:
-            # make sure reference source is defined out to maximum radius
-            self.psf_instances[self.reference_index].maxrad = self.psf_radius
-
-            # create interpolator on curve of growth of reference source
-            r, f = self.psf_instances[self.reference_index].curve_of_growth
-            ip = interpolate.interp1d(x=r, y=f/f[-1])
-        else:
-            ip = None
+            return pd.Series(self.psf_radius, index=self.catalog.index)
 
         # scale PSF radius based on flux - the minimum PSF radius is set to (0.5^3) x PSF radius
         flux_ratios = self.fluxes/self.fluxes.max()
@@ -988,7 +998,7 @@ class FitLayer(object):
         psf_radii = radii[self.catalog['component'].values]
         psf_radii.index = self.catalog.index
 
-        return psf_radii, pd.Series(ip(psf_radii), index=psf_radii.index) if ip is not None else None
+        return psf_radii
 
     def fit_sources_consecutively(self, sources, is_psf_source=None, psf_parameters=None, fit_positions=True,
                                   local_background=False, return_psf_profiles=True):
@@ -1511,7 +1521,7 @@ class FitLayer(object):
                 # exclude results deviating by more than 4x the median absolute deviation from the median value
                 _, vmin, vmax = sigma_clip(results[name], sigma=4, return_bounds=True,
                                            stdfunc=lambda x, axis: mad(x, nan_policy='omit', axis=axis))
-                valid = (results[name] > vmin) & (results[name] < vmax)
+                valid = (results[name] >= vmin) & (results[name] <= vmax)
                 if np.any(valid):
                     _final[name] = np.average(results.loc[valid, name], weights=results.loc[valid, 'snr'])
                 else:
