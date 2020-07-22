@@ -168,38 +168,39 @@ class Transformation(Parameters):
         ----------
         xy_in : pandas.DataFrame
             The input coordinates. The rows of the data frame must use the
-            source identifiers as indices and the x- and y-coordinates as
-            should be available as columns 'x' and 'y'.
+            source identifiers as indices and the x- and y-coordinates should
+            be available as columns 'x' and 'y'.
         xy_out : pandas.DataFrame
-            The output coordinates. Again, the columns of the data frame must
-            contain the source identifiers and the x- and y-coordinates as a
-            pandas MultiIndex. If the data frame contains N rows, the
-            transformation will be calculated for each row independently.
+            The output coordinates. The columns of the data frame must contain
+            the source identifiers and the x- and y-coordinates as a pandas
+            MultiIndex. If the data frame contains N rows, the transformation
+            will be calculated for each row independently.
         fixed : pandas.DataFrame, optional
             If any parameters of the coordinate transformation should be fixed
             to given values, the fixed parameters and their values can be
             provided as a pandas DataFrame using the same indices as 'xy_out'
             and the fixed parameters as column names.
+
+        Raises
+        ------
+        IOError
+            If input data do not allow the determination of the coordinate
+            transformation.
         """
         logger.info("Initialising coordinate transformation from provided data...")
 
         # perform sanity checks on input data
         if not isinstance(xy_in, pd.DataFrame):
-            logger.error('Parameter "xy_in" must be pandas DataFrame, not {0}.'.format(type(xy_in)))
-            return
+            raise IOError('Parameter "xy_in" must be pandas DataFrame, not {0}.'.format(type(xy_in)))
         if 'x' not in xy_in.columns or 'y' not in xy_in.columns:
-            logger.error('Cannot find coordinates in input coordinates ("xy_in" misses column "x" or "y").')
-            return
-
+            raise IOError('Cannot find coordinates in input coordinates ("xy_in" misses column "x" or "y").')
         if not cls._validate_input(xy_out):
-            logger.error('Data provided for parameter xy_out is invalid. Check previous errors.')
-            return
+            raise IOError('Data provided for parameter xy_out is invalid. Check previous errors.')
 
         # find sources that overlap between input and output coordinates
         common_ids = np.intersect1d(xy_in.index, np.unique(xy_out.columns.get_level_values(0)), assume_unique=True)
         if len(common_ids) < 4:
-            logger.error('Need at least 4 sources to fit coordinate transformation.')
-            return
+            raise IOError('Need at least 4 sources to fit coordinate transformation.')
 
         # for the fitting, plain numpy arrays are used
         in_data = np.zeros((len(common_ids), 2), dtype=np.float32)
@@ -231,13 +232,16 @@ class Transformation(Parameters):
         for i, parameter in enumerate(cls.PARAMETERS):
             logger.info("   {0} = {1:8.3f}".format(parameter, np.nanmean(data[parameter])))
 
-        logger.info("Offsets of individual sources:")
-        logger.info("       ID     dx     dy")
+        logger.info('RMS scatter between predicted and actual coordinates: STD(dx)={0:.2g}, STD(dy)={1:.2g}'.format(
+            np.nanstd(residuals[:, :, 0]), np.nanstd(residuals[:, :, 1])))
+
+        logger.debug("Offsets of individual sources:")
+        logger.debug("       ID     dx     dy")
 
         for i, source_id in enumerate(common_ids):
-            logger.info("   {0:6d}  {1:+5.2f}  {2:+5.2f}".format(source_id,
-                                                                 np.nanmean(residuals[:, i, 0]),
-                                                                 np.nanmean(residuals[:, i, 1])))
+            logger.debug("   {0:6d}  {1:+5.2f}  {2:+5.2f}".format(source_id,
+                                                                  np.nanmean(residuals[:, i, 0]),
+                                                                  np.nanmean(residuals[:, i, 1])))
 
         # define which parameters are free/fixed
         free = np.ones((len(cls.PARAMETERS)), dtype=np.bool)
@@ -473,6 +477,33 @@ class Transformation(Parameters):
         # finally, x- and y-axes need to be merged again
         return pd.DataFrame(_xy_out.reshape((_xy_out.shape[0], -1)), index=self.data.index[layers],
                             columns=pd.MultiIndex.from_product([xy_in.index, ['x', 'y']]))
+
+    def inverse(self, xy_out):
+        """
+        Given a set of output coordinates, the method will apply the inverse
+        coordinates transformation to obtain the input coordinates
+
+        Parameters
+        ----------
+        xy_out
+
+        Returns
+        -------
+
+        """
+        if not self._validate_input(xy_out):
+            logger.error('Data provided for parameter xy_out is invalid. Check previous errors.')
+            return
+
+        xy_in = xy_out.copy()
+
+        for i, row in xy_out.iterrows():
+            xy_out_i = row.values.reshape((-1, 2))
+
+            xy_in_i = np.dot(np.linalg.inv(self.f_matrix[i]), xy_out_i.T - np.dot(self.z_matrix[i],
+                                                                                  np.ones(xy_out_i.shape).T))
+            xy_in.loc[i] = xy_in_i.T.reshape((1, -1))
+        return xy_in
 
     def info(self, names=None):
         """

@@ -39,6 +39,7 @@ Latest Git revision
 2019/06/30
 """
 import logging
+import numpy as np
 from numbers import Real
 from scipy import optimize
 from .profile import Profile
@@ -95,7 +96,7 @@ class DoubleMoffat(Profile):
         fwhm : float
             The full-width at half maximum of the combined profile.
         """
-        # mare sure no additional keywords were provided.
+        # make sure no additional keywords were provided.
         if kwargs:
             raise IOError('Unknown argument(s) to call of DoubleMoffat.fwhm: {0}'.format(kwargs))
 
@@ -628,3 +629,12 @@ class DoubleMoffat(Profile):
                 self.f12 * moffat.pderiv_r(self.r, self.beta1, self.fwhm1, self.e) + (
                     1. - self.f12) * moffat.pderiv_r(self.r, self.beta2, self.fwhm2, self.e))
         return self._diff_y0
+
+    @property
+    def bounds(self):
+        bounds = super(DoubleMoffat, self).bounds
+        bounds['fwhm1'] = (self.fwhm2, np.inf)
+        bounds['fwhm2'] = (0, self.fwhm1)
+        bounds['beta1'] = (0, np.inf)
+        bounds['beta2'] = (0, np.inf)
+        return bounds

@@ -103,12 +103,13 @@ def cubefit(config):
     logging.info("Starting fit process...")
 
     fitter = FitCube(ifs_data=ifs_data, sources=sources, psf_attributes=psf_attributes,
-                     psf_radius=config['psf'].get('radius', 15.))
+                     psf_radius=config['psf'].get('radius', 15.), psf_radius_scaling=config['psf']['scaling'])
 
     psf_data = fitter(layer_range=(first_layer, last_layer), n_cpu=config['global'].get('cpucount', 1),
                       max_iterations=config['cubefit'].get('iterations', 5),
                       use_variances=config['cubefit'].get('usesigma', True),
-                      n_bin=config['layers'].get('binning', 1), analyse_psf=config['psf'].get('inspect', False))
+                      n_bin=config['layers'].get('binning', 1), fit_psf_background=config['psf']['background'],
+                      analyse_psf=config['psf'].get('inspect', False), fit_offsets=config['cubefit']['offsets'])
 
     logging.info("Saving results...")
 

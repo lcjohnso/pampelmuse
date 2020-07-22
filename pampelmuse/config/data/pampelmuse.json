@@ -25,10 +25,16 @@
     "fwhm1": 3.0,
     "fwhm2": 6.0,
     "f12": 0.5,
+    "alpha": 0.05,
+    "r0": 0.2,
+    "bck": 0.005,
+    "amp": 1.0,
     "e": 0.0,
     "theta": 0.0,
     "fit": 6,
     "radius": 15,
+    "scaling": null,
+    "background": false,
     "inspect": false,
     "lut1d": false
   },
@@ -65,7 +71,8 @@
   },
   "cubefit": {
     "usesigma": true,
-    "iterations": 5
+    "iterations": 5,
+    "offsets" : false
   },
   "ptsort": {
     "outfilename": null

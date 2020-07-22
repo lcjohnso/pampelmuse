@@ -33,6 +33,7 @@ Latest GIT revision
 -------------------
 2020/04/16
 """
+import collections
 import logging
 import time
 import numpy as np
@@ -50,84 +51,45 @@ __revision__ = 20200416
 logger = logging.getLogger(__name__)
 
 
-def init_worker(catalog, psf_type, psf_radius, psf_parameters_to_fit, position_parameters_to_fit,
-                last_component_is_unresolved, osfactor, osradius, sources, psf_sources, max_iterations, analyse_psf,
-                *args):
+FitLayerInit = collections.namedtuple('FitLayerInit', ['catalog', 'psf_type', 'psf_radius', 'psf_radius_scaling',
+                                                       'psf_parameters_to_fit', 'position_parameters_to_fit',
+                                                       'last_component_is_unresolved', 'osfactor', 'osradius',
+                                                       'max_iterations', 'fit_psf_background', 'analyse_psf',
+                                                       'apply_offsets'])
+FitLayerInit.__new__.__defaults__ = (None,) * len(FitLayerInit._fields)
+# see https://stackoverflow.com/questions/11351032/namedtuple-and-default-values-for-optional-keyword-arguments
+
+
+FitLayerCall = collections.namedtuple('FitLayerCall', ['data', 'fluxes', 'psf_parameters', 'psf_lut', 'coordinates',
+                                                       'position_parameters', 'background', 'background_index', 'wvl'])
+
+
+init_arguments = FitLayerInit()
+
+
+def init_worker(cube_parameters, *args):
     """
-    This function defines the global parameters for the parallel part of the
-    analysis.
-    
-    The global parameters are those that do not change from one layer to the
-    next, therefore they do not have to be initialized anew for each layer.
+    This function is provided as initializer to the multiprocessing Pool used
+    to run the analysis of several layers in parallel. It merely makes some
+    parameters that do not change from one layer to the next available to the
+    parallel_fit_layer function performing the parallel fit.
 
     Parameters
     ----------
-    catalog : pandas.DataFrame
-        The pixel coordinates, statuses, components, and relative magnitudes
-        of all sources to be used in fit.
-    psf_type : string
-        The name of the PSF profile in use.
-    psf_radius : int
-        The radius in pixels out to which the PSF profiles are calculated
-    psf_parameters_to_fit : array_like
-        The names of the PSF parameters that should be fitted, or None for a
-        fixed PSF.
-    position_parameters_to_fit : array_like
-        The parameters of the coordinate transformation that should be fitted,
-        or None for fixed coordinates.
-    last_component_is_unresolved : boolean
-        Flag indicating if the last component (i.e. with the highest value in
-        the 'components' array) is unresolved.
-    osfactor : int
-        The oversampling factor used to improve the accuracy for the central
-        PSF pixels.
-    osradius : float
-        The radius out to which oversampling is being used.
-    sources : array_like
-        The indices of the sources used to fit source coordinates.
-    psf_sources : array_like
-        The indices used to fit the PSF parameters. If None, use same sources
-        as for coordinates.
-    max_iterations : int
-        The maximum number of iterations.
-    analyse_psf : bool
-       Flag indicating if the radial profiles of the stars used to fit the PSF
-       plus the parameters of the individual PSF fits should be returned.
+    cube_parameters : instance of FitLayerInit
+        The global parameters.
     args
-
-    Returns
-    -------
-    Nothing is returned, only the global variables are set. Their names are
-    derived from the names of the parameters by adding a prefix 'g_'
+        No additional arguments are supported.
     """
-    global g_catalog
-    global g_psf_type
-    global g_psf_radius
-    global g_psf_parameters_to_fit
-    global g_position_parameters_to_fit
-    global g_last_component_is_unresolved
-    global g_osfactor
-    global g_osradius
-    global g_sources
-    global g_psf_sources
-    global g_max_iterations
-    global g_analyse_psf
+    global init_arguments
 
-    g_catalog = catalog
-    g_psf_type = psf_type
-    g_psf_radius = psf_radius
-    g_psf_parameters_to_fit = psf_parameters_to_fit
-    g_position_parameters_to_fit = position_parameters_to_fit
-    g_last_component_is_unresolved = last_component_is_unresolved
-    g_osfactor = osfactor
-    g_osradius = osradius
-    g_sources = sources
-    g_psf_sources = psf_sources
-    g_max_iterations = max_iterations
-    g_analyse_psf = analyse_psf
+    assert not args
+    assert isinstance(cube_parameters, FitLayerInit)
+
+    init_arguments = cube_parameters
 
 
-def parallel_fit_layer(fit_parameters):
+def parallel_fit_layer(layer_parameters):
     """
     This function is designed to carry out the fit to several layers in
     parallel.
@@ -138,87 +100,49 @@ def parallel_fit_layer(fit_parameters):
 
     Parameters
     ----------
-    `fit_parameters` : dictionary with the following keys defined.
-        data - pandas.DataFrame
-            The value, variance, x-, and y-positions, and wavelength
-            (optional) of each pixel of the layer.
-        psf_parameters - dictionary
-            The initial guesses/fixed values of the PSF parameters.
-        psf_lut - pandas Series
-            The look-up table for correcting the fluxes obtained from the
-            analytical PSF profiles. None if not look-up tables is used.
-        coordinates - pandas.DataFrame
-            The initial guesses/fixed values of the pixel coordinates if no
-             coordinate transformation is being used.
-        position_parameters - dictionary
-            The initial guesses/fixed values of the coord. transformation
-            parameters (if used).
-        background - sparse matrix
-            The matrix containing the footprints of the individual background
-            components.
-        background_index - pandas.Index
-            The index/indices used for the background components.
+    layer_parameters : instance of FitLayerCall
+        The parameters required to perform the analysis of the given layer.
 
     Returns
     -------
-    `FitResult` with the following fields defined.
-    fluxes : pandas.Series
-        The fitted fluxes of the components that actually contributed to
-        the observed flux. Sources entirely outside the observed field of
-        view are excluded from this series.
-    uncertainties : pandas.Series
-        The associated uncertainties of the returned fluxes.
-    positions : pandas.Series or pandas.DataFrame
-        The best-fit parameters of the coordinate transformation or the
-        best-fit centroids of all components (in this case a DataFrame is
-        returned containing columns 'x' and 'y' and one row per source),
-        or None if fixed positions were used.
-    psf : pandas.Series
-        The best-fit parameters of the PSF, or None if a fixed PSF was
-        used.
-    wave : pandas.Series
-        If dedicated wavelength information per pixel was provided with
-        the data, this Series will contain the weighted wavelength value
-        for each returned flux. Otherwise None is returned.
-    profiles : pandas.DataFrame
-        The radial profiles of the PSF stars if requested. Otherwise None.
-    parameters : pandas.DataFrame
-        The parameters of the individual PSF fits it requested. Otherwise
-        None.
-    lut: instance of InterpolatedUnivariateSpline
-        The look-up table created from the average residuals of the PSF
-        fits if requested, otherwise None
+    Instance of `FitResult` with the following fields defined.
+        See documentation of pampelmuse.core.fit_layer.FitLayer.__call__ for
+        the contents of FitResult
     """
-    # fit parameters is a dictionary that must contain the following keys:
-    # data, variances, transformation, xy, psf_parameters, position_parameters
-    data = fit_parameters['data']
-    psf_parameters = fit_parameters['psf_parameters']
-    psf_lut = fit_parameters['psf_lut']
-    coordinates = fit_parameters['coordinates']
-    position_parameters = fit_parameters['position_parameters']
-    background = fit_parameters['background']
-    background_index = fit_parameters['background_index']
+    global init_arguments
 
-    global g_catalog, g_psf_type, g_psf_radius, g_psf_parameters_to_fit, g_position_parameters_to_fit
-    global g_last_component_is_unresolved, g_osfactor, g_osradius, g_sources, g_psf_sources, g_max_iterations
-    global g_analyse_psf
+    assert isinstance(layer_parameters, FitLayerCall)
 
-    if coordinates is not None:
-        catalog = pd.merge(coordinates, g_catalog[['component', 'magnitude']], left_index=True, right_index=True)
+    if layer_parameters.coordinates is not None:
+        catalog = pd.merge(layer_parameters.coordinates, init_arguments.catalog[['component', 'magnitude']],
+                           left_index=True, right_index=True)
     else:
-        catalog = g_catalog
+        catalog = init_arguments.catalog
 
-    layerfit = FitLayer(data=data, catalog=catalog, psf_type=g_psf_type, psf_parameters=psf_parameters,
-                        psf_radius=g_psf_radius, psf_lut=psf_lut, position_parameters=position_parameters,
-                        last_component_is_unresolved=g_last_component_is_unresolved, background=background,
-                        osfactor=g_osfactor, osradius=g_osradius, background_index=background_index)
+    fit_layer = FitLayer(data=layer_parameters.data,
+                         catalog=catalog,
+                         psf_type=init_arguments.psf_type,
+                         psf_parameters=layer_parameters.psf_parameters,
+                         psf_radius=init_arguments.psf_radius,
+                         psf_radius_scaling=init_arguments.psf_radius_scaling,
+                         psf_lut=layer_parameters.psf_lut,
+                         position_parameters=layer_parameters.position_parameters,
+                         last_component_is_unresolved=init_arguments.last_component_is_unresolved,
+                         background=layer_parameters.background,
+                         osfactor=init_arguments.osfactor,
+                         osradius=init_arguments.osradius,
+                         background_index=layer_parameters.background_index,
+                         wvl=layer_parameters.wvl)
 
-    results = layerfit(fluxes=None, psf_parameters_to_fit=g_psf_parameters_to_fit,
-                       position_parameters_to_fit=g_position_parameters_to_fit,
-                       sources=g_sources, psf_sources=g_psf_sources, max_iterations=g_max_iterations,
-                       analyse_psf=g_analyse_psf)
+    results = fit_layer(fluxes=layer_parameters.fluxes,
+                        psf_parameters_to_fit=init_arguments.psf_parameters_to_fit,
+                        position_parameters_to_fit=init_arguments.position_parameters_to_fit,
+                        max_iterations=init_arguments.max_iterations,
+                        fit_psf_background=init_arguments.fit_psf_background,
+                        analyse_psf=init_arguments.analyse_psf,
+                        apply_offsets=init_arguments.apply_offsets)
 
-    del layerfit
+    del fit_layer
     return results
 
 
@@ -255,7 +179,8 @@ class FitCube(object):
     wavelength range.
     """
 
-    def __init__(self, ifs_data, sources, psf_attributes, psf_radius=np.inf, osfactor=5, osradius=2):
+    def __init__(self, ifs_data, sources, psf_attributes, psf_radius=np.inf, psf_radius_scaling=None,
+                 osfactor=None, osradius=None):
         """
         Initialize an instance of the `StarFit'-class.
     
@@ -276,13 +201,21 @@ class FitCube(object):
         psf_radius : float, optional
             The radius out to which each PSF will be defined, measured in
             pixels and from the centre of the profile.
-        osfactor : The improve the accuracy of the PSF modelling close to the
+        psf_radius_scaling : float, optional
+            The PSF radius can be adapted based on the fitted flux of each
+            star. If provided, 'psf_radius_scaling' defines the fractional
+            flux (relative to the brightest star in the fit) that corresponds
+            to a reduction of psf_radius by a factor of 2.
+        osfactor : float, optional
+            The improve the accuracy of the PSF modelling close to the
             centre of a profile, the central pixels can be supersampled by a
             factor 'osfactor' along x and y, i.e. each pixel is split into
-            'osfactor'^2 subpixels. Default is no supersampling.
-        osradius : All pixels with distances <'osradius' to the centre of a
-            PSF profile are supersampled by a factor 'osfactor'. Default is
-            no supersampling.
+            'osfactor'^2 subpixels. By default, the supersampling is chosen
+            based on the selected PSF profile.
+        osradius : float, optional
+            All pixels with distances <'osradius' to the centre of a PSF
+            profile are supersampled by a factor 'osfactor'. By default, the
+            supersampling is chosen based on the selected PSF profile.
 
         Returns
         -------
@@ -295,8 +228,15 @@ class FitCube(object):
         self.sources = sources
         self.psf_attributes = psf_attributes
         self.psf_radius = psf_radius
-        self.osfactor = osfactor
-        self.osradius = osradius
+        self.psf_radius_scaling = psf_radius_scaling
+
+        # MAOPPY internally supersamples the PSF, so supersampling is turned off in PampelMuse
+        if self.psf_attributes.profile == 'maoppy':
+            self.osfactor = 1
+            self.osradius = 0.
+        else:
+            self.osfactor = osfactor if osfactor is not None else 5
+            self.osradius = osradius if osradius is not None else 2
 
         # The following two dictionaries will contain the name of ALL parameters needed to define the source
         # positions and the PSF. The keys are flags indicating if the should be optimized during the fit
@@ -370,7 +310,7 @@ class FitCube(object):
         self.residuals = {}
 
     def __call__(self, layer_range=(0, -1), n_track=10, n_cpu=1, max_iterations=20, use_variances=True, n_bin=1,
-                 analyse_psf=False):
+                 fit_psf_background=False, analyse_psf=False, fit_offsets=False):
         """
         Run the fitting process for the requested layers.
 
@@ -405,6 +345,9 @@ class FitCube(object):
         n_bin : int, optional
             The number of layers of the IFS data combined into a single layer
             for the analysis.
+        fit_psf_background : bool, optional
+            Flag indicating if a local background should be included in the
+            individual PSF fits.
         analyse_psf : bool, optional
             Flag indicating if the radial profiles of the stars used to fit
             the PSF should be returned.
@@ -508,6 +451,9 @@ class FitCube(object):
         psf_parameters_to_fit = [key for key in self.psf_parameters.keys() if self.psf_parameters[key]]
         if len(psf_parameters_to_fit) == 0:
             psf_parameters_to_fit = None
+            # do not store detailed PSF fit results if no PSF parameters fitted
+            if analyse_psf:
+                analyse_psf = False
 
         # check if/how the source positions should be fitted
         position_parameters_to_fit = [key for key in self.position_parameters.keys() if self.position_parameters[key]]
@@ -515,40 +461,32 @@ class FitCube(object):
             position_parameters_to_fit = None
 
         # check which sources should be used in single PSF fits
-        # if no PSF sources exist, use method for layers with few sources/spaxels
-        if 3 not in self.sources.status.values:
-            sources = None
-            psf_sources = None
-        # if source positions are fitted directly, all affected sources must be used, plus a subset to constrain the PSF
-        elif self.sources.ifs_coordinates_free.any():
-            sources = self.sources.ifs_coordinates_free[~self.sources.is_background].index
-            psf_sources = self.sources.ids[self.sources.status == 3]
-        # otherwise, just use the subset to constrain the PSF
-        else:
-            sources = self.sources.ids[self.sources.status == 3]
-            psf_sources = None
+        catalog['psf'] = self.sources.status == 3
+
+        # prepare array for offsets, if they are fitted
+        offsets = []
 
         # initialize fitting process by providing arguments that do not change between layers and creating process pool
-        initial_arguments = (catalog,
-                             self.psf_attributes.profile,
-                             self.psf_radius,
-                             psf_parameters_to_fit,
-                             position_parameters_to_fit,
-                             self.sources.includes_unresolved,
-                             self.osfactor,
-                             self.osradius,
-                             sources,
-                             psf_sources,
-                             max_iterations,
-                             analyse_psf
-                             )
+        initial_arguments = FitLayerInit(catalog=catalog,
+                                         psf_type=self.psf_attributes.profile,
+                                         psf_radius=self.psf_radius,
+                                         psf_radius_scaling=self.psf_radius_scaling,
+                                         psf_parameters_to_fit=psf_parameters_to_fit,
+                                         position_parameters_to_fit=position_parameters_to_fit,
+                                         last_component_is_unresolved=self.sources.includes_unresolved,
+                                         osfactor=self.osfactor,
+                                         osradius=self.osradius,
+                                         max_iterations=max_iterations,
+                                         fit_psf_background=fit_psf_background,
+                                         analyse_psf=analyse_psf,
+                                         apply_offsets=fit_offsets)
 
         # initialize processes pool
         if n_cpu > 1:
-            pool = Pool(n_cpu, initializer=init_worker, initargs=initial_arguments)
+            pool = Pool(n_cpu, initializer=init_worker, initargs=[initial_arguments])
         else:
             pool = None
-            init_worker(*initial_arguments)
+            init_worker(initial_arguments)
 
         # loop over all layers in cube that should be analysed
         for i, jj in enumerate(indices_to_analyse):
@@ -577,21 +515,21 @@ class FitCube(object):
             # get 1D arrays containing valid data pixels, also sigma-values if requested
             data = self.get_layer(layers_to_analyse[i], n_bin=n_bin, use_variances=use_variances,
                                   use_slices=(self.sources.status == 5).any())
-            fit_input.append({'data': data})
+
+            # get fluxes
+            fluxes = self.read_fluxes(jj, last=nearest_layers)
 
             # update PSF parameters & look-up table if available.
             psf_parameters, lut = self.read_psf_parameters(jj, last=nearest_layers)
-            fit_input[-1]['psf_parameters'] = psf_parameters
-            fit_input[-1]['psf_lut'] = lut
 
+            position_parameters = None
+            coordinates = None
             # update direct coordinates if required
             if self.sources.ifs_coordinates_fitted.any() or self.sources.ifs_coordinates_free.any():
-                fit_input[-1]['coordinates'] = self.read_ifs_coordinates(jj, last=nearest_layers)
-                fit_input[-1]['position_parameters'] = None
+                coordinates = self.read_ifs_coordinates(jj, last=nearest_layers)
             # otherwise try to update parameters of coordinate transformation
             elif self.sources.transformation.valid:
-                fit_input[-1]['coordinates'] = None
-                fit_input[-1]['position_parameters'] = self.read_coordinate_transformation(jj, last=nearest_layers)
+                position_parameters = self.read_coordinate_transformation(jj, last=nearest_layers)
             else:
                 logger.critical('Cannot determine IFS coordinates of sources.')
 
@@ -611,8 +549,11 @@ class FitCube(object):
                     offset=self.sources.n_components - self.sources.n_background, purge_empty=True)
             else:
                 background_matrix = background_components = None
-            fit_input[-1]['background'] = background_matrix
-            fit_input[-1]['background_index'] = background_components
+
+            fit_input.append(FitLayerCall(data=data, fluxes=fluxes, psf_parameters=psf_parameters, psf_lut=lut,
+                                          coordinates=coordinates, position_parameters=position_parameters,
+                                          background=background_matrix, background_index=background_components,
+                                          wvl=jj))
 
             # The first two layers are fitted sequentially in order to obtain useful initial guesses for the
             # following ones. Otherwise a parallel fit is triggered every n_cpu's layer
@@ -636,9 +577,13 @@ class FitCube(object):
                     self.write_psf_parameters(current, result.psf, result.lut)
 
                     # save PSF if requested
-                    if analyse_psf and sources is not None:
+                    if analyse_psf and result.profiles is not None:
                         self._write_psf_properties(result.profiles, result.parameters, current_wavelength=current)
-                        self._write_minicubes(current, result.residuals, fit_input[k - 1]['data'])
+                        self._write_minicubes(current, result.residuals, fit_input[k - 1].data)
+
+                    # collect offsets if requested
+                    if result.offsets is not None:
+                        offsets.append(result.offsets)
 
                 # reset list containing input data for parallel fit
                 fit_input = []
@@ -659,6 +604,13 @@ class FitCube(object):
                         last_layers = indices_to_analyse[:i]
                     else:
                         last_layers = indices_to_analyse[i - 2:max(0, i - 2 - 2 * n_track):-1]
+
+        # if offsets were fitted, average and add to Sources instance
+        if len(offsets) > 0:
+            all_offsets = pd.concat(offsets)
+            offsets_per_star = all_offsets.groupby(level=0).agg(np.nanmedian)
+            self.sources.dx = offsets_per_star['x']
+            self.sources.dy = offsets_per_star['y']
 
         # if available, return results of detailed PSF analysis
         return self._make_psf_hdus() if analyse_psf else None
@@ -735,7 +687,46 @@ class FitCube(object):
 
         # return, make sure byte-ordering is correct, see
         # https://pandas.pydata.org/pandas-docs/stable/gotchas.html#byte-ordering-issues
-        return pd.DataFrame(data, index=np.flatnonzero(~mask), dtype='<f4')
+        return pd.DataFrame(data, index=pd.Index(np.flatnonzero(~mask)), dtype='<f4')
+
+    def read_fluxes(self, current, last=None, fillna=True):
+        """
+        Method to fluxes of all components for a given layer.
+
+        If possible and requested, the method obtains updated values by
+        averaging over the results from the nearest layers, otherwise it uses
+        the values in the sources instance.
+
+        Parameters
+        ----------
+        current : integer
+            The index of the layer for which the parameters should be obtained
+        last : list of integers, optional
+            A list containing the indices of the layers that are averaged to
+            get the new value.
+        fillna : bool, optional
+            Flag indicating whether NaN values are replaced with zeros before
+            the data are returned.
+
+        Returns
+        -------
+        fluxes : pd.Series
+            The updated value of the flux of each component for the current
+            layer.
+        """
+        logger.info("Updating fluxes of individual components ...")
+
+        if last is None:
+            fluxes = self.sources.data.loc[current, (slice(None), 'flux')]
+        else:
+            fluxes = self.sources.data.loc[last, (slice(None), 'flux')].mean(axis=0, skipna=True)
+
+        # replace NaN with zeros if requested
+        if fillna:
+            fluxes.fillna(value=0, inplace=True)
+
+        # remove second level from MultiIndex which is not needed any more.
+        return fluxes.reset_index(level=1, drop=True)
 
     def read_psf_parameters(self, current, last=None):
         """
@@ -786,7 +777,6 @@ class FitCube(object):
         logger.info(log_string[:-1])
 
         if self.psf_attributes.lut is not None:
-            print(self.psf_attributes.lut_fitted)
             if self.psf_attributes.lut_fitted:
                 lut = self.psf_attributes.lut.loc[current, 'fit']
             else:

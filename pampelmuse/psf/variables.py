@@ -69,18 +69,23 @@ class Variables(Parameters):
                 "gauss": ["fwhm", "e", "theta"],
                 "double_gauss": ["f12", "fwhm1", "fwhm2", "e", "theta"],
                 "moffat_gauss": ["f12", "beta", "fwhm1", "fwhm2", "e", "theta"],
-                "double_moffat": ["f12", "beta1", "fwhm1", "beta2", "fwhm2", "e", "theta"]}
+                "double_moffat": ["f12", "beta1", "fwhm1", "beta2", "fwhm2", "e", "theta"],
+                "maoppy": ["r0", "bck", "amp", "alpha", "beta", "e", "theta"]}
 
     #  define dictionary providing tex-style representations of each parameter name for plotting
-    LABELS = {"fwhm": r"$\mathrm{FWHM}\ [\mathrm{spaxel}]$",
+    LABELS = {"fwhm": r"$\mathrm{FWHM}\,[\mathrm{spaxel}]$",
               "beta": r"$\beta$",
               "e": r"$e$",
-              "theta": r"$\theta\ [\mathrm{rad}]$",
+              "theta": r"$\theta\,[\mathrm{rad}]$",
               "beta1": r"$\beta_1$",
               "beta2": r"$\beta_2$",
-              "fwhm1": r"$\mathrm{FWHM}_1\ [\mathrm{spaxel}]$",
-              "fwhm2": r"$\mathrm{FWHM}_2\ [\mathrm{spaxel}]$",
-              "f12": r"$f_\mathrm{12}$"}
+              "fwhm1": r"$\mathrm{FWHM}_1\,[\mathrm{spaxel}]$",
+              "fwhm2": r"$\mathrm{FWHM}_2\,[\mathrm{spaxel}]$",
+              "f12": r"$f_\mathrm{12}$",
+              "r0": r"$r_{\rm 0}\,[\mathrm{m}]$",
+              "bck": r"$C\,[\mathrm{rad}^2\mathrm{m}^2]$",
+              "amp": r"$A\,[\mathrm{rad}^2]$",
+              "alpha": r"$\alpha\,[\mathrm{m}^{-1}]$"}
 
     def __init__(self, profile='moffat', data=None, free=None, lut=None, **kwargs):
         """
@@ -112,6 +117,8 @@ class Variables(Parameters):
         self.profile = profile
         if self.profile in self.PROFILES:
             logger.info('Initializing PSF parameters for type "{0}" ...'.format(self.profile))
+            if self.profile == 'maoppy':
+                logger.info('Please cite Fetick et al. (2019, A&A, 628, A99) as reference for the MAOPPY PSF.')
         else:
             logger.error('Invalid PSF type "{0}" provided.'.format(self.profile))
             logger.error('Supported PSF types: "{0}"'.format('", "'.join([p for p in self.PROFILES.keys()])))

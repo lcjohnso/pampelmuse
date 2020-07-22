@@ -24,6 +24,7 @@ from .moffat import Moffat
 from .double_gaussian import DoubleGaussian
 from .double_moffat import DoubleMoffat
 from .moffat_gaussian import MoffatGaussian
+from .maoppy import Maoppy
 
 # define what should be imported upon 'from psf import *':
-__all__ = ["Gaussian", "Moffat", "DoubleGaussian", "MoffatGaussian", "DoubleMoffat"]
+__all__ = ["Gaussian", "Moffat", "DoubleGaussian", "MoffatGaussian", "DoubleMoffat", "Maoppy"]

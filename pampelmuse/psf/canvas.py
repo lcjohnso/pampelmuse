@@ -164,3 +164,8 @@ class Canvas(object):
         Returns the y-coordinate of each pixel.
         """
         return self.transform[:, 0]
+
+    @property
+    def shape(self):
+
+        return int(self.y.max() - self. y.min()), int(self.x.max() - self. x.min())

@@ -43,6 +43,7 @@ from astropy.io import fits
 from .sources import Sources
 from ..instruments import Instrument
 from ..psf import Variables
+from ..psf.profiles import *
 from ..utils.statistics import der_snr
 
 
@@ -146,18 +147,57 @@ class SpectrumWriter(object):
                 pass
 
         # add estimate for seeing on detector using the fitted FWHM of the PSF profile
-        if self.psf_attributes is not None:
-            if psf_attributes.profile not in ['double_gauss', 'moffat_gauss']:
-                mean_fwhm = np.nanmean(psf_attributes.data[('fwhm', 'value')])
-            else:
-                mean_fwhm = np.nanmean(
-                    psf_attributes.data[('f12', 'value')] * psf_attributes.data[('fwhm1', 'value')] + (
-                        1. - psf_attributes.data[('f12', 'value')]) * psf_attributes.data[('fwhm1', 'value')])
-            self.header["hierarch PAMPELMUSE SEEING"] = (mean_fwhm, "Fitted PSF FWHM in spaxels")
+        fwhm = self.get_mean_fwhm()
+        if np.isfinite(fwhm):
+            self.header["hierarch PAMPELMUSE SEEING"] = (fwhm, "Fitted PSF FWHM in spaxels")
 
         self.xy = None
         self.dmag = None
         self.cleanness = None
+
+    def get_mean_fwhm(self):
+        """
+        Calculate the FWHM (averaged across the wavelength range) using the
+        available PSF properties.
+
+        Returns
+        -------
+        fwhm : float
+            The full-width at half maximum in units of spaxels.
+        """
+
+        if self.psf_attributes is None:
+            logger.warning('Cannot determine FWHM as no information of PSF available.')
+            return np.nan
+
+        profile = self.psf_attributes.profile
+        if profile == "moffat":
+            psf_class = Moffat
+        elif profile == "gauss":
+            psf_class = Gaussian
+        elif profile == "double_gauss":
+            psf_class = DoubleGaussian
+        elif profile == "moffat_gauss":
+            psf_class = MoffatGaussian
+        elif profile == "double_moffat":
+            psf_class = DoubleMoffat
+        elif profile == 'maoppy':
+            psf_class = Maoppy
+        else:
+            logger.error('Cannot determine FWHM. Unknown PSF type: "{0}"'.format(profile))
+            return np.nan
+
+        if psf_class in [DoubleGaussian, MoffatGaussian, Maoppy]:
+            # for combined profiles, use dedicated classmethod to determine FWHM of full profile
+            args = {}
+            for name in self.psf_attributes.names:
+                if name == 'theta':
+                    continue
+                args[name] = np.nanmean(self.psf_attributes.data[(name, 'value')])
+            return psf_class.calculate_fwhm(**args)
+        else:
+            # otherwise directly use FWHM parameter
+            return np.nanmean(self.psf_attributes.data[('fwhm', 'value')])
 
     def identify_contaminated(self, passband, alpha=2., beta=2.):
         """
@@ -294,8 +334,10 @@ class SpectrumWriter(object):
             also be included in the name used to store its FITS-file.
         """
         if not os.path.exists(folder):
-            logging.info("Creating folder '{0}' to store spectra...".format(folder))
+            logger.info("Creating folder '{0}' to store spectra...".format(folder))
             os.mkdir(folder)
+        elif len(os.listdir(folder)) > 0:
+            logger.warning('Target folder "{0}" is not empty.'.format(folder))
 
         if filter_names is not None:
             if isinstance(filter_names, str):

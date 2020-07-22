@@ -37,4 +37,4 @@ __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
 
 changeable = ["verbose", "interact", "cpucount", "iterations", "type", "degree", "subtract",
               "usesigma", "first", "last", "binning", "radius", "inspect", "mask", "include",
-              "exclude"]
+              "exclude", "offsets", "scaling", "background"]
