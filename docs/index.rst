@@ -14,6 +14,7 @@ Welcome to PampelMuse's documentation!
    start
    configuration
    data
+   psf
    routines
    contact
    references
