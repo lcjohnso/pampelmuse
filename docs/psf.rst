@@ -79,8 +79,13 @@ Specifying the PSF to use
 -------------------------
 
 To specify the properties of the PSF during the analysis, one needs to modify the `psf` section of the PampelMuse
-:ref:`configuration <user-configuration>`. First, one needs to specify which profile should be used. This can be using
-the following configuration parameter.
+:ref:`configuration <user-configuration>`.
+
+Setting the PSF type and parameters
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+First, one needs to specify which type of profile should be used. This can be using the following configuration
+parameter.
 
 psf|profile : string
     The analytical PSF profile used during the analysis. Currently supported are `gauss`, `moffat`, `double_gauss`,
@@ -91,7 +96,6 @@ described by different sets parameters. This is summarized in the following tabl
 
 .. table:: Overview of PSF parameters
     :name: table-psf-parameters
-    :align: right
 
     +-----------+-------------+-------------+----------------+-----------------+----------------+----------+
     | Parameter | `gauss`     | `moffat`    | `double_gauss` | `double_moffat` | `moffat_gauss` | `maoppy` |
@@ -145,9 +149,8 @@ Assuming one wants to model the PSF as a Moffat profile, with a fixed value of :
 
 The values provided for :math:`{\text FWHM}`, :math:`e`, and :math:`\theta` serve as initial guesses for the fit.
 
-
-Further options
----------------
+Setting the PSF radii
+^^^^^^^^^^^^^^^^^^^^^
 
 Each PSF profile used during the analysis will be defined out to a maximum radius, beyond which the surface intensity
 of the profile is believed to be negligible. This radius can be changed using the following parameter.
@@ -166,5 +169,21 @@ when creating the residuals of the analysis with the :ref:`SUBTRES routine <subt
 
     psf|scaling : float
         Scaling factor for the PSF radius, must be :math:`>0` and :math:`<1`. It is defined such that the PSF radius
-        will shrink by a factor math:`2` for every drop in flux by the provided value. A flux reference, the brightest
+        will shrink by a factor :math:`2` for every drop in flux by the provided value. A flux reference, the brightest
         star in the field is used, for which the PSF profile will be defined out to `psf|radius`.
+
+
+In-depth analysis of fitted PSF
+-------------------------------
+
+PampelMuse offers an option to inspect the results of the PSF fits it performed after the analysis is complete. To this
+aim, the following parameter should be enabled.
+
+psf|inspect : boolean
+    If enabled, a FITS-file will be created that contains the details of the individual PSF fits. For each source used
+    to fit the PSF, four extensions will be created, containing the input data of the fits (named `DAT_<ID>`), radial
+    profiles of the input data (named `PR_<ID>`), the fit residuals (named `RES_<ID>`), and the fitted parameters
+    (named `PM_<ID>`). The IDs used to construct the extension names are the same as in the :ref:`reference catalogue
+    <reference_catalogue>`. All data will be stored as a function of wavelength. The file is saved under
+    `<prefix>.psf.fits`, where the same prefix is used that was provided in the user configuration file to indetify the
+    integral field data.
