@@ -1,4 +1,6 @@
 
+.. _data:
+
 The input data
 ==============
 
@@ -96,7 +98,7 @@ layers|binning : integer
     The binning applied in spectral direction.
 
 
-.. _reference_catalogue:
+.. _reference-catalogue:
 
 The reference catalogue
 -----------------------

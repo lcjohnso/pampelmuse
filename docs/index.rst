@@ -15,7 +15,9 @@ Welcome to PampelMuse's documentation!
    configuration
    data
    psf
+   coordinates
    routines
+   output
    contact
    references
 

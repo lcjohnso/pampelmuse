@@ -176,8 +176,8 @@ when creating the residuals of the analysis with the :ref:`SUBTRES routine <subt
 In-depth analysis of fitted PSF
 -------------------------------
 
-PampelMuse offers an option to inspect the results of the PSF fits it performed after the analysis is complete. To this
-aim, the following parameter should be enabled.
+PampelMuse offers the option to store detailed information about the the PSF fits it performed when running the
+:ref:`CUBEFIT routine <cubefit>`. To this aim, the following parameter should be enabled.
 
 psf|inspect : boolean
     If enabled, a FITS-file will be created that contains the details of the individual PSF fits. For each source used
@@ -185,5 +185,11 @@ psf|inspect : boolean
     profiles of the input data (named `PR_<ID>`), the fit residuals (named `RES_<ID>`), and the fitted parameters
     (named `PM_<ID>`). The IDs used to construct the extension names are the same as in the :ref:`reference catalogue
     <reference_catalogue>`. All data will be stored as a function of wavelength. The file is saved under
-    `<prefix>.psf.fits`, where the same prefix is used that was provided in the user configuration file to indetify the
+    `<prefix>.psf.fits`, where the same prefix is used that was provided in the user configuration file to identify the
     integral field data.
+
+.. note::
+    This setting only has an effect only if PampelMuse is run with the `global|smallifu` key set to False or if the
+    analysis has been started using the :ref:`SINGLESRC routine <singlesrc>` routine.
+
+Further information about the content of the FITS file that is created can be found :ref:`here <output-psf>`.

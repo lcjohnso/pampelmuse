@@ -1,4 +1,5 @@
 
+.. _routines:
 
 Routines
 ========
@@ -27,6 +28,17 @@ INITFIT
 SINGLESRC
 ---------
 
+
+.. _cubefit:
+
+CUBEFIT
+-------
+
+
+.. _polyfit:
+
+POLYFIT
+-------
 
 .. _subtres:
 
