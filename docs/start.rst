@@ -168,3 +168,26 @@ required to process a layer of the data cube will be strongly reduced.
     extracted spectra will have a lower resolution than in the data cube. The `layers|binning` parameter belongs to the
     subset of parameters that can be updated during the analysis.
 
+The output stage
+^^^^^^^^^^^^^^^^
+
+All extracted spectra are stored as a two-dimensional FITS image in the extension `SPECTRA` of the PRM-file. They can
+be saved as individual FITS files using the :ref:`GETSPECTRA routine <getspectra>`::
+
+    Pampelmuse user.json GETSPECTRA
+
+In order to create a filename for each individual output spectrum, a common prefix must be provided in the user
+configuration file, via
+
+.. code-block:: json
+
+    {
+        "getspectra": {
+            "prefix": "<prefix>"
+        }
+    }
+
+The output filenames are composed of the provided prefix, the source IDs available in the PRM-file, and the observing
+date of the integral field data (using Julian dates with four decimal numbers). By default, they are stored in a folder
+named `spectra/`. However, the name of the output folder can also be changed via the user configuration file.
+

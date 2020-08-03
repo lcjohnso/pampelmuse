@@ -8,7 +8,11 @@ References
 * .. [Fetick2019] Fétick, R., et al., 2019, A&A, 628, A99;
      `ADS <https://ui.adsabs.harvard.edu/abs/2019A%26A...628A..99F/abstract>`_
 
+* .. [Fong2010] Fong, D., and Saunders, M., 2010, eprint arxiv:1006:0758;
+     `ADS <https://ui.adsabs.harvard.edu/abs/2010arXiv1006.0758F/abstract>`_
+
 * .. [Roth2005] Roth M. M., et al., 2005, PASP, 117, 620;
      `ADS <https://ui.adsabs.harvard.edu/abs/2005PASP..117..620R/abstract>`_
 
 * .. [Weilbacher2020] Weilbacher, P. M., et al., 2020, A&A, accepted;
+     `ADS <https://ui.adsabs.harvard.edu/abs/2020arXiv200608638W/abstract>`_

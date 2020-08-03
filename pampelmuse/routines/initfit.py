@@ -151,7 +151,7 @@ def initfit(config):
         logger.info('Excluded sources with large distances to IFS footprint, {0} sources remain.'.format(
             selector.cfp_results['valid'].sum()))
         if not selector.cfp_results['valid'].any():
-            logger.error('Reference catalogue doe not contain sources near IFS field of view.')
+            logger.error('Reference catalogue does not contain sources near IFS field of view.')
             sys.exit(1)
     else:
         ccmaxoff = None

@@ -80,6 +80,11 @@ If instead individual FITS files are provided, their filenames should have the s
 If provided, the bad pixel mask should be zero for valid pixels and one for pixels that should be excluded. Instead of
 providing a dedicated mask, one can also set the invalid pixels to NaN and PampelMuse will ignore them in the analysis.
 
+.. _wcs-information:
+
+WCS information
+^^^^^^^^^^^^^^^
+
 Although not required, it is highly advantageous if the header of the FITS file containing the IFS data contains some
 basic WCS information, i.e. at least the keywords `RA`, `DEC`, and the matrix `CDi_j`. PampelMuse will use this
 information to determine the spaxel scale and the approximate location of the field of view on the sky.

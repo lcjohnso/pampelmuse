@@ -81,6 +81,8 @@ Specifying the PSF to use
 To specify the properties of the PSF during the analysis, one needs to modify the `psf` section of the PampelMuse
 :ref:`configuration <user-configuration>`.
 
+.. _psf-fitting:
+
 Setting the PSF type and parameters
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -149,6 +151,8 @@ Assuming one wants to model the PSF as a Moffat profile, with a fixed value of :
 
 The values provided for :math:`{\text FWHM}`, :math:`e`, and :math:`\theta` serve as initial guesses for the fit.
 
+.. _psf-radius:
+
 Setting the PSF radii
 ^^^^^^^^^^^^^^^^^^^^^
 
@@ -184,7 +188,7 @@ psf|inspect : boolean
     to fit the PSF, four extensions will be created, containing the input data of the fits (named `DAT_<ID>`), radial
     profiles of the input data (named `PR_<ID>`), the fit residuals (named `RES_<ID>`), and the fitted parameters
     (named `PM_<ID>`). The IDs used to construct the extension names are the same as in the :ref:`reference catalogue
-    <reference_catalogue>`. All data will be stored as a function of wavelength. The file is saved under
+    <reference-catalogue>`. All data will be stored as a function of wavelength. The file is saved under
     `<prefix>.psf.fits`, where the same prefix is used that was provided in the user configuration file to identify the
     integral field data.
 

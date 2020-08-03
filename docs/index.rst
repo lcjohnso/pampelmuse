@@ -16,6 +16,7 @@ Welcome to PampelMuse's documentation!
    data
    psf
    coordinates
+   gui
    routines
    output
    contact

@@ -8,6 +8,31 @@ Output files
 The PRM-file
 ------------
 
+.. table:: The different extensions of the PRM-file and their respective contents.
+    :name: table-prm-info
+    :width: 100%
+
+    +-----------+--------------+---------------------------------------------------+
+    | EXTNAME   | HDU Type     | Purpose                                           |
+    +===========+==============+===================================================+
+    | PRIMARY   | Primary      | Header contains the configuration of PampelMuse.  |
+    +-----------+--------------+---------------------------------------------------+
+    | SOURCES   | Binary Table | The source catalogue, contains basic information  |
+    |           |              | about every source used in the extraction.        |
+    +-----------+--------------+---------------------------------------------------+
+    | SPECTRA   | Image        | Contains the extracted spectra and an estimate    |
+    |           |              | of the uncertainties.                             |
+    +-----------+--------------+---------------------------------------------------+
+    | POSPARS   | Binary Table | Contains the coordinate transformation from       |
+    |           |              | reference to IFS coordinates.                     |
+    +-----------+--------------+---------------------------------------------------+
+    | POSITIONS | Binary Table | Contains the parameters of the polynomial fits    |
+    |           |              | to the IFS coordinates.                           |
+    +-----------+--------------+---------------------------------------------------+
+    | PSFPARS   | Binary Table | Contains the parameters of the fitted PSF.        |
+    +-----------+--------------+---------------------------------------------------+
+
+
 
 .. _output-psf:
 
