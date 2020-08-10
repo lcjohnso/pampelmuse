@@ -340,15 +340,133 @@ POLYFIT
 Description
 ^^^^^^^^^^^
 
+The `POLYFIT` routine serves two purposes. First, it allows the user to visually check the results of the analysis, by
+displaying the spectra extracted for individual sources or inspecting the wavelength dependencies of the spaxel
+coordinates or PSF parameters. Second, it provides the functionality to fit polynomial functions to the aforementioned
+coordinates and parameters. The idea behind the latter is that, from a theoretical point of view, you expect those
+properties to vary smoothly with wavelength, e.g. because of differential atmospheric refraction (DAR). However,
+because of the limited S/N in each layer, the values determined by :ref:`CUBEFIT <cubefit>` as a function of wavelength
+will show scatter, especially in spectral regions were the signal is low, such as in telluric absorption bands. Fitting
+those variations with polynomials averages out the scatter and should therefore lead to a higher S/N in the extracted
+spectra. When starting `CUBEFIT` again after performing the polynomial fits, it will only refit the fluxes in each
+layer while keeping the other parameters fixed at their polynomial values.
 
+When running PampelMuse in interactive mode, the routine will load the :ref:`PampelMuse GUI <pampelmuse-gui>`, which
+gives the user a number of options to work with the data:
+
+    * The purpose of the *Spectrum Viewer* is to display extracted spectra or the wavelength dependencies of the fitted
+      spaxel coordinates or PSF parameters. The data to be shown can be selected using the two drop-down menus labelled
+      `Data:` to the bottom left of the panel. Via *HDU*, one can select the parameter class (spectrum, coordinate,
+      PSF parameter) to be displayed, while *Identifier* lets one select a specific source ID in case a spectrum or
+      spaxel coordinates should be displayed, or the specific parameter in case a PSF or coordinate transformation
+      parameters should be displayed. The requested data is displayed upon clicking the green button.
+    * Further, one can use the *Spectrum Viewer* to exclude wavelength ranges from the polynomial fits. To this aim,
+      keep the *left* mouse button pressed while scanning over the desired range. Doing the same with the *right* mouse
+      button lets you unmask regions again. If any wavelength ranges should be excluded from the fits by default (e.g.
+      because of strong telluric absorption bands), you may specify these ranges using the configuration key
+      `polynom|mask`. This key is also very helpful if `POLYFIT` is run in non-interactive mode (see below).
+    * The two drop-down menus labelled `Fit:` to the bottom right of the *Spectrum Viewer* allow one to specify the
+      type and degree of the polynomial that is used to fit the data. The default values can be set using the
+      configuration keys `polynom|type` and `polynom|degree`. The fit is carried out via a click on the green button to
+      the right of the drop-down menus. Note that currently only fits to the PSF parameters and the spaxel coordinates
+      are supported. Fitting the individual spaxel coordinates instead of the coordinate transformation parameters
+      (which were used to calculate them) is preferred because the parameters of the coordinate transformation can
+      sometimes show correlated variations (in particular if the field of view contains only a few spaxels) that are
+      difficult to correctly describe with polynomials.
+    * The *IFS View* displays again the cube, with the positions of the extracted sources overplotted. The size of the
+      circles used to indicate the locations of the sources scale with their brightnesses. Sources marked by green
+      circles are used to fit the PSF. The source that is currently displayed in the *Spectrum View* is highlighted via
+      a filled circle. When picking a source while the *Spectrum View* shows a spectrum or a spaxel coordinate, the
+      spectrum/coordinate of the picked source will be shown. Depending on the number of sources included in the
+      analysis, the plot can look very messy. However, you can use the standard matplotlib navigation bar located to
+      the top right to zoom into the data or pan across it. Furthermore, you can restrict the magnitude range or the
+      status of the sources that are displayed using the functionalities to the left of the *IFS View*.
+    * The *Reference View* is currently not used.
+
+After one has fitted all the desired parameters and is happy with the results, one can use the buttons to the top left
+of the GUI to save the results to the :ref:`PRM-file <output-prm>`.
+
+.. note::
+    When PampelMuse is not run in interactive mode (controlled by the configuration key `global|interact`), `POLYFIT`
+    will not show the GUI but use polynomials of the requested order to fit the source coordinates and the free PSF
+    parameters automatically. The type and order of the polynomials being used as well as the wavelength ranges that
+    should be masked can still be controlled via the respective configuration keys (see below).
+
+
+Relevant configuration parameters
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+polynom|mask : tuple
+    In case any wavelength range(s) should be excluded from the polynomial fits by default, provide their start and end
+    values. The values must be provided as a single tuple of even length, so that even indices contain the start values
+    and odd indices the end values of the ranges to be masked.
+
+polynom|type : string
+    The type of polynomial used to fit the wavelength dependencies. Can be one of `plain` (normal polynomial),
+    `chebyshev`, `legendre`, and `hermite`.
+
+polynom|degree : integer
+    The degree of the polynomials used to fit the wavelength dependencies.
 
 .. _subtres:
 
 SUBTRES
 -------
 
+Description
+^^^^^^^^^^^
+
+PampelMuse also offers the possibility to create a residuals cube once the analysis is complete. To this aim, the
+routine `SUBTRES` can be used. By default, it will subtract the contribution of all resolved stellar sources from the
+data cube. However, it is also possible to subtract a subset of the resolved sources, using either of the
+`subtres|include` or the `subtres|exclude` configuration keys. Only one of the keys should be set at a time.
+
+In addition, `SUBTRES` allows the user to subtract the sky background and/or the background created by an unresolved
+stellar component (if either of the components has been used in the analysis). To this aim, a key `subtract` exists in
+both the `sky` and `unresolved` sections of the configuration.
+
+Relevant configuration parameters
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+subtres|include : tuple
+    The list of IDs of resolved sources that should be subtracted from the IFS data using `SUBTRES`. The default is to
+    subtract all resolved sources unless the option `subtres|exclude` is used instead.
+
+subtres|exclude : tuple
+    The list of IDs of resolved sources that should *NOT* be subtracted from the IFS data using `SUBTRES`. By default,
+    all sources are subtracted unless the sources to subtract are specified using the `subtres|include` option instead.
+
+sky|subtract : boolean
+    Flag indicating if the sky background should be removed when running the `SUBTRES` routine.
+
+unresolved|subtract : boolean
+    Flag indicating if the unresolved stellar background should be removed when running the `SUBTRES` routine.
 
 .. _getspectra:
 
 GETSPECTRA
 ----------
+
+Description
+^^^^^^^^^^^
+
+Once the analysis is complete, one probably wants to obtain the spectra in some other format than the
+:ref:`PRM-file <output-prm>`. To facilitate this, PampelMuse includes the routine `GETSPECTRA` It will store all the
+extracted spectra as individual FITS files that contain the spectrum in the primary extension and an estimate of the
+uncertainties in an image HDU named `SIGMA`. The header of each file will contain the correct dispersion information,
+general information about the star and the spectrum as well as a number of `HIERARCH` keywords copied from the
+PRM-file.
+
+This routine requires the configuration key getspectra|prefix to be set in the :ref:`user configuration file
+<user-configuration>`. This is a string (typically the name of the observed cluster, galaxy, ...) that is used as
+a common prefix to all FITS files that are written. Additionally, the key `getspectra|folder` in the same section can
+be used to provide a folder in which all spectra should be stored.
+
+Relevant configuration parameters
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+getspectra|prefix : string
+    The common prefix given to all FITS files that are written.
+
+getspectra|folder : string
+    The name of the folder in which the FITS files should be stored.
