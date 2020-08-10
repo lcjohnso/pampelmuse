@@ -68,6 +68,7 @@ Latest Git revision
 2020/02/12
 """
 import logging
+import os
 import sys
 import numpy as np
 import pandas as pd
@@ -371,7 +372,8 @@ class Transformation(Parameters):
                 use_column[i] = False
 
         # some versions of numpy seem to have issues if the input to np.linalg.lstsq contains NaNs.
-        if np.__version__ < '1.14' or sys.version.find('Anaconda') >= 0 or getattr(np.__config__, 'mkl_info', {}):
+        is_conda = os.path.exists(os.path.join(sys.prefix, 'conda-meta'))
+        if is_conda or np.__version__ < '1.14' or getattr(np.__config__, 'mkl_info', {}):
             if np.isnan(b).any():
                 logger.warning('Replacing {0} NaNs using linear interpolation.'.format(np.isnan(b).sum()))
                 for i in range(b.shape[1]):
