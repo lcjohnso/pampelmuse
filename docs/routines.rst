@@ -455,7 +455,7 @@ Once the analysis is complete, one probably wants to obtain the spectra in some 
 extracted spectra as individual FITS files that contain the spectrum in the primary extension and an estimate of the
 uncertainties in an image HDU named `SIGMA`. The header of each file will contain the correct dispersion information,
 general information about the star and the spectrum as well as a number of `HIERARCH` keywords copied from the
-PRM-file.
+PRM-file. Further details about the content of the output spectra can be found :ref:`here <output-spectra>`.
 
 This routine requires the configuration key getspectra|prefix to be set in the :ref:`user configuration file
 <user-configuration>`. This is a string (typically the name of the observed cluster, galaxy, ...) that is used as
