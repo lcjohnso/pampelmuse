@@ -657,7 +657,7 @@ class FitLayer(object):
                     # make sure only results for PSF sources are returned
                     single_psf_results = single_psf_results.loc[self.catalog.index[self.catalog['psf']]]
                 else:
-                    final = pd.Series()
+                    final = pd.Series(dtype=np.float64)
                     # first fit positions
                     if position_parameters_to_fit is not None:
                         final = final.append(self.fit_sources_simultaneously(position_parameters_to_fit))

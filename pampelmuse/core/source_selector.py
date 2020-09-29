@@ -30,10 +30,6 @@ available in a photometric catalog for the analysis with PampelMuse.
 Added
 -----
 2016/08/09, rev. 353
-
-Latest Git revision
--------------------
-2020/03/29
 """
 import logging
 import sys
@@ -54,7 +50,6 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20200329
 
 
 logger = logging.getLogger(__name__)
@@ -392,7 +387,7 @@ class SourceSelector(object):
 
         # ignore sky components outside FoV (if any)
         if skysize > 0:
-            edge_distance = self.ifs_data.distance_to_edge(np.array([background_data['x'], background_data['y']]).T)
+            edge_distance = self.ifs_data.distance_to_edge(np.array([background_data['y'], background_data['x']]).T)
             outside_fov = edge_distance < -skysize
             logger.info('Removing {0}/{1} background components that do not contribute to observed flux.'.format(
                 outside_fov.sum(), n_centroids))

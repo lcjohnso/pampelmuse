@@ -276,12 +276,16 @@ class DynamicPlotCanvas(FigureCanvasQTAgg):
                 xlim = (min(xlim[0], np.nanmin(xdata)), max(xlim[1], np.nanmax(xdata)))
                 ydata = plot.get_ydata()
                 ylim = (min(ylim[0], np.nanmin(ydata)), max(ylim[1], np.nanmax(ydata)))
+
             if xlim[0] == xlim[1]:
                 xlim = (xlim[0] - 0.1, xlim[0] + 0.1)
-            self.axes.set_xlim(xlim)
             if ylim[0] == ylim[1]:
                 ylim = (ylim[0] - 0.1, ylim[0] + 0.1)
-            self.axes.set_ylim(ylim)
+
+            if np.isfinite(xlim).all():
+                self.axes.set_xlim(xlim)
+            if np.isfinite(ylim).all():
+                self.axes.set_ylim(ylim)
 
             # somehow this does not work:
             # self.axes.axes.relim()  # widget.Cursor instance seems to corrupt auto-scaling of axes

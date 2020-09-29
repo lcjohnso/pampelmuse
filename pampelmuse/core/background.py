@@ -298,7 +298,7 @@ class BackgroundGrid(Canvas):
         if self._f is None:  # only calculate if not already available
             self._f = np.where(np.isfinite(self.r), np.exp(-0.5 * (self.r / self.rscale) ** self.n), 0)
             self._f[~self.used] = 0
-            self._f /= self._f.sum(axis=0)  # normalize weights
+            self._f /= np.where(self._f.sum(axis=0) > 0, self._f.sum(axis=0), 1)  # normalize weights
 
             # handle slice/ifu-dependent components if any
             if self.n_ifu > 0 or self.n_slice > 0:

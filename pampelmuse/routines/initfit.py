@@ -46,11 +46,6 @@ and perform the final selection of the sources that are used in the analysis
 carried out by CUBEFIT. All the information required for this analysis,
 including an initial estimate of the PSF and the coordinate transformation,
 are saved in the PRM file that is written to disk.
-
-
-Latest GIT Revision
--------------------
-2020/03/24
 """
 import sys
 import datetime
@@ -62,7 +57,6 @@ from ..utils.fits import open_ifs_data, make_header_from_config, save_prm
 
 
 __author__ = "Sebastian Kamann (skamann@ljmu.ac.uk)"
-__revision__ = 20200324
 
 
 logger = logging.getLogger(__name__)
@@ -104,7 +98,7 @@ def initfit(config):
     config : dict
         A dictionary containing the configuration of PampelMuse.
     """
-    logger.info("Executing requested routine INITFIT [Revision {0:d}].".format(__revision__))
+    logger.info("Executing requested routine INITFIT.")
 
     # Check if version for small or large FoV should be used
     smallifu = config['global']['smallifu']
@@ -250,7 +244,7 @@ def initfit(config):
 
     # add history entry for INITFIT run
     now = datetime.datetime.utcnow().strftime("%y-%m-%d %H:%M:%S")
-    header['HISTORY'] = 'INITFIT [r{0}] finished at {1}'.format(__revision__, now)
+    header['HISTORY'] = 'INITFIT finished at {0}'.format(now)
 
     # save PRM file
     save_prm(sources=selector.sources, psf_attributes=selector.psf_attributes, filename='{0}.prm.fits'.format(prefix),

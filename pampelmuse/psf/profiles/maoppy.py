@@ -6,7 +6,7 @@ from scipy.interpolate import RectBivariateSpline, interp2d
 from .profile import Profile, FitResult
 
 from maoppy.psfmodel import Psfao, psffit, oversample
-from maoppy.instrument import MUSE_NFM
+from maoppy.instrument import muse_nfm
 
 
 logger = logging.getLogger(__name__)
@@ -319,7 +319,7 @@ class Maoppy(Profile):
         """
         Returns the sampling of the PSF profile at the current wavelength.
         """
-        return MUSE_NFM.samp(self.wvl)
+        return muse_nfm.samp(self.wvl)
 
     @property
     def f(self):
@@ -334,7 +334,7 @@ class Maoppy(Profile):
                 self._f = np.array([])
             else:
                 # init MAOPPY code
-                psf = Psfao(Npix=self.maoppy_shape, system=MUSE_NFM, samp=self.samp)
+                psf = Psfao(Npix=self.maoppy_shape, system=muse_nfm, samp=self.samp)
 
                 # get offsets of centre to nearest lower pixels.
                 dx = self.xc - int(self.xc)
@@ -428,7 +428,7 @@ class Maoppy(Profile):
         if kwargs:
             raise IOError('Unknown argument(s) to call of Maoppy.fwhm: {0}'.format(kwargs))
 
-        psf = Psfao(Npix=(30, 30), system=MUSE_NFM, samp=MUSE_NFM.samp(wvl))
+        psf = Psfao(Npix=(30, 30), system=muse_nfm, samp=muse_nfm.samp(wvl))
 
         theta = 0.
         f = psf((r0, bck, amp, alpha, 1-e, theta, beta))[:15]
@@ -540,7 +540,7 @@ class Maoppy(Profile):
         # with the logging
         f = io.StringIO()
         with redirect_stdout(f):
-            fitresult = psffit(psf2d, Psfao, x0, weights=weights2d, system=MUSE_NFM, samp=self.samp, dxdy=(dx, dy),
+            fitresult = psffit(psf2d, Psfao, x0, weights=weights2d, system=muse_nfm, samp=self.samp, dxdy=(dx, dy),
                                fixed=fixed, flux_bck=(True, fit_background), positive_bck=False, npixfit=npixfit)
             logger.debug(f.getvalue())
 
