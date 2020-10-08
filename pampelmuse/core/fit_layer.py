@@ -1066,10 +1066,14 @@ class FitLayer(object):
         if is_psf_source is None:
             is_psf_source = pd.Series(True, index=sources)
 
+        # use empty list if no PSF parameters were provided
+        if psf_parameters is None:
+            psf_parameters = []
+
         # prepare empty data frame that will hold the results & fill with NaNs
         # first need to collect columns that need to be included in the array
         columns = ['snr', 'flux']
-        if psf_parameters is not None:
+        if psf_parameters:
             columns.extend(psf_parameters)
         if fit_positions:
             columns.extend(['xc', 'yc'])
@@ -1177,7 +1181,7 @@ class FitLayer(object):
             results.at[i, 'flux'] = result.flux
             logger.debug('Successfully fitted PSF of source #{0}: flux={1:.1f} (S/N={2:.1f})'.format(
                 i, results.at[i, 'flux'], results.at[i, 'snr']))
-            if is_psf_source[i] and psf_parameters is not None:
+            if is_psf_source[i] and psf_parameters:
                 results.loc[i, psf_parameters] = result.values
                 _string = ", ".join(
                     ["{0}={1:.2g}".format(result.names[k], result.values[k]) for k in range(len(result.names))])
