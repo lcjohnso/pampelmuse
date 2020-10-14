@@ -1,3 +1,4 @@
+import importlib.util
 import io
 import logging
 import numpy as np
@@ -5,8 +6,11 @@ from contextlib import redirect_stdout
 from scipy.interpolate import RectBivariateSpline, interp2d
 from .profile import Profile, FitResult
 
-from maoppy.psfmodel import Psfao, psffit, oversample
-from maoppy.instrument import muse_nfm
+if importlib.util.find_spec('maoppy') is not None:
+    from maoppy.psfmodel import Psfao, psffit, oversample
+    from maoppy.instrument import muse_nfm
+else:
+    logging.error('Package "maoppy" is not installed. Cannot use MAOPPY PSF model.')
 
 
 logger = logging.getLogger(__name__)
