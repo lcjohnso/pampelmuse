@@ -447,7 +447,7 @@ class Maoppy(Profile):
         theta = 0.
         f = psf((r0, bck, amp, alpha, 1-e, theta, beta))[:15]
 
-        return np.sqrt(np.sum(f > (0.5*f.max()))/np.pi)
+        return 2.*np.sqrt(np.sum(f > (0.5*f.max()))/np.pi)
 
     @property
     def fwhm(self):
@@ -457,7 +457,16 @@ class Maoppy(Profile):
         fwhm : float
             The FWHM of the MAOPPY PSF profile with the given parameters.
         """
-        return np.sqrt(np.sum(self.f > (0.5*np.max(self.f)))/np.pi)
+        from scipy.stats import binned_statistic
+
+        # get mean radii for fluxes for annuli of widths ~1 pixel
+        bstat = binned_statistic(self.r, [self.r, self.f], bins=self.maxrad)
+        r_bin, f_bin = bstat.statistic
+
+        # interpolate along flux axis to get FWHM. Note that flux values must  be monotonically INCREASING
+        fwhm = 2.*np.interp(0.5*self.f.max(), f_bin[::-1], r_bin[::-1])
+
+        return fwhm
 
     def fitter(self, psf, weights, parameters, fit_positions=True, fit_background=False, psf_padding=0, **kwargs):
         """

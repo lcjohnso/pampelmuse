@@ -562,6 +562,9 @@ class FitLayer(object):
 
         # Determine initial weights for each pixel in the fit.
         self.fit_weights = 1./self.variances
+        if (self.fit_weights < 0).any():
+            logger.error('Input data contain unphysical negative variances.')
+            self.fit_weights[self.fit_weights < 0] = 0.
 
         # start iterations
         for iteration in range(1, max_iterations + 1):
@@ -1120,7 +1123,7 @@ class FitLayer(object):
             #             vmax=0.01)
             # ax2 = fig.add_axes([0.12, 0.05, 0.83, 0.44])
             # ax2.scatter(psf.x[used], psf.y[used], marker='o', s=50,
-            #             c=self.current[used], cmap=plt.cm.hot, vmin=-1000, vmax=10000)
+            #             c=data, cmap=plt.cm.hot)  # , vmin=-1000, vmax=10000)
             # plt.show()
 
             # prior to fit, check if enough pixels available and source is actually detected
