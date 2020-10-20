@@ -370,6 +370,16 @@ class Maoppy(Profile):
         """
         return 2*int(round(self.maxrad)), 2*int(round(self.maxrad))
 
+    @property
+    def strehl(self):
+        """
+        Returns the Strehl ratio for the currnt set of parameters. The Strehl
+        ratio is calculated using eq. 14 from Fetick et al. (2019).
+        """
+        f_ao = muse_nfm.Nact/(2.*muse_nfm.D)
+
+        return np.exp(-self.amp - self.bck*np.pi*f_ao**2 - (0.023*6.*np.pi*(self.r0*f_ao)**(-5./3.))/5.)
+
     def get_maoppy_centre(self, k, shape=None):
         """
         Determine the centre of the PSF profile that is used by the MAOPPY
