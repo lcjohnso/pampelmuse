@@ -559,7 +559,8 @@ class MoffatGaussian(Profile):
     @property
     def bounds(self):
         bounds = super(MoffatGaussian, self).bounds
-        bounds['fwhm1'] = (self.fwhm2, np.inf)
-        bounds['fwhm2'] = (0, self.fwhm1)
-        bounds['beta'] = (0, np.inf)
+        bounds['f12'] = (0, 1)
+        bounds['fwhm1'] = (0, np.inf)  # (self.fwhm2, np.inf)
+        bounds['fwhm2'] = (0, np.inf)  # (0, self.fwhm1)
+        bounds['beta'] = (1, np.inf)
         return bounds
