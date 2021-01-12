@@ -272,7 +272,7 @@ class MakeResidualsCube(FitCube):
             pool = Pool(n_cpu, initializer=init_worker, initargs=[initial_arguments])
         else:
             pool = None
-            init_worker(*initial_arguments)
+            init_worker(initial_arguments)
 
         # prepare source catalog of _stellar_ sources
         # note that the catalog content may change from layer to layer when no coordinate transformation is being used
