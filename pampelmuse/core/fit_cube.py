@@ -1,7 +1,7 @@
 """
 fit_cube.py
 ===========
-Copyright 2013-2020 Sebastian Kamann
+Copyright 2013-2021 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -31,7 +31,7 @@ extraction for a data cube.
 
 Latest GIT revision
 -------------------
-2020/04/16
+2021/01/18
 """
 import collections
 import logging
@@ -45,7 +45,7 @@ from ..instruments.muse import MusePixtable
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20200416
+__revision__ = 20210118
 
 
 logger = logging.getLogger(__name__)
@@ -547,6 +547,13 @@ class FitCube(object):
                     self.background.slices = data['slice'].values
                 background_matrix, background_components = self.background.get_sparse_matrix(
                     offset=self.sources.n_components - self.sources.n_background, purge_empty=True)
+                # in case one or more background components are outside the FoV, their entries in 'fluxes' need to be
+                # removed
+                missing = fluxes[self.sources.specrow_background].index.difference(background_components)
+                if len(missing) > 0:
+                    fluxes.drop(index=missing, inplace=True)
+                    logger.warning('Background component(s) without contribution encountered: {0}'.format(missing))
+
             else:
                 background_matrix = background_components = None
 

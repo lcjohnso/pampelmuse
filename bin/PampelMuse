@@ -2,7 +2,7 @@
 """
 PampelMuse
 ==========
-Copyright 2013-2020 Sebastian Kamann
+Copyright 2013-2021 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -58,7 +58,7 @@ the data into memory yet but just checks whether the file(s) are valid.
 
 Latest Git revision
 -------------------
-2020/09/29
+2021/01/18
 """
 import argparse
 import importlib
@@ -78,7 +78,7 @@ from pampelmuse.utils.fits import read_config_from_header
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
 __version__ = "1.0"
-__revision__ = 20200929
+__revision__ = 20210118
 
 
 logger = logging.getLogger(__name__)

@@ -1,7 +1,7 @@
 """
 fit_array.py
 ============
-Copyright 2013-2020 Sebastian Kamann
+Copyright 2013-2021 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -57,19 +57,23 @@ parameters are not fitted.
 
 Latest Git revision
 -------------------
-2020/03/06
+2021/01/18
 """
 import collections
 import contextlib
 import io
 import logging
+import scipy
 import time
 import tqdm
 import numpy as np
 import pandas as pd
 from scipy import interpolate, optimize, sparse
 from scipy.sparse import linalg
-from scipy.stats import median_absolute_deviation as mad
+if scipy.__version__ < '1.5.0':
+    from scipy.stats import median_absolute_deviation as mad
+else:
+    from scipy.stats import median_abs_deviation as mad
 from astropy.stats import sigma_clip
 
 from ..psf.profiles import *
@@ -77,7 +81,7 @@ from ..core.coordinates import Transformation
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20200306
+__revision__ = 20210118
 
 
 logger = logging.getLogger(__name__)
