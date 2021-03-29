@@ -1,3 +1,35 @@
+"""
+maoppy.py
+==========
+Copyright 2013-2021 Sebastian Kamann
+
+This file is part of PampelMuse.
+
+PampelMuse is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+any later version.
+
+PampelMuse is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with PampelMuse. If not, see <http://www.gnu.org/licenses/>.
+
+
++++
+Provides
+--------
+function pampelmuse.core.psf.profiles.maoppy.resample_to_2d
+function pampelmuse.core.psf.profiles.maoppy.resample_to_1d
+class pampelmuse.core.psf.profiles.Maoppy
+
+Latest Git revision
+-------------------
+2021/03/29
+"""
 import importlib.util
 import io
 import logging
@@ -11,6 +43,10 @@ if importlib.util.find_spec('maoppy') is not None:
     from maoppy.instrument import muse_nfm
 else:
     logging.error('Package "maoppy" is not installed. Cannot use MAOPPY PSF model.')
+
+
+__author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
+__revision__ = 20210329
 
 
 logger = logging.getLogger(__name__)
@@ -370,16 +406,6 @@ class Maoppy(Profile):
         """
         return 2*int(round(self.maxrad)), 2*int(round(self.maxrad))
 
-    @property
-    def strehl(self):
-        """
-        Returns the Strehl ratio for the currnt set of parameters. The Strehl
-        ratio is calculated using eq. 14 from Fetick et al. (2019).
-        """
-        f_ao = muse_nfm.Nact/(2.*muse_nfm.D)
-
-        return np.exp(-self.amp - self.bck*np.pi*f_ao**2 - (0.023*6.*np.pi*(self.r0*f_ao)**(-5./3.))/5.)
-
     def get_maoppy_centre(self, k, shape=None):
         """
         Determine the centre of the PSF profile that is used by the MAOPPY
@@ -467,6 +493,16 @@ class Maoppy(Profile):
         fwhm = 2.*np.interp(0.5*self.f.max(), f_bin[::-1], r_bin[::-1])
 
         return fwhm
+
+    @property
+    def strehl(self):
+        """
+        Returns the Strehl ratio for the current set of parameters. The Strehl
+        ratio is calculated using eq. 14 from Fetick et al. (2019).
+        """
+        f_ao = muse_nfm.Nact/(2.*muse_nfm.D)
+
+        return np.exp(-self.amp - self.bck*np.pi*(f_ao**2) - (0.023*6.*np.pi*(self.r0*f_ao)**(-5./3.))/5.)
 
     def fitter(self, psf, weights, parameters, fit_positions=True, fit_background=False, psf_padding=0, **kwargs):
         """

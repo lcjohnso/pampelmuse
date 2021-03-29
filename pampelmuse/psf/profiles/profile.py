@@ -1,7 +1,7 @@
 """
 profiles.py
 ===========
-Copyright 2013-2019 Sebastian Kamann
+Copyright 2013-2021 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -22,7 +22,7 @@ along with PampelMuse. If not, see <http://www.gnu.org/licenses/>.
 +++
 Provides
 --------
-class pampelmuse.core.psf.profiles.classproperty
+class pampelmuse.core.psf.profiles.FitResult
 class pampelmuse.core.psf.profiles.Profile
 
 Purpose
@@ -44,7 +44,7 @@ properties that are only recalculated if any of the underlying variables
 
 Latest Git revision
 -------------------
-2019/06/11
+2021/03/29
 """
 import collections
 import logging
@@ -55,7 +55,7 @@ from ...psf import Canvas
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20190611
+__revision__ = 20210329
 
 
 logger = logging.getLogger(__name__)
@@ -1338,9 +1338,6 @@ class Profile(Canvas):
         names :  array_like
             The names of the parameters that are fitted. Must have same length
             as 'x0' of course.
-        psf : an instance of class pampelmuse.core.psf.profiles.Profile or
-              one of its subclasses
-            The PSF model for the source.
         data : nd_array
             The data array used to fit the parameters. Note that the pixel
             values should be normalized by their respective uncertainties.
@@ -1366,11 +1363,11 @@ class Profile(Canvas):
                 setattr(self, names[i], x0[i])
             except AssertionError as error:  # if parameter cannot be updated, raise LinAlgError
                 logger.error("Encountered AssertionError: {0}".format(error))
-                raise np.linalg.linalg.LinAlgError("Invalid value '{0}' for parameter '{1}'.".format(x0[i], names[i]))
+                raise np.linalg.LinAlgError("Invalid value '{0}' for parameter '{1}'.".format(x0[i], names[i]))
 
         return np.sqrt(weights)*(data - x0[0] * self.get_f() - back)
 
-    def single_psf_jacobi(self, x0, names, psf, weights):
+    def single_psf_jacobi(self, x0, names, data, weights):
         """
         Calculate the Jacobi matrix for the optimization carried out in
         StarFit.optimize_single_psf.
@@ -1382,7 +1379,7 @@ class Profile(Canvas):
         ----------
         x0
         names
-        psf
+        data
         weights
             This method takes the same arguments as StarFit.optimize_single_psf.
 
@@ -1435,3 +1432,19 @@ class Profile(Canvas):
             cog_flux[i] = (self.f*weights).sum()/frac
 
         return radii, np.cumsum(cog_flux)
+
+    @property
+    def fwhm(self):
+        """
+        Returns FWHM of the profile. Must be overwritten by classes inheriting
+        from Profile().
+        """
+        raise NotImplementedError
+
+    @property
+    def strehl(self):
+        """
+        Returns Strehl ratio of the profile. Must be overwritten by classes
+        inheriting from Profile().
+        """
+        raise NotImplementedError
