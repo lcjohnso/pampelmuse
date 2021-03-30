@@ -457,7 +457,7 @@ class Parameters(object):
 
             logger.info(log_string)
 
-    def polynomial_fit(self, name, order, mask=None, polynom="plain"):
+    def polynomial_fit(self, name, order, mask=None, polynom="plain", bounds=None):
         """
         Fit a parameter using a polynomial.
         
@@ -478,6 +478,13 @@ class Parameters(object):
         polynom : str, optional
             The function used in the fitting. May be either 'plain',
             'legendre', 'hermite', or 'chebyshev'.
+        bounds : tuple
+            In case the polynomial fit should be
+
+        Returns
+        -------
+        success : bool
+            Flag indicating if the fit has been successful.
         """
         # sanity check on provided parameter
         if name not in self.names:
@@ -503,8 +510,11 @@ class Parameters(object):
             mask = self.mask[(name, 'value')]
 
         # carry out fit
-        fit = fit_function.fit(abscissa[~mask], self.data.loc[~mask, (name, 'value')], order)
-        self.data[(name, 'fit')] = fit(abscissa)
+        f = fit_function.fit(abscissa[~mask], self.data.loc[~mask, (name, 'value')], order)
+
+        fitted_values = f(abscissa)
+
+        self.data[(name, 'fit')] = fitted_values
 
     def make_hdu(self, include_fit=True, header_keys=None):
         """
