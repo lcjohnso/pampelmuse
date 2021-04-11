@@ -1406,7 +1406,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         self.ifsPlot.loadLayer(self.ifuLayerSelectSlider.value(), residuals=False)
 
         # change cuts unless absolute values were set by the user:
-        if self.ifuCutsComboBox.currentText() is not "User":
+        if self.ifuCutsComboBox.currentText() != "User":
             self.on_ifuCutsComboBox_currentIndexChanged(self.ifuCutsComboBox.currentText())
 
     @pyqtSlot(bool)
@@ -1423,7 +1423,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         self.ifsPlot.loadLayer(self.ifuLayerSelectSlider.value(), residuals=True)
 
         # change cuts unless absolute values were set by the user:
-        if self.ifuCutsComboBox.currentText() is not "User":
+        if self.ifuCutsComboBox.currentText() != "User":
             self.on_ifuCutsComboBox_currentIndexChanged(self.ifuCutsComboBox.currentText())
 
     def plot_sources_on_ref(self):
