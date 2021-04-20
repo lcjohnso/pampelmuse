@@ -2,7 +2,7 @@
 """
 pampelmuse_gui.py
 =================
-Copyright 2013-2020 Sebastian Kamann
+Copyright 2013-2021 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -37,7 +37,7 @@ defines the methods that are called by Ui_PampelMuseGui.
 
 Latest Git revision
 -------------------
-2020/03/27
+2021/04/20
 """
 import datetime
 import logging
@@ -64,7 +64,7 @@ from ..utils.fits import save_prm, read_config_from_header, make_header_from_con
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20200327
+__revision__ = 20210420
 
 
 class ToolbarWithoutMessage(NavigationToolbar):
@@ -269,7 +269,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
             self.sources = Sources(catalog=data)
 
         # add new property indicating which stars are currently plotted
-        self.sources.plotted = pd.Index([], dtype=np.bool)
+        self.sources.plotted = pd.Index([], dtype=bool)
 
         # define default sizes for plotting stars
         mag0 = self.sources.mag[self.sources.status < 4.].min() + 5.
@@ -430,7 +430,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
 
         # initialize spectrumMask if needed
         if self.spectrumMask is None or self.spectrumMask.size != self.sources.n_dispersion:
-            self.spectrumMask = np.ones((self.sources.n_dispersion,), dtype=np.bool)
+            self.spectrumMask = np.ones((self.sources.n_dispersion,), dtype=bool)
 
         # check if interaction states need to be changed
         if self.ifsLoaded is None:

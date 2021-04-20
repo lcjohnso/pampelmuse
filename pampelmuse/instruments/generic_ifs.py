@@ -1,7 +1,7 @@
 """
 generic_ifs.py
 ==============
-Copyright 2013-2018 Sebastian Kamann
+Copyright 2013-2021 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -29,7 +29,7 @@ i.e. NAXIS3 in FITS counting) being the spectral axis.
 
 Latest Git revision
 -------------------
-2018/05/08
+2021/04/20
 """
 import logging
 import numpy as np
@@ -39,7 +39,7 @@ from .instrument import Instrument
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180508
+__revision__ = 20210420
 
 
 class GenericIFS(Instrument):
@@ -100,7 +100,7 @@ class GenericIFS(Instrument):
         the spatial dimensions and must not be known a priori.
         """
         if self._edge is None and self.transform is not None:
-            self._edge = self.find_edge(np.zeros(self.shape, dtype=np.bool))
+            self._edge = self.find_edge(np.zeros(self.shape, dtype=bool))
 
         return self._edge
 
@@ -204,7 +204,7 @@ class GenericIFS(Instrument):
             return None
         j, k = self._transform[i].astype('<i4')
 
-        mask = self.maskhdu.data[:, j, k] if self.maskhdu is not None else np.zeros(self.wave.shape, dtype=np.bool)
+        mask = self.maskhdu.data[:, j, k] if self.maskhdu is not None else np.zeros(self.wave.shape, dtype=bool)
 
         return (np.where(mask, np.nan, self.datahdu.data[:, j, k]),
                 np.where(mask, np.nan, self.varhdu.data[:, j, k]) if return_var and self.varhdu is not None else None)
