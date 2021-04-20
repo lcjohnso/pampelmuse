@@ -1433,6 +1433,14 @@ class Profile(Canvas):
 
         return radii, np.cumsum(cog_flux)
 
+    @classmethod
+    def calculate_fwhm(cls, **kwargs):
+        """
+        Calculate FWHM for a given set of parameters. Must be overwritten by
+        classes inheriting from Profile().
+        """
+        raise NotImplementedError
+
     @property
     def fwhm(self):
         """

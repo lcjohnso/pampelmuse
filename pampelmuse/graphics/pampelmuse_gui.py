@@ -52,7 +52,7 @@ from astropy import wcs
 from astropy.io import fits
 from PyQt5.QtCore import pyqtSignal, pyqtSlot, Qt
 from PyQt5.QtGui import QDoubleValidator
-from PyQt5.QtWidgets import QMainWindow, QHBoxLayout, QVBoxLayout, QFileDialog
+from PyQt5.QtWidgets import QAction, QMainWindow, QHBoxLayout, QVBoxLayout, QFileDialog
 from .dynamic_plot_canvas import DynamicPlotCanvas
 from .dynamic_ima_canvas import DynamicImaCanvas
 from .Ui_pampelmuse_gui import Ui_PampelMuseGui
@@ -71,11 +71,26 @@ class ToolbarWithoutMessage(NavigationToolbar):
     """
     A small subclass of the navigation toolbar that does not display the
     coordinates under the mouse pointer. This is used for the reference
-    image and IFS data because to save space and because this information
+    image and IFS data in order to save space and because this information
     is already displayed in the status bar.
+
+    The class also keeps track of the status of the toolbar buttons (checked
+    or unchecked), as this information is used to determine the interaction
+    status of the GUI.
     """
+    def __init__(self, canvas, parent, coordinates=True):
+
+        super(ToolbarWithoutMessage, self).__init__(canvas=canvas, parent=parent, coordinates=coordinates)
+
+        self.actionTriggered.connect(self.on_actionTriggered)
+        self.in_navigation_mode = False
+
     def set_message(self, msg):
         pass
+
+    @pyqtSlot(QAction)
+    def on_actionTriggered(self, action):
+        self.in_navigation_mode = action.isChecked()
 
 
 class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
@@ -767,7 +782,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         """
 
         # do nothing if event happened outside axes
-        if event.inaxes != self.ifsPlot.axes or self.ifsInteractMode != 'grab' or self.ifsToolbar._active is not None:
+        if event.inaxes != self.ifsPlot.axes or self.ifsInteractMode != 'grab' or self.ifsToolbar.in_navigation_mode:
             return
 
         # check if click was inside field of view of IFU
@@ -791,7 +806,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         event : a matplotlib.backend_bases.PickEvent instance
             The mouse event that triggered the method call.
         """
-        if self.ifsInteractMode != 'pick' or self.ifsToolbar._active is not None:
+        if self.ifsInteractMode != 'pick' or self.ifsToolbar.in_navigation_mode:
             return
         if len(event.ind) != 1:
             self.statusBar.showMessage("Multiple sources selected", 5000)
@@ -812,7 +827,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         event : a matplotlib.backend_bases.PickEvent instance
             The mouse event that triggered the method call.
         """
-        if self.refInteractMode != 'pick' or self.refToolbar._active is not None:
+        if self.refInteractMode != 'pick' or self.refToolbar.in_navigation_mode:
             return
 
         # do nothing if more than one source selected
@@ -1406,7 +1421,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         self.ifsPlot.loadLayer(self.ifuLayerSelectSlider.value(), residuals=False)
 
         # change cuts unless absolute values were set by the user:
-        if self.ifuCutsComboBox.currentText() is not "User":
+        if self.ifuCutsComboBox.currentText() != "User":
             self.on_ifuCutsComboBox_currentIndexChanged(self.ifuCutsComboBox.currentText())
 
     @pyqtSlot(bool)
@@ -1423,7 +1438,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
         self.ifsPlot.loadLayer(self.ifuLayerSelectSlider.value(), residuals=True)
 
         # change cuts unless absolute values were set by the user:
-        if self.ifuCutsComboBox.currentText() is not "User":
+        if self.ifuCutsComboBox.currentText() != "User":
             self.on_ifuCutsComboBox_currentIndexChanged(self.ifuCutsComboBox.currentText())
 
     def plot_sources_on_ref(self):

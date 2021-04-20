@@ -263,7 +263,8 @@ class Variables(Parameters):
                 self.lut.index = index
             else:
                 if not self.lut.index.isin(index).all():
-                    logger.warning('Changing dispersion axis as requested will alter existing values of look-up table.')
+                    logger.warning(
+                        'Changing dispersion axis as requested will alter existing values of look-up table.')
                 self.lut = self.lut.reindex(index=index, method='nearest')
 
     def fit_lut(self, order, mask=None):

@@ -1160,10 +1160,14 @@ class FitLayer(object):
             else:
                 background_x0 = None
 
-            result = psf.fitter(psf=data, weights=weights, parameters=psf_parameters if is_psf_source[i] else [],
-                                fit_positions=fit_positions, fit_background=local_background,
-                                flux_x0=self.fluxes[self.catalog.at[i, 'component']], background_x0=background_x0,
-                                psf_padding=int(round(self.psf_radius-psf.maxrad)) if is_psf_source[i] else 0)
+            try:
+                result = psf.fitter(psf=data, weights=weights, parameters=psf_parameters if is_psf_source[i] else [],
+                                    fit_positions=fit_positions, fit_background=local_background,
+                                    flux_x0=self.fluxes[self.catalog.at[i, 'component']], background_x0=background_x0,
+                                    psf_padding=int(round(self.psf_radius-psf.maxrad)) if is_psf_source[i] else 0)
+            except ValueError as msg:
+                logger.error("Unexpected fit problem for sources #{0}: {1}".format(i, msg))
+                continue
 
             # check if result of a successful fit makes any sense:
             if not result.success:

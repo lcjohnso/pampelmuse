@@ -35,12 +35,13 @@ import io
 import logging
 import numpy as np
 from contextlib import redirect_stdout
-from scipy.interpolate import RectBivariateSpline, interp2d
+from scipy.interpolate import RectBivariateSpline, InterpolatedUnivariateSpline, interp2d
 from .profile import Profile, FitResult
 
 if importlib.util.find_spec('maoppy') is not None:
     from maoppy.psfmodel import Psfao, psffit, oversample
     from maoppy.instrument import muse_nfm
+    from maoppy.utils import circavgplt
 else:
     logging.error('Package "maoppy" is not installed. Cannot use MAOPPY PSF model.')
 
@@ -424,7 +425,6 @@ class Maoppy(Profile):
         centre : tuple of 2 floats
             The central coordinates of the PSF along the y- and x-axes.
         """
-
         if shape is None:
             shape = self.maoppy_shape
         return shape[0]/2 - (k - 1.)/(2.*k), shape[1]/2 - (k - 1.)/(2.*k)
@@ -432,8 +432,13 @@ class Maoppy(Profile):
     @classmethod
     def calculate_fwhm(cls, r0, bck, amp, alpha, e, beta, wvl=6e-7, **kwargs):
         """
-        Calculate and return the FWHM of the MAOPPY PSF profile for a given
+        Estimate and return the FWHM of the MAOPPY PSF profile for a given
         set of parameters.
+
+        To estimate the FWHM, the method creates the MAOPPY PSF on a 2dim.
+        grid, then determines the symmetric radial profile, and tries to
+        obtain the radii where the intensity drops to half its central value
+        using univariate spline interpolation.
 
         Parameters
         ----------
@@ -469,11 +474,18 @@ class Maoppy(Profile):
             raise IOError('Unknown argument(s) to call of Maoppy.fwhm: {0}'.format(kwargs))
 
         psf = Psfao(Npix=(30, 30), system=muse_nfm, samp=muse_nfm.samp(wvl))
-
         theta = 0.
-        f = psf((r0, bck, amp, alpha, 1-e, theta, beta))[:15]
+        f = psf((r0, bck, amp, alpha, 1 - e, theta, beta))
 
-        return 2.*np.sqrt(np.sum(f > (0.5*f.max()))/np.pi)
+        r, fr = circavgplt(f)
+        f = InterpolatedUnivariateSpline(r, fr - f.max() / 2.)
+        roots = f.roots()
+
+        if len(roots) != 2:
+            logger.error("Could not estimate FWHM of MAOPPY profile.")
+            return np.nan
+        else:
+            return roots.max() - roots.min()
 
     @property
     def fwhm(self):
@@ -483,26 +495,24 @@ class Maoppy(Profile):
         fwhm : float
             The FWHM of the MAOPPY PSF profile with the given parameters.
         """
-        from scipy.stats import binned_statistic
-
-        # get mean radii for fluxes for annuli of widths ~1 pixel
-        bstat = binned_statistic(self.r, [self.r, self.f], bins=self.maxrad)
-        r_bin, f_bin = bstat.statistic
-
-        # interpolate along flux axis to get FWHM. Note that flux values must  be monotonically INCREASING
-        fwhm = 2.*np.interp(0.5*self.f.max(), f_bin[::-1], r_bin[::-1])
-
-        return fwhm
+        return Maoppy.calculate_fwhm(r0=self.r0, bck=self.bck, amp=self.amp, alpha=self.alpha, e=self.e,
+                                     beta=self.beta, wvl=self.wvl)
 
     @property
     def strehl(self):
         """
-        Returns the Strehl ratio for the current set of parameters. The Strehl
-        ratio is calculated using eq. 14 from Fetick et al. (2019).
+        Returns
+        -------
+        strehl : float
+            The Strehl ratio for the current set of parameters.
         """
-        f_ao = muse_nfm.Nact/(2.*muse_nfm.D)
+        psf = Psfao(Npix=(30, 30), system=muse_nfm, samp=muse_nfm.samp(self.wvl))
+        return psf.strehlOTF((self.r0, self.bck, self.amp, self.alpha, 1 - self.e, self.theta, self.beta))
 
-        return np.exp(-self.amp - self.bck*np.pi*(f_ao**2) - (0.023*6.*np.pi*(self.r0*f_ao)**(-5./3.))/5.)
+        # Analyytical calculation based on eq. 14 from the paper by Fetick et al. (2019). This seems to underestimate
+        # the Strehl significantly for NFM data.
+        # f_ao = muse_nfm.Nact/(2.*muse_nfm.D)
+        # return np.exp(-self.amp - self.bck*np.pi*(f_ao**2) - (0.023*6.*np.pi*(self.r0*f_ao)**(-5./3.))/5.)
 
     def fitter(self, psf, weights, parameters, fit_positions=True, fit_background=False, psf_padding=0, **kwargs):
         """

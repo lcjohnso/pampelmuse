@@ -774,9 +774,9 @@ class Sources(object):
         """
         logger.info("Current status of catalogue of sources:")
         logger.info("   no. of PSF sources: {0}".format(self.psf_indices.size))
-        logger.info("   no. of resolved sources: {0}".format(self.is_resolved.sum()))
+        logger.info("   no. of resolved sources: {0}".format(np.sum(self.status == 2)))
         logger.info("   no. of nearby sources: {0}".format(np.sum(self.status == 1)))
-        logger.info("   no. of unresolved sources: {0}".format(self.is_unresolved.sum()))
+        logger.info("   no. of unresolved sources: {0}".format(np.sum(self.status ==0)))
         logger.info("   no. of background components: {0}".format(self.n_background))
 
         logger.debug("Overview of all components used in fit:")
