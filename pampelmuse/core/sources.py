@@ -1,7 +1,7 @@
 """
 sources.py
 ==========
-Copyright 2013-2020 Sebastian Kamann
+Copyright 2013-2021 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -37,7 +37,7 @@ memory but only on request.
 
 Latest Git revision
 -------------------
-2020/02/12
+2021/04/20
 """
 import collections
 import logging
@@ -59,7 +59,7 @@ except ImportError:
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20200212
+__revision__ = 20210420
 
 
 logger = logging.getLogger(__name__)
@@ -152,13 +152,13 @@ class Sources(object):
         self.spectrum_loaded = None
 
         # (b) a boolean series indicating if IFS coordinates have been loaded for a source
-        self.ifs_coordinates_loaded = pd.Series(np.zeros((self.n_sources,), dtype=np.bool), index=self.ids)
+        self.ifs_coordinates_loaded = pd.Series(np.zeros((self.n_sources,), dtype=bool), index=self.ids)
 
         # (c) a boolean series indicating if a polynomial fit has been performed to the IFU coordinates of a source
-        self.ifs_coordinates_fitted = pd.Series(np.zeros((self.n_sources,), dtype=np.bool), index=self.ids)
+        self.ifs_coordinates_fitted = pd.Series(np.zeros((self.n_sources,), dtype=bool), index=self.ids)
 
         # (d) a boolean series indicating if the IFU coordinates of a source are a free fit parameter
-        self.ifs_coordinates_free = pd.Series(np.zeros((self.n_sources,), dtype=np.bool), index=self.ids)
+        self.ifs_coordinates_free = pd.Series(np.zeros((self.n_sources,), dtype=bool), index=self.ids)
 
         # (e) a dictionary of ID:<function> pairs that will contain callable functions that return the polynomial fits
         #  to the positions of a source, obtained using Sources.fitIfsCoordinates()
@@ -864,7 +864,7 @@ class Sources(object):
                 setattr(self, key.lower(), self.data_hdu.header["{0}3".format(key)])
 
         # create boolean series that keeps track of which sources have spectra loaded
-        self.spectrum_loaded = pd.Series(np.zeros((self.n_components,), dtype=np.bool),
+        self.spectrum_loaded = pd.Series(np.zeros((self.n_components,), dtype=bool),
                                          index=pd.Index(np.arange(self.n_components)))
 
     def load_spectra(self, components=None, layers=None, init_wave=False):

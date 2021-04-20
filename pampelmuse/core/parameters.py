@@ -1,7 +1,7 @@
 """
 parameters.py
 =============
-Copyright 2013-2019 Sebastian Kamann
+Copyright 2013-2021 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -32,18 +32,17 @@ coordinate transformation from reference to IFS coordinates.
 
 Latest Git revision
 -------------------
-2019/04/23
+2021/04/20
 """
 import logging
 import numpy as np
 import pandas as pd
 from numpy.polynomial import Chebyshev, Legendre, Hermite, Polynomial
 from astropy.io import fits
-from ..utils.statistics import robust_fit
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20190423
+__revision__ = 20210420
 
 
 logger = logging.getLogger(__name__)
@@ -93,7 +92,7 @@ class Parameters(object):
         if free is not None:
             self.free = pd.Series(free, index=self.names)
         else:
-            self.free = pd.Series(np.zeros(self.n_parameters, dtype=np.bool), index=self.names)
+            self.free = pd.Series(np.zeros(self.n_parameters, dtype=bool), index=self.names)
 
         # check if at least one parameter was provided.
         if len(self.names) == 0:
