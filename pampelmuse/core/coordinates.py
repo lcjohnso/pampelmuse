@@ -1,7 +1,7 @@
 """
 coordinates.py
 ==============
-Copyright 2013-2020 Sebastian Kamann
+Copyright 2013-2021 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -65,7 +65,7 @@ This results in the inverse transformation:
 
 Latest Git revision
 -------------------
-2020/02/12
+2021/04/22
 """
 import logging
 import os
@@ -76,7 +76,7 @@ from ..core.parameters import Parameters
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20200212
+__revision__ = 20210422
 
 
 logger = logging.getLogger(__name__)
@@ -245,7 +245,7 @@ class Transformation(Parameters):
                                                                   np.nanmean(residuals[:, i, 1])))
 
         # define which parameters are free/fixed
-        free = np.ones((len(cls.PARAMETERS)), dtype=np.bool)
+        free = np.ones((len(cls.PARAMETERS)), dtype=bool)
         if fixed is not None:
             for parameter in fixed.columns.names:
                 free[cls.PARAMETERS.index(parameter)] = False
@@ -361,7 +361,7 @@ class Transformation(Parameters):
         # handle fixed parameters, if any:
         # The idea is to multiply each fixed parameter with the corresponding column of the matrix,
         # subtract the results from b, and exclude the column from the fit
-        use_column = np.ones(in_matrix.shape[1], dtype=np.bool)
+        use_column = np.ones(in_matrix.shape[1], dtype=bool)
         for parameter, value in fixed.items():
             value = np.atleast_1d(value)
             if value.size != b.shape[0]:

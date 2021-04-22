@@ -1,7 +1,7 @@
 """
 instrument.py
 =============
-Copyright 2013-2018 Sebastian Kamann
+Copyright 2013-2021 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -28,7 +28,7 @@ defines generic methods that are inherited by all its subclasses.
 
 Latest Git revision
 -------------------
-2018/05/08
+2021/04/22
 """
 import logging
 import matplotlib
@@ -42,7 +42,7 @@ from ..utils.distance import dist2path, point_in_poly
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180508
+__revision__ = 20210422
 
 
 class Instrument(object):
@@ -455,7 +455,7 @@ class Instrument(object):
             A boolean array that is True if a science fibre is present at this
             index and False if an auxiliary fibre is located there.
         """
-        _isscience = np.ones((self.nspaxel + self.naux,), dtype=np.bool)
+        _isscience = np.ones((self.nspaxel + self.naux,), dtype=bool)
         _isscience[self.aux_fibers] = False
 
         return _isscience
@@ -554,7 +554,7 @@ class Instrument(object):
             A boolean flag for each source indicating whether or not it is
             inside the field of view.
         """
-        return np.array([point_in_poly(x, y, self.edgepath.vertices) for x, y in xy], dtype=np.bool)
+        return np.array([point_in_poly(x, y, self.edgepath.vertices) for x, y in xy], dtype=bool)
 
     def distance_to_edge(self, xy, metric=None):
         """
