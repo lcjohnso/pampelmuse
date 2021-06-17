@@ -375,7 +375,7 @@ class Maoppy(Profile):
                 self._f = np.array([])
             else:
                 # init MAOPPY code
-                psf = Psfao(Npix=self.maoppy_shape, system=muse_nfm, samp=self.samp)
+                psf = Psfao(npix=self.maoppy_shape, system=muse_nfm, samp=self.samp)
 
                 # get offsets of centre to nearest lower pixels.
                 dx = self.xc - int(self.xc)
@@ -473,7 +473,7 @@ class Maoppy(Profile):
         if kwargs:
             raise IOError('Unknown argument(s) to call of Maoppy.fwhm: {0}'.format(kwargs))
 
-        psf = Psfao(Npix=(30, 30), system=muse_nfm, samp=muse_nfm.samp(wvl))
+        psf = Psfao(npix=(30, 30), system=muse_nfm, samp=muse_nfm.samp(wvl))
         theta = 0.
         f = psf((r0, bck, amp, alpha, 1 - e, theta, beta))
 
@@ -506,7 +506,7 @@ class Maoppy(Profile):
         strehl : float
             The Strehl ratio for the current set of parameters.
         """
-        psf = Psfao(Npix=(30, 30), system=muse_nfm, samp=muse_nfm.samp(self.wvl))
+        psf = Psfao(npix=(30, 30), system=muse_nfm, samp=muse_nfm.samp(self.wvl))
         return psf.strehlOTF((self.r0, self.bck, self.amp, self.alpha, 1 - self.e, self.theta, self.beta))
 
         # Analyytical calculation based on eq. 14 from the paper by Fetick et al. (2019). This seems to underestimate

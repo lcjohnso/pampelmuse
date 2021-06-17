@@ -114,7 +114,7 @@ def parallel_fit_layer(layer_parameters):
     assert isinstance(layer_parameters, FitLayerCall)
 
     if layer_parameters.coordinates is not None:
-        catalog = pd.merge(layer_parameters.coordinates, init_arguments.catalog[['component', 'magnitude']],
+        catalog = pd.merge(layer_parameters.coordinates, init_arguments.catalog[['component', 'magnitude', 'psf']],
                            left_index=True, right_index=True)
     else:
         catalog = init_arguments.catalog

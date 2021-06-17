@@ -611,7 +611,7 @@ class FitLayer(object):
             delta_flux = (best_fit[0] / total_flux) / self.fluxes[included_components]
             with printoptions(precision=4, suppress=True):
                 logger.debug("Relative changes in fluxes: {0}".format(delta_flux))
-            if np.nanmedian(abs(delta_flux)) < 0.005:
+            if (np.nanmedian(abs(delta_flux)) < 0.005) and iteration > 1:
                 break
 
             # # for testing, show scatter plot with current residuals and model
@@ -626,6 +626,7 @@ class FitLayer(object):
             # plt.show()
 
             # carry out optimization of PSF and/or source positions
+            print(psf_parameters_to_fit, position_parameters_to_fit)
             if psf_parameters_to_fit is not None or position_parameters_to_fit is not None:
 
                 # if any sources are provided for the PSF fit, the method for large layers is used
