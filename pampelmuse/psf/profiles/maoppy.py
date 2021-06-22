@@ -509,7 +509,7 @@ class Maoppy(Profile):
         psf = Psfao(npix=(30, 30), system=muse_nfm, samp=muse_nfm.samp(self.wvl))
         return psf.strehlOTF((self.r0, self.bck, self.amp, self.alpha, 1 - self.e, self.theta, self.beta))
 
-        # Analyytical calculation based on eq. 14 from the paper by Fetick et al. (2019). This seems to underestimate
+        # Analytical calculation based on eq. 14 from the paper by Fetick et al. (2019). This seems to underestimate
         # the Strehl significantly for NFM data.
         # f_ao = muse_nfm.Nact/(2.*muse_nfm.D)
         # return np.exp(-self.amp - self.bck*np.pi*(f_ao**2) - (0.023*6.*np.pi*(self.r0*f_ao)**(-5./3.))/5.)

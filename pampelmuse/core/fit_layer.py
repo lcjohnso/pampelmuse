@@ -626,7 +626,6 @@ class FitLayer(object):
             # plt.show()
 
             # carry out optimization of PSF and/or source positions
-            print(psf_parameters_to_fit, position_parameters_to_fit)
             if psf_parameters_to_fit is not None or position_parameters_to_fit is not None:
 
                 # if any sources are provided for the PSF fit, the method for large layers is used
