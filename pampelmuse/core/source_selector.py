@@ -2,7 +2,7 @@
 source_selector.py
 ==================
 
-Copyright 2013-2020 Sebastian Kamann
+Copyright 2013-2021 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -30,6 +30,10 @@ available in a photometric catalog for the analysis with PampelMuse.
 Added
 -----
 2016/08/09, rev. 353
+
+Last updated
+------------
+2021/06/22
 """
 import logging
 import sys
@@ -50,6 +54,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
+__revision__ = 20210622
 
 
 logger = logging.getLogger(__name__)
@@ -1383,10 +1388,8 @@ class SourceSelector(object):
         if self.sources.transformation.valid and self.position_fit > 0:
             logger.info("Determining wavelength-dependent coordinate transformation...")
             if self.position_fit == 1:
-                fixed = {'A': pd.Series(1., index=self.sources.wave),
-                         'B': pd.Series(0., index=self.sources.wave),
-                         'C': pd.Series(0., index=self.sources.wave),
-                         'D': pd.Series(1., index=self.sources.wave), }
+                fixed = pd.DataFrame({'A': 1., 'B': 0., 'C': 0., 'D': 1.},
+                                     index=self.sources.wave[results.index.values])
             else:
                 fixed = None
             t = Transformation.from_coordinates(self.sources.catalog, results, fixed=fixed)

@@ -65,7 +65,7 @@ This results in the inverse transformation:
 
 Latest Git revision
 -------------------
-2021/04/22
+2021/06/22
 """
 import logging
 import os
@@ -76,7 +76,7 @@ from ..core.parameters import Parameters
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20210422
+__revision__ = 20210622
 
 
 logger = logging.getLogger(__name__)
@@ -200,8 +200,11 @@ class Transformation(Parameters):
 
         # find sources that overlap between input and output coordinates
         common_ids = np.intersect1d(xy_in.index, np.unique(xy_out.columns.get_level_values(0)), assume_unique=True)
-        if len(common_ids) < 4:
-            raise IOError('Need at least 4 sources to fit coordinate transformation.')
+
+        # check if enough sources available
+        n_fixed = 0 if fixed is None else len(fixed.columns)
+        if len(common_ids) < (6 - n_fixed)//2:
+            raise IOError('Need at least {0} sources to fit coordinate transformation.'.format((6 - n_fixed)//2))
 
         # for the fitting, plain numpy arrays are used
         in_data = np.zeros((len(common_ids), 2), dtype=np.float32)
@@ -217,13 +220,21 @@ class Transformation(Parameters):
         # convert format for fixed parameters to dictionary
         _fixed = {}
         if fixed is not None:
-            for parameter in fixed.columns.names:
+            for parameter in fixed.columns:
                 _fixed[parameter] = fixed[parameter].values
 
         # perform the actual fit and initialize the values of the parameters of the coordinate transformation.
         _data, residuals = cls.quick_fit(in_data, out_data, fixed=_fixed)
 
-        data = pd.DataFrame(_data, index=xy_out.index, columns=cls.PARAMETERS)
+        # construct data frame used to initialize class
+        data = pd.DataFrame(0., index=xy_out.index, columns=cls.PARAMETERS)
+        i = 0
+        for parameter in cls.PARAMETERS:
+            if parameter in _fixed:
+                data[parameter] = _fixed[parameter]
+            else:
+                data[parameter] = _data[:, i]
+                i += 1
 
         # The main results of the computation ar presented as logging.INFO messages
         logger.info("Fitted coordinate transformation for {0} image(s).".format(out_data.shape[0]))
@@ -231,7 +242,10 @@ class Transformation(Parameters):
         logger.info("Best-fit parameters:")
 
         for i, parameter in enumerate(cls.PARAMETERS):
-            logger.info("   {0} = {1:8.3f}".format(parameter, np.nanmean(data[parameter])))
+            logstr = "   {0} = {1:8.3f}".format(parameter, np.nanmean(data[parameter]))
+            if parameter in _fixed:
+                logstr += " [fixed]"
+            logger.info(logstr)
 
         logger.info('RMS scatter between predicted and actual coordinates: STD(dx)={0:.2g}, STD(dy)={1:.2g}'.format(
             np.nanstd(residuals[:, :, 0]), np.nanstd(residuals[:, :, 1])))
@@ -247,7 +261,7 @@ class Transformation(Parameters):
         # define which parameters are free/fixed
         free = np.ones((len(cls.PARAMETERS)), dtype=bool)
         if fixed is not None:
-            for parameter in fixed.columns.names:
+            for parameter in fixed.columns:
                 free[cls.PARAMETERS.index(parameter)] = False
 
         # initialize new instance

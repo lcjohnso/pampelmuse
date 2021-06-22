@@ -1,7 +1,7 @@
 """
 initfit.py
 ==========
-Copyright 2013-2020 Sebastian Kamann
+Copyright 2013-2021 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -57,6 +57,7 @@ from ..utils.fits import open_ifs_data, make_header_from_config, save_prm
 
 
 __author__ = "Sebastian Kamann (skamann@ljmu.ac.uk)"
+__revision__ = 20210622
 
 
 logger = logging.getLogger(__name__)
