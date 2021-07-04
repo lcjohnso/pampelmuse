@@ -1166,8 +1166,9 @@ class SourceSelector(object):
         min_mag = self.sources.mag[(self.sources.status == 2) & (distance_to_edge > 0)].min()
 
         logger.info('IDs of stars that fulfill criteria for PSF stars:')
-        logger.info('      ID|   mag| d_edge [pixel]| shoulder_drop')
-        logger.info('--------+------+---------------+--------------')
+        logger.info('      ID|   mag| d_edge [pixel]| shoulder_drop ')
+        logger.info('--------+------+---------------+ [apernois={0:.2f}'.format(aperture_noise))
+        logger.info('--------+------+---------------+---------------')
 
         # loop over magnitude-sorted list of indices of the sources the instance of the Sources-class
         # (brightest sources first)
@@ -1212,7 +1213,7 @@ class SourceSelector(object):
                 continue
 
             self.sources.catalog.at[source_id, 'status'] = 3
-            logger.info("{0:8d}|{1:6.2f}|{2:15.1f}|{3:14.2f}".format(source_id, mag, distance_to_edge[source_id],
+            logger.info("{0:8d}|{1:6.2f}|{2:15.1f}|{3:15.2f}".format(source_id, mag, distance_to_edge[source_id],
                                                                      shoulder_drop))
 
         if len(self.sources.psf_indices) == 0:
