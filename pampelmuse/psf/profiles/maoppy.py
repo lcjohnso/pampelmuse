@@ -33,6 +33,7 @@ Latest Git revision
 import importlib.util
 import io
 import logging
+import warnings
 import numpy as np
 from contextlib import redirect_stdout
 from scipy.interpolate import RectBivariateSpline, InterpolatedUnivariateSpline, interp2d
@@ -384,10 +385,9 @@ class Maoppy(Profile):
                 # run MAOPPY code
                 __f = psf((self.r0, self.bck, self.amp, self.alpha, self.q, self.theta, self.beta), dx=dy, dy=dx)
 
-                # account for offset between assumed and MAOPPY-internal centre
-                x_center, y_center = self.get_maoppy_centre(k=psf._k)
-                shift_x = int(self.xc) - x_center
-                shift_y = int(self.yc) - y_center
+                # account for offset between PSF array and array used by Maoppy
+                shift_x = int(self.xc) - self.maoppy_shape[0]//2
+                shift_y = int(self.yc) - self.maoppy_shape[1]//2
 
                 # MAOPPY returns 2D array. Need to revert to pixel sampling used by instance.
                 ip = RectBivariateSpline(x=np.arange(self.maoppy_shape[1]) + shift_x,
@@ -409,6 +409,8 @@ class Maoppy(Profile):
 
     def get_maoppy_centre(self, k, shape=None):
         """
+        DEPRECATED
+
         Determine the centre of the PSF profile that is used by the MAOPPY
         code for a given oversampling factor `k` and array size `shape`.
 
@@ -425,6 +427,8 @@ class Maoppy(Profile):
         centre : tuple of 2 floats
             The central coordinates of the PSF along the y- and x-axes.
         """
+        warnings.warn('This method should not be used with Maoppy versions >=1.4.0', DeprecationWarning)
+
         if shape is None:
             shape = self.maoppy_shape
         return shape[0]/2 - (k - 1.)/(2.*k), shape[1]/2 - (k - 1.)/(2.*k)
@@ -561,7 +565,7 @@ class Maoppy(Profile):
 
         x0 = []
         names = ['r0', 'bck', 'amp', 'alpha', 'e', 'theta', 'beta']
-        fixed = np.ones(len(names), dtype=np.bool)
+        fixed = np.ones(len(names), dtype=bool)
         for i, parameter in enumerate(names):
             if parameter in parameters:
                 fixed[i] = False
@@ -571,7 +575,7 @@ class Maoppy(Profile):
             else:
                 x0.append(getattr(self, parameter))
 
-        y_center, x_center = self.get_maoppy_centre(k=oversample(self.samp)[1])
+        y_center, x_center = self.maoppy_shape[0]//2, self.maoppy_shape[1]//2
         shift_x = int(round(x_center - self.xc))
         shift_y = int(round(y_center - self.yc))
 
@@ -605,7 +609,7 @@ class Maoppy(Profile):
             npixfit = None
 
         # perform fit
-        # code prints out some "-" symbols to indicidate progression, which are captured so that is does not interfere
+        # code prints out some "-" symbols to indicate progression, which are captured so that is does not interfere
         # with the logging
         f = io.StringIO()
         with redirect_stdout(f):

@@ -12,5 +12,5 @@ setup(
     scripts=['bin/PampelMuse', ],
     package_data={'pampelmuse.config': ['data/pampelmuse.json', ], 'pampelmuse.filters': ['data/*', ]},
     install_requires=['numpy', 'scipy', 'astropy', 'matplotlib', 'pandas>1.0,<1.3', 'PyQt5', 'tqdm'],
-    extras_require={'nfm': 'maoppy'}
+    extras_require={'nfm': 'maoppy>=1.4.0'}
 )
