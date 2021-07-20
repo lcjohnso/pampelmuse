@@ -687,7 +687,7 @@ class FitLayer(object):
                             [setattr(psf, parameter, value) for psf in self.psf_instances.values()]
                         except AssertionError:
                             logger.error('PSF fit yielded invalid value {0:.1f} for parameter {1}.'.format(
-                                parameter, value))
+                                value, parameter))
                         else:
                             logger.info('Updated parameters "{0}" to {1}.'.format(parameter, value))
                     else:
