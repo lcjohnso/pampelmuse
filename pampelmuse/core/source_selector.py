@@ -1126,7 +1126,10 @@ class SourceSelector(object):
             A list of source IDs that should be excluded from the PSF star
             search, e.g. because they are saturated in the IFS data.
         max_mag : float, optional
-            The maximum allowed magnitude of a PSF star.
+            The maximum allowed magnitude of a PSF star. If a negative value
+            is provided, the maximum allowed magnitude is obtained by sub-
+            tracting the value from the magnitude of the brightest star in
+            the field of view.
         psf_radius : float, optional
             The radius out to which the PSF profiles are calculated. The
             isolation criterion will be checked in a circle with this radius.
@@ -1162,8 +1165,10 @@ class SourceSelector(object):
         # measure distances of sources to edge of field of view
         distance_to_edge = pd.Series(self.ifs_data.distance_to_edge(xy.values), index=xy.index)
 
-        # find magnitude of brightest star in field of view
+        # find magnitude of brightest star in field of view, adjust maximum allowed magnitude if requested
         min_mag = self.sources.mag[(self.sources.status == 2) & (distance_to_edge > 0)].min()
+        if max_mag is not None and max_mag < 0:
+            mag_mag = min_mag - max_mag
 
         logger.info('IDs of stars that fulfill criteria for PSF stars:')
         logger.info('      ID|   mag| d_edge [pixel]| shoulder_drop ')
@@ -1194,7 +1199,7 @@ class SourceSelector(object):
 
             # check if PSF radius should be adapted based on predicted flux
             if psf_radius_scaling is not None:
-                r_i = psf_radius*(2**(-0.4*(mag - min_mag)/np.log10(1./psf_radius_scaling)))
+                r_i = psf_radius*(2**(0.4*(mag - min_mag)/np.log10(psf_radius_scaling)))
             else:
                 r_i = psf_radius
 
