@@ -1167,7 +1167,7 @@ class SourceSelector(object):
 
         logger.info('IDs of stars that fulfill criteria for PSF stars:')
         logger.info('      ID|   mag| d_edge [pixel]| shoulder_drop ')
-        logger.info('--------+------+---------------+ [apernois={0:.2f}'.format(aperture_noise))
+        logger.info('        +      +               + [apernois={0:.2f}]'.format(aperture_noise))
         logger.info('--------+------+---------------+---------------')
 
         # loop over magnitude-sorted list of indices of the sources the instance of the Sources-class
