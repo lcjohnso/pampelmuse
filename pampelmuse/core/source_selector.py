@@ -1168,7 +1168,7 @@ class SourceSelector(object):
         # find magnitude of brightest star in field of view, adjust maximum allowed magnitude if requested
         min_mag = self.sources.mag[(self.sources.status == 2) & (distance_to_edge > 0)].min()
         if max_mag is not None and max_mag < 0:
-            mag_mag = min_mag - max_mag
+            max_mag = min_mag - max_mag
 
         logger.info('IDs of stars that fulfill criteria for PSF stars:')
         logger.info('      ID|   mag| d_edge [pixel]| shoulder_drop ')
