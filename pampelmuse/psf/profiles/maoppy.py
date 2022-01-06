@@ -357,6 +357,15 @@ class Maoppy(Profile):
         return 1. - self.e
 
     @property
+    def theta_maoppy(self):
+        """
+        Returns the position angle used internally by MAOPPY - which is offset
+        from the one used in PampelMuse. While for PampelMuse, the +y-axis is
+        used as reference, it is the +x-axis for MAOPPY.
+        """
+        return self.theta + np.pi/2
+
+    @property
     def samp(self):
         """
         Returns the sampling of the PSF profile at the current wavelength.
@@ -383,7 +392,7 @@ class Maoppy(Profile):
                 dy = self.yc - int(self.yc)
 
                 # run MAOPPY code
-                __f = psf((self.r0, self.bck, self.amp, self.alpha, self.q, self.theta, self.beta), dx=dy, dy=dx)
+                __f = psf((self.r0, self.bck, self.amp, self.alpha, self.q, self.theta_maoppy, self.beta), dx=dy, dy=dx)
 
                 # account for offset between PSF array and array used by Maoppy
                 shift_x = int(self.xc) - self.maoppy_shape[0]//2
@@ -511,7 +520,7 @@ class Maoppy(Profile):
             The Strehl ratio for the current set of parameters.
         """
         psf = Psfao(npix=(30, 30), system=muse_nfm, samp=muse_nfm.samp(self.wvl))
-        return psf.strehlOTF((self.r0, self.bck, self.amp, self.alpha, 1 - self.e, self.theta, self.beta))
+        return psf.strehlOTF((self.r0, self.bck, self.amp, self.alpha, 1 - self.e, self.theta_maoppy, self.beta))
 
         # Analytical calculation based on eq. 14 from the paper by Fetick et al. (2019). This seems to underestimate
         # the Strehl significantly for NFM data.
@@ -572,6 +581,8 @@ class Maoppy(Profile):
             # axis ratio is fitted instead of ellipticity
             if parameter == 'e':
                 x0.append(self.q)
+            elif parameter == 'theta':
+                x0.append(self.theta_maoppy)
             else:
                 x0.append(getattr(self, parameter))
 
@@ -622,6 +633,10 @@ class Maoppy(Profile):
         if 'e' in parameters:
             i = parameters.index('e')
             x0[i] = 1. - x0[i]
+        # return position angle as used by PampelMuse
+        if 'theta' in parameters:
+            i = parameters.index('theta')
+            x0[i] = x0[i] - np.pi/2.
 
         if fitresult.success:
             centroid = (x_center + fitresult.dxdy[0] - shift_x, y_center + fitresult.dxdy[1] - shift_y)
@@ -645,6 +660,10 @@ class Maoppy(Profile):
             if 'e' in parameters:
                 i = parameters.index('e')
                 values[i] = 1. - values[i]
+            # return position angle as used by PampelMuse
+            if 'theta' in parameters:
+                i = parameters.index('theta')
+                values[i] = values[i] - np.pi / 2.
 
             return FitResult(names=parameters,
                              x0=x0,
