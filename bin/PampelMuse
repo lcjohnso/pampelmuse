@@ -2,7 +2,7 @@
 """
 PampelMuse
 ==========
-Copyright 2013-2021 Sebastian Kamann
+Copyright 2013-2022 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -58,7 +58,7 @@ the data into memory yet but just checks whether the file(s) are valid.
 
 Latest Git revision
 -------------------
-2021/01/18
+2022/02/18
 """
 import argparse
 import importlib
@@ -78,7 +78,7 @@ from pampelmuse.utils.fits import read_config_from_header
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
 __version__ = "1.0"
-__revision__ = 20210118
+__revision__ = 20220218
 
 
 logger = logging.getLogger(__name__)
@@ -125,6 +125,8 @@ if __name__ == "__main__":
     Update configuration using the provided configuration. It must be in JSON-
     format. In any case, the parameter 'prefix' must be defined, providing the
     filename minus the extension of the data to be analysed.""")
+    parser.add_argument("--pdb", action='store_true',
+                        help="If set, the code will stop in a pdb console if an error is thrown.")
 
     subparsers = parser.add_subparsers(help='Available routines')
 
@@ -147,6 +149,18 @@ if __name__ == "__main__":
 
     # parse arguments into preliminary namespace
     args = parser.parse_args()
+
+    # Check whether we should allow for debugging in pdb - feature suggested by Jarle Brinchmann
+    # Inspired by musered
+    if args.pdb:
+        def run_pdb(type, value, tb):
+            import pdb
+            import traceback
+
+            traceback.print_exception(type, value, tb)
+            pdb.pm()
+
+        sys.excepthook = run_pdb
 
     # read default configuration
     # get path to file containing configuration
