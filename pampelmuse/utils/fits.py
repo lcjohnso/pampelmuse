@@ -32,11 +32,11 @@ The provided functions facilitate working with FITS data.
 
 Latest Git revision
 -------------------
-2019/08/21
+2022/02/24
 """
 import os
 import logging
-import numpy as np
+import pandas as pd
 from astropy.io import fits
 from astropy.table import Table
 from ..core import Sources
@@ -47,7 +47,10 @@ from ..psf import Variables
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20190821
+__revision__ = 20220224
+
+
+logger = logging.getLogger(__name__)
 
 
 def open_ifs_data(prefix, **kwargs):
@@ -78,7 +81,6 @@ def open_ifs_data(prefix, **kwargs):
     instrument : an instance of a subclass of pampelmuse.instrument.Instrument
         The instrument instance that can be used throughout the analysis.
     """
-
     if os.path.exists("{0}.dat.fits".format(prefix)):
         datafile = "{0}.dat.fits".format(prefix)
     elif os.path.exists("{0}.fits".format(prefix)):
@@ -91,15 +93,15 @@ def open_ifs_data(prefix, **kwargs):
     instrument = GenericIFS()
     for hdu in fitsdata:
         if 'INSTRUME' in hdu.header:
-            logging.info('IFS data is coming from instrument {0}.'.format(hdu.header['INSTRUME']))
+            logger.info('IFS data is coming from instrument {0}.'.format(hdu.header['INSTRUME']))
             if hdu.header['INSTRUME'] not in available_instruments:
-                logging.warning('PampelMuse was not tested on "{0}"-data.'.format(hdu.header['INSTRUME']))
+                logger.warning('PampelMuse was not tested on "{0}"-data.'.format(hdu.header['INSTRUME']))
             elif hdu.header['INSTRUME'] == 'MUSE':  # check if pixtable was provided
                 if 'ESO PRO CATG' in hdu.header and hdu.header['ESO PRO CATG'] == 'PIXTABLE_REDUCED':
-                    logging.info('IFS data identified as a MUSE pixtable.')
+                    logger.info('IFS data identified as a MUSE pixtable.')
                     instrument = MusePixtable(**kwargs)
                 else:
-                    logging.info('IFS data identified as a MUSE data cube.')
+                    logger.info('IFS data identified as a MUSE data cube.')
                     instrument = Muse(**kwargs)
             elif hdu.header['INSTRUME'] == 'GIRAFFE':
                 try:
@@ -112,7 +114,7 @@ def open_ifs_data(prefix, **kwargs):
             break
 
     if isinstance(instrument, GenericIFS) and not isinstance(instrument, Muse):
-        logging.warning('No instrument-specific class available, IFS data must be 3dim.')
+        logger.warning('No instrument-specific class available, IFS data must be 3dim.')
 
     # for later usage, store primary header
     instrument.primary_header = fitsdata[0].header
@@ -126,7 +128,7 @@ def open_ifs_data(prefix, **kwargs):
 
     # open HDU with residuals if it exists
     if os.path.exists("{0}.res.fits".format(prefix)):
-        logging.info('Found file with residuals: {0}.res.fits'.format(prefix))
+        logger.info('Found file with residuals: {0}.res.fits'.format(prefix))
         instrument.open("{0}.res.fits".format(prefix), extno=0, isresiduals=True, **kwargs)
 
     if isinstance(instrument, MusePixtable):  # if a MUSE pixtable is loaded, all information should be there now
@@ -144,7 +146,7 @@ def open_ifs_data(prefix, **kwargs):
             elif hduname.lower() in fitsdata:
                 instrument.open(datafile, extno=fitsdata.index_of(hduname.lower()), isvar=True, **kwargs)
     if instrument.varhdu is None:
-        logging.error('Did not find variances for IFS data.')
+        logger.error('Did not find variances for IFS data.')
 
     # open (optional) HDU with mask
     if os.path.exists("{0}.msk.fits".format(prefix)):
@@ -154,7 +156,7 @@ def open_ifs_data(prefix, **kwargs):
             if hduname in fitsdata:
                 instrument.open(datafile, extno=fitsdata.index_of(hduname), ismask=True, **kwargs)
     if instrument.maskhdu is None:
-        logging.warning('Did not find bad-pixel mask for IFS data.')
+        logger.warning('Did not find bad-pixel mask for IFS data.')
 
     return instrument
 
@@ -200,7 +202,7 @@ def open_prm(filename, ndisp=-1):
     try:
         i = hdulist.index_of("SPECTRA")
     except KeyError:
-        logging.critical("No spectra (HDU 'SPECTRA') have been provided.")
+        logger.critical("No spectra (HDU 'SPECTRA') have been provided.")
     else:
         try:
             j = hdulist.index_of("WAVE")
@@ -211,10 +213,10 @@ def open_prm(filename, ndisp=-1):
         sources.open_spectra_hdu(hdulist[i], data_wave_hdu=wave_hdu)
 
     if 0 < ndisp != sources.n_dispersion:
-        logging.error("PRM-file and IFS data have incompatible dispersion dimensions.")
+        logger.error("PRM-file and IFS data have incompatible dispersion dimensions.")
 
     # Positions
-    logging.info("Obtaining information about source coordinates...")
+    logger.info("Obtaining information about source coordinates...")
 
     # note that if individual source positions are fitted, there may be two extensions named POSITIONS, containing
     # the coordinates and the polynomial fits to them, respectively. To handle this case, we search for HDUs using
@@ -235,7 +237,7 @@ def open_prm(filename, ndisp=-1):
         i = hdulist.index_of("POSPARS")
         sources.transformation = Transformation.from_hdu(hdulist[i])
     except KeyError:
-        logging.warning("No coord. transf. (HDU 'POSPARS') detected.")
+        logger.warning("No coord. transf. (HDU 'POSPARS') detected.")
         sources.ifs_coordinates_free[sources.status < 4] = True
     sources.info()
 
@@ -244,10 +246,10 @@ def open_prm(filename, ndisp=-1):
     try:
         i = hdulist.index_of("PSFPARS")
     except KeyError:  # otherwise, assume Gaussian, round with FWHM=3.0pixel
-        logging.warning("No HDU 'PSFPARS' found. Using default PSF.")
-
-        psf_attributes = Variables.from_dictionary({"profile": "gauss", "fwhm": 3.0})
-        psf_attributes.free = np.atleast_1d([1, 0, 0])
+        logger.warning("No HDU 'PSFPARS' found. Using default PSF.")
+        psf_attributes = Variables(profile="gauss",
+                                   data=pd.DataFrame([(3.0, 0.0, 0.0)], columns=["fwhm", "e", "theta"]))
+        psf_attributes.free = pd.Series([0, 0, 0], index=psf_attributes.names)
     else:
         lut = None
         try:
@@ -286,7 +288,7 @@ def save_prm(sources, psf_attributes, filename, header=None):
     Nothing, only the prm-file is stored to disk.
     """
 
-    logging.info("Saving results to file {0}...".format(filename))
+    logger.info("Saving results to file {0}...".format(filename))
 
     hdulist = fits.HDUList(hdus=[fits.PrimaryHDU(header=header), ])
 
@@ -320,10 +322,12 @@ def save_prm(sources, psf_attributes, filename, header=None):
         if psf_attributes.lut is not None:  # check if look-up table is in use
             lut_hdu = psf_attributes.make_lut_hdu()
             hdulist.append(lut_hdu)
+    else:
+        logger.error("PSF profile invalid. Not included in PRM-file.")
 
     # Save the file
     if os.path.exists(filename):
-        logging.info('Overwriting existing file {0}...'.format(filename))
+        logger.info('Overwriting existing file {0}...'.format(filename))
         os.remove(filename)
 
     hdulist.writeto(filename, overwrite=True)
@@ -434,7 +438,7 @@ def make_header_from_config(config, **kwargs):
                 try:
                     card.verify()
                 except ValueError:
-                    logging.warning('Configuration key {0} = {1} is too long for header.'.format(
+                    logger.warning('Configuration key {0} = {1} is too long for header.'.format(
                         card.keyword, card.value))
                 else:
                     header.append(card=card)

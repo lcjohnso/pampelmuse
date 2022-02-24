@@ -31,7 +31,7 @@ extraction for a data cube.
 
 Latest GIT revision
 -------------------
-2021/01/18
+2022/02/24
 """
 import collections
 import logging
@@ -45,7 +45,7 @@ from ..instruments.muse import MusePixtable
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20210118
+__revision__ = 20220224
 
 
 logger = logging.getLogger(__name__)
@@ -276,6 +276,10 @@ class FitCube(object):
         # collect PSF parameters and their status in the fit
         for i, parameter in enumerate(self.psf_attributes.names):
             self.psf_parameters[parameter] = self.psf_attributes.free[i] & ~self.psf_attributes.fitted[i]
+
+        # check if fit possible
+        if np.any(list(self.psf_parameters.values())) and self.position_parameters['xy'] and (sources.status!=3).all():
+            raise IOError("Cannot fit PSF unless PSF sources or coordinate transformation are available.")
 
         # initialize background
         if self.sources.is_background.sum() == 1:

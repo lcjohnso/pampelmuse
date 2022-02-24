@@ -36,7 +36,7 @@ improved using the first order moments determined in the calculation.
  
 Latest SVN revision
 -------------------
-2019/04/15
+2022/02/24
 """
 import datetime
 import logging
@@ -47,7 +47,7 @@ from ..utils.fits import open_ifs_data, make_header_from_config, save_prm
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20190415
+__revision__ = 20220224
 
 
 logger = logging.getLogger(__name__)
@@ -124,6 +124,9 @@ def singlesrc(config):
 
     # get information about free parameters
     psffit = config['psf'].get('fit', 6)
+
+    if psffit > 0 and (selector.sources.status!=3).all():
+        raise IOError("Cannot fit PSF. No sources with stats 3 provided.")
 
     # get initial values for PSF parameters
     psf_parameters = []

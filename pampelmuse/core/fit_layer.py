@@ -57,7 +57,7 @@ parameters are not fitted.
 
 Latest Git revision
 -------------------
-2021/01/18
+2022/02/24
 """
 import collections
 import contextlib
@@ -81,7 +81,7 @@ from ..core.coordinates import Transformation
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20210118
+__revision__ = 20220224
 
 
 logger = logging.getLogger(__name__)
@@ -245,7 +245,7 @@ class FitLayer(object):
             self.catalog['magnitude'] = pd.Series(0., index=self.catalog.index)
 
         # check if information about PSF sources is available
-        if 'psf' in self.catalog and catalog['psf'].any():
+        if position_parameters is None or 'psf' in self.catalog and catalog['psf'].any():
             self.combined_psf_fit = False
         else:
             self.combined_psf_fit = True
