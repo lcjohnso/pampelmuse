@@ -57,7 +57,7 @@ parameters are not fitted.
 
 Latest Git revision
 -------------------
-2022/02/24
+2022/03/08
 """
 import collections
 import contextlib
@@ -81,7 +81,7 @@ from ..core.coordinates import Transformation
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20220224
+__revision__ = 20220308
 
 
 logger = logging.getLogger(__name__)
@@ -574,7 +574,7 @@ class FitLayer(object):
         for iteration in range(1, max_iterations + 1):
 
             if max_iterations > 1:
-                logger.info("Iteration {0} (of max. {1})".format(iteration, max_iterations))
+                logger.debug("Iteration {0} (of max. {1})".format(iteration, max_iterations))
 
             # if required, calculate matrix with all sources
             if self.source_matrix is None or included_components is None:
@@ -602,7 +602,7 @@ class FitLayer(object):
             best_fit = linalg.lsmr(fit_matrix, self.current*np.sqrt(self.fit_weights), atol=1e-5, show=False)
             t2 = time.time()
             logger.debug("Time required to solve matrix equation: {0:6.3f}s".format(t2-t1))
-            logger.info("Chi**2 of current fit: {0:.1f}".format(best_fit[3] ** 2))
+            logger.debug("Chi**2 of current fit: {0:.1f}".format(best_fit[3] ** 2))
 
             # update fluxes of all components
             self.fluxes[included_components] += (best_fit[0] / total_flux)
@@ -689,7 +689,7 @@ class FitLayer(object):
                             logger.error('PSF fit yielded invalid value {0:.1f} for parameter {1}.'.format(
                                 value, parameter))
                         else:
-                            logger.info('Updated parameters "{0}" to {1}.'.format(parameter, value))
+                            logger.debug('Updated parameters "{0}" to {1}.'.format(parameter, value))
                     else:
                         logger.error('Cannot update parameter "{0}" because fit yielded NaN.'.format(parameter))
 
@@ -1249,7 +1249,7 @@ class FitLayer(object):
             sources = pd.Index(sources)
 
         # Fit position parameters
-        logger.info('Optimizing parameters "{0}" in a multi-PSF fit ...'.format(", ".join(parameters)))
+        logger.debug('Optimizing parameters "{0}" in a multi-PSF fit ...'.format(", ".join(parameters)))
 
         # collect initial guesses, using PSF instance of first provided source
         x0 = [getattr(self.psf_instances[sources[0]], name) for name in parameters]
@@ -1272,7 +1272,7 @@ class FitLayer(object):
             log_string = "Fitted parameter values:"
             for i, name in enumerate(parameters):
                 log_string += " {0}={1:.2f},".format(name, best_fit[i])
-            logger.info(log_string[:-1])
+            logger.debug(log_string[:-1])
 
         # return
         return pd.Series(best_fit, index=parameters)

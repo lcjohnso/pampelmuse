@@ -31,7 +31,7 @@ extraction for a data cube.
 
 Latest GIT revision
 -------------------
-2022/02/24
+2022/03/08
 """
 import collections
 import logging
@@ -45,7 +45,7 @@ from ..instruments.muse import MusePixtable
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20220224
+__revision__ = 20220308
 
 
 logger = logging.getLogger(__name__)
@@ -371,6 +371,7 @@ class FitCube(object):
             stop = self.sources.n_dispersion + (stop + 1)
         logger.info("Layer range to be analysed: {0}-{1}".format(start, stop))
         logger.info("Binning factor per layer: {0}".format(n_bin))
+        logger.info("Variances provided with IFS data are {0}".format('used' if use_variances else 'ignored'))
 
         # define array containing the layers (or centres of combined layers) that should be analysed. They must be
         # in the correct order, i.e. starting from the central wavelength and then moving to the red and blue ends
