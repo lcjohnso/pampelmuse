@@ -31,7 +31,7 @@ extraction for a data cube.
 
 Latest GIT revision
 -------------------
-2022/03/08
+2022/03/09
 """
 import collections
 import logging
@@ -45,7 +45,7 @@ from ..instruments.muse import MusePixtable
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20220308
+__revision__ = 20220309
 
 
 logger = logging.getLogger(__name__)
@@ -250,28 +250,30 @@ class FitCube(object):
         # IMPORTANT: the coordinates for all sources must be obtained from the same step, i.e. it is not possible
         #            to get half of the positions from a coordinate transformation and the other half from polynomial
         #            fits.
-        if self.sources.ifs_coordinates_fitted[~self.sources.is_background].any():
-            if not self.sources.ifs_coordinates_fitted[~self.sources.is_background].all():
-                logger.error('The provided status of the source positions is not supported.')
+        any_coordinates_fitted = self.sources.ifs_coordinates_fitted[~self.sources.is_background].any()
+        all_coordinates_fitted = self.sources.ifs_coordinates_fitted[~self.sources.is_background].all()
+        any_coordinates_free = self.sources.ifs_coordinates_free[~self.sources.is_background].any()
+        all_coordinates_free = self.sources.ifs_coordinates_free[~self.sources.is_background].all()
+
+        if any_coordinates_fitted:
+            if not all_coordinates_fitted:
                 logger.error('Only {0} out of {1} source positions have polynomial fits.'.format(
                     self.sources.ifs_coordinates_fitted.sum(), self.sources.n_sources - self.sources.n_background))
-                return
-            else:
-                self.position_parameters['xy'] = False
-        elif self.sources.ifs_coordinates_free[~self.sources.is_background].any():
-            if not self.sources.ifs_coordinates_free[~self.sources.is_background].all():
-                logger.error('The provided status of the source positions is not supported.')
+                raise NotImplementedError('The provided status of the source positions is not supported.')
+            self.position_parameters['xy'] = False
+        elif any_coordinates_free:
+            if not all_coordinates_free:
                 logger.error('Only {0} out of {1} source positions are free fit parameters.'.format(
                     self.sources.ifs_coordinates_free.sum(), self.sources.n_sources - self.sources.n_background))
-                return
-            else:
-                self.position_parameters['xy'] = True
+                raise NotImplementedError('The provided status of the source positions is not supported.')
+            self.position_parameters['xy'] = True
         else:
             if not self.sources.transformation.valid:
                 logger.error('No coordinate transformation found. Cannot determine source positions.')
-                return
+                raise IOError('Either IFS coordinates or coordinate transformation must be provided.')
             for i, parameter in enumerate(self.sources.transformation.names):
                 self.position_parameters[parameter] = self.sources.transformation.free[i]
+            self.position_parameters['xy'] = False
 
         # collect PSF parameters and their status in the fit
         for i, parameter in enumerate(self.psf_attributes.names):
