@@ -57,7 +57,7 @@ parameters are not fitted.
 
 Latest Git revision
 -------------------
-2022/03/08
+2022/03/10
 """
 import collections
 import contextlib
@@ -81,7 +81,7 @@ from ..core.coordinates import Transformation
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20220308
+__revision__ = 20220310
 
 
 logger = logging.getLogger(__name__)
@@ -110,7 +110,7 @@ class TqdmToLogger(io.StringIO):
         self.logger.log(self.level, self.buf)
 
 
-tqdm_out = TqdmToLogger(logger, level=logging.INFO)
+tqdm_out = TqdmToLogger(logger, level=logging.DEBUG)
 
 
 # for a nicer printing of numpy arrays, following suggestion from
@@ -1211,7 +1211,7 @@ class FitLayer(object):
                                             index=self.data.index[psf.used])
 
             n_success += 1
-        logger.info('Successful PSF fits: {0}/{1}'.format(n_success, len(sources)))
+        logger.debug('Successful PSF fits: {0}/{1}'.format(n_success, len(sources)))
 
         # return
         return results, self._combine_psf_profiles(radial_data) if return_psf_profiles else None, residuals
@@ -1427,7 +1427,8 @@ class FitLayer(object):
             fixed = None
 
         try:
-            tf = Transformation.from_coordinates(xy_in=xy_reference[['x', 'y']], xy_out=xy_out, fixed=fixed)
+            tf = Transformation.from_coordinates(xy_in=xy_reference[['x', 'y']], xy_out=xy_out, fixed=fixed,
+                                                 loglevel=logging.DEBUG)
         except IOError:
             logger.error('Fit of coordinate transformation failed.')
             return None, None

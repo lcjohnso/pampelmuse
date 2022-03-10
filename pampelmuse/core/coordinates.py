@@ -65,7 +65,7 @@ This results in the inverse transformation:
 
 Latest Git revision
 -------------------
-2021/06/22
+2022/03/10
 """
 import logging
 import os
@@ -76,7 +76,7 @@ from ..core.parameters import Parameters
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20210622
+__revision__ = 20220310
 
 
 logger = logging.getLogger(__name__)
@@ -150,7 +150,7 @@ class Transformation(Parameters):
                 logger.error("Missing required parameter '{0}' of coord. transformation.".format(name))
 
     @classmethod
-    def from_coordinates(cls, xy_in, xy_out, fixed=None):
+    def from_coordinates(cls, xy_in, xy_out, fixed=None, loglevel=logging.INFO):
         """
         Initialize a new coordinate transformation using the provided input
         (reference) and output (IFS) coordinates in a least squares fit.
@@ -181,6 +181,8 @@ class Transformation(Parameters):
             to given values, the fixed parameters and their values can be
             provided as a pandas DataFrame using the same indices as 'xy_out'
             and the fixed parameters as column names.
+        loglevel : any valid logging level.
+            Specify level of logging messages in method.
 
         Raises
         ------
@@ -188,7 +190,7 @@ class Transformation(Parameters):
             If input data do not allow the determination of the coordinate
             transformation.
         """
-        logger.info("Initialising coordinate transformation from provided data...")
+        logger.log(msg="Initialising coordinate transformation from provided data...", level=loglevel)
 
         # perform sanity checks on input data
         if not isinstance(xy_in, pd.DataFrame):
@@ -237,18 +239,17 @@ class Transformation(Parameters):
                 i += 1
 
         # The main results of the computation ar presented as logging.INFO messages
-        logger.info("Fitted coordinate transformation for {0} image(s).".format(out_data.shape[0]))
-
-        logger.info("Best-fit parameters:")
+        logger.log(msg="Fitted coordinate transformation for {0} image(s).".format(out_data.shape[0]), level=loglevel)
+        logger.log(msg="Best-fit parameters:", level=loglevel)
 
         for i, parameter in enumerate(cls.PARAMETERS):
             logstr = "   {0} = {1:8.3f}".format(parameter, np.nanmean(data[parameter]))
             if parameter in _fixed:
                 logstr += " [fixed]"
-            logger.info(logstr)
+            logger.log(msg=logstr, level=loglevel)
 
-        logger.info('RMS scatter between predicted and actual coordinates: STD(dx)={0:.2g}, STD(dy)={1:.2g}'.format(
-            np.nanstd(residuals[:, :, 0]), np.nanstd(residuals[:, :, 1])))
+        logger.log(msg='RMS scatter between predicted and actual coordinates: STD(dx)={0:.2g}, STD(dy)={1:.2g}'.format(
+            np.nanstd(residuals[:, :, 0]), np.nanstd(residuals[:, :, 1])), level=loglevel)
 
         logger.debug("Offsets of individual sources:")
         logger.debug("       ID     dx     dy")
