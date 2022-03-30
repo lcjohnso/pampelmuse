@@ -28,7 +28,7 @@ class pampelmuse.core.psf.profiles.Maoppy
 
 Latest Git revision
 -------------------
-2021/03/29
+2022/03/30
 """
 import importlib.util
 import io
@@ -40,7 +40,8 @@ from scipy.interpolate import RectBivariateSpline, InterpolatedUnivariateSpline,
 from .profile import Profile, FitResult
 
 if importlib.util.find_spec('maoppy') is not None:
-    from maoppy.psfmodel import Psfao, psffit, oversample
+    from maoppy.psfmodel import Psfao, oversample
+    from maoppy.psffit import psffit
     from maoppy.instrument import muse_nfm
     from maoppy.utils import circavgplt
 else:
@@ -48,7 +49,7 @@ else:
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20210329
+__revision__ = 20220330
 
 
 logger = logging.getLogger(__name__)
