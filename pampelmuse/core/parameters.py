@@ -32,7 +32,7 @@ coordinate transformation from reference to IFS coordinates.
 
 Latest Git revision
 -------------------
-2021/04/20
+2021/05/21
 """
 import logging
 import numpy as np
@@ -42,7 +42,7 @@ from astropy.io import fits
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20210420
+__revision__ = 20220521
 
 
 logger = logging.getLogger(__name__)
@@ -102,7 +102,7 @@ class Parameters(object):
 
         # check if data frame is sufficiently ordered for slicing
         # check: http://pandas.pydata.org/pandas-docs/stable/advanced.html#using-slicers
-        if not self.data.columns.is_lexsorted():
+        if not self.data.columns.is_monotonic_increasing:
             logger.warning('Data frame containing parameters not sorted. Reordering ...')
             self.data = self.data.sort_index(level=0, axis=1)  # axis=1 = columns
 

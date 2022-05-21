@@ -31,7 +31,7 @@ extraction for a data cube.
 
 Latest GIT revision
 -------------------
-2022/03/09
+2022/05/21
 """
 import collections
 import logging
@@ -45,7 +45,7 @@ from ..instruments.muse import MusePixtable
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20220309
+__revision__ = 20220521
 
 
 logger = logging.getLogger(__name__)
@@ -679,7 +679,7 @@ class FitCube(object):
             mask = np.isnan(values)
             logger.debug("Layer contains {0} masked pixels".format(mask.sum()))
         else:
-            mask = np.zeros(values.size, dtype=np.bool)
+            mask = np.zeros(values.size, dtype=bool)
 
         # collect arrays in dictionary for initialisation of pandas DataFrame
         data = {'value': values[~mask], 'x': transform[~mask, 1], 'y': transform[~mask, 0]}

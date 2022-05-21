@@ -37,7 +37,7 @@ memory but only on request.
 
 Latest Git revision
 -------------------
-2021/04/20
+2022/05/21
 """
 import collections
 import logging
@@ -59,7 +59,7 @@ except ImportError:
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20210420
+__revision__ = 20220522
 
 
 logger = logging.getLogger(__name__)
@@ -1004,7 +1004,7 @@ class Sources(object):
                 self._wave -= (self.crpix - 1)
                 self._wave *= self.cdelt
                 self._wave += self.crval
-        return pd.Float64Index(self._wave)
+        return pd.Index(self._wave, dtype=np.float64)
 
     @wave.setter
     def wave(self, value):
@@ -1408,7 +1408,7 @@ class Sources(object):
 
         # initialize data frame for coordinates data.
         # rows contain dispersion data using the actual wavelengths as a pandas Float64Index
-        index = pd.Float64Index(self.wave[layers])
+        index = pd.Index(self.wave[layers], dtype=np.float64)
 
         # columns contain IDs, ('x', 'y'), and ('value', 'fit') in a pandas.MultiIndex
         axes = ['x', 'y']
@@ -1470,7 +1470,7 @@ class Sources(object):
 
         # check if data frame is sufficiently ordered for slicing
         # check: http://pandas.pydata.org/pandas-docs/stable/advanced.html#using-slicers
-        if not self.ifs_coordinates.columns.is_lexsorted():
+        if not self.ifs_coordinates.columns.is_monotonic_increasing:
             logger.warning('Data frame containing IFS coordinates not sorted. Reordering ...')
             self.ifs_coordinates = self.ifs_coordinates.sort_index(level=0, axis=1)  # axis=1 = columns
 
