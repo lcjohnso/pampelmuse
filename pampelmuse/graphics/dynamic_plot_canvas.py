@@ -1,7 +1,7 @@
 """
 dynamic_plot_canvas.py
 ======================
-Copyright 2013-2020 Sebastian Kamann
+Copyright 2013-2022 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -39,7 +39,7 @@ top panel, named 'Spectrum Viewer'.
 
 Latest Git revision
 -------------------
-2020/07/09
+2022/06/10
 """
 import inspect
 import logging
@@ -55,7 +55,7 @@ matplotlib.pyplot.rcParams["axes.linewidth"] = 1.5
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20200709
+__revision__ = 20220610
 
 
 class DynamicPlotCanvas(FigureCanvasQTAgg):
@@ -109,9 +109,9 @@ class DynamicPlotCanvas(FigureCanvasQTAgg):
 
         # define two selectors for adding a horizontal range to the rectangles or subtracting it.
         self.selector = SpanSelector(self.axes, self.on_select, direction='horizontal', useblit=True,
-                                     rectprops=dict(facecolor='red', alpha=0.5), button=1)
+                                     props=dict(facecolor='red', alpha=0.5), button=1)
         self.deselector = SpanSelector(self.axes, self.on_deselect, direction='horizontal', useblit=True,
-                                       rectprops=dict(facecolor='0.5', alpha=0.5), button=3)
+                                       props=dict(facecolor='0.5', alpha=0.5), button=3)
 
         # prepare structure to hold the set of rectangles that are overplotted on th data.
         # to achieve axes units (bottom to top = 0 to 1) in  vertical direction and data units (wavelength) in

@@ -1,7 +1,7 @@
 """
 fit_array.py
 ============
-Copyright 2013-2021 Sebastian Kamann
+Copyright 2013-2022 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -57,7 +57,7 @@ parameters are not fitted.
 
 Latest Git revision
 -------------------
-2022/03/10
+2022/06/14
 """
 import collections
 import contextlib
@@ -81,7 +81,7 @@ from ..core.coordinates import Transformation
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20220310
+__revision__ = 20220614
 
 
 logger = logging.getLogger(__name__)
@@ -336,7 +336,7 @@ class FitLayer(object):
             # check if valid indices for background components were provided
             if background_index is None or len(background_index) != self.n_background:
                 background_index = np.arange(-1, -(self.n_background + 1), -1)
-            self.fluxes = self.fluxes.append(pd.Series(0., index=background_index))
+            self.fluxes = pd.concat([self.fluxes, pd.Series(0., index=background_index)])
 
         self.offsets = None
 
@@ -1543,7 +1543,7 @@ class FitLayer(object):
                 else:
                     logger.warning('Cannot calculate mean of "{0}" because no PSF fit succeeded.'.format(name))
                     _final[name] = np.nan
-            final = final.append(_final)
+            final = pd.concat([final, _final])
 
         # fit coordinate transformation to provided centroid coordinates
         if position_parameters is not None and 'xy' not in position_parameters:
@@ -1562,7 +1562,7 @@ class FitLayer(object):
             except IOError:
                 logging.error('Fit of coordinate transformation failed.')
             else:
-                final = final.append(_final)
+                final = pd.concat([final, _final])
 
         return final
 
