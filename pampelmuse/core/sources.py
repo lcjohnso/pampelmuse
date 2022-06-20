@@ -37,7 +37,7 @@ memory but only on request.
 
 Latest Git revision
 -------------------
-2022/05/21
+2022/06/20
 """
 import collections
 import logging
@@ -59,7 +59,7 @@ except ImportError:
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20220522
+__revision__ = 20220620
 
 
 logger = logging.getLogger(__name__)
@@ -1662,6 +1662,9 @@ class Sources(object):
             mask = pd.Series(False, index=self.wave)
 
         # determine 'mean' coordinate if option 'common_slope' selected
+        mean_x_fit = None
+        mean_y_fit = None
+        mean_mask = None
         if common_slope:
 
             # get mean coordinates along x and y for each available source
@@ -1685,7 +1688,11 @@ class Sources(object):
 
             order = 0  # all individual coordinates are now "fitted" with zeroth order polynomials
 
+        # x_fits = np.zeros((len(ids), self.wave.size), dtype=np.float64)
+        # y_fits = np.zeros_like(x_fits)
+
         # loop over selected sources and fir polynomials to x- and y-coordinates
+        import time
         for n, source_id in enumerate(ids, start=1):
 
             x = xy[(source_id, 'x', 'value')]
@@ -1710,8 +1717,10 @@ class Sources(object):
                     y_fit_i = fit_function.fit(self.wave[~mask_i], y[~mask_i], order)
 
                 # update IFS coordinates data frame
-                self.ifs_coordinates[(source_id, 'x', 'fit')] = x_fit_i(self.wave)
-                self.ifs_coordinates[(source_id, 'y', 'fit')] = y_fit_i(self.wave)
+                # self.ifs_coordinates[(source_id, 'x', 'fit')] = x_fit_i(self.wave)
+                # self.ifs_coordinates[(source_id, 'y', 'fit')] = y_fit_i(self.wave)
+                # x_fits[n - 1] = x_fit_i(self.wave)
+                # y_fits[n - 1] = y_fit_i(self.wave)
 
                 # update dictionary containing polynomial fits
                 self.ifs_coordinates_fitted[source_id] = True
@@ -1725,8 +1734,9 @@ class Sources(object):
             # log progress
             logging.debug("Polynomial fit to source #{0} [{1}/{2}]".format(source_id, n, len(ids)))
             if statusBar is not None:
-                statusBar.showMessage("Polynomial fit to source #{0} [{1}/{2}]".format(source_id, n, len(ids)),
-                                      5000)
+                statusBar.showMessage("Polynomial fit to source #{0} [{1}/{2}]".format(source_id, n, len(ids)), 5000)
+
+        self.load_ifs_coordinates(ids=ids)
 
     ##############################################################################
     #                             Output methods                                 #

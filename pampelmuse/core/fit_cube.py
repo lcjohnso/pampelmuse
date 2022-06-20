@@ -31,7 +31,7 @@ extraction for a data cube.
 
 Latest GIT revision
 -------------------
-2022/05/21
+2022/06/20
 """
 import collections
 import logging
@@ -45,7 +45,7 @@ from ..instruments.muse import MusePixtable
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20220521
+__revision__ = 20220620
 
 
 logger = logging.getLogger(__name__)
@@ -420,14 +420,14 @@ class FitCube(object):
         # the parameters are fitted - all parameters of omitted layers are set to NaN. This is however not done for any
         # polynomial fits to the positions/parameters that may exist
         self.psf_attributes.interpolate()
-        if len(self.psf_parameters) > 0:
+        if any(self.psf_parameters.values()) > 0:
             self.psf_attributes.data.loc[omitted_indices, (slice(None), 'value')] = np.nan
             if self.psf_attributes.lut is not None:
                 self.psf_attributes.lut.loc[omitted_indices, 'value'] = np.nan
 
         if self.sources.transformation.valid:
             self.sources.transformation.interpolate()
-            if len(self.position_parameters) > 0:
+            if any(self.position_parameters.values()) > 0:
                 self.sources.transformation.data.loc[omitted_indices, (slice(None), 'value')] = np.nan
 
         # Load full coordinate array into memory because doing it per layer is quite slow.
