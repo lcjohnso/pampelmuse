@@ -37,7 +37,7 @@ memory but only on request.
 
 Latest Git revision
 -------------------
-2022/06/20
+2022/06/26
 """
 import collections
 import logging
@@ -59,7 +59,7 @@ except ImportError:
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20220620
+__revision__ = 20220626
 
 
 logger = logging.getLogger(__name__)
@@ -563,10 +563,10 @@ class Sources(object):
             status = self.catalog['status']
 
             # prepare column
-            specrow = pd.Series(np.zeros(self.n_sources, dtype=np.int32), index=self.catalog.index)
+            specrow = pd.Series(np.zeros(self.n_sources, dtype=np.int64), index=self.catalog.index)
 
             # set row for independent ('primary') sources
-            specrow[status > 1] = np.arange((status > 1).sum())
+            specrow[status > 1] = np.arange((status > 1).sum(), dtype=np.int64)
 
             # if unresolved component exists, make sure its spectrum comes before any sky spectrum
             if self.n_background > 0:

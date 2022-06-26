@@ -33,7 +33,7 @@ Added
 
 Last updated
 ------------
-2021/06/22
+2022/06/26
 """
 import logging
 import sys
@@ -54,7 +54,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20210622
+__revision__ = 20220626
 
 
 logger = logging.getLogger(__name__)
@@ -402,7 +402,7 @@ class SourceSelector(object):
             n_centroids = (~outside_fov).sum()
 
         # attach background components to source catalog
-        self.cfp_results = self.cfp_results.append(background_data, verify_integrity=True, sort=False)
+        self.cfp_results = pd.concat([self.cfp_results, background_data])
 
         return n_centroids
 
@@ -415,7 +415,7 @@ class SourceSelector(object):
         copy the dispersion information from the IFs data to the new instance.
         Afterwards, the instance can be accessed as SourceSelector().sources.
         """
-        self.sources = Sources(catalog=self.cfp_results[self.cfp_results['valid']].copy())
+        self.sources = Sources(catalog=self.cfp_results.drop(index=self.cfp_results.index[~self.cfp_results['valid']]))
 
         # unless a MUSE pixtable is being analysed, copy dispersion information to sources class
         if not isinstance(self.ifs_data, MusePixtable):
@@ -1177,6 +1177,7 @@ class SourceSelector(object):
 
         # loop over magnitude-sorted list of indices of the sources the instance of the Sources-class
         # (brightest sources first)
+        psf_indices = []
         for source_id, mag in self.sources.mag.sort_values().items():
             if max_mag is not None and mag > max_mag:
                 break
@@ -1217,9 +1218,15 @@ class SourceSelector(object):
             if dr.min() < 1.5*r_i and self.sources.mag[dr[dr < 1.5*r_i].index].min() < mag:
                 continue
 
-            self.sources.catalog.at[source_id, 'status'] = 3
+            # self.sources.catalog.at[source_id, 'status'] = 3
+            psf_indices.append(source_id)
             logger.info("{0:8d}|{1:6.2f}|{2:15.1f}|{3:15.2f}".format(source_id, mag, distance_to_edge[source_id],
                                                                      shoulder_drop))
+
+        # For some reason I don't understand, the status of the PSF sources is not updated to 3 unless I reset the
+        # type of the column
+        self.sources.catalog['status'] = self.sources.catalog['status'].astype(int)
+        self.sources.catalog.loc[psf_indices, 'status'] = 3
 
         if len(self.sources.psf_indices) == 0:
             logger.error("No possible PSF sources found!")
