@@ -57,7 +57,7 @@ parameters are not fitted.
 
 Latest Git revision
 -------------------
-2022/06/14
+2022/06/27
 """
 import collections
 import contextlib
@@ -74,14 +74,14 @@ if scipy.__version__ < '1.5.0':
     from scipy.stats import median_absolute_deviation as mad
 else:
     from scipy.stats import median_abs_deviation as mad
-from astropy.stats import sigma_clip
+from astropy.stats import SigmaClip
 
 from ..psf.profiles import *
 from ..core.coordinates import Transformation
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20220614
+__revision__ = 20220627
 
 
 logger = logging.getLogger(__name__)
@@ -1533,13 +1533,14 @@ class FitLayer(object):
         # update PSF parameters, using S/N as weights:
         if psf_parameters is not None:
             _final = pd.Series(0., index=psf_parameters)
+            sc = SigmaClip(sigma=4., stdfunc='mad_std', cenfunc='median')
             for name in psf_parameters:
                 # exclude results deviating by more than 4x the median absolute deviation from the median value
-                _, vmin, vmax = sigma_clip(results[name], sigma=4, return_bounds=True,
-                                           stdfunc=lambda x, axis: mad(x, nan_policy='omit', axis=axis))
-                valid = (results[name] >= vmin) & (results[name] <= vmax)
-                if np.any(valid):
-                    _final[name] = np.average(results.loc[valid, name], weights=results.loc[valid, 'snr'])
+                clipped = sc(np.ma.MaskedArray(results[name].values, mask=np.isnan(results[name].values)),
+                             return_bounds=False)
+                if not clipped.mask.all():
+                    _final[name] = np.average(results.loc[~clipped.mask, name],
+                                              weights=results.loc[~clipped.mask, 'snr'])
                 else:
                     logger.warning('Cannot calculate mean of "{0}" because no PSF fit succeeded.'.format(name))
                     _final[name] = np.nan
@@ -1650,7 +1651,7 @@ class FitLayer(object):
             data.append(value[1])
 
         combined = pd.DataFrame(np.stack(data, axis=1), columns=source_ids,
-                                index=pd.Float64Index(np.nanmean(radii, axis=0)))
+                                index=pd.Index(np.nanmean(radii, axis=0), dtype=np.float64))
         return combined
 
     def update_look_up_table(self, residuals, centroids, weights=None):

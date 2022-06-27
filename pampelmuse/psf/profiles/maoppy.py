@@ -28,7 +28,7 @@ class pampelmuse.core.psf.profiles.Maoppy
 
 Latest Git revision
 -------------------
-2022/03/30
+2022/06/27
 """
 import importlib.util
 import io
@@ -49,7 +49,7 @@ else:
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20220330
+__revision__ = 20220627
 
 
 logger = logging.getLogger(__name__)
@@ -614,8 +614,8 @@ class Maoppy(Profile):
         dx = round(x_center - self.xc) - (x_center - self.xc)
         dy = round(y_center - self.yc) - (y_center - self.yc)
 
+        npix = max(psf2d.shape)
         if psf_padding > 0:
-            npix = max(psf2d.shape)
             npixfit = npix + 2*psf_padding
         else:
             npixfit = None
@@ -624,9 +624,10 @@ class Maoppy(Profile):
         # code prints out some "-" symbols to indicate progression, which are captured so that is does not interfere
         # with the logging
         f = io.StringIO()
+        pmodel = Psfao(npix=(npix+2*psf_padding, npix+2*psf_padding), system=muse_nfm, samp=self.samp)
         with redirect_stdout(f):
-            fitresult = psffit(psf2d, Psfao, x0, weights=weights2d, system=muse_nfm, samp=self.samp, dxdy=(dx, dy),
-                               fixed=fixed, flux_bck=(True, fit_background), positive_bck=False, npixfit=npixfit)
+            fitresult = psffit(psf2d, pmodel, x0, weights=weights2d, dxdy=(dx, dy), fixed=fixed,
+                               flux_bck=(True, fit_background), positive_bck=False, npixfit=npixfit)
             logger.debug(f.getvalue())
 
         # return ellipticity e instead of axis ratio q
