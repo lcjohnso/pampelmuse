@@ -1431,7 +1431,7 @@ class Sources(object):
         elif self.transformation.valid:
             xy_in = self._get_reference_coordinates(index=ids)
 
-            # coordinate transformation may needs to be resized
+            # coordinate transformation may need to be resized
             if not np.array_equal(self.transformation.data.index, self.wave):
                 if len(self.transformation.data.index) == len(self.wave):
                     self.transformation.data.index = self.wave

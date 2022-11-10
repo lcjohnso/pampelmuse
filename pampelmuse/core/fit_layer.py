@@ -57,7 +57,7 @@ parameters are not fitted.
 
 Latest Git revision
 -------------------
-2022/06/27
+2022/11/10
 """
 import collections
 import contextlib
@@ -70,19 +70,13 @@ import numpy as np
 import pandas as pd
 from scipy import interpolate, optimize, sparse
 from scipy.sparse import linalg
-if scipy.__version__ < '1.5.0':
-    from scipy.stats import median_absolute_deviation as mad
-else:
-    from scipy.stats import median_abs_deviation as mad
 from astropy.stats import SigmaClip
 
 from ..psf.profiles import *
 from ..core.coordinates import Transformation
 
-
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20220627
-
+__revision__ = 20221110
 
 logger = logging.getLogger(__name__)
 
@@ -163,7 +157,7 @@ class FitLayer(object):
             they should contain information on which sources are combined to
             components and what their relative magnitudes per component are.
         psf_type : string
-            The type of PSF to be used. Currently 'gauss', 'moffat', and
+            The type of PSF to be used. Currently, 'gauss', 'moffat', and
             'double_gauss' are supported.
         psf_parameters : dictionary
             The initial guesses (or fixed values) of the individual PSF
@@ -206,7 +200,7 @@ class FitLayer(object):
             The index/indices of the background component(s). If None (default)
             the background components are indexed descendingly from -1.
         wvl : float, optional
-            The wavelength of the data (in m). This is needed for the set up
+            The wavelength of the data (in m). This is needed for the setup
             of certain PSF models.
         """
         self.psf_radius = psf_radius
@@ -323,8 +317,8 @@ class FitLayer(object):
         if 'psf' in self.catalog.columns and self.catalog['psf'].any():
             self.reference_index = self.catalog.loc[self.catalog['psf'], 'magnitude'].idxmin()
         else:
-            self.reference_index = ((self.catalog['x'] - self.catalog['x'].median())**2 + (
-                    self.catalog['y'] - self.catalog['y'].median())**2).idxmin()
+            self.reference_index = ((self.catalog['x'] - self.catalog['x'].median()) ** 2 + (
+                    self.catalog['y'] - self.catalog['y'].median()) ** 2).idxmin()
 
         # place-holder for variables defined below:
         self.source_matrix = None
@@ -369,7 +363,7 @@ class FitLayer(object):
             return None, 0, None
 
         # background must be provided as a sparse matrix
-        assert(isinstance(background, sparse.coo_matrix)), '"background" must be scipy.sparse.coo_matrix'
+        assert (isinstance(background, sparse.coo_matrix)), '"background" must be scipy.sparse.coo_matrix'
 
         # check if all background components actually contribute
         missing = np.flatnonzero(background.getnnz(axis=0) == 0)
@@ -409,7 +403,7 @@ class FitLayer(object):
         elif self.fluxes.max() > 0 and self.source_matrix is not None:
             model_fluxes = self.model.sum(axis=1).getA1()
             x_bin, y_bin = FitLayer.calc_running_mad(model_fluxes, self.current)
-            return pd.Series((1.4826*np.interp(model_fluxes, x_bin, y_bin))**2, index=self.data.index)
+            return pd.Series((1.4826 * np.interp(model_fluxes, x_bin, y_bin)) ** 2, index=self.data.index)
             # 1.4826 is for MAD -> sigma conversion
         # if not, just return 1s
         else:
@@ -444,7 +438,7 @@ class FitLayer(object):
              modified variances for the fitting process.
         """
         if self.fluxes.max() > 0:
-            return pd.Series(1. / (1. + np.abs(self.current / (alpha*np.sqrt(self.variances)))**beta),
+            return pd.Series(1. / (1. + np.abs(self.current / (alpha * np.sqrt(self.variances))) ** beta),
                              index=self.data.index)
         else:
             return pd.Series(1., index=self.data.index)
@@ -513,11 +507,11 @@ class FitLayer(object):
         wave : pandas.Series
             If dedicated wavelength information per pixel was provided with
             the data, this Series will contain the weighted wavelength value
-            for each returned flux. Otherwise None is returned.
+            for each returned flux. Otherwise, None is returned.
         profiles : pandas.DataFrame
-            The radial profiles of the PSF stars if requested. Otherwise None.
+            The radial profiles of the PSF stars if requested. Otherwise, None.
         parameters : pandas.DataFrame
-            The parameters of the individual PSF fits it requested. Otherwise
+            The parameters of the individual PSF fits it requested. Otherwise,
             None.
         lut: instance of InterpolatedUnivariateSpline
             The look-up table created from the average residuals of the PSF
@@ -565,7 +559,7 @@ class FitLayer(object):
         included_components = None
 
         # Determine initial weights for each pixel in the fit.
-        self.fit_weights = 1./self.variances
+        self.fit_weights = 1. / self.variances
         if (self.fit_weights < 0).any():
             logger.error('Input data contain unphysical negative variances.')
             self.fit_weights[self.fit_weights < 0] = 0.
@@ -592,16 +586,16 @@ class FitLayer(object):
             # The documentation of scipy states that to efficiently solve the matrix equation, the columns should
             # be scaled to have the same euclidean norm. I am still not convinced that this is true, but scale the
             # columns nevertheless.
-            total_flux = np.sqrt((fit_matrix.T*fit_matrix).diagonal())  # -> length m
-            fit_matrix = fit_matrix * sparse.dia_matrix((1./total_flux, [0]), shape=(m, m))
+            total_flux = np.sqrt((fit_matrix.T * fit_matrix).diagonal())  # -> length m
+            fit_matrix = fit_matrix * sparse.dia_matrix((1. / total_flux, [0]), shape=(m, m))
             # -> shape m, n
 
             # The fit for the source fluxes is carried out on the residuals, not the data itself. The fitted residual
             # fluxes are added to the existing ones
             t1 = time.time()
-            best_fit = linalg.lsmr(fit_matrix, self.current*np.sqrt(self.fit_weights), atol=1e-5, show=False)
+            best_fit = linalg.lsmr(fit_matrix, self.current * np.sqrt(self.fit_weights), atol=1e-5, show=False)
             t2 = time.time()
-            logger.debug("Time required to solve matrix equation: {0:6.3f}s".format(t2-t1))
+            logger.debug("Time required to solve matrix equation: {0:6.3f}s".format(t2 - t1))
             logger.debug("Chi**2 of current fit: {0:.1f}".format(best_fit[3] ** 2))
 
             # update fluxes of all components
@@ -708,7 +702,7 @@ class FitLayer(object):
         inverse_variances = pd.Series(np.nan, index=self.fluxes.index)
         inverse_variances[included_components] = self.source_matrix.multiply(self.source_matrix).T.dot(self.fit_weights)
         # invert and take square root to get uncertainties
-        uncertainties = 1./np.sqrt(inverse_variances)
+        uncertainties = 1. / np.sqrt(inverse_variances)
 
         # collect data that is returned as fit result
         i = self.catalog.index[0]  # extract final parameters from first PSF index
@@ -732,7 +726,7 @@ class FitLayer(object):
             weight_matrix = sparse.dia_matrix((self.fit_weights, [0]), shape=(n, n)) * self.source_matrix
             # multiply wavelength information with weight matrix and divide by total weight to get final wavelength
             return_wave = pd.Series(np.nan, index=self.fluxes.index)
-            return_wave[included_components] = np.asarray(self.wave.dot(weight_matrix)/weight_matrix.sum(axis=0))[0]
+            return_wave[included_components] = np.asarray(self.wave.dot(weight_matrix) / weight_matrix.sum(axis=0))[0]
         else:
             return_wave = None
 
@@ -748,6 +742,9 @@ class FitLayer(object):
         The current best-fit model.
         """
         fluxes = self.fluxes[np.isfinite(self.fluxes)]
+        if len(fluxes) != self.source_matrix.shape[1]:
+            logger.error("No. of provided fluxes does not match no. of components.")
+
         return self.source_matrix * sparse.dia_matrix((fluxes.values, [0]), shape=(self.source_matrix.shape[1],
                                                                                    self.source_matrix.shape[1]))
 
@@ -800,6 +797,10 @@ class FitLayer(object):
         # calculate source matrix
         self.source_matrix, included_components = self.build_matrix()
 
+        # make sure that fluxes do not contain NaNs, as otherwise they would be removed from Series when calculating
+        # residuals, resulting in a mis-identification of fluxes and PSF profiles
+        self.fluxes.fillna(0, inplace=True)
+
         # return residuals
         return self.current
 
@@ -818,8 +819,8 @@ class FitLayer(object):
             (they are the column indices of the final PSF coefficient matrix)
 
         It then loops over all sources in the 'Sources'-instance, obtains
-        their PSF and adds it to the respective column of the array. After-
-        wards, the arrays are combined into a single sparse matrix.
+        their PSF and adds it to the respective column of the array.
+        Afterwards, the arrays are combined into a single sparse matrix.
 
         Parameters
         ----------
@@ -890,11 +891,11 @@ class FitLayer(object):
 
             pixels.extend(current_pixels)
             fluxes.extend(current_fluxes)
-            components.extend(len(current_pixels)*[current_component])
+            components.extend(len(current_pixels) * [current_component])
 
             psf_fluxes.at[index, 'flux'] = current_fluxes.sum()
 
-        matrix_data = pd.DataFrame({'i0': pixels, 'i1':  components, 'flux': fluxes})
+        matrix_data = pd.DataFrame({'i0': pixels, 'i1': components, 'flux': fluxes})
 
         t1 = time.time()
         logger.debug("Time required to calculate PSF profiles: {0:.3f}s".format(t1 - t0))
@@ -998,8 +999,8 @@ class FitLayer(object):
             return pd.Series(self.psf_radius, index=self.catalog.index)
 
         # scale PSF radius based on flux - the minimum PSF radius is set to (0.5^3) x PSF radius
-        flux_ratios = self.fluxes/self.fluxes.max()
-        flux_ratios[(flux_ratios < self.psf_radius_scaling**3) | flux_ratios.isna()] = self.psf_radius_scaling**3
+        flux_ratios = self.fluxes / self.fluxes.max()
+        flux_ratios[(flux_ratios < self.psf_radius_scaling ** 3) | flux_ratios.isna()] = self.psf_radius_scaling ** 3
 
         radii = self.psf_radius * (2 ** (np.log10(flux_ratios) / np.log10(1. / self.psf_radius_scaling)))
         psf_radii = radii[self.catalog['component'].values]
@@ -1112,7 +1113,7 @@ class FitLayer(object):
             if return_psf_profiles and is_psf_source[i]:
                 # calculate weight of every sub-pixel (=inverse of number of sub-pixels in pixel)
                 _, unique_inverse, unique_counts = np.unique(psf.osmap, return_inverse=True, return_counts=True)
-                pixel_weights = 1./unique_counts[unique_inverse]
+                pixel_weights = 1. / unique_counts[unique_inverse]
                 # account for sub-pixels by duplicating data of every pixel containing sub-pixels.
                 os_data = data[self.data.index[psf.osmap]]
                 # calculate profile
@@ -1131,7 +1132,7 @@ class FitLayer(object):
             # plt.show()
 
             # prior to fit, check if enough pixels available and source is actually detected
-            if data.size <= (len(psf_parameters)*is_psf_source[i] + 1 + local_background + 2*fit_positions):
+            if data.size <= (len(psf_parameters) * is_psf_source[i] + 1 + local_background + 2 * fit_positions):
                 # insufficient number of pixels, return initial guess
                 logger.debug('Cannot perform PSF fit for source #{0}: N_pixels <= N_parameters.'.format(i))
                 continue
@@ -1150,7 +1151,7 @@ class FitLayer(object):
             else:
                 peak = data.max() - data.min()
                 noise = np.median(data) - data.min()
-            if peak/noise <= 3 and is_psf_source[i]:
+            if peak / noise <= 3 and is_psf_source[i]:
                 logger.debug('Cannot perform PSF fit for source #{0}: No significant peak detected.'.format(i))
                 continue
 
@@ -1164,7 +1165,7 @@ class FitLayer(object):
                 result = psf.fitter(psf=data, weights=weights, parameters=psf_parameters if is_psf_source[i] else [],
                                     fit_positions=fit_positions, fit_background=local_background,
                                     flux_x0=self.fluxes[self.catalog.at[i, 'component']], background_x0=background_x0,
-                                    psf_padding=int(round(self.psf_radius-psf.maxrad)) if is_psf_source[i] else 0)
+                                    psf_padding=int(round(self.psf_radius - psf.maxrad)) if is_psf_source[i] else 0)
             except ValueError as msg:
                 logger.error("Unexpected fit problem for sources #{0}: {1}".format(i, msg))
                 continue
@@ -1180,7 +1181,7 @@ class FitLayer(object):
             # offset between fitted centroid and initial guess must be <= FWHM
             elif fit_positions:
                 xc, yc = result.centroid
-                offset = np.sqrt((xc - psf.xc)**2 + (yc - psf.yc)**2)
+                offset = np.sqrt((xc - psf.xc) ** 2 + (yc - psf.yc) ** 2)
                 if offset > psf.fwhm:
                     logger.debug(
                         'PSF fit for source #{0} yielded offset ({1:.2f}) > FWHM ({2:.2f}) wrt. initial guess.'.format(
@@ -1188,7 +1189,7 @@ class FitLayer(object):
                     continue
 
             # add results to data frame containing results and create log message summarizing fit
-            results.at[i, 'snr'] = result.flux * np.sqrt(sum((psf.get_f()**2)*self.fit_weights[psf.used]))
+            results.at[i, 'snr'] = result.flux * np.sqrt(sum((psf.get_f() ** 2) * self.fit_weights[psf.used]))
             results.at[i, 'flux'] = result.flux
             logger.debug('Successfully fitted PSF of source #{0}: flux={1:.1f} (S/N={2:.1f})'.format(
                 i, results.at[i, 'flux'], results.at[i, 'snr']))
@@ -1266,7 +1267,7 @@ class FitLayer(object):
             # seems to depend on numpy version which error is actually thrown
             logger.error("PSF fit failed: {0}".format(msg))
             #  fill results array with NaNs
-            best_fit = len(x0)*[np.nan, ]
+            best_fit = len(x0) * [np.nan, ]
         else:
             # log fit results
             log_string = "Fitted parameter values:"
@@ -1365,11 +1366,10 @@ class FitLayer(object):
             psf = self.psf_instances[i]
 
             #  get component
-            ii = self.catalog.at[i,  'component']
+            ii = self.catalog.at[i, 'component']
 
             # for each parameter, subtract partial derivative of PSF profile (x flux) from Jacobi matrix
             for j in range(len(x0)):
-
                 diff_i = getattr(psf, "get_diff_{0}".format(names[j]))()
                 jacob[j, psf.used] -= self.fluxes[ii] * (diff_i * np.sqrt(self.fit_weights[psf.used].values))
 
@@ -1482,14 +1482,14 @@ class FitLayer(object):
 
         indices = np.argsort(x)
 
-        bincenters = np.arange(n//2, indices.size, n)
+        bincenters = np.arange(n // 2, indices.size, n)
 
         xbin = np.zeros(bincenters.size, dtype=np.float32)
         ybin = np.zeros(bincenters.size, dtype=np.float32)
 
         for i, j in enumerate(bincenters):
-            imin = j - n//2
-            imax = min(j + n//2, len(x))
+            imin = j - n // 2
+            imax = min(j + n // 2, len(x))
             xbin[i] = x[indices[j]]
 
             # use robust median absolute deviation (MAD) around an initial median value of zero
@@ -1692,17 +1692,17 @@ class FitLayer(object):
             combined.append(pd.DataFrame(
                 {'dx': x - centroids.at[source_id, 'xc'],
                  'dy': y - centroids.at[source_id, 'yc'],
-                 'rel_res': data['residuals']/(data['data'] - data['residuals']),
+                 'rel_res': data['residuals'] / (data['data'] - data['residuals']),
                  'residuals': data['residuals'],
-                 'data': data['data']/np.sum(data['data']),
-                 'model': (data['data'] - data['residuals'])/np.sum(data['data'] - data['residuals']),
-                 'weights': weight*np.ones_like(x)}))
+                 'data': data['data'] / np.sum(data['data']),
+                 'model': (data['data'] - data['residuals']) / np.sum(data['data'] - data['residuals']),
+                 'weights': weight * np.ones_like(x)}))
 
         combined_residuals = pd.concat(combined, ignore_index=True)
 
         radii, correction = self._get_radial_profile(
             data=combined_residuals['rel_res'],
-            radii=np.sqrt(combined_residuals['dx']**2 + combined_residuals['dy']**2),
+            radii=np.sqrt(combined_residuals['dx'] ** 2 + combined_residuals['dy'] ** 2),
             weights=combined_residuals['weights'],
             median=True)
 

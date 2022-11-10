@@ -1,7 +1,7 @@
 """
 subtres.py
 ==========
-Copyright 2013-2020 Sebastian Kamann
+Copyright 2013-2022 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -34,7 +34,7 @@ if PampelMuse is started with the 'SUBTRES' option.
 
 Latest Git revision
 -------------------
-2020/02/05
+2022/11/10
 """
 import datetime
 import logging
@@ -45,7 +45,7 @@ from ..utils.fits import open_prm, open_ifs_data
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20200205
+__revision__ = 20221110
 
 
 def add_parser(parser):
