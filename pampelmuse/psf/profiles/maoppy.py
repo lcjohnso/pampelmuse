@@ -28,7 +28,7 @@ class pampelmuse.core.psf.profiles.Maoppy
 
 Latest Git revision
 -------------------
-2022/06/27
+2022/11/29
 """
 import importlib.util
 import io
@@ -49,7 +49,7 @@ else:
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20220627
+__revision__ = 20221129
 
 
 logger = logging.getLogger(__name__)
@@ -492,8 +492,9 @@ class Maoppy(Profile):
         f = psf((r0, bck, amp, alpha, 1 - e, theta, beta))
 
         r, fr = circavgplt(f)
-        f = InterpolatedUnivariateSpline(r, fr - f.max() / 2.)
-        roots = f.roots()
+
+        g = InterpolatedUnivariateSpline(r, fr - fr[abs(r).argmin()] / 2.)
+        roots = g.roots()
 
         if len(roots) != 2:
             logger.error("Could not estimate FWHM of MAOPPY profile.")
