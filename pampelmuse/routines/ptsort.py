@@ -107,4 +107,4 @@ def ptsort(config):
         outfilename = '{0}_sorted.fits'.format(prefix)
     logger.info('Saving converted pixtable as {0} ...'.format(outfilename))
 
-    pt.writeto(outfilename, clobber=True)
+    pt.writeto(outfilename, overwrite=True)
