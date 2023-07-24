@@ -1106,10 +1106,10 @@ class Sources(object):
            The names of the components
         """
         # add sources with own spectrum, i.e. have status between 2 and 4
-        _names = self.ids[(self.status >= 2) & (self.status <= 4)].values.astype("|S10")
+        _names = self.ids[(self.status >= 2) & (self.status <= 4)].values.astype(str)
 
         # need to decode numpy_bytes to str
-        names = [_names[i].decode('UTF-8') for i in range(len(_names))]
+        names = list(_names)  # [_names[i].decode('UTF-8') for i in range(len(_names))]
 
         # if available, add unresolved component
         if self.includes_unresolved:
@@ -1562,7 +1562,7 @@ class Sources(object):
         # get boolean selection of included sources
         selection = np.in1d(self.status, np.arange(min_status, 4))
 
-        return [star_id.decode('UTF-8') for star_id in self.ids[selection].astype("|S10")]
+        return list(self.ids[selection].astype(str))
 
     def viewIfsCoordinates(self, source_id):
         """
