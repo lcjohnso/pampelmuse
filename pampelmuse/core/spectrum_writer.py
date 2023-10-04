@@ -147,7 +147,10 @@ class SpectrumWriter(object):
                 pass
 
         # add estimate for seeing on detector using the fitted FWHM of the PSF profile
-        fwhm = self.get_mean_fwhm()
+        try:
+            fwhm = self.get_mean_fwhm()
+        except NotImplementedError:
+            fwhm = np.nan
         if np.isfinite(fwhm):
             self.header["hierarch PAMPELMUSE SEEING"] = (fwhm, "Fitted PSF FWHM in spaxels")
 
