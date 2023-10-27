@@ -35,12 +35,12 @@ import io
 import logging
 import warnings
 import numpy as np
-from contextlib import redirect_stdout
+from contextlib import redirect_stdout, redirect_stderr
 from scipy.interpolate import RectBivariateSpline, InterpolatedUnivariateSpline, interp2d
 from .profile import Profile, FitResult
 
 if importlib.util.find_spec('maoppy') is not None:
-    from maoppy.psfmodel import Psfao, oversample
+    from maoppy.psfmodel import Psfao
     from maoppy.psffit import psffit
     from maoppy.instrument import muse_nfm
     from maoppy.utils import circavgplt
@@ -393,7 +393,10 @@ class Maoppy(Profile):
                 dy = self.yc - int(self.yc)
 
                 # run MAOPPY code
-                __f = psf((self.r0, self.bck, self.amp, self.alpha, self.q, self.theta_maoppy, self.beta), dx=dy, dy=dx)
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", category=UserWarning)
+                    __f = psf((self.r0, self.bck, self.amp, self.alpha, self.q, self.theta_maoppy, self.beta),
+                              dx=dy, dy=dx)
 
                 # account for offset between PSF array and array used by Maoppy
                 shift_x = int(self.xc) - self.maoppy_shape[0]//2
@@ -489,7 +492,9 @@ class Maoppy(Profile):
 
         psf = Psfao(npix=(30, 30), system=muse_nfm, samp=muse_nfm.samp(wvl))
         theta = 0.
-        f = psf((r0, bck, amp, alpha, 1 - e, theta, beta))
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", category=UserWarning)
+            f = psf((r0, bck, amp, alpha, 1 - e, theta, beta))
 
         r, fr = circavgplt(f)
 
@@ -531,7 +536,7 @@ class Maoppy(Profile):
 
     def fitter(self, psf, weights, parameters, fit_positions=True, fit_background=False, psf_padding=0, **kwargs):
         """
-        This methods implements the fit of a MAOPPY PSF to a given data array.
+        This method implements the fit of a MAOPPY PSF to a given data array.
 
         Notes
         -----
@@ -626,7 +631,7 @@ class Maoppy(Profile):
         # with the logging
         f = io.StringIO()
         pmodel = Psfao(npix=(npix+2*psf_padding, npix+2*psf_padding), system=muse_nfm, samp=self.samp)
-        with redirect_stdout(f):
+        with redirect_stdout(f), redirect_stderr(f):
             fitresult = psffit(psf2d, pmodel, x0, weights=weights2d, dxdy=(dx, dy), fixed=fixed,
                                flux_bck=(True, fit_background), positive_bck=False, npixfit=npixfit)
             logger.debug(f.getvalue())
