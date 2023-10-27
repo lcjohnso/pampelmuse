@@ -901,7 +901,7 @@ class FitLayer(object):
         logger.debug("Time required to calculate PSF profiles: {0:.3f}s".format(t1 - t0))
 
         # Calculate total flux of each component
-        total_fluxes = psf_fluxes.groupby(by='component').agg(np.sum)['flux']
+        total_fluxes = psf_fluxes.groupby(by='component').sum()['flux']
 
         t2 = time.time()
         logger.debug("Time required to combine components: {0:.3f}s".format(t2 - t1))
