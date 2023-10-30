@@ -2,7 +2,7 @@
 """
 PampelMuse
 ==========
-Copyright 2013-2022 Sebastian Kamann
+Copyright 2013-2023 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -58,7 +58,7 @@ the data into memory yet but just checks whether the file(s) are valid.
 
 Latest Git revision
 -------------------
-2022/11/29
+2023/10/30
 """
 import argparse
 import importlib
@@ -66,9 +66,9 @@ import json
 import logging
 import os
 import pkgutil
-import pkg_resources
 import sys
 from astropy.io import fits
+from importlib_resources import files
 
 import pampelmuse.routines
 from pampelmuse.config import changeable
@@ -78,7 +78,7 @@ from pampelmuse.utils.fits import read_config_from_header
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
 __version__ = "1.0"
-__revision__ = 20221129
+__revision__ = 20221030
 
 
 logger = logging.getLogger(__name__)
@@ -163,11 +163,7 @@ if __name__ == "__main__":
         sys.excepthook = run_pdb
 
     # read default configuration
-    # get path to file containing configuration
-    __configpath__ = pkg_resources.resource_filename("pampelmuse.config", "data")
-
-    # initialize & read default configuration
-    with open(os.path.join(__configpath__, 'pampelmuse.json')) as f:
+    with files('pampelmuse.config') / 'data' / 'pampelmuse.json' as f:
         config = json.load(f)
 
     # open user configuration

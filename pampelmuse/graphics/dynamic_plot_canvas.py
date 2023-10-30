@@ -1,7 +1,7 @@
 """
 dynamic_plot_canvas.py
 ======================
-Copyright 2013-2022 Sebastian Kamann
+Copyright 2013-2023 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -39,7 +39,7 @@ top panel, named 'Spectrum Viewer'.
 
 Latest Git revision
 -------------------
-2022/06/10
+2023/10/30
 """
 import inspect
 import logging
@@ -55,7 +55,7 @@ matplotlib.pyplot.rcParams["axes.linewidth"] = 1.5
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20220610
+__revision__ = 20231030
 
 
 class DynamicPlotCanvas(FigureCanvasQTAgg):
@@ -221,7 +221,7 @@ class DynamicPlotCanvas(FigureCanvasQTAgg):
 
         try:  # check if provided identifier exists, if so, remove rectangle
             i = self.bar_gid.index(gid)
-            del self.axes.patches[i]
+            self.axes.patches[i].remove()
             del self.bar_gid[i]
         except IndexError:  # otherwise complain
             logging.error("No rectangle instance has gid '{0}'.".format(gid))
