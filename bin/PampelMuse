@@ -165,9 +165,9 @@ if __name__ == "__main__":
 
         sys.excepthook = run_pdb
 
-    # read default configuration
+    # read default configuration, note "f" is a PosixPath object
     with files('pampelmuse.config') / 'data' / 'pampelmuse.json' as f:
-        config = json.load(f)
+        config = json.loads(f.read_text())
 
     # open user configuration
     with open(args.config) as user:
