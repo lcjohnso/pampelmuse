@@ -179,8 +179,8 @@ class Profile(Canvas):
         # Initialize the arrays that will hold the per-pixel-information of the profile
         self._used = None  # will be a boolean array with all pixels within distance 'maxrad' to centroid set to True.
         self._oversampled = None  # will be a boolean array with all supersampled pixels set to True.
-        self._osmap = None  # The arrays osmap and ossummer will be needed to properly include the oversampling
-        self._ossummer = None
+        self._osmap = None  # The array osmap
+        self.is_oversampled = None
         self._xos = None  # The x- & y-coordinates of the pixels including the sub-pixels in supersampled ones.
         self._yos = None
         self._u = None  # The u- & v-coordinates of the pixels.
@@ -201,7 +201,7 @@ class Profile(Canvas):
         self._diff_y0 = None
 
         # All the arrays must eventually be recalculated if certain parameters are changed.
-        self.profile_properties = ["_used", "_oversampled", "_osmap", "_ossummer", "_xos", "_yos", "_u", "_v", "_r",
+        self.profile_properties = ["_used", "_oversampled", "_osmap", "_xos", "_yos", "_u", "_v", "_r",
                                    "_f",
                                    "_diff_e", "_diff_theta", "_diff_xc", "_diff_yc", "_diff_A", "_diff_B", "_diff_C",
                                    "_diff_D", "_diff_x0", "_diff_y0"]
@@ -255,7 +255,7 @@ class Profile(Canvas):
             self._e = value
 
             # all properties building on the radius values of the individual pixels must be recalculated.
-            self.reset(omit=["_used", "_oversampled", "_osmap", "_ossummer", "_xos", "_yos", "_u", "_v"])
+            self.reset(omit=["_used", "_oversampled", "_osmap", "_xos", "_yos", "_u", "_v"])
 
     @property
     def theta(self):
@@ -281,7 +281,7 @@ class Profile(Canvas):
             self._theta = value
 
             # all properties building up on the u- & v-coordinates must be recalculated.
-            self.reset(omit=["_used", "_oversampled", "_osmap", "_ossummer", "_xos", "_yos"])
+            self.reset(omit=["_used", "_oversampled", "_osmap", "_xos", "_yos"])
 
     @property
     def A(self):
@@ -611,7 +611,7 @@ class Profile(Canvas):
             self._mag = value
 
             # Reset all arrays that inherit from mag
-            self.reset(omit=["_used", "_oversampled", "_osmap", "_ossummer", "_xos", "yos", "_u", "_v", "_r"])
+            self.reset(omit=["_used", "_oversampled", "_osmap", "_xos", "yos", "_u", "_v", "_r"])
 
     @property
     def int_flux(self):
@@ -634,7 +634,7 @@ class Profile(Canvas):
         """
         if self._used is None:
             if self.maxrad == np.inf:  # use all pixels if requested
-                self._used = np.ones((self.transform.shape[0],), dtype=np.bool)
+                self._used = np.ones((self.transform.shape[0],), dtype=bool)
             else:
                 self._used = np.sqrt((self.x - self.xc) ** 2 + (self.y - self.yc) ** 2) <= self.maxrad
         return self._used
@@ -695,8 +695,7 @@ class Profile(Canvas):
     # All calculations are performed on 1dim. arrays, and every sub-pixel is included in those arrays. The property
     # 'osmap' keeps track of the parent pixel of each (sub)pixel used in the calculation. When a calculated property
     # is returned, by default the original pixels are restored by averaging over the sub-pixels. This is done using
-    # the property 'ossummer' and the method 'sum_os'. The averaging can be turned off for internal calculations
-    # (see below).
+    # the method 'sum_os'. The averaging can be turned off for internal calculations (see below).
     @property
     def osmap(self):
         """
@@ -708,36 +707,19 @@ class Profile(Canvas):
             supersampled are included 'osfactor'**2 times.
         """
         if self._osmap is None:
-            # np.resize uses repeated copies of data to fill new values
-            self._osmap = np.hstack((self.pixel[self.used],
-                                     np.resize(self.pixel[self.oversampled], ((self.osf * self.osf - 1) * self.n_os,))))
-            self._osmap.sort()
-        return self._osmap
+            # number of sub-pixels inside every genuine pixel (=1 if pixel not over-sampled)
+            n_sub = np.clip(self.oversampled[self.used]*(self.osf*self.osf), a_min=1, a_max=None)
+            # repeat each pixel for the number of sub-pixels inside
+            self._osmap = np.repeat(self.pixel[self.used], n_sub)
+            # to readily identify which used pixels are sub-pixels, store information in boolean array
+            self.is_oversampled = np.isin(self._osmap, np.flatnonzero(self.oversampled))
 
-    @property
-    def ossummer(self):
-        """
-        Returns
-        -------
-        ossummer : nd_array
-            An 2dim. array of integers with shape (2, n_pixel). It contains
-            the first and last index of every parent pixel in the 'osmap'
-            array and is used by the method 'sum_os' to restore the values in
-            the parent pixels.
-        """
-        if self._ossummer is None:
-            # first calculate difference of adjacent entries in 'osmap'. Then find indices where this difference is >0
-            # and include those in ossummer
-            next_pixel = np.flatnonzero(np.diff(np.r_[self.osmap[0] - 1, self.osmap, self.osmap[-1] + 1]))
-            self._ossummer = np.vstack((next_pixel[:-1], next_pixel[1:])).T
-        return self._ossummer
+        return self._osmap
 
     def sum_os(self, data):
         """
         This method calculates the value of 'data' in every parent pixel by
-        averaging over its sub-pixels. This is done following suggestion at:
-        http://stackoverflow.com/questions/7471474/\
-            numpy-sum-of-values-in-subarrays-between-pairs-of-indices
+        averaging over its sub-pixels.
 
         Parameters
         ----------
@@ -753,8 +735,7 @@ class Profile(Canvas):
         if self.osf <= 1 or self.n_os == 0:
             return data
         else:
-            tmp_data = np.r_[0, data.cumsum()][self.ossummer]
-            return (tmp_data[:, 1] - tmp_data[:, 0]) / self.norm[self.used]
+            return np.bincount(self.osmap, weights=data, minlength=self.n_pixel)[self.used]/self.norm[self.used]
 
     @property
     def xos(self):
@@ -770,9 +751,7 @@ class Profile(Canvas):
             self._xos = self.x[self.osmap]
             if self.osf > 1:
                 # add offsets of sub-pixel wrt. parent pixel along x-axis
-                is_oversampled = np.in1d(self.osmap, np.flatnonzero(self.oversampled))
-                assert (is_oversampled.sum() == self.n_os * self.osxgrid.size)
-                self._xos[is_oversampled] += np.resize(self.osxgrid, (self.n_os * self.osxgrid.size,))
+                self._xos[self.is_oversampled] += np.tile(self.osxgrid, self.n_os)
         return self._xos
 
     @property
@@ -789,9 +768,7 @@ class Profile(Canvas):
             self._yos = self.y[self.osmap]
             if self.osf > 1:
                 # add offsets of sub-pixel wrt. parent pixel along y-axis
-                is_oversampled = np.in1d(self.osmap, np.flatnonzero(self.oversampled))
-                assert (is_oversampled.sum() == self.n_os * self.osygrid.size)
-                self._yos[is_oversampled] += np.resize(self.osygrid, (self.n_os * self.osygrid.size,))
+                self._yos[self.is_oversampled] += np.tile(self.osygrid, self.n_os)
         return self._yos
 
     @property
@@ -1295,6 +1272,8 @@ class Profile(Canvas):
             # note that type of exception thrown seems to depend on scipy version
             logger.error('PSF fit failed for source #{0}: {1}.'.format(self.src_id, msg),
                          exc_info=True if logger.getEffectiveLevel() <= 10 else False)
+            logger.error(msg)
+            print(x0, names)  # ,psf2fit, weights2fit)
             values = np.nan*np.ones_like(x0)
             residuals = None
             success = False

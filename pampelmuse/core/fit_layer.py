@@ -584,7 +584,7 @@ class FitLayer(object):
             # -> shape m, n
 
             # The documentation of scipy states that to efficiently solve the matrix equation, the columns should
-            # be scaled to have the same euclidean norm. I am still not convinced that this is true, but scale the
+            # be scaled to have the same Euclidean norm. I am still not convinced that this is true, but scale the
             # columns nevertheless.
             total_flux = np.sqrt((fit_matrix.T * fit_matrix).diagonal())  # -> length m
             fit_matrix = fit_matrix * sparse.dia_matrix((1. / total_flux, [0]), shape=(m, m))
@@ -726,7 +726,7 @@ class FitLayer(object):
             weight_matrix = sparse.dia_matrix((self.fit_weights, [0]), shape=(n, n)) * self.source_matrix
             # multiply wavelength information with weight matrix and divide by total weight to get final wavelength
             return_wave = pd.Series(np.nan, index=self.fluxes.index)
-            return_wave[included_components] = np.asarray(self.wave.dot(weight_matrix) / weight_matrix.sum(axis=0))[0]
+            return_wave[included_components] = (self.wave.dot(weight_matrix) / weight_matrix.sum(axis=0)).toarray()[0]
         else:
             return_wave = None
 
@@ -857,7 +857,7 @@ class FitLayer(object):
         fluxes = []
 
         # create a pandas DataFrame to calculate the integrated fluxes of all components
-        psf_fluxes = pd.DataFrame({'flux': pd.Series(0., index=self.catalog.index),
+        psf_fluxes = pd.DataFrame({'flux': pd.Series(1., index=self.catalog.index),
                                    'component': self.catalog['component']})
 
         # define which sources should be included
@@ -895,7 +895,7 @@ class FitLayer(object):
 
             psf_fluxes.at[index, 'flux'] = current_fluxes.sum()
 
-        matrix_data = pd.DataFrame({'i0': pixels, 'i1': components, 'flux': fluxes})
+        matrix_data = pd.DataFrame({'i0': np.asarray(pixels), 'i1': np.asarray(components), 'flux': np.asarray(fluxes)})
 
         t1 = time.time()
         logger.debug("Time required to calculate PSF profiles: {0:.3f}s".format(t1 - t0))
