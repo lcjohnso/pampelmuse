@@ -34,14 +34,24 @@ Latest GIT revision
 -------------------
 2017/11/29
 """
+import importlib.util
 import os
 import logging
+import warnings
+
 import numpy as np
 from astropy.io import fits
 
+if importlib.util.find_spec('mpdaf') is not None:
+    from mpdaf.drs import PixTable
+    HAS_MPDAF = True
+else:
+    logging.error('Missing mpdaf. Cannot decode IFU/slice numbers from origin column.')
+    HAS_MPDAF = False
+
 
 __author__ = "Sebastian Kamann (skamann@ljmu.ac.uk)"
-__revision__ = 20171129
+__revision__ = 20231201
 
 
 logger = logging.getLogger(__name__)
@@ -75,10 +85,11 @@ def ptsort(config):
     prefix = config['global']['prefix']
 
     logger.info('Opening input pixtable {0}.fits ...'.format(prefix))
-    pt = fits.open("{0}.fits".format(prefix), memmap=False)
+    pt = fits.open("{0}.fits".format(prefix), memmap=True)
 
     # check if additional file exists containing IFU and slice numbers exist
     if os.path.exists('{0}.slices.fits'.format(prefix)):
+        warnings.warn('Using a separate .slices.fits file is deprecated.', DeprecationWarning)
         slices = fits.open('{0}.slices.fits'.format(prefix))
     else:
         slices = None
@@ -92,6 +103,7 @@ def ptsort(config):
         logger.info('... handling extension {0} ...'.format(extname))
         try:
             pt[i].data = pt[i].data[indices, :]
+            del pt[i].data
         except IndexError:
             logger.warning('... shape is invalid, extension skipped.')
 
@@ -108,3 +120,18 @@ def ptsort(config):
     logger.info('Saving converted pixtable as {0} ...'.format(outfilename))
 
     pt.writeto(outfilename, overwrite=True)
+    pt.close()
+
+    if HAS_MPDAF:
+        pt_mpdaf = PixTable(outfilename)
+        origin = pt_mpdaf.get_origin()
+        logger.info("Decoding 'origins' column to recover IFU and slice numbers.")
+
+        tmp = pt_mpdaf.origin2ifu(origin)
+        pt_mpdaf.hdulist.append(fits.ImageHDU(tmp.reshape(-1, 1), name='ifu'))
+
+        tmp = pt_mpdaf.origin2slice(origin)
+        pt_mpdaf.hdulist.append(fits.ImageHDU(tmp.reshape(-1, 1), name='slice'))
+
+        logger.info("Saving final pixtable as {0} ...".format(outfilename))
+        pt_mpdaf.hdulist.writeto(outfilename, overwrite=True)
