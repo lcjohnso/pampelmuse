@@ -85,7 +85,7 @@ def ptsort(config):
     prefix = config['global']['prefix']
 
     logger.info('Opening input pixtable {0}.fits ...'.format(prefix))
-    pt = fits.open("{0}.fits".format(prefix), memmap=True)
+    pt = fits.open("{0}.fits".format(prefix), memmap=False)
 
     # check if additional file exists containing IFU and slice numbers exist
     if os.path.exists('{0}.slices.fits'.format(prefix)):
@@ -103,7 +103,6 @@ def ptsort(config):
         logger.info('... handling extension {0} ...'.format(extname))
         try:
             pt[i].data = pt[i].data[indices, :]
-            del pt[i].data
         except IndexError:
             logger.warning('... shape is invalid, extension skipped.')
 
