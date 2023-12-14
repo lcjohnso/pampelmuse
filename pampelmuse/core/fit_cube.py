@@ -1,7 +1,7 @@
 """
 fit_cube.py
 ===========
-Copyright 2013-2021 Sebastian Kamann
+Copyright 2013-2023 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -31,7 +31,7 @@ extraction for a data cube.
 
 Latest GIT revision
 -------------------
-2022/06/20
+2023/12/14
 """
 import collections
 import logging
@@ -45,7 +45,7 @@ from ..instruments.muse import MusePixtable
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20220620
+__revision__ = 20231214
 
 
 logger = logging.getLogger(__name__)
@@ -173,8 +173,8 @@ class FitCube(object):
         this is only recommended for individual stars instead of crowded
         stellar fields.
 
-    Note that the routine first analyzes the central layer of the cube and
-    than alternating proceeds to the red and blue. This is done because
+    Note that the routine first analyses the central layer of the cube and
+    then alternating proceeds to the red and blue. This is done because
     usually the highest signal is expected near the center of the observed
     wavelength range.
     """
@@ -207,7 +207,7 @@ class FitCube(object):
             flux (relative to the brightest star in the fit) that corresponds
             to a reduction of psf_radius by a factor of 2.
         osfactor : float, optional
-            The improve the accuracy of the PSF modelling close to the
+            To improve the accuracy of the PSF modelling close to the
             centre of a profile, the central pixels can be supersampled by a
             factor 'osfactor' along x and y, i.e. each pixel is split into
             'osfactor'^2 subpixels. By default, the supersampling is chosen
@@ -295,8 +295,8 @@ class FitCube(object):
         # check if background-per-slice option used for MUSE pixel tables
         if (self.sources.status == 5).any():
             logger.warning('Assigning background components to slices still in testing phase.')
-            n_ifu = self.sources.x[self.sources.status == 5].max()
-            n_slice = self.sources.y[self.sources.status == 5].max()
+            n_ifu = self.sources.y[self.sources.status == 5].max()
+            n_slice = self.sources.x[self.sources.status == 5].max()
             self.background.add_slices(n_ifu=n_ifu, n_slice=n_slice)
 
         # check if dispersion information are compatible everywhere
@@ -363,7 +363,7 @@ class FitCube(object):
         psf_data : astropy.io.fits.HDUList
             If requested, the HDU list will contain the radial profile and the
             fitted parameters for every PSF star as a function of wavelength.
-            Otherwise None is returned
+            Otherwise, None is returned
         """
         # check which layers should be analysed
         start, stop = layer_range
@@ -506,12 +506,12 @@ class FitCube(object):
             handler.setFormatter(fmt)
 
             # collecting data required for fit to layer
-            # when logging, note that internal wavelength unit is meter
+            # when logging, note that internal wavelength unit is meters
             logger.info("Collecting input data for fit to layer with wavelength {0:.1f} Angstrom.".format(1e10*jj))
 
             # among stored layers of last fits, find those nearest to current layer
             if len(last_layers) > n_track:
-                if np.mod(i, 2):  # if i is odd, layer has low wavelength
+                if np.mod(i, 2):  # if 'i' is odd, layer has low wavelength
                     nearest_layers = last_layers[:n_track]
                 else:  # otherwise, layer has high wavelength
                     nearest_layers = last_layers[-n_track:]
@@ -542,6 +542,7 @@ class FitCube(object):
 
             # add background if requested
             if self.background is not None:
+                logger.debug('Preparing background model ...')
                 self.background.transform = data[['x', 'y']].values
                 # if oversampling of background should be used, split up wavelength values into requested number of
                 # equi-distant bins
@@ -552,6 +553,7 @@ class FitCube(object):
                 if 'ifu' in data.columns and 'slice' in data.columns:
                     self.background.ifus = data['ifu'].values
                     self.background.slices = data['slice'].values
+                tb_start = time.time()
                 background_matrix, background_components = self.background.get_sparse_matrix(
                     offset=self.sources.n_components - self.sources.n_background, purge_empty=True)
                 # in case one or more background components are outside the FoV, their entries in 'fluxes' need to be
@@ -560,7 +562,7 @@ class FitCube(object):
                 if len(missing) > 0:
                     fluxes.drop(index=missing, inplace=True)
                     logger.warning('Background component(s) without contribution encountered: {0}'.format(missing))
-
+                logger.debug('Background model initialization took {0:.2f}s.'.format(time.time() - tb_start))
             else:
                 background_matrix = background_components = None
 
@@ -570,7 +572,7 @@ class FitCube(object):
                                           wvl=jj))
 
             # The first two layers are fitted sequentially in order to obtain useful initial guesses for the
-            # following ones. Otherwise a parallel fit is triggered every n_cpu's layer
+            # following ones. Otherwise, a parallel fit is triggered every n_cpu's layer
             if i in [0, 1] or np.mod(i - 1, n_cpu) == 0 or jj == indices_to_analyse[-1]:
                 if n_cpu > 1:
                     _results = pool.map_async(parallel_fit_layer, fit_input)
@@ -1115,7 +1117,7 @@ class FitCube(object):
             data.sort_index(axis=1, inplace=True)
 
             # zeroth axis contains profiles, first contains wavelength (python counting, need to swap for FITS)
-            hdu_list.append(fits.ImageHDU(data.values))
+            hdu_list.append(fits.ImageHDU(data.to_numpy()))
             hdu_list[-1].header['EXTNAME'] = 'PR_{0}'.format(source_id)
 
             # add (approximate) dispersion information
@@ -1200,18 +1202,18 @@ class StarCube(object):
         IMPORTANT: Currently this method assumes that the layer data is
         defined on a subset of the grid pixels defined upon class
         initialisation, i.e. it does not support resampling of the layers.
-        Therefore it can currently not be used with pixtables.
+        Therefore, it can currently not be used with pixtables.
         
         Parameters
         ----------
         index : float
             The wavelength of the new layer. 
-        xy : nd_array, shape (N, 2)
+        xy : ndarray, shape (N, 2)
             The x- and y-coordinates of the N pixels on which the layer is
             sampled. 
-        data : nd_array, shape (N,)
+        data : ndarray, shape (N, )
             The data values of the layer
-        residuals : nd_array, shape (N,)
+        residuals : ndarray, shape (N, )
             The residuals of the PSF fit to the layer data.
         """
         # check on which pixels of the grid the layer is defined
