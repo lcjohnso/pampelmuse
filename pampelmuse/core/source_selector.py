@@ -369,7 +369,7 @@ class SourceSelector(object):
         if slices:
             logger.warning('Assigning background components to slices still in testing phase.')
             if isinstance(self.ifs_data, MusePixtable):
-                if self.ifs_data.ifuhdu is not None and self.ifs_data.slicehdu is not None:
+                if self.ifs_data.ifu_hdu is not None and self.ifs_data.slice_hdu is not None:
                     background.add_slices(n_ifu=24, n_slice=48)
                 else:
                     logger.error('Need extensions "ifu" and "slice" for assigning background components to slices.')
@@ -1087,7 +1087,7 @@ class SourceSelector(object):
         # set properties in sources class
         self.sources.primary = self.cfp_results.loc[self.sources.ids, 'primary']
         self.sources.status = self.cfp_results.loc[self.sources.ids, 'status']
-        self.sources.load_spectra(init_wave=isinstance(self.ifs_data, MusePixtable))
+        self.sources.load_spectra(init_wave=False)  # isinstance(self.ifs_data, MusePixtable)) #TODO: remove
 
     def search_psf_stars(self, saturated=None, max_mag=None, psf_radius=10, psf_radius_scaling=None,
                          aperture_noise=0.1):
@@ -1262,7 +1262,7 @@ class SourceSelector(object):
            The aperture radius inside which the flux and the moments of each
            source are determined.
         n_cpu : int optional
-           The number of CPUs used in the parallized part of the analysis.
+           The number of CPUs used in the parallelized part of the analysis.
         n_bin : int, optional
            The binning factor of the IFS data. If >1, one new layer is created
            by combining the signal from 'n_bin' adjacent layers.
@@ -1285,7 +1285,7 @@ class SourceSelector(object):
 
             # create dummy spectrum data: every spectrum contains only NaNs
             # if a MUSE pixtable is being analysed, a dedicated wavelength array must be created as well.
-            self.sources.load_spectra(init_wave=isinstance(self.ifs_data, MusePixtable))
+            self.sources.load_spectra(init_wave=False)  # isinstance(self.ifs_data, MusePixtable)) #TODO: remove
             self.sources.data[:] = np.nan
 
         # Obtain centroid coordinates for the selected sources

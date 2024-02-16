@@ -505,7 +505,7 @@ class Instrument(object):
         cdnew = np.diagflat([-self.scale/3600., self.scale/3600., self.wcs.wcs.cd[2, 2]])
         if self.angle is not None and self.angle != 0:
             c, s = np.cos(np.radians(self.angle)), np.sin(np.radians(self.angle))
-            rot = np.matrix([[c, -s, 0], [s, c, 0], [0, 0, 1.]])
+            rot = np.matrix([[c, -s, 0.], [s, c, 0.], [0., 0., 1.]])
             self.wcs.wcs.cd = np.dot(rot, cdnew)
         else:
             self.wcs.wcs.cd = cdnew

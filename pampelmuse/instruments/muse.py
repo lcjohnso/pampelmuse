@@ -1,7 +1,7 @@
 """
 muse.py
 =======
-Copyright 2013-2018 Sebastian Kamann
+Copyright 2013-2023 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -30,15 +30,16 @@ muse_scipost recipe.
 
 Latest GIT revision
 -------------------
-2018/05/08
+2023/02/16
 """
 import logging
 import warnings
 import numpy as np
+from astropy import units as u
 from astropy.io import fits
 from astropy.wcs import WCS
 from scipy.interpolate import griddata
-from scipy.spatial import ConvexHull
+from mpdaf.drs import PixTable
 from .instrument import Instrument
 from .generic_ifs import GenericIFS
 
@@ -79,21 +80,22 @@ class MusePixtable(Instrument):
     cubes is provided via the Muse class.
     """
     name = "MUSE_Pixtable"
-    issorted = True
+    is_sorted = True
 
     _layer_limits = None  # place-holders for indices defining individual layers
     _limit_indices = None
 
-    xhdu = None  # place-holders for HDUs containing x- & y-positions (& optionally the IFU and slice number).
-    yhdu = None
-    ifuhdu = None
-    slicehdu = None
+    x_hdu = None  # place-holders for HDUs containing x- & y-positions (& optionally the IFU and slice number).
+    y_hdu = None
+    ifu_hdu = None
+    slice_hdu = None
+    origin_hdu = None
 
     dqmax = 4
     deg2rad = np.pi/180.
 
-    rawwave = None
-    rawwave_for_current_layer = None
+    raw_wave = None
+    raw_wave_for_current_layer = None
     wstep = 1.25e-10  # Dispersion in m/pixel
 
     ifus_for_current_layer = None
@@ -113,7 +115,9 @@ class MusePixtable(Instrument):
         """
         super(MusePixtable, self).__init__(**kwargs)
 
-    def _set_xhdu(self, hdu):
+        self.mpdaf_object = None
+
+    def _set_x_hdu(self, hdu):
         """
         This method sets the HDU with the x-coordinates for the MusePixtable
         instance, i.e. it loads an HDU containing the coordinates for the
@@ -133,11 +137,11 @@ class MusePixtable(Instrument):
             logging.error('x-positions HDU [{0}] of file {1} has invalid format.'.format(
                     hdu.name, hdu.fileinfo()['file'].name))
         else:
-            self.xhdu = hdu
+            self.x_hdu = hdu
             logging.info('Loaded x-coordinates from HDU <{0}> of file {1}'.format(
-                self.xhdu.name, self.xhdu.fileinfo()['file'].name))
+                self.x_hdu.name, self.x_hdu.fileinfo()['file'].name))
 
-    def _set_yhdu(self, hdu):
+    def _set_y_hdu(self, hdu):
         """
         This method sets the HDU with the y-coordinates for the MusePixtable
         instance, i.e. it loads an HDU containing the coordinates for the
@@ -157,11 +161,35 @@ class MusePixtable(Instrument):
             logging.error('y-positions HDU [{0}] of file {1} has invalid format.'.format(
                     hdu.name, hdu.fileinfo()['file'].name))
         else:
-            self.yhdu = hdu
+            self.y_hdu = hdu
             logging.info('Loaded y-coordinates from HDU <{0}> of file {1}'.format(
-                self.yhdu.name, self.yhdu.fileinfo()['file'].name))
+                self.y_hdu.name, self.y_hdu.fileinfo()['file'].name))
 
-    def _set_ifuhdu(self, hdu):
+    def _set_origin_hdu(self, hdu):
+        """
+        This method sets the HDU with the 'origin' values for the MusePixtable
+        instance, i.e. it loads an HDU containing the 'origin'-values for the
+        observed data into the current instance. Note that it should be loaded
+        AFTER the data itself.
+
+        IMPORTANT: This method should not be used directly, instead, use the
+        MusePixtable.open() method for loading data.
+
+        Parameters
+        ----------
+        hdu : a FITS ImageHDU containing the 'origin' values.
+        """
+        if self.datahdu is None:  # HDU containing data must be loaded first
+            logging.error('Can only load HDU containing "origin" values after data HDU has been loaded.')
+        elif not self.is_valid(hdu):
+            logging.error('HDU containing "origin" values [{0}] of file {1} has invalid format.'.format(
+                    hdu.name, hdu.fileinfo()['file'].name))
+        else:
+            self.origin_hdu = hdu
+            logging.info('Loaded origin values from HDU <{0}> of file {1}'.format(
+                self.origin_hdu.name, self.origin_hdu.fileinfo()['file'].name))
+
+    def _set_ifu_hdu(self, hdu):
         """
         This method sets the HDU with the IFU number of every pixel for the
         MusePixtable instance, i.e. it loads an HDU containing the IFU numbers
@@ -181,11 +209,11 @@ class MusePixtable(Instrument):
             logging.error('IFU-number HDU [{0}] of file {1} has invalid format.'.format(
                     hdu.name, hdu.fileinfo()['file'].name))
         else:
-            self.ifuhdu = hdu
+            self.ifu_hdu = hdu
             logging.info('Loaded IFU numbers from HDU <{0}> of file {1}'.format(
-                self.ifuhdu.name, self.ifuhdu.fileinfo()['file'].name))
+                self.ifu_hdu.name, self.ifu_hdu.fileinfo()['file'].name))
 
-    def _set_slicehdu(self, hdu):
+    def _set_slice_hdu(self, hdu):
         """
         This method sets the HDU with the slice number of every pixel for the
         MusePixtable instance, i.e. it loads an HDU containing the slice
@@ -205,11 +233,11 @@ class MusePixtable(Instrument):
             logging.error('Slice-number HDU [{0}] of file {1} has invalid format.'.format(
                     hdu.name, hdu.fileinfo()['file'].name))
         else:
-            self.slicehdu = hdu
+            self.slice_hdu = hdu
             logging.info('Loaded slice numbers from HDU <{0}> of file {1}'.format(
-                self.slicehdu.name, self.slicehdu.fileinfo()['file'].name))
+                self.slice_hdu.name, self.slice_hdu.fileinfo()['file'].name))
 
-    def open(self, filename, isresiduals=False, **kwargs):
+    def open(self, filename, is_residuals=False, **kwargs):
         """
         This method opens a FITS file containing a MUSE pixtable. Note that
         in contrast to the other instrument classes, not a single HDU is
@@ -227,7 +255,7 @@ class MusePixtable(Instrument):
         ----------
         filename : string
             The name of the FITS file containing the pixtable.
-        isresiduals : boolean, optional
+        is_residuals : boolean, optional
             A flag indicating if the FITS file contains the residuals from a
             previous analysis. In that case only the first HDU is considered.
             Note that the HDU containing the original data must have been
@@ -236,12 +264,13 @@ class MusePixtable(Instrument):
             Any additional keyword arguments are passed on to the call of the
             parent class.
         """
-        # The residuals are stored in a separate file. Therefore the behaviour depends on whether residuals or a
+        # The residuals are stored in a separate file. Therefore, the behaviour depends on whether residuals or a
         # full pixtable (containing data, positions, ...) is loaded
-        if isresiduals:
+        if is_residuals:
             return super(MusePixtable, self).open(filename, isresiduals=True, **kwargs)
 
         pt = fits.open(filename, memmap=False)
+        self.mpdaf_object = PixTable(filename)
 
         # initialize WCS instance
         self.wcs = WCS(pt[0].header)
@@ -249,19 +278,19 @@ class MusePixtable(Instrument):
         self.wcs.wcs.crpix = [self.wcs.wcs.crpix[0] - pt[0].header['ESO DRS MUSE PIXTABLE PREDAR LIMITS XLO'],
                               self.wcs.wcs.crpix[1] - pt[0].header['ESO DRS MUSE PIXTABLE PREDAR LIMITS YLO']]
 
-        # Note that for the MUSE pixtables two wavelength ranges are defined; MusePixtable.rawwave contains one value
+        # Note that for the MUSE pixtables two wavelength ranges are defined; MusePixtable.raw_wave contains one value
         # per pixel while MusePixtable.wave contains one value per layer. As the pixel tables are provided in units of
         # Angstrom, we need to convert to meters
         logging.info('Reading wavelength array ...')
-        self.rawwave = 1e-10*pt['lambda'].data[:, 0]
+        self.raw_wave = self.mpdaf_object.get_lambda(unit=u.m)
         logging.info('... done.')
 
         # check if wavelength array is strictly increasing
         logging.info('Checking consistency of pixtable ...')
-        if (np.diff(self.rawwave) >= 0).all():
-            self.issorted = True
+        if (np.diff(self.raw_wave) >= 0).all():
+            self.is_sorted = True
         else:
-            # self.issorted = False
+            self.is_sorted = False
             logging.error('Pixtable is not sorted by increasing wavelength.')
             logging.error('Currently support exists only for sorted pixtables.')
             logging.error('To sort this pixtable, you may run "PampelMuse PTSORT {0}".'.format(filename))
@@ -272,17 +301,24 @@ class MusePixtable(Instrument):
         self._set_datahdu(pt['data'])
         self._set_varhdu(pt['stat'])
         self._set_maskhdu(pt['dq'])
-        self._set_xhdu(pt['xpos'])
-        self._set_yhdu(pt['ypos'])
+        self._set_x_hdu(pt['xpos'])
+        self._set_y_hdu(pt['ypos'])
+        if 'origin' in pt:
+            self._set_origin_hdu(pt['origin'])
         if 'ifu' in pt:
-            self._set_ifuhdu(pt['ifu'])
+            warnings.warn('Using an "ifu" extension is deprecated, use "origin" instead.', DeprecationWarning)
+            self._set_ifu_hdu(pt['ifu'])
         if 'slice' in pt:
-            self._set_slicehdu(pt['slice'])
+            warnings.warn('Using a "slic" extension is deprecated, use "origin" instead.', DeprecationWarning)
+            self._set_slice_hdu(pt['slice'])
 
         # define default layers for this cube. This may be changed by the user later on
-        layers = np.linspace(self.rawwave.min(), self.rawwave.max(),
-                             int((self.rawwave.max() - self.rawwave.min())/self.wstep), dtype=np.float32)
-        self.layer_limits = np.vstack((layers[:-1], layers[1:])).T
+        min_wave, median_wave, max_wave = np.percentile(self.raw_wave, [0, 50, 100])
+        n_step_blue = int((median_wave - min_wave)/self.wstep)
+        n_step_red = int((max_wave - median_wave)/self.wstep)
+        layers = np.arange(-n_step_blue, n_step_red+1, dtype=np.float64)*self.wstep
+        layers += median_wave
+        self.layer_limits = np.vstack((layers - self.wstep, layers + self.wstep)).T
 
         # a pixel table has no fixed transformation from spaxels to spatial coordinates, it changes for every layer
         # that is defined. Get coordinate transformation for central layer to have useful idea of edges of FoV.
@@ -290,6 +326,8 @@ class MusePixtable(Instrument):
 
     def _convert_coordinates(self, xpos, ypos):
         """
+        DEPRECATED: Use the get_pos_sky method of mpdaf.drs.PixTable instead.
+
         This method is mainly a python version of the c-routine written by
         P. Weilbacher for the MUSE pipeline (muse_wcs_position_celestial in
         muse_wcs.c). It converts the native spherical coordinates found in
@@ -309,6 +347,10 @@ class MusePixtable(Instrument):
         dec : array_like
             The Dec coordinates of the pixels in a TAN projection.
         """
+        warnings.warn(
+            'MusePixtable._convert_coordinates() is deprecated.  Use mpdaf.drs.PixTable.get_pos_sky() instead.',
+            DeprecationWarning)
+
         dp = self.wcs.wcs.crval[1]*self.deg2rad
 
         phi = xpos
@@ -360,7 +402,7 @@ class MusePixtable(Instrument):
 
         # The following call to searchsorted will return the indices of the data where a layer starts/ends,
         # again as an array of shape (MusePixtable.nlayer, 2)
-        self._limit_indices = np.searchsorted(self.rawwave, self._layer_limits)
+        self._limit_indices = np.searchsorted(self.raw_wave, self._layer_limits)
 
         # we define a mean wavelength for each layer to be consistent with the other instrument classes.
         self.wave = np.mean(value, axis=1)
@@ -412,31 +454,59 @@ class MusePixtable(Instrument):
         ifu : ndarray or None
             If return_slice was set abd the IFU and slice numbers of the
             individual pixels are available, an array with the same size as
-            values will be returned containing the IFU numbers. Otherwise
+            values will be returned containing the IFU numbers. Otherwise,
             None is returned.
         """
         imin, imax = self.layer_indices[i]
 
-        self.set_transform_for_layer(i)
-
         if self.maskhdu is not None:
             mask = (self.maskhdu.section[imin:imax + 1][:, 0] <= self.dqmax)
         else:
-            mask = np.ones(imax - imin, dtype=np.bool)
+            mask = np.ones(imax - imin, dtype=bool)
 
         if not return_residuals or self.residualshdu is None:
-            data = self.datahdu.section[imin:imax + 1][mask, 0]
+            _data = self.datahdu.section[imin:imax + 1][mask, 0]
         else:
-            data = self.residualshdu.section[imin:imax + 1][mask, 0]
+            _data = self.residualshdu.section[imin:imax + 1][mask, 0]
 
-        var = self.varhdu.section[imin:imax + 1][mask, 0] if return_var else None
+        _var = self.varhdu.section[imin:imax + 1][mask, 0] if return_var else None
 
-        # store information about the wavelength of each pixel returned (& IFU, slice if HDUs available)
-        self.rawwave_for_current_layer = self.rawwave[imin:imax + 1][mask]
-        if self.ifuhdu:
-            self.ifus_for_current_layer = self.ifuhdu.section[imin:imax + 1][mask, 0]
-        if self.slicehdu:
-            self.slices_for_current_layer = self.slicehdu.section[imin:imax + 1][mask, 0]
+        if not len(_data):
+            self.set_transform_for_layer(i)
+            return _data, _var
+
+        # get the wavelength of each pixel returned (& IFU, slice if HDUs available)
+        self.raw_wave_for_current_layer = self.raw_wave[imin:imax + 1][mask]
+
+        # get map of pixels that should be combined
+        origin = self.origin_hdu.section[imin:imax + 1][mask, 0]
+        pos = self.mpdaf_object.origin2xpix(origin)
+        ifu = self.mpdaf_object.origin2ifu(origin)
+        slice = self.mpdaf_object.origin2slice(origin)
+        # use np.unique(..., return_inverse=True) to remove any blank indices in array
+        pixel_map = np.unique(pos + pos.max()*ifu, return_inverse=True)[1]
+
+        # perform resampling/drizzling to central wavelength of layer
+        drizzled = self.drizzle_1d(wave_in=self.raw_wave_for_current_layer, flux_in=_data,  wave_out=self.wave[i],
+                                   delta_wave_out=self.wstep, variances=_var, pixel_map=pixel_map, return_weights=True)
+        if _var is None:
+            data, weights = drizzled
+            var = None
+        else:
+            data, var, weights = drizzled
+
+        self.set_transform_for_layer(i, pixel_map=pixel_map, weights=weights)
+
+        norm = np.bincount(pixel_map)
+        self.ifus_for_current_layer = np.bincount(pixel_map, ifu)
+        self.ifus_for_current_layer /= np.where(norm > 0, norm, -1)
+        self.slices_for_current_layer = np.bincount(pixel_map, slice)
+        self.slices_for_current_layer /= np.where(norm > 0, norm, -1)
+
+        # if self.ifu_hdu:
+        #     self.ifus_for_current_layer = self.ifu_hdu.section[imin:imax + 1][mask, 0]
+        # if self.slice_hdu:
+        #     self.slices_for_current_layer = self.slice_hdu.section[imin:imax + 1][mask, 0]
 
         if not return_grid:
             return data, var
@@ -465,7 +535,7 @@ class MusePixtable(Instrument):
         logging.error('Grabbing spectra is currently not supported for MUSE pixtables.')
         return np.empty(self.wave.shape), np.empty(self.wave.shape)
 
-    def set_transform_for_layer(self, i):
+    def set_transform_for_layer(self, i, pixel_map=None, weights=None):
         """
         This method loads the pixel to (x,  y) transformation for a given
         layer. Note that this has to be done every time a new layer is loaded
@@ -476,20 +546,34 @@ class MusePixtable(Instrument):
         ----------
         i : int
             The index of the current layer.
+        pixel_map : array_like, optional
+        weights : array_like, optional
         """
         imin, imax = self.layer_indices[i]
         if self.maskhdu is not None:
             mask = (self.maskhdu.section[imin:imax + 1][:, 0] <= self.dqmax)
         else:
-            mask = np.ones(imax - imin, dtype=np.bool)
+            mask = np.ones(imax - imin, dtype=bool)
 
         # make sure any valid pixels exist
         if not mask.any():
             x = y = []
         else:
-            ra, dec = self._convert_coordinates(self.xhdu.section[imin:imax+1][mask, 0],
-                                                self.yhdu.section[imin:imax+1][mask, 0])
+            # ra, dec = self._convert_coordinates(self.x_hdu.section[imin:imax + 1][mask, 0],
+            #                                     self.y_hdu.section[imin:imax + 1][mask, 0])
+            ra, dec = self.mpdaf_object.get_pos_sky(self.x_hdu.section[imin:imax + 1][mask, 0],
+                                                    self.y_hdu.section[imin:imax + 1][mask, 0])
             x, y = self.wcs.wcs_world2pix(ra, dec, 1)
+
+        if pixel_map is not None:
+            if weights is not None:
+                weights = np.ones_like(pixel_map)
+            norm = np.bincount(pixel_map, weights=weights)
+            x = np.bincount(pixel_map, weights=weights*x)
+            x /= np.where(norm > 0, norm, np.nan)
+            y = np.bincount(pixel_map, weights=weights*y)
+            y /= np.where(norm > 0, norm, np.nan)
+
         self.transform = np.vstack((y, x)).T
 
     def integrate(self, imin, imax, apply_variances=False, weights=None, nbin=1, **kwargs):
@@ -601,3 +685,60 @@ class MusePixtable(Instrument):
                             int(self.x.min()):int(self.x.max()+1):int(self.x.max() - self.x.min() + 1)*1j]
 
         return griddata((self.y, self.x), data, (grid[0], grid[1]), method=method)
+
+    def drizzle_1d(self, wave_in, flux_in, wave_out, delta_wave_in=None, delta_wave_out=None, variances=None,
+                   pixel_map=None, return_weights=False):
+
+        # unless given, determine (average) input pixel size
+        if delta_wave_in is None:
+            if pixel_map is None:
+                delta_wave_in = (wave_in.max() - wave_in.min()) / (len(wave_in) - 1.)
+            else:
+                n = np.bincount(pixel_map)
+                w_max = np.zeros_like(n, dtype=np.float64)
+                w_min = np.inf * np.ones_like(w_max)
+                np.maximum.at(w_max, pixel_map, wave_in)
+                np.minimum.at(w_min, pixel_map, wave_in)
+                valid = n > 1
+                sampling_per_row = (w_max - w_min)[valid]/(n[valid].astype(np.float64) - 1.)
+                delta_wave_in = np.nanmedian(sampling_per_row)
+        if delta_wave_out is None:
+            delta_wave_out = delta_wave_in
+
+        delta = abs(wave_in - wave_out)
+
+        weights = np.zeros_like(wave_in)
+        processed = np.zeros_like(wave_in, dtype=bool)
+
+        # case 1: output pixel encompasses input pixel
+        slc = delta_wave_out >= (delta_wave_in + 2 * delta)
+        weights[slc] = 1.
+        processed[slc] = True
+        # case 2: input pixel encompasses output pixel
+        slc = delta_wave_in >= (delta_wave_out + 2 * delta)
+        weights[slc] = delta_wave_out / delta_wave_in
+        processed[slc] = True
+        # case 3: input pixel partially overlaps with output pixel
+        slc = ~processed & (delta < (0.5 * (delta_wave_in + delta_wave_out)))
+        weights[slc] = 0.5 * (delta_wave_in + delta_wave_out) - delta[slc]
+        # case 4: no overlap, can be ignored
+
+        # calculate drizzled flux and variances
+        variances_out = None
+        if pixel_map is None:
+            flux_out = np.average(flux_in, weights=weights)
+            if variances is not None:
+                variances_out = np.average(variances, weights=weights ** 2)
+        else:
+            norm = np.bincount(pixel_map, weights=weights)
+            flux_out = np.bincount(pixel_map, weights=flux_in * weights)
+            flux_out /= np.where(norm > 0, norm, np.nan)
+            if variances is not None:
+                variances_out = np.bincount(pixel_map, weights=variances * weights ** 2)
+                variances_out /= np.where(norm > 0, norm ** 2, np.nan)
+        ret = (flux_out,)
+        if variances_out is not None:
+            ret += (variances_out,)
+        if return_weights:
+            ret += (weights,)
+        return ret

@@ -207,7 +207,7 @@ class FitCube(object):
             flux (relative to the brightest star in the fit) that corresponds
             to a reduction of psf_radius by a factor of 2.
         osfactor : float, optional
-            The improve the accuracy of the PSF modelling close to the
+            To improve the accuracy of the PSF modelling close to the
             centre of a profile, the central pixels can be supersampled by a
             factor 'osfactor' along x and y, i.e. each pixel is split into
             'osfactor'^2 subpixels. By default, the supersampling is chosen
@@ -411,7 +411,7 @@ class FitCube(object):
         catalog = pd.concat(series, axis=1, keys=['x', 'y', 'component', 'magnitude'])
 
         # whole array with spectra needs to be loaded
-        self.sources.load_spectra(init_wave=isinstance(self.ifs_data, MusePixtable))
+        self.sources.load_spectra(init_wave=False)  # isinstance(self.ifs_data, MusePixtable)) #TODO: remove
         # fluxes of omitted layers are set to NaN
         self.sources.data.loc[omitted_indices] = np.nan
 
@@ -688,7 +688,7 @@ class FitCube(object):
             data['variance'] = variances[~mask]
         # add wavelength information for pixel table
         if self.ifs_data.name == 'MUSE_Pixtable':
-            data['wave'] = self.ifs_data.rawwave_for_current_layer[~mask]
+            # data['wave'] = self.ifs_data.raw_wave_for_current_layer[~mask]
             if use_slices:
                 if self.ifs_data.ifus_for_current_layer is not None:
                     data['ifu'] = self.ifs_data.ifus_for_current_layer[~mask]
