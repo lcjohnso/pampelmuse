@@ -411,7 +411,7 @@ class FitCube(object):
         catalog = pd.concat(series, axis=1, keys=['x', 'y', 'component', 'magnitude'])
 
         # whole array with spectra needs to be loaded
-        self.sources.load_spectra(init_wave=isinstance(self.ifs_data, MusePixtable))
+        self.sources.load_spectra(init_wave=False)  # isinstance(self.ifs_data, MusePixtable)) #TODO: remove
         # fluxes of omitted layers are set to NaN
         self.sources.data.loc[omitted_indices] = np.nan
 
@@ -553,7 +553,6 @@ class FitCube(object):
                 if 'ifu' in data.columns and 'slice' in data.columns:
                     self.background.ifus = data['ifu'].values
                     self.background.slices = data['slice'].values
-                tb_start = time.time()
                 background_matrix, background_components = self.background.get_sparse_matrix(
                     offset=self.sources.n_components - self.sources.n_background, purge_empty=True)
                 # in case one or more background components are outside the FoV, their entries in 'fluxes' need to be
@@ -561,8 +560,8 @@ class FitCube(object):
                 missing = fluxes[self.sources.specrow_background].index.difference(background_components)
                 if len(missing) > 0:
                     fluxes.drop(index=missing, inplace=True)
-                    logger.warning('Background component(s) without contribution encountered: {0}'.format(missing))
-                logger.debug('Background model initialization took {0:.2f}s.'.format(time.time() - tb_start))
+                    logger.warning('Removed {}/{} background component(s) without flux contribution.'.format(
+                        len(missing), self.background.centroids.shape[0]))
             else:
                 background_matrix = background_components = None
 
@@ -575,9 +574,11 @@ class FitCube(object):
             # following ones. Otherwise, a parallel fit is triggered every n_cpu's layer
             if i in [0, 1] or np.mod(i - 1, n_cpu) == 0 or jj == indices_to_analyse[-1]:
                 if n_cpu > 1:
+                    logger.info('Running analysis of layers {} - {}.'.format(max(0, i - n_cpu), i))
                     _results = pool.map_async(parallel_fit_layer, fit_input)
                     results = _results.get()
                 else:
+                    logger.info('Running analysis of layer {}.'.format(i))
                     results = [parallel_fit_layer(fit_input[0])]
 
                 # write results for the individual layers
@@ -666,7 +667,12 @@ class FitCube(object):
             slice numbers of each pixel.
         """
         # Get data layer, also variance layer if requested; bin data if requested
-        if self.ifs_data.name == 'MUSE_Pixtable' or n_bin == 1:
+        if self.ifs_data.name == 'MUSE_Pixtable':
+            data = self.ifs_data.get_layer(current, return_var=use_variances)
+            if skip_nan:
+                data.dropna(inplace=True, subset='value')
+            return data
+        elif n_bin == 1:
             values, variances = self.ifs_data.get_layer(current, return_var=use_variances)
         else:
             jjmin = current - n_bin // 2
@@ -690,7 +696,7 @@ class FitCube(object):
             data['variance'] = variances[~mask]
         # add wavelength information for pixel table
         if self.ifs_data.name == 'MUSE_Pixtable':
-            data['wave'] = self.ifs_data.rawwave_for_current_layer[~mask]
+            # data['wave'] = self.ifs_data.raw_wave_for_current_layer[~mask]
             if use_slices:
                 if self.ifs_data.ifus_for_current_layer is not None:
                     data['ifu'] = self.ifs_data.ifus_for_current_layer[~mask]

@@ -322,6 +322,64 @@ class BackgroundGrid(Canvas):
             self._f = _f_matrix.tocoo()
         return self._f
 
+    @property
+    def used(self):
+        """
+        An array indicating for each background patch which pixels contribute.
+
+        Note that there are two possibilities that lead to pixels being
+        excluded from one or more patches:
+        a) They are located at distances >'maxrad' to a grid point
+        b) They are included in a user-provided bad-pixel mask
+
+        Returns
+        -------
+        used : nd_array
+            Boolean mask indicating for each background component which pixels
+            contribute.The shape of the array is (gridsize, n_pixel)
+        """
+        if self._used is None:  # only calculate if not already available
+            # call setter method of property to make sure pixels at distances >maxrad are not used.
+            self.used = np.ones(self.n_pixel, dtype=bool)
+
+        return self._used
+
+    @used.setter
+    def used(self, value):
+        """
+        Setter method for the BackgroundGrid.used property.
+
+        A dedicated setter method is required to make sure that pixels
+        excluded because of their distance to a grid point are not
+        included again when the user provides a new mask.
+
+        Parameters
+        ----------
+        value : array_like
+            The array
+
+        Returns
+        -------
+
+        """
+        try:
+            value = np.asarray(value, dtype=bool)
+        except ValueError:
+            logging.critical("Invalid input for background pixel mask: {0}".format(value))
+        if value.size != self.n_pixel:
+            logging.critical("Provided background pixel mask has invalid size ({0} instead of {1}).".format(
+                value.size, self.n_pixel))
+
+        self._used = value & (self.r < self.maxrad)
+
+        # handle slice/ifu-dependent components if any
+        if self.n_ifu and self.n_slice:
+            if self.ifus is not None and self.slices is not None:
+                n = self.n_ifu * self.n_slice
+                self._used[-n:] = (self.centroids[-n:, [1]] == self.slices) & (self.centroids[-n:, [0]] == self.ifus)
+            else:
+                logging.error('Cannot properly set background pixels because IFU/slice numbers are missing.')
+
     def add_slices(self, n_ifu, n_slice):
         """
         Add information about the number of IFUs and slices to the instance. 

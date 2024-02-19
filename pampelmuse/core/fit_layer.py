@@ -909,7 +909,8 @@ class FitLayer(object):
         # check if any row does not contribute at all
         empty_components = total_fluxes[total_fluxes <= 0].index
         if len(empty_components) > 0:
-            logger.warning("Encountered component(s) that contribute zero flux: {0}".format(empty_components))
+            logger.warning("{}/{} fit component(s) contribute zero flux".format(len(empty_components),
+                                                                                self.n_components))
 
             # if so, reduce index number of higher components (start with highest empty component to avoid gaps)
             for i1 in np.sort(empty_components.values)[::-1]:
