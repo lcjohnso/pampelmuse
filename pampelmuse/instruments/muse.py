@@ -34,7 +34,10 @@ Latest GIT revision
 """
 import logging
 import warnings
+import numpy
 import numpy as np
+import pandas as pd
+from typing import Union
 from astropy import units as u
 from astropy.io import fits
 from astropy.wcs import WCS
@@ -191,6 +194,8 @@ class MusePixtable(Instrument):
 
     def _set_ifu_hdu(self, hdu):
         """
+        DEPRECATED: Use _set_origin_hdu() instead.
+
         This method sets the HDU with the IFU number of every pixel for the
         MusePixtable instance, i.e. it loads an HDU containing the IFU numbers
         for the observed data into the current instance. Note that it should
@@ -203,6 +208,8 @@ class MusePixtable(Instrument):
         ----------
         hdu : a FITS ImageHDU containing the IFU numbers.
         """
+        warnings.warn('Using an "ifu" extension is deprecated, use "origin" instead.', DeprecationWarning)
+
         if self.datahdu is None:  # HDU containing data must be loaded first
             logging.error('Can only load HDU containing IFU numbers after data HDU has been loaded.')
         elif not self.is_valid(hdu):
@@ -215,6 +222,8 @@ class MusePixtable(Instrument):
 
     def _set_slice_hdu(self, hdu):
         """
+        DEPRECATED: Use _set_origin_hdu()
+
         This method sets the HDU with the slice number of every pixel for the
         MusePixtable instance, i.e. it loads an HDU containing the slice
         numbers for the observed data into the current instance. Note that it
@@ -227,6 +236,8 @@ class MusePixtable(Instrument):
         ----------
         hdu : a FITS ImageHDU containing the slice numbers.
         """
+        warnings.warn('Using a "slic" extension is deprecated, use "origin" instead.', DeprecationWarning)
+
         if self.datahdu is None:  # HDU containing data must be loaded first
             logging.error('Can only load HDU containing slice numbers after data HDU has been loaded.')
         elif not self.is_valid(hdu):
@@ -305,11 +316,8 @@ class MusePixtable(Instrument):
         self._set_y_hdu(pt['ypos'])
         if 'origin' in pt:
             self._set_origin_hdu(pt['origin'])
-        if 'ifu' in pt:
-            warnings.warn('Using an "ifu" extension is deprecated, use "origin" instead.', DeprecationWarning)
+        elif 'ifu' in pt and 'slice' in pt:
             self._set_ifu_hdu(pt['ifu'])
-        if 'slice' in pt:
-            warnings.warn('Using a "slic" extension is deprecated, use "origin" instead.', DeprecationWarning)
             self._set_slice_hdu(pt['slice'])
 
         # define default layers for this cube. This may be changed by the user later on
@@ -320,9 +328,11 @@ class MusePixtable(Instrument):
         layers += median_wave
         self.layer_limits = np.vstack((layers - self.wstep, layers + self.wstep)).T
 
-        # a pixel table has no fixed transformation from spaxels to spatial coordinates, it changes for every layer
+        # a pixel table has no fixed transformation from voxels to spatial coordinates, it changes for every layer
         # that is defined. Get coordinate transformation for central layer to have useful idea of edges of FoV.
-        self.set_transform_for_layer(len(layers)//2)
+        i_min, i_max = self.layer_indices[len(layers) // 2]
+        x, y = self.get_coordinates(i_min=i_min, i_max=i_max)
+        self.transform = np.vstack((y, x)).T
 
     def _convert_coordinates(self, xpos, ypos):
         """
@@ -415,14 +425,15 @@ class MusePixtable(Instrument):
         """
         return self._limit_indices
 
-    def get_layer(self, i, return_residuals=False, return_grid=False, return_var=False, **kwargs):
+    def get_layer(self, i: int, return_residuals: bool = False, return_grid: bool = False,
+                  return_var: bool = False, **kwargs):  # -> Union[pd.DataFrame, (np.ndarray, np.ndarray)]:
         """
-        This method returns a single layer (i.e. the content of all spaxels
+        This method returns a single layer (i.e. the content of all voxels
         with a given wavelength) from the data.
 
         Parameters
         ----------
-        i : int
+        i
             The index of the layer for which the content should be returned
         return_residuals : boolean, optional
             A flag indicating if the residuals from a previous analysis should
@@ -439,52 +450,55 @@ class MusePixtable(Instrument):
 
         Returns
         -------
-        values : ndarray
-            The data values (or residuals) in the requested layer. Note that
-            if a bad-pixel mask is provided, bad pixels are filtered out from
-            the data before it is returned. This is different from the
-            behaviour for the other instruments where those pixels are set to
-            NaN. The reason is that for a pixtable, the spaxel to (x, y)
-            transformation must also be set for each pseudo-layer and the NaN
-            pixels are also excluded from this transformation.
-        variances : ndarray or None
-            If return_var was set, this array will contain the variances of
-            the data values in the requested layer. It has the same shape as
-            the data array.
-        ifu : ndarray or None
-            If return_slice was set abd the IFU and slice numbers of the
-            individual pixels are available, an array with the same size as
-            values will be returned containing the IFU numbers. Otherwise,
-            None is returned.
+        pandas.DataFrame
+            Unless `return_grid` is selected, a DataFrame is returned
+            containing the data values (or residuals), coordinates, IFU and
+            slice numbers in the requested layer as columns. If requested, the
+            variances are returned as an additional column.
+            Note that if a bad-pixel mask is provided, bad pixels are filtered
+            out from the data before it is returned. This is different from
+            the behaviour for the other instruments where those pixels are set
+            to NaN.
+        numpy.ndarray
+            If `return_grid`, a two-dimensional array containing the data or
+            residuals will be returned.
+        numpy.ndarray
+            If `return_var`, a two-dimensional array containing the variances
+            will be returned as well.
         """
-        imin, imax = self.layer_indices[i]
+        i_min, i_max = self.layer_indices[i]
 
         if self.maskhdu is not None:
-            mask = (self.maskhdu.section[imin:imax + 1][:, 0] <= self.dqmax)
+            mask = (self.maskhdu.section[i_min:i_max + 1][:, 0] <= self.dqmax)
         else:
-            mask = np.ones(imax - imin, dtype=bool)
+            mask = np.ones(i_max - i_min, dtype=bool)
 
         if not return_residuals or self.residualshdu is None:
-            _data = self.datahdu.section[imin:imax + 1][mask, 0]
+            _data = self.datahdu.section[i_min:i_max + 1][mask, 0]
         else:
-            _data = self.residualshdu.section[imin:imax + 1][mask, 0]
+            _data = self.residualshdu.section[i_min:i_max + 1][mask, 0]
 
-        _var = self.varhdu.section[imin:imax + 1][mask, 0] if return_var else None
+        _var = self.varhdu.section[i_min:i_max + 1][mask, 0] if return_var else None
 
+        # return empty array if layer does not contain any valid data.
         if not len(_data):
-            self.set_transform_for_layer(i)
-            return _data, _var
+            if return_grid:
+                return [], []
+            else:
+                return pd.DataFrame(columns=['x', 'y', 'value', 'variance', 'ifu', 'slice'], dtype=np.float64)
 
         # get the wavelength of each pixel returned (& IFU, slice if HDUs available)
-        self.raw_wave_for_current_layer = self.raw_wave[imin:imax + 1][mask]
+        self.raw_wave_for_current_layer = self.raw_wave[i_min:i_max + 1][mask]
+
+        # Decode 'origin' values to get CCD x-coordinates, IFU and slice numbers
+        origin = self.origin_hdu.section[i_min:i_max + 1][mask, 0]
+        pos = self.mpdaf_object.origin2xpix(origin)
+        ifu_number = self.mpdaf_object.origin2ifu(origin)
+        slice_number = self.mpdaf_object.origin2slice(origin)
 
         # get map of pixels that should be combined
-        origin = self.origin_hdu.section[imin:imax + 1][mask, 0]
-        pos = self.mpdaf_object.origin2xpix(origin)
-        ifu = self.mpdaf_object.origin2ifu(origin)
-        slice = self.mpdaf_object.origin2slice(origin)
         # use np.unique(..., return_inverse=True) to remove any blank indices in array
-        pixel_map = np.unique(pos + pos.max()*ifu, return_inverse=True)[1]
+        pixel_map = np.unique(pos + pos.max()*ifu_number, return_inverse=True)[1]
 
         # perform resampling/drizzling to central wavelength of layer
         drizzled = self.drizzle_1d(wave_in=self.raw_wave_for_current_layer, flux_in=_data,  wave_out=self.wave[i],
@@ -495,23 +509,26 @@ class MusePixtable(Instrument):
         else:
             data, var, weights = drizzled
 
-        self.set_transform_for_layer(i, pixel_map=pixel_map, weights=weights)
+        # calculate coordinates
+        x, y = self.get_coordinates(i_min=i_min, i_max=i_max, valid=mask, pixel_map=pixel_map, weights=weights)
 
-        norm = np.bincount(pixel_map)
-        self.ifus_for_current_layer = np.bincount(pixel_map, ifu)
-        self.ifus_for_current_layer /= np.where(norm > 0, norm, -1)
-        self.slices_for_current_layer = np.bincount(pixel_map, slice)
-        self.slices_for_current_layer /= np.where(norm > 0, norm, -1)
-
-        # if self.ifu_hdu:
-        #     self.ifus_for_current_layer = self.ifu_hdu.section[imin:imax + 1][mask, 0]
-        # if self.slice_hdu:
-        #     self.slices_for_current_layer = self.slice_hdu.section[imin:imax + 1][mask, 0]
-
-        if not return_grid:
-            return data, var
-        else:
+        # ignore IFU/slice information if 2D grid should be returned
+        if return_grid:
+            # need to update transformation first
+            self.transform = np.vstack((y, x)).T
             return self.make_image(data, **kwargs), self.make_image(var, **kwargs) if return_var else None
+
+        # else, collect columns for DataFrame
+        columns = {'value': data, 'x': x, 'y': y}
+        if return_var:
+            columns['variance'] = var
+
+        # The value of the IFU/slice is the same for voxels that are combined. Hence, we adopt the values
+        # of the first voxel.
+        first = np.unique(pixel_map, return_index=True)[1]
+        columns['ifu'] = ifu_number[first]
+        columns['slice'] = slice_number[first]
+        return pd.DataFrame(data=columns)
 
     def get_spectrum(self, **kwargs):
         """
@@ -535,46 +552,106 @@ class MusePixtable(Instrument):
         logging.error('Grabbing spectra is currently not supported for MUSE pixtables.')
         return np.empty(self.wave.shape), np.empty(self.wave.shape)
 
-    def set_transform_for_layer(self, i, pixel_map=None, weights=None):
+    def get_coordinates(self, i_min: int = None, i_max: int = None, indices: np.ndarray = None,
+                        valid: np.ndarray = None, pixel_map: np.ndarray = None,
+                        weights: np.ndarray = None) -> (np.ndarray, np.ndarray):
         """
-        This method loads the pixel to (x,  y) transformation for a given
-        layer. Note that this has to be done every time a new layer is loaded
-        via MusePixtable.get_layer() because each layer will have a different
-        transformation.
+        Update the transformation from voxels to (x, y) coordinates. If a
+        continuous set of voxels is used, it is sufficient to provide the
+        start and stop indices of the set. Otherwise, the full set of indices
+        must be provided.
 
         Parameters
         ----------
-        i : int
-            The index of the current layer.
-        pixel_map : array_like, optional
-        weights : array_like, optional
+        i_max
+            The starting index of a continuous set of voxels.
+        i_min
+            The ending index of a continuous set of voxels.
+        indices
+            The set of indices to be used. Only used if i_min and i_max are
+            not set.
+        valid
+            A boolean array that indicates which voxels are masked. If
+            provided, its length must match the number of voxels.
+        pixel_map
+            In case the coordinates of the voxels should be averaged, a
+            mapping from input voxels to output pixels can be provided.
+        weights
+            An array of weights used when averaging the input voxels. Must
+            have the same length as `pixel_map`.
+
+        Returns
+        -------
+        numpy.ndarray
+            The x-coordinates of the provided voxels.
+        numpy.ndarray
+            The y-coordinates of the provided voxels.
         """
-        imin, imax = self.layer_indices[i]
-        if self.maskhdu is not None:
-            mask = (self.maskhdu.section[imin:imax + 1][:, 0] <= self.dqmax)
+        if i_min is not None and i_max is not None:
+            _x = self.x_hdu.section[i_min:i_max + 1][:, 0]
+            _y = self.y_hdu.section[i_min:i_max + 1][:, 0]
+        elif indices is not None:
+            _x = self.mpdaf_object.get_xpos(indices)
+            _y = self.mpdaf_object.get_ypos(indices)
         else:
-            mask = np.ones(imax - imin, dtype=bool)
+            raise IOError("Either 'i_max' and 'i_min' or 'indices' must be provided.")
+
+        if valid is not None:
+            if len(valid) != len(_x):
+                raise ValueError("Length of 'valid' array does not match number of voxels.")
+            _x = _x[valid]
+            _y = _y[valid]
 
         # make sure any valid pixels exist
-        if not mask.any():
+        if len(_x) == 0:
             x = y = []
         else:
-            # ra, dec = self._convert_coordinates(self.x_hdu.section[imin:imax + 1][mask, 0],
-            #                                     self.y_hdu.section[imin:imax + 1][mask, 0])
-            ra, dec = self.mpdaf_object.get_pos_sky(self.x_hdu.section[imin:imax + 1][mask, 0],
-                                                    self.y_hdu.section[imin:imax + 1][mask, 0])
+            # ra, dec = self._convert_coordinates(_x, _y)
+            ra, dec = self.mpdaf_object.get_pos_sky(_x, _y)
             x, y = self.wcs.wcs_world2pix(ra, dec, 1)
 
         if pixel_map is not None:
-            if weights is not None:
-                weights = np.ones_like(pixel_map)
-            norm = np.bincount(pixel_map, weights=weights)
-            x = np.bincount(pixel_map, weights=weights*x)
-            x /= np.where(norm > 0, norm, np.nan)
-            y = np.bincount(pixel_map, weights=weights*y)
-            y /= np.where(norm > 0, norm, np.nan)
+            x = self.combine_voxel(x, pixel_map=pixel_map, weights=weights)
+            y = self.combine_voxel(y, pixel_map=pixel_map, weights=weights)
 
-        self.transform = np.vstack((y, x)).T
+        return x, y
+
+    @staticmethod
+    def combine_voxel(input_array: np.ndarray, pixel_map: np.ndarray, weights: np.ndarray = None) -> np.ndarray:
+        """
+        Average the values in a set of voxels using a given mapping between
+        inout voxels and output pixels.
+
+        Parameters
+        ----------
+        input_array
+            The array of input values to be combined.
+        pixel_map
+            The mapping of input voxels to output pixels.
+        weights
+            The weight of each input voxel in the combination process.
+
+        Returns
+        -------
+        numpy.ndarray
+            The combined values. Note that the length of the output array is
+            the same as the maximum value of `pixel_map`, i.e. output pixel
+            missing in `pixel_map` are not removed, but assigned numpy.nan as
+            a value.
+        """
+        # perform sanity checks
+        if len(pixel_map) != len(input_array):
+            raise IOError("Length of 'pixel_map' must match number of voxels.")
+        if weights is not None:
+            weights = np.ones_like(pixel_map)
+        elif len(weights) != len(pixel_map):
+            raise IOError("If provided, length of 'weights' must match length of 'pixel_map'.")
+
+        norm = np.bincount(pixel_map, weights=weights)
+        output_array = np.bincount(pixel_map, weights=weights * input_array)
+        output_array /= np.where(norm > 0, norm, np.nan)
+
+        return output_array
 
     def integrate(self, imin, imax, apply_variances=False, weights=None, nbin=1, **kwargs):
         """
@@ -730,12 +807,9 @@ class MusePixtable(Instrument):
             if variances is not None:
                 variances_out = np.average(variances, weights=weights ** 2)
         else:
-            norm = np.bincount(pixel_map, weights=weights)
-            flux_out = np.bincount(pixel_map, weights=flux_in * weights)
-            flux_out /= np.where(norm > 0, norm, np.nan)
+            flux_out = self.combine_voxel(flux_in, pixel_map=pixel_map, weights=weights)
             if variances is not None:
-                variances_out = np.bincount(pixel_map, weights=variances * weights ** 2)
-                variances_out /= np.where(norm > 0, norm ** 2, np.nan)
+                variances_out = self.combine_voxel(variances, pixel_map=pixel_map, weights=weights ** 2)
         ret = (flux_out,)
         if variances_out is not None:
             ret += (variances_out,)

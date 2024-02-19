@@ -269,14 +269,23 @@ class BackgroundGrid(Canvas):
     @property
     def r(self):
         """
-        Returns distance of each pixel to each gridpoint. The returned array
+        Returns distance of each pixel to each grid point. The returned array
         has a size of (BackgroundGrid.gridsize, BackgroundGrid.n_pixel)
         """
         if self._r is None:  # only calculate if not already available
             if self._transform is None:
                 logging.critical('Coordinates for pixel grid must be defined before calculating distances.')
             assert self._transform is not None, 'Coordinates for pixel grid not known.'
-            self._r = distance.cdist(self.centroids, self.transform)  # resulting array has size (gridsize, n_pixel)
+
+            # if per-slice background is used, set their centroid distances to infinity for all pixels
+            if self.n_ifu > 0 and self.n_slice > 0:
+                self._r = np.ones((self.gridsize, self.n_pixel))
+                n = self.n_ifu*self.n_slice
+                self._r[:-n] = distance.cdist(self.centroids[:-n], self.transform)
+                self._r[-n:] = np.inf
+            else:
+                self._r = distance.cdist(self.centroids, self.transform)
+            # resulting array has size (centroids.shape[0], n_pixel)
 
             # if oversampling is used, set distances of pixels in other spectral bins to np.inf
             if self.oversampling > 1:
@@ -285,8 +294,6 @@ class BackgroundGrid(Canvas):
                 else:
                     self._r[self.spectral_component[:, np.newaxis] != self.spectral_bins] = np.inf
 
-            # if per-slice background is used, set their centroid distances to infinity for all pixels
-            self._r[self.gridsize - self.n_ifu * self.n_slice:] = np.inf
         return self._r
 
     @property
@@ -296,8 +303,9 @@ class BackgroundGrid(Canvas):
         has a size of (BackgroundGrid.gridsize, BackgrounGrid.n_pixel)
         """
         if self._f is None:  # only calculate if not already available
-            self._f = np.where(np.isfinite(self.r), np.exp(-0.5 * (self.r / self.rscale) ** self.n), 0)
-            self._f[~self.used] = 0
+            self._f = np.zeros_like(self.r)
+            contrib = np.isfinite(self.r) & self.used
+            self._f[contrib] = np.exp(-0.5 * (self.r[contrib] / self.rscale) ** self.n)
             self._f /= np.where(self._f.sum(axis=0) > 0, self._f.sum(axis=0), 1)  # normalize weights
 
             # handle slice/ifu-dependent components if any
@@ -307,7 +315,6 @@ class BackgroundGrid(Canvas):
                     self._f[-n:] = (self.centroids[-n:, [1]] == self.slices) & (self.centroids[-n:, [0]] == self.ifus)
                 else:
                     logging.error('Cannot properly set background values because IFU/slice numbers are missing.')
-
         return self._f
 
     @property
@@ -327,16 +334,8 @@ class BackgroundGrid(Canvas):
             contribute.The shape of the array is (gridsize, n_pixel)
         """
         if self._used is None:  # only calculate if not already available
-            self._used = (self.r < self.maxrad)
-
-            # handle slice/ifu-dependent components if any
-            if self.n_ifu > 0 or self.n_slice > 0:
-                if self.ifus is not None and self.slices is not None:
-                    n = self.n_ifu * self.n_slice
-                    self._used[-n:] = (self.centroids[-n:, [1]] == self.slices) & (
-                        self.centroids[-n:, [0]] == self.ifus)
-                else:
-                    logging.error('Cannot properly set background pixels because IFU/slice numbers are missing.')
+            # call setter method of property to make sure pixels at distances >maxrad are not used.
+            self.used = np.ones(self.n_pixel, dtype=bool)
 
         return self._used
 
@@ -359,7 +358,7 @@ class BackgroundGrid(Canvas):
 
         """
         try:
-            value = np.asarray(value, dtype=np.bool)
+            value = np.asarray(value, dtype=bool)
         except ValueError:
             logging.critical("Invalid input for background pixel mask: {0}".format(value))
         if value.size != self.n_pixel:
@@ -438,7 +437,7 @@ class BackgroundGrid(Canvas):
         Parameters
         ----------
         offset : int, optional
-            The offset applied to all background columns. Typically the
+            The offset applied to all background columns. Typically, the
             number of stellar components in the source matrix.
         purge_empty : bool, optional
            Flag indicating if background components that do not contribute to
@@ -448,7 +447,7 @@ class BackgroundGrid(Canvas):
         -------
         background_matrix : scipy.linalg.sparse.coo_matrix
             The sparse matrix containing the background components, one per
-            column. The matrix contain one row for each available spaxel and
+            column. The matrix contain one row for each available pixel and
             one column for each requested background component (omitting
             empty one if purge_empty was set). The column indices are offset
             as requested by the offset parameter.
@@ -474,7 +473,7 @@ class BackgroundGrid(Canvas):
         included_components += offset
 
         # IMPORTANT: to be consistent with the matrix of sources, we need to swap i and j because the source matrix
-        # has shape (n_spaxel, n_components)
+        # has shape (n_pixel, n_components)
         n_rows = self.transform.shape[0]
         n_columns = self.gridsize + offset - len(empty_components)
 

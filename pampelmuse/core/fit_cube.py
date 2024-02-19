@@ -542,6 +542,7 @@ class FitCube(object):
 
             # add background if requested
             if self.background is not None:
+                logger.info('Setting up background matrix.')
                 self.background.transform = data[['x', 'y']].values
                 # if oversampling of background should be used, split up wavelength values into requested number of
                 # equi-distant bins
@@ -559,8 +560,8 @@ class FitCube(object):
                 missing = fluxes[self.sources.specrow_background].index.difference(background_components)
                 if len(missing) > 0:
                     fluxes.drop(index=missing, inplace=True)
-                    logger.warning('Background component(s) without contribution encountered: {0}'.format(missing))
-
+                    logger.warning('Removed {}/{} background component(s) without flux contribution.'.format(
+                        len(missing), self.background.centroids.shape[0]))
             else:
                 background_matrix = background_components = None
 
@@ -570,12 +571,14 @@ class FitCube(object):
                                           wvl=jj))
 
             # The first two layers are fitted sequentially in order to obtain useful initial guesses for the
-            # following ones. Otherwise a parallel fit is triggered every n_cpu's layer
+            # following ones. Otherwise, a parallel fit is triggered every n_cpu's layer
             if i in [0, 1] or np.mod(i - 1, n_cpu) == 0 or jj == indices_to_analyse[-1]:
                 if n_cpu > 1:
+                    logger.info('Running analysis of layers {} - {}.'.format(max(0, i - n_cpu), i))
                     _results = pool.map_async(parallel_fit_layer, fit_input)
                     results = _results.get()
                 else:
+                    logger.info('Running analysis of layer {}.'.format(i))
                     results = [parallel_fit_layer(fit_input[0])]
 
                 # write results for the individual layers
@@ -664,7 +667,12 @@ class FitCube(object):
             slice numbers of each pixel.
         """
         # Get data layer, also variance layer if requested; bin data if requested
-        if self.ifs_data.name == 'MUSE_Pixtable' or n_bin == 1:
+        if self.ifs_data.name == 'MUSE_Pixtable':
+            data = self.ifs_data.get_layer(current, return_var=use_variances)
+            if skip_nan:
+                data.dropna(inplace=True, subset='value')
+            return data
+        elif n_bin == 1:
             values, variances = self.ifs_data.get_layer(current, return_var=use_variances)
         else:
             jjmin = current - n_bin // 2
