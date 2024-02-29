@@ -250,7 +250,7 @@ class GenericIFS(Instrument):
         else:
             data = self.residualshdu.section[i] if valid is None else np.where(
                     valid, self.residualshdu.section[i], np.nan)
-        if return_var:
+        if return_var and self.varhdu is not None:
             var = self.varhdu.section[i] if valid is None else np.where(valid, self.varhdu.section[i], np.nan)
         else:
             var = None
