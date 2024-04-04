@@ -1,7 +1,7 @@
 """
 fit_cube.py
 ===========
-Copyright 2013-2023 Sebastian Kamann
+Copyright 2013-2024 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -31,7 +31,7 @@ extraction for a data cube.
 
 Latest GIT revision
 -------------------
-2023/12/14
+2024/04/04
 """
 import collections
 import logging
@@ -45,7 +45,7 @@ from ..instruments.muse import MusePixtable
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20231214
+__revision__ = 20240404
 
 
 logger = logging.getLogger(__name__)
@@ -685,6 +685,8 @@ class FitCube(object):
         # NaN pixels will be masked if requested
         if skip_nan:
             mask = np.isnan(values)
+            if use_variances:
+                mask |= np.isnan(variances)
             logger.debug("Layer contains {0} masked pixels".format(mask.sum()))
         else:
             mask = np.zeros(values.size, dtype=bool)
@@ -694,7 +696,7 @@ class FitCube(object):
         # add variances if requested
         if use_variances:
             data['variance'] = variances[~mask]
-        # add wavelength information for pixel table
+        # add IFU/slice information for pixel table
         if self.ifs_data.name == 'MUSE_Pixtable':
             # data['wave'] = self.ifs_data.raw_wave_for_current_layer[~mask]
             if use_slices:
