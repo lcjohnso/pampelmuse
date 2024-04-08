@@ -1,7 +1,7 @@
 """
 generic_ifs.py
 ==============
-Copyright 2013-2021 Sebastian Kamann
+Copyright 2013-2024 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -29,7 +29,7 @@ i.e. NAXIS3 in FITS counting) being the spectral axis.
 
 Latest Git revision
 -------------------
-2021/04/20
+2024/04/08
 """
 import logging
 import numpy as np
@@ -40,12 +40,12 @@ from .instrument import Instrument
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20210420
+__revision__ = 20240408
 
 
 class GenericIFS(Instrument):
     """
-    This class is provides the functionality to work with a generic IFS.
+    This class provides the functionality to work with a generic IFS.
     An IFS is considered generic if it has square spaxels, arranged on a
     continuous spatial grid with filling factor one.
     """
@@ -280,6 +280,9 @@ class GenericIFS(Instrument):
             the variance values as column `variance`.
         """
         data, var = self.get_image(i=i, return_residuals=return_residuals, return_var=return_var)
+        data = data.flatten()
+        if var is not None:
+            var = var.flatten()
 
         masked = np.isnan(data) | np.isnan(var)
         out = pd.DataFrame(data={'x': self.transform[~masked, 1], 'y': self.transform[~masked, 0],
