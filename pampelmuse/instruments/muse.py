@@ -1,7 +1,7 @@
 """
 muse.py
 =======
-Copyright 2013-2023 Sebastian Kamann
+Copyright 2013-2024 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -30,7 +30,7 @@ muse_scipost recipe.
 
 Latest GIT revision
 -------------------
-2023/02/16
+2024/04/08
 """
 import logging
 import warnings
@@ -48,7 +48,7 @@ from .generic_ifs import GenericIFS
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180508
+__revision__ = 20240408
 
 
 class Muse(GenericIFS):
@@ -425,11 +425,10 @@ class MusePixtable(Instrument):
         """
         return self._limit_indices
 
-    def get_layer(self, i: int, return_residuals: bool = False, return_grid: bool = False,
-                  return_var: bool = False, **kwargs):  # -> Union[pd.DataFrame, (np.ndarray, np.ndarray)]:
+    def get_layer(self, i: int, return_residuals: bool = False, return_var: bool = False) -> pd.DataFrame:
         """
         This method returns a single layer (i.e. the content of all voxels
-        with a given wavelength) from the data.
+        with a given wavelength) from the data as a dataframe.
 
         Parameters
         ----------
@@ -438,15 +437,9 @@ class MusePixtable(Instrument):
         return_residuals : boolean, optional
             A flag indicating if the residuals from a previous analysis should
             be returned instead of the data.
-        return_grid : boolean, optional
-            A flag indicating if the layer should be returned as 1D or 2D
-            array. The default is to return a 1D array.
         return_var : boolean, optional
             A flag indicating if the variances should be returned along with
             the data
-        kwargs
-            The kwargs may be used to control the parameters of the resampling
-            routine MusePixtable.make_image in cases where return_grid is set.
 
         Returns
         -------
@@ -455,16 +448,6 @@ class MusePixtable(Instrument):
             containing the data values (or residuals), coordinates, IFU and
             slice numbers in the requested layer as columns. If requested, the
             variances are returned as an additional column.
-            Note that if a bad-pixel mask is provided, bad pixels are filtered
-            out from the data before it is returned. This is different from
-            the behaviour for the other instruments where those pixels are set
-            to NaN.
-        numpy.ndarray
-            If `return_grid`, a two-dimensional array containing the data or
-            residuals will be returned.
-        numpy.ndarray
-            If `return_var`, a two-dimensional array containing the variances
-            will be returned as well.
         """
         i_min, i_max = self.layer_indices[i]
 
@@ -482,10 +465,7 @@ class MusePixtable(Instrument):
 
         # return empty array if layer does not contain any valid data.
         if not len(_data):
-            if return_grid:
-                return [], []
-            else:
-                return pd.DataFrame(columns=['x', 'y', 'value', 'variance', 'ifu', 'slice'], dtype=np.float64)
+            return pd.DataFrame(columns=['x', 'y', 'value', 'variance', 'ifu', 'slice'], dtype=np.float64)
 
         # get the wavelength of each pixel returned (& IFU, slice if HDUs available)
         self.raw_wave_for_current_layer = self.raw_wave[i_min:i_max + 1][mask]
@@ -512,13 +492,7 @@ class MusePixtable(Instrument):
         # calculate coordinates
         x, y = self.get_coordinates(i_min=i_min, i_max=i_max, valid=mask, pixel_map=pixel_map, weights=weights)
 
-        # ignore IFU/slice information if 2D grid should be returned
-        if return_grid:
-            # need to update transformation first
-            self.transform = np.vstack((y, x)).T
-            return self.make_image(data, **kwargs), self.make_image(var, **kwargs) if return_var else None
-
-        # else, collect columns for DataFrame
+        # collect columns for DataFrame
         columns = {'value': data, 'x': x, 'y': y}
         if return_var:
             columns['variance'] = var
@@ -529,6 +503,25 @@ class MusePixtable(Instrument):
         columns['ifu'] = ifu_number[first]
         columns['slice'] = slice_number[first]
         return pd.DataFrame(data=columns)
+
+    def get_image(self, i: int, return_residuals: bool = False, return_var: bool = False, **kwargs) -> (
+            np.ndarray, np.ndarray):
+
+        data = self.get_layer(i=i,  return_residuals=return_residuals, return_var=return_var)
+        # ignore IFU/slice information if 2D grid should be returned
+        if not len(data):
+            return [], []
+
+        # need to update transformation first
+        self.transform = np.vstack((data['y'], data['x'])).T
+
+        value_image = self.make_image(data['value'], **kwargs)
+        if return_var:
+            variance_image = self.make_image(data['variance'], **kwargs)
+        else:
+            variance_image = None
+
+        return value_image, variance_image
 
     def get_spectrum(self, **kwargs):
         """
@@ -620,7 +613,7 @@ class MusePixtable(Instrument):
     def combine_voxel(input_array: np.ndarray, pixel_map: np.ndarray, weights: np.ndarray = None) -> np.ndarray:
         """
         Average the values in a set of voxels using a given mapping between
-        inout voxels and output pixels.
+        input voxels and output pixels.
 
         Parameters
         ----------
@@ -691,7 +684,6 @@ class MusePixtable(Instrument):
             variances or weights are used in the integration, this array will
             contain 1/(no. of integrated pixels) for each output pixel.
         """
-        kwargs['return_grid'] = True
         if 'grid' not in kwargs:
             kwargs['grid'] = np.mgrid[0:300:300j, 0:300:300j]  # need to make sure all layers have same size
 

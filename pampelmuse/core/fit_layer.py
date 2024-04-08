@@ -1,7 +1,7 @@
 """
 fit_array.py
 ============
-Copyright 2013-2022 Sebastian Kamann
+Copyright 2013-2024 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -57,7 +57,7 @@ parameters are not fitted.
 
 Latest Git revision
 -------------------
-2022/11/10
+2024/04/08
 """
 import collections
 import contextlib
@@ -76,7 +76,7 @@ from ..psf.profiles import *
 from ..core.coordinates import Transformation
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20221110
+__revision__ = 20240408
 
 logger = logging.getLogger(__name__)
 
@@ -1168,7 +1168,7 @@ class FitLayer(object):
                                     flux_x0=self.fluxes[self.catalog.at[i, 'component']], background_x0=background_x0,
                                     psf_padding=int(round(self.psf_radius - psf.maxrad)) if is_psf_source[i] else 0)
             except ValueError as msg:
-                logger.error("Unexpected fit problem for sources #{0}: {1}".format(i, msg))
+                logger.exception("Unexpected fit problem for sources #{0}: {1}".format(i, msg))
                 continue
 
             # check if result of a successful fit makes any sense:

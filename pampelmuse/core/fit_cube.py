@@ -31,7 +31,7 @@ extraction for a data cube.
 
 Latest GIT revision
 -------------------
-2024/04/04
+2024/04/08
 """
 import collections
 import logging
@@ -45,7 +45,7 @@ from ..instruments.muse import MusePixtable
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20240404
+__revision__ = 20240408
 
 
 logger = logging.getLogger(__name__)
@@ -520,8 +520,7 @@ class FitCube(object):
             logger.debug("Layers used to update initial guesses: {0}".format(nearest_layers))
 
             # get 1D arrays containing valid data pixels, also sigma-values if requested
-            data = self.get_layer(layers_to_analyse[i], n_bin=n_bin, use_variances=use_variances,
-                                  use_slices=(self.sources.status == 5).any())
+            data = self.get_layer(layers_to_analyse[i], n_bin=n_bin, use_variances=use_variances)
 
             # get fluxes
             fluxes = self.read_fluxes(jj, last=nearest_layers)
@@ -632,7 +631,7 @@ class FitCube(object):
         # if available, return results of detailed PSF analysis
         return self._make_psf_hdus() if analyse_psf else None
 
-    def get_layer(self, current, n_bin, use_variances=True, skip_nan=True, use_slices=False):
+    def get_layer(self, current, n_bin, use_variances=True, skip_nan=True):
         """
         Returns a single layer of the IFS data as a pandas DataFrame.
 
@@ -651,10 +650,6 @@ class FitCube(object):
         skip_nan : boolean, optional
            Flag indicating if NaN pixels should be included in the data that
            is returned.
-        use_slices : boolean, optional
-            Flag indicating if the IFU and slice numbers should be returned
-            for a MUSE pixel table (when available). If so, they will be
-            stored in columns 'ifu' and 'slice'.
 
         Returns
         -------
@@ -667,17 +662,16 @@ class FitCube(object):
             slice numbers of each pixel.
         """
         # Get data layer, also variance layer if requested; bin data if requested
-        if self.ifs_data.name == 'MUSE_Pixtable':
-            data = self.ifs_data.get_layer(current, return_var=use_variances)
-            if skip_nan:
-                data.dropna(inplace=True, subset='value')
-            return data
-        elif n_bin == 1:
-            values, variances = self.ifs_data.get_layer(current, return_var=use_variances)
-        else:
-            jjmin = current - n_bin // 2
-            jjmax = min(current + n_bin // 2, self.ifs_data.nlayer)
-            values, variances = self.ifs_data.integrate(jjmin, jjmax, apply_variances=use_variances)
+        if n_bin == 1 or self.ifs_data.name == 'MUSE_Pixtable':
+            return self.ifs_data.get_layer(current, return_var=use_variances)
+
+        jjmin = current - n_bin // 2
+        jjmax = min(current + n_bin // 2, self.ifs_data.nlayer)
+        values, variances = self.ifs_data.integrate(jjmin, jjmax, apply_variances=use_variances)
+
+        values = values.flatten()
+        if variances is not None:
+            variances = variances.flatten()
 
         # get x- & y-coordinates of each pixel
         transform = self.ifs_data.transform
@@ -696,18 +690,6 @@ class FitCube(object):
         # add variances if requested
         if use_variances:
             data['variance'] = variances[~mask]
-        # add IFU/slice information for pixel table
-        if self.ifs_data.name == 'MUSE_Pixtable':
-            # data['wave'] = self.ifs_data.raw_wave_for_current_layer[~mask]
-            if use_slices:
-                if self.ifs_data.ifus_for_current_layer is not None:
-                    data['ifu'] = self.ifs_data.ifus_for_current_layer[~mask]
-                else:
-                    logger.error('Cannot get IFU numbers for layer because HDU not available.')
-                if self.ifs_data.ifus_for_current_layer is not None:
-                    data['slice'] = self.ifs_data.slices_for_current_layer[~mask]
-                else:
-                    logger.error('Cannot get slice numbers for layer because HDU not available.')
 
         # return, make sure byte-ordering is correct, see
         # https://pandas.pydata.org/pandas-docs/stable/gotchas.html#byte-ordering-issues

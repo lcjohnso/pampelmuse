@@ -1,7 +1,7 @@
 """
 instrument.py
 =============
-Copyright 2013-2021 Sebastian Kamann
+Copyright 2013-2024 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -28,11 +28,12 @@ defines generic methods that are inherited by all its subclasses.
 
 Latest Git revision
 -------------------
-2021/04/22
+2024/04/08
 """
 import logging
 import matplotlib
 import numpy as np
+import pandas as pd
 from matplotlib import path
 from scipy.spatial import distance, ConvexHull
 from astropy.io import fits
@@ -42,7 +43,7 @@ from ..utils.distance import dist2path, point_in_poly
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20210422
+__revision__ = 20240408
 
 
 class Instrument(object):
@@ -757,10 +758,28 @@ class Instrument(object):
         """
         return np.array([]), np.array([])
 
-    def get_layer(self, i, **kwargs):
+    def get_image(self, i: int, **kwargs) -> (np.ndarray, np.ndarray):
+        """
+        This method returns a single image (i.e. the content of a single
+        layer) as a 2dim numpy array.
+
+        Parameters
+        ----------
+        i
+            The index of the layer for which the image should be returned.
+        kwargs
+
+        Returns
+        -------
+        np
+
+        """
+        return np.array([]), np.array([])
+
+    def get_layer(self, i: int, **kwargs) -> pd.DataFrame:
         """
         This method returns a single layer (i.e. the content of all spaxels
-        with a given wavelength) from the data.
+        with a given wavelength) from the data as a dataframe.
         IMPORTANT: This method should be redefined by every subclass that
         inherits from the Instrument class.
 
@@ -778,28 +797,29 @@ class Instrument(object):
         variances : ndarray
             The variances of the data values in the requested layer.
         """
-        return np.array([]), np.array([])
+        return pd.DataFrame(columns=['x', 'y', 'value', 'variance'], dtype=np.float64)
 
-    def integrate(self, imin, imax, apply_variances=False, weights=None, nbin=1, **kwargs):
+    def integrate(self, imin: int, imax: int, apply_variances: bool = False, weights: np.ndarray = None,
+                  nbin: int = 1, **kwargs) -> (np.ndarray, np.ndarray):
         """
         This method is designed to obtain an image by integrating over a range
         of individual layers.
 
         Parameters
         ----------
-        imin : int
+        imin
             The index of the first layer to be used in the integration.
-        imax : int
+        imax
             The index of the last layer to be used in the integration.
-        apply_variances : boolean, optional
+        apply_variances
             A flag indicating if the layers should be weighted according to
             their variances in the combination.
-        weights : array_like, optional
+        weights
             An additional weight for each value (e.g. the throughput of a
             filter curve at the wavelength of the layer). Note that this
             weights are multiplied to the variances if apply_variances is
             set to True.
-        nbin : int, optional
+        nbin
             A binning that may be used to speed up the integration process.
             If set to a value larger than one, only every 'nbin'th layer is
              considered.
@@ -809,9 +829,9 @@ class Instrument(object):
 
         Returns
         -------
-        data : ndarray
+        ndarray
             The array containing the integrated data.
-        variances : ndarray
+        ndarray
             An estimate of the variance in each data pixel. Note that if no
             variances or weights are used in the integration, this array will
             contain 1/(no. of integrated pixels) for each output pixel.
@@ -821,12 +841,13 @@ class Instrument(object):
             kwargs['return_var'] = True
 
         if weights is not None:
-            assert(len(weights) == (imax - imin)), 'Length of weights array must be equal to number of layers.'
+            if len(weights) != (imax - imin):
+                raise IOError('Length of weights array must be equal to number of layers.')
         else:
             weights = np.ones(imax - imin, dtype=np.int16)
 
         # initialize output data from first layer
-        data, var = self.get_layer(i=imin, **kwargs)
+        data, var = self.get_image(i=imin, **kwargs)
         # if variances are not used, give each valid pixel a value of one.
         if var is None:
             var = np.where(np.isfinite(data), 1., np.nan)
@@ -841,7 +862,7 @@ class Instrument(object):
             if (i - imin) % nbin > 0:
                 continue
 
-            newdata, newvar = self.get_layer(i=i, **kwargs)[:2]
+            newdata, newvar = self.get_image(i=i, **kwargs)[:2]
             if newvar is None:
                 newvar = np.where(np.isfinite(newdata), 1., np.nan)
             newvar /= weights[i - imin]

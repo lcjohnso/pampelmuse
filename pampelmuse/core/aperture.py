@@ -1,7 +1,7 @@
 """
 aperture.py
 ===========
-Copyright 2013-2018 Sebastian Kamann
+Copyright 2013-2024 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -44,7 +44,7 @@ function pampelmuse.core.aperture.run_ap
 
 Latest Git revision
 -------------------
-2018/08/14
+2024/04/08
 """
 import logging
 from multiprocessing import Pool, cpu_count
@@ -55,8 +55,8 @@ from scipy.stats import sigmaclip
 from ..instruments import Instrument, MusePixtable
 
 
-__author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 20180814
+__author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
+__revision__ = 20240408
 
 
 logger = logging.getLogger(__name__)
@@ -390,15 +390,15 @@ class AperPhoto:
 
             # load data - note that layer binning is currently not performed for pixtables.
             if n_bin == 1 or isinstance(self.cube, MusePixtable):
-                data = self.cube.get_layer(i=layer_index)[0]
+                input_data.append(self.cube.get_layer(i=layer_index))
             else:
                 if layer_index != self.layers_to_analyse[-1]:
                     data = self.cube.integrate(layer_index - n_bin // 2, layer_index + n_bin // 2)[0]
                 else:
                     data = self.cube.integrate(layer_index - n_bin // 2, stop)[0]
 
-            input_data.append(pd.DataFrame(np.append(self.cube.transform, data[:, None], axis=1),
-                                           columns=['y', 'x', 'flux']))
+                input_data.append(pd.DataFrame(np.append(self.cube.transform, data.flatten()[:, None], axis=1),
+                                               columns=['y', 'x', 'flux']))
 
             if not i % n_cpu or layer_index == self.layers_to_analyse[-1]:
                 if n_cpu > 1:

@@ -33,6 +33,7 @@ Latest Git revision
 """
 import logging
 import numpy as np
+import pandas as pd
 from scipy.spatial import ConvexHull, distance
 from astropy.wcs import WCS
 from .instrument import Instrument
@@ -193,7 +194,7 @@ class GenericIFS(Instrument):
             mask is available, the masked pixels are still included in the
             data but set to NaN.
         variance : nd_array or None
-            If the return_var flag is set, the variance spectrum is returned
+            If the return_var flag is set, return the variance spectrum
             together with the data.
         """
         if self.transform is None:
@@ -209,36 +210,30 @@ class GenericIFS(Instrument):
         return (np.where(mask, np.nan, self.datahdu.data[:, j, k]),
                 np.where(mask, np.nan, self.varhdu.data[:, j, k]) if return_var and self.varhdu is not None else None)
 
-    def get_layer(self, i, return_residuals=False, return_grid=False, return_var=False, **kwargs):
+    def get_image(self, i: int, return_residuals: bool = False, return_var: bool = False,
+                  **kwargs) -> (np.ndarray, np.ndarray):
         """
-        Extract the monochromatic layer with index i from the provided HDU.
-        To keep the memory usage low, the spectrum is extracted using Section
-        -class provided by fits.
+        Extract the individual image with index i from the available data.
 
         Parameters
         ----------
-        i : int
+        i
             The index of the monochromatic layer that should be extracted.
-        return_residuals : boolean, optional
-            Set this flag to return the fit residuals (if available) instead
-            of the data.
-        return_grid : boolean, optional
-            Set this flag to return the layer as a 2dim. grid. By default,
-            a 1dim. (i.e. flattened) array is returned.
-        return_var : bool,  optional
-            If this flag is set, the corresponding variances are returned
-            together with the layer.
+        return_residuals
+            If True, return the fit residuals instead of the data.
+        return_var
+            If True return the variance image together with the data.
+        kwargs
 
         Returns
         -------
-        data : nd_array
-            The extracted monochromatic layer. Note that if a bad-pixel mask
-            is available, the masked pixels are still included in the array
+        np.ndarray
+            The image in the requested layer. Note that if a bad-pixel mask
+            is available, the masked pixels are still included in the image,
             but set to NaN.
-        variance : nd_array or None
-            If the return_var parameter was set, this array contains the
-            variances of the data array. It has the same shape as the data
-            array.
+        np.ndarray
+            The variance values associated with the image, if requested.
+            Otherwise, None is returned.
         """
         if self.maskhdu is not None:
             valid = (self.maskhdu.section[i] == 0)
@@ -246,19 +241,54 @@ class GenericIFS(Instrument):
             valid = None
 
         if not return_residuals:
-            data = self.datahdu.section[i] if valid is None else np.where(valid, self.datahdu.section[i], np.nan)
+            data = self.datahdu.section[i]
         else:
-            data = self.residualshdu.section[i] if valid is None else np.where(
-                    valid, self.residualshdu.section[i], np.nan)
+            data = self.residualshdu.section[i]
+        if valid is not None:
+            data[~valid] = np.nan
+
         if return_var and self.varhdu is not None:
-            var = self.varhdu.section[i] if valid is None else np.where(valid, self.varhdu.section[i], np.nan)
+            var = self.varhdu.section[i]
+            if valid is not None:
+                var[~valid] = np.nan
         else:
             var = None
 
-        if return_grid:
-            return data, var
-        else:
-            return data.flatten(), var.flatten() if var is not None else None
+        return data, var
+
+    def get_layer(self, i: int, return_residuals: bool = False, return_var: bool = False, **kwargs) -> pd.DataFrame:
+        """
+        Extract the monochromatic layer with index i from the provided HDU and
+        return it as a dataframe.
+
+        Parameters
+        ----------
+        i
+            The index of the monochromatic layer that should be extracted.
+        return_residuals
+            If True, return the fit residuals (if available) instead of the
+            data.
+        return_var
+            If True, the variances are returned together with the data or
+            residuals.
+
+        Returns
+        -------
+        pd.DataFrame
+            The dataframe contains the voxel coordinates as columns `x` and
+            `y`, the data or residual values as column `value`, and optionally
+            the variance values as column `variance`.
+        """
+        data, var = self.get_image(i=i, return_residuals=return_residuals, return_var=return_var)
+
+        masked = np.isnan(data) | np.isnan(var)
+        out = pd.DataFrame(data={'x': self.transform[~masked, 1], 'y': self.transform[~masked, 0],
+                                 'value': data[~masked]},
+                           index=np.flatnonzero(~masked))
+        if var is not None:
+            out['variance'] = var[~masked]
+
+        return out
 
     def slice_for_layer(self, i):
         """

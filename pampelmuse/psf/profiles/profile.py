@@ -1,7 +1,7 @@
 """
 profiles.py
 ===========
-Copyright 2013-2021 Sebastian Kamann
+Copyright 2013-2024 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -44,7 +44,7 @@ properties that are only recalculated if any of the underlying variables
 
 Latest Git revision
 -------------------
-2021/03/29
+2024/04/08
 """
 import collections
 import logging
@@ -55,7 +55,7 @@ from ...psf import Canvas
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20210329
+__revision__ = 20240408
 
 
 logger = logging.getLogger(__name__)
@@ -673,7 +673,7 @@ class Profile(Canvas):
         Nos : int
             The number of supersampled pixels included in the calculation.
         """
-        return self.oversampled.sum()
+        return self.oversampled[self.used].sum()
 
     @property
     def norm(self):
@@ -751,6 +751,9 @@ class Profile(Canvas):
             self._xos = self.x[self.osmap]
             if self.osf > 1:
                 # add offsets of sub-pixel wrt. parent pixel along x-axis
+                if self.is_oversampled.sum() < self.n_os*(self.osf**2):
+                    x = self.oversampled.sum()
+                    print(123)
                 self._xos[self.is_oversampled] += np.tile(self.osxgrid, self.n_os)
         return self._xos
 
@@ -1267,13 +1270,12 @@ class Profile(Canvas):
             result = optimize.least_squares(
                 self.single_psf_optimizer, x0=np.asarray(x0), bounds=bounds, jac=self.single_psf_jacobi,
                 args=(names, psf2fit, weights2fit))
-        except Exception as msg:
-            # error handler to avoid code crashes completely
+        except np.linalg.LinAlgError as msg:
+            # error handler to avoid code crashes completely if invalid PSF parameter values encountered
             # note that type of exception thrown seems to depend on scipy version
             logger.error('PSF fit failed for source #{0}: {1}.'.format(self.src_id, msg),
                          exc_info=True if logger.getEffectiveLevel() <= 10 else False)
             logger.error(msg)
-            print(x0, names)  # ,psf2fit, weights2fit)
             values = np.nan*np.ones_like(x0)
             residuals = None
             success = False
