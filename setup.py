@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='PampelMuse',
-    version='1.0.3',
+    version='1.0.4',
     description='A code to extract stellar spectra from integral field spectroscopic data',
     author='Sebastian Kamann',
     author_email='s.kamann@ljmu.ac.uk',

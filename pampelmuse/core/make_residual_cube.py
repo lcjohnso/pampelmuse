@@ -1,7 +1,7 @@
 """
 make_residuals_cube.py
 ======================
-Copyright 2013-2020 Sebastian Kamann
+Copyright 2013-2024 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -32,7 +32,7 @@ Added
 rev. 343, 2016/08/01
 
 Latest Git revision
-2020/02/05
+2024/04/10
 """
 import collections
 import logging
@@ -44,7 +44,7 @@ from .fit_layer import FitLayer
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20200205
+__revision__ = 20240410
 
 
 logger = logging.getLogger(__name__)
@@ -304,8 +304,7 @@ class MakeResidualsCube(FitCube):
             logger.info("Processing layer with wavelength {0:.1f} Angstrom.".format(1e10*jj))
 
             # get 1D arrays containing valid data pixels
-            data = self.get_layer(self.sources.wave.get_loc(jj), use_variances=False, n_bin=1, skip_nan=False,
-                                  use_slices=(self.sources.status == 5).any())
+            data = self.get_layer(self.sources.wave.get_loc(jj), use_variances=False, n_bin=1, skip_nan=False)
 
             # update fluxes
             fluxes = self.read_fluxes(jj, fillna=False)
