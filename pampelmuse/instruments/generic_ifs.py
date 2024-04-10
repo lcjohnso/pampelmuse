@@ -29,7 +29,7 @@ i.e. NAXIS3 in FITS counting) being the spectral axis.
 
 Latest Git revision
 -------------------
-2024/04/08
+2024/04/10
 """
 import logging
 import numpy as np
@@ -40,7 +40,7 @@ from .instrument import Instrument
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20240408
+__revision__ = 20240410
 
 
 class GenericIFS(Instrument):
@@ -284,7 +284,9 @@ class GenericIFS(Instrument):
         if var is not None:
             var = var.flatten()
 
-        masked = np.isnan(data) | np.isnan(var)
+        masked = np.isnan(data)
+        if var is not None:
+            masked |= np.isnan(var)
         out = pd.DataFrame(data={'x': self.transform[~masked, 1], 'y': self.transform[~masked, 0],
                                  'value': data[~masked]},
                            index=np.flatnonzero(~masked))
