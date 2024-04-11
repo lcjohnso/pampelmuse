@@ -32,7 +32,7 @@ Added
 rev. 343, 2016/08/01
 
 Latest Git revision
-2024/04/10
+2024/04/11
 """
 import collections
 import logging
@@ -41,10 +41,11 @@ import numpy as np
 import pandas as pd
 from .fit_cube import FitCube
 from .fit_layer import FitLayer
+from ..instruments import *
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20240410
+__revision__ = 20240411
 
 
 logger = logging.getLogger(__name__)
@@ -347,8 +348,18 @@ class MakeResidualsCube(FitCube):
                     results = [parallel_process_layers(fit_input[0])]
 
                 for k, result in enumerate(results, start=1):
-                    self.residuals[self.ifs_data.slice_for_layer(layers_to_analyse[i] - len(results) + k)] = result
-
+                    # How results are written to residuals array depends on IFU data type in use.
+                    layer_index = layers_to_analyse[i] - len(results) + k
+                    if isinstance(self.ifs_data, GenericIFS):
+                        img = self.ifs_data.make_image(layer=result)
+                        self.residuals[layer_index] = img
+                    elif isinstance(self.ifs_data, MusePixtable):
+                        i_min, i_max = self.ifs_data.layer_indices[k]
+                        img = np.nan*np.ones((i_max - i_min), dtype=np.float64)
+                        img[result.index] = result.values
+                        self.residuals[i_min:i_max] = img
+                    else:
+                        raise NotImplementedError
                 fit_input = []
 
         return self.residuals

@@ -30,7 +30,7 @@ muse_scipost recipe.
 
 Latest GIT revision
 -------------------
-2024/04/08
+2024/04/11
 """
 import logging
 import warnings
@@ -48,7 +48,7 @@ from .generic_ifs import GenericIFS
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20240408
+__revision__ = 20240411
 
 
 class Muse(GenericIFS):
@@ -712,21 +712,26 @@ class MusePixtable(Instrument):
             mask = (self.maskhdu.section[imin:imax + 1][:, 0] <= self.dqmax)
             return imin + np.flatnonzero(mask), np.zeros(mask.sum(), dtype=np.int32)
 
-    def make_image(self, data, grid=None, method='nearest', **kwargs):
+    def make_image(self, data: np.ndarray = None, layer: pd.Series = None, grid: np.ndarray = None,
+                   method: str = 'nearest', **kwargs) -> np.ndarray:
         """
-        This method is designed to create a 2D image from a provided
-        1D array.
+        This method is designed to create a 2D image from a provided 1dim set
+        of data.
 
         Parameters
         ----------
-        data : array_like
-            The data to be transformed to a 2dim. image. Note that for the
-            code to work, the length of the data must match the current
+        data
+            A numpy array containing the data to be transformed to a 2dim
+            image. Note that the length of the data must match the current
             number of spaxels in the instance of MusePixtable.
-        grid : ndarray, optional
+        layer
+            A pandas series containing the data to be transformed into a
+            2dim image. Contrary to `data`, `layer` supports missing values
+            because the index is used to match input and output voxels.
+        grid
             The x- and y-coordinates of the output pixels. The array should
             be of the shape that is provided bz numpy.mgrid.
-        method : string, optional
+        method
             The method used in the resampling process. Default is to use
             the nearest pixel which is the fastest but least accurate method.
         kwargs
@@ -734,26 +739,30 @@ class MusePixtable(Instrument):
 
         Returns
         -------
-        outdata : ndarray
+        numpy.ndarray
             The transformed 2dim. data.
         """
-        # perform consistency checks on provided data
-        if data.size != self.nspaxel:
-            logging.error('Unable to create image: Size of data ({0} differs from no. of spaxels ({1}).'.format(
-                data.size, self.nspaxel))
-            return None
-        elif self.nspaxel == 0:
-            if grid is None:
-                logging.error('Cannot create image from empty pixel grid.')
-                return None
-            else:
-                return np.nan*np.ones_like(grid[0], dtype=np.float32)
+        if data is None and layer is None:
+            return super().make_image(data=data, layer=layer)
+        elif data is not None:
+            if layer is not None:
+                warnings.warn("Ignoring `layer` argument to `make_image()` because `data` provided.")
+                # perform consistency checks on provided data
+            if data.size != self.nspaxel:
+                raise IndexError('Unable to create image: Size of data ({0} differs from no. of spaxels ({1}).'.format(
+                    data.size, self.nspaxel))
 
         if grid is None:
+            if self.nspaxel == 0:
+                raise IOError('Cannot create image from empty pixel grid.')
             grid = np.mgrid[int(self.y.min()):int(self.y.max()+1):int(self.y.max() - self.y.min() + 1)*1j,
                             int(self.x.min()):int(self.x.max()+1):int(self.x.max() - self.x.min() + 1)*1j]
-
-        return griddata((self.y, self.x), data, (grid[0], grid[1]), method=method)
+        elif self.nspaxel == 0:
+            return np.nan*np.ones_like(grid[0], dtype=np.float32)
+        elif data is not None:
+            return griddata((self.y, self.x), data, (grid[0], grid[1]), method=method)
+        else:
+            return griddata((self.y[layer.index], self.x[layer.index]), layer.values, (grid[0], grid[1]), method=method)
 
     def drizzle_1d(self, wave_in, flux_in, wave_out, delta_wave_in=None, delta_wave_out=None, variances=None,
                    pixel_map=None, return_weights=False):

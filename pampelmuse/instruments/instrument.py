@@ -28,9 +28,11 @@ defines generic methods that are inherited by all its subclasses.
 
 Latest Git revision
 -------------------
-2024/04/08
+2024/04/11
 """
 import logging
+import warnings
+
 import matplotlib
 import numpy as np
 import pandas as pd
@@ -43,7 +45,10 @@ from ..utils.distance import dist2path, point_in_poly
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20240408
+__revision__ = 20240411
+
+
+logger = logging.getLogger(__name__)
 
 
 class Instrument(object):
@@ -950,35 +955,52 @@ class Instrument(object):
         """
         return Ellipsis
 
-    def make_image(self, data, **kwargs):
+    def make_image(self, data: np.ndarray = None, layer: pd.Series = None, **kwargs) -> np.ndarray:
         """
         This method is designed to create a 2D image from a provided
         1D array.
 
         Parameters
         ----------
-        data : array_like
-            The data to be transformed to a 2dim. image. Note that for the
-            code to work, the length of the data must match the number of
-            spaxels in the instance of Instrument.
+        data
+            A 1dim array to be transformed to a 2dim. image. Note that the
+            length of the data must match the number of spaxels in the
+            instance.
+        layer
+            The data to be transformed, provided as a pandas Series instead.
+             Contrary to data`, spaxels may be missing in `layer`. Values in
+             layer are assigned to output spaxels based on the index of the
+             data series.
         kwargs
             Used for consistency.
 
         Returns
         -------
-        outdata : ndarray
+        np.ndarray
             The transformed 2dim. data.
         """
+        if data is None and layer is None:
+            raise IOError("Either 'data' or 'layer' must be provided.")
+        elif data is not None:
+            if layer is not None:
+                warnings.warn("Ignoring provided 'layer', as 'data' is provided.")
+            elif data.size != self.nspaxel:
+                logger.error('Unable to create image: Size of data ({0} differs from no. of spaxels ({1}).'.format(
+                    data.size, self.nspaxel))
 
-        if data.size != self.nspaxel:
-            logging.error('Unable to create image: Size of data ({0} differs from no. of spaxels ({1}).'.format(
-                data.size, self.nspaxel))
+        out_data = np.zeros(self.shape, dtype=np.float32)
+        out_data[:] = np.nan
 
-        outdata = np.zeros(self.shape, dtype=np.float32)
-        outdata[:] = np.nan
-        outdata[self.y.astype('<i4'), self.x.astype('<i4')] = data
+        y = self.y.astype('<i4')
+        x = self.x.astype('<i4')
+        if data is not None:
+            out_data[y, x] = data
+        else:
+            y = self.y.astype('<i4')[layer.index]
+            x = self.x.astype('<i4')[layer.index]
+            out_data[y, x] = layer.values
+        return out_data
 
-        return outdata
 
     def search_configuration(self, hdu, **kwargs):
         """
