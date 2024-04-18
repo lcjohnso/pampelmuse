@@ -31,13 +31,14 @@ Added
 
 Latest Git revision
 -------------------
-2024/04/08
+2024/04/18
 """
 import datetime
 import logging
 import os
 import numpy as np
 import pandas as pd
+from scipy.spatial import minkowski_distance
 from scipy.stats import mstats
 from astropy.io import fits
 from .sources import Sources
@@ -48,7 +49,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20240408
+__revision__ = 20240418
 
 
 logger = logging.getLogger(__name__)
@@ -75,7 +76,7 @@ class SpectrumWriter(object):
         ----------
         sources : an instance of pampelmuse.core.Sources
             This parameter must be used to provide all necessary information
-            about the the sources that were extracted.
+            about the sources that were extracted.
         ifs_data : an instance of pampelmuse.instruments.Instrument
             This parameter must be used to provide all necessary information
             about the IFS data.
@@ -305,8 +306,99 @@ class SpectrumWriter(object):
         else:
             self.header[key.upper()] = value
 
+    def get_star_keys(self, source_id):
+        keys = {"ID": source_id}
+
+        # update RA & Dec values if provided in source catalog
+        if not np.isnan(self.sources.ra[source_id]) and not np.isnan(self.sources.dec[source_id]):
+            keys["RA"] = self.sources.ra[source_id]
+            keys["DEC"] = self.sources.dec[source_id]
+
+        # add magnitude to header
+        if not np.isnan(self.sources.mag[source_id]):
+            keys["MAG"] = self.sources.mag[source_id]
+
+        # Check if more than one source contribute to the spectrum
+        # if so, collect RA, DEC, and magnitude information for all secondary stars
+        neighbours = []
+        for neighbour_id in self.sources.indexmap[self.sources.specrow[source_id]][1:]:
+            neighbours.append({"ID": neighbour_id})
+            if np.isfinite(self.sources.ra[neighbour_id]) and np.isfinite(self.sources.dec[neighbour_id]):
+                neighbours[-1]["RA"] = self.sources.ra[neighbour_id]
+                neighbours[-1]["DEC"] = self.sources.dec[neighbour_id]
+            if not np.isnan(self.sources.mag[neighbour_id]):
+                neighbours[-1]["MAG"] = self.sources.mag[neighbour_id]
+
+        return keys, neighbours
+
+    def get_spectrum_keys(self, source_id, filter_names=None):
+        keys = {}
+
+        # get IFS coordinates for the star and check if it is inside the field of view
+        xi = self.xy.at[source_id, 'x']
+        yi = self.xy.at[source_id, 'y']
+
+        # add x- and y-position of PSF centroid in cube
+        keys["XCUBE"] = (xi, "[spaxel] x-position in cube")
+        keys["YCUBE"] = (yi, "[spaxel] y-position in cube")
+
+        # determine distance to nearest brighter source
+        brighter = self.sources.mag[self.xy.index] < self.sources.mag[source_id]
+        brighter[source_id] = False
+        if brighter.any():
+            d_brighter = minkowski_distance(self.xy[brighter].values, [xi, yi]).min()
+        else:
+            d_brighter = 999.
+        keys["BRIGHT"] = (d_brighter, "[spaxel] Bright neighbour offset")
+
+        infield = self.ifs_data.infov([[xi, yi]])[0]
+        keys["INFIELD"] = (infield, "Whether centroid inside FOV")
+
+        edge_distance = self.ifs_data.distance_to_edge([[xi, yi]])[0]
+        keys["EDGEDIST"] = (edge_distance, "[spaxel] Distance to FOV edge")
+
+        # Add quality parameters determined during CUBEFIT
+        keys["CROWDING"] = (self.sources.crowding[source_id], "Nearby-to-target flux ratio")
+        keys["CHISQ"] = (self.sources.reduced_chisq[source_id], "Goodness-of-fit")
+        keys["FITSNR"] = (self.sources.signal_to_noise[source_id], "Signal-to-noise from fit")
+
+        # calculate magnitude(s) from spectrum if requested
+        if filter_names is not None:
+            for filter_name in filter_names:
+                mag = self.sources.get_magnitude(components=self.sources.specrow[source_id], passband=filter_name)
+                if np.isfinite(mag.iloc[0]):
+                    keys["MAG {0}".format(filter_name.upper())] = (mag.iloc[0], "AB magnitude from spectrum")
+                else:
+                    logger.error('{0}-magnitude calculation for source #{1} returned NaN.'.format(
+                        filter_name, source_id))
+
+        # Add photometric accuracy of spectrum
+        if self.dmag is not None and np.isfinite(self.dmag[source_id]):
+            keys["MAG DELTA"] = (self.dmag[source_id], 'Magnitude difference to input')
+        if self.cleanness is not None and np.isfinite(self.dmag[source_id]):
+            keys["MAG ACCURACY"] = (self.cleanness[source_id], "Magnitude agreement")
+
+        return keys
+
+    def create_filename(self, source_id, source_type='star', prefix=None, flag=None):
+
+        name = prefix if prefix is not None else ""
+        if source_type == 'star':
+            name += "id{:09d}".format(source_id)
+        elif source_type == 'sky':
+            name += "sky{:09d}".format(-source_id)
+        elif source_type == 'unresolved':
+            name += "unresolved"
+        else:
+            raise NotImplementedError(source_type)
+        name += self.date_string
+        if flag is not None:
+            name += "{:03d}".format(flag)
+        name += ".fits"
+        return name
+
     def __call__(self, prefix, folder='spectra', filter_names=None, poststamps=False, radius=10,
-                 add_flag_to_filename=True):
+                 add_flag_to_filename=True, csv_filename='spectra.csv'):
         """
         This method performs the storing of the individual spectra to disk.
 
@@ -335,6 +427,9 @@ class SpectrumWriter(object):
         add_flag_to_filename : bool, optional
             Flag indicating if the quality flag assigned to a spectrum should
             also be included in the name used to store its FITS-file.
+        csv_filename : basestring, optional
+            The name of the CSV file to be created which will contain a list
+            of the extracted stellar spectra and their basic properties.
         """
         if not os.path.exists(folder):
             logger.info("Creating folder '{0}' to store spectra...".format(folder))
@@ -371,6 +466,8 @@ class SpectrumWriter(object):
         y = self.sources.ifs_coordinates.xs(('y', 'value'), level=('axis', 'type'), axis=1)
         # average coordinates along wavelength and combine to new DataFrame
         self.xy = pd.concat([x.mean(axis=0), y.mean(axis=0)], axis=1, keys=['x', 'y'])
+
+        all_properties = []
 
         # loop over all components, i.e. all spectra
         for source_id, i in self.sources.specrow.items():
@@ -413,54 +510,41 @@ class SpectrumWriter(object):
 
                 logger.info("Processing source #{0} [{1}/{2}]".format(source_id, i + 1, self.sources.n_components))
 
-                primary_hdu.header["HIERARCH STAR ID"] = source_id
+                # define name for source which will be included in the FITS header
+                name = "{0}_{1}_{2}".format(prefix.upper(), self.ifs_data.name, source_id)
 
                 # update RA & Dec values if provided in source catalog
                 if not np.isnan(self.sources.ra[source_id]) and not np.isnan(self.sources.dec[source_id]):
                     primary_hdu.header["RA"] = self.sources.ra[source_id]
                     primary_hdu.header["DEC"] = self.sources.dec[source_id]
-                    primary_hdu.header["HIERARCH STAR RA"] = self.sources.ra[source_id]
-                    primary_hdu.header["HIERARCH STAR DEC"] = self.sources.dec[source_id]
 
-                # add magnitude to header
-                if not np.isnan(self.sources.mag[source_id]):
-                    primary_hdu.header["HIERARCH STAR MAG"] = self.sources.mag[source_id]
+                # write HIERARCH STAR keys
+                star_keys, neighbours = self.get_star_keys(source_id=source_id)
+                for key, value in star_keys.items():
+                    primary_hdu.header["HIERARCH STAR {}".format(key)] = value
 
-                #  Check if more than one source contribute to the spectrum
-                cmt = "Whether multiple stars contribute"
-                if len(self.sources.indexmap[i]) > 1:
+                has_neighbours = len(neighbours) > 0
+                if has_neighbours:
                     flag += 1
-                    for l in range(1, len(self.sources.indexmap[i])):
-                        # if so, add RA, DEC, and magnitude information for all secondary stars
-                        m = self.sources.indexmap[i][l]
-                        if not np.isnan(self.sources.ra[m]) and not np.isnan(self.sources.dec[m]):
-                            primary_hdu.header["HIERARCH STAR{0} RA".format(l+1)] = self.sources.ra[m]
-                            primary_hdu.header["HIERARCH STAR{0} DEC".format(l+1)] = self.sources.dec[m]
-                        if not np.isnan(self.sources.mag[m]):
-                            primary_hdu.header["HIERARCH STAR{0} MAG".format(l+1)] = self.sources.mag[m]
-                    primary_hdu.header["HIERARCH SPECTRUM MULTISTAR"] = (True, cmt)
-                    primary_hdu.header["OBJNAME"] = "{0} {1} {2}+".format(prefix.upper(), self.ifs_data.name, source_id)
-                else:
-                    primary_hdu.header["HIERARCH SPECTRUM MULTISTAR"] = (False, cmt)
-                    primary_hdu.header["OBJNAME"] = "{0} {1} {2}".format(prefix.upper(), self.ifs_data.name, source_id)
+                    name += "+"
+                primary_hdu.header["OBJNAME"] = name
 
-                # get IFS coordinates for the star and check if it is inside the field of view
-                xi = self.xy.at[source_id, 'x']
-                yi = self.xy.at[source_id, 'y']
+                for j, neighbour in enumerate(neighbours, start=1):
+                    for key, value in neighbour.items():
+                        primary_hdu.header["HIERARCH STAR{} {}".format(j, key)] = value
 
-                # add x- and y-position of PSF centroid in cube
-                primary_hdu.header["HIERARCH SPECTRUM XCUBE"] = (xi, "[spaxel] x-position in cube")
-                primary_hdu.header["HIERARCH SPECTRUM YCUBE"] = (yi, "[spaxel] y-position in cube")
+                # Write HIERARCH SPECTRUM keys
+                spectrum_keys = self.get_spectrum_keys(source_id=source_id)
+                spectrum_keys["MULTISTAR"] = (has_neighbours, "Whether multiple stars contribute")
 
-                infield = self.ifs_data.infov([[xi, yi]])[0]
-                if not infield:
+                for key, value in spectrum_keys.items():
+                    primary_hdu.header["HIERARCH SPECTRUM {}".format(key)] = value
+
+                if not spectrum_keys["INFIELD"][0]:
                     flag += 8
-                primary_hdu.header["HIERARCH SPECTRUM INFIELD"] = (infield, "Whether centroid inside FOV")
-
-                edge_distance = self.ifs_data.distance_to_edge([[xi, yi]])[0]
-                primary_hdu.header["HIERARCH SPECTRUM EDGEDIST"] = (edge_distance, "[spaxel] Distance to FOV edge")
 
                 # create poststamp image(s) if requested
+                xi, yi = self.xy.loc[source_id]
                 if len(images) > 0:
                     image_header = self._header_with_nearby_sources(x_c=xi, y_c=yi, radius=radius)
                 else:
@@ -475,31 +559,21 @@ class SpectrumWriter(object):
                     flag += 2
                 if not np.isnan(snr):
                     primary_hdu.header["HIERARCH SPECTRUM SNRATIO"] = (snr, "Estimated signal-to-noise")
+                    spectrum_keys["SNRATIO"] = (snr, "Estimated signal-to-noise")
                 else:
                     logger.error("S/N estimation returned NaN - Spectrum of source #{0} corrupted.".format(source_id))
 
                 if np.mean(data['flux'].iloc[self.start:self.stop]) < 0:
                     flag += 4
 
-                # calculate magnitude(s) from spectrum if requested
-                for filter_name in filter_names:
-                    mag = self.sources.get_magnitude(components=i, passband=filter_name)
-                    if np.isfinite(mag.iloc[0]):
-                        primary_hdu.header["HIERARCH SPECTRUM MAG {0}".format(filter_name.upper())] = (
-                            mag.iloc[0], "AB magnitude from spectrum")
-                    else:
-                        logger.error('{0}-magnitude calculation for source #{1} returned NaN.'.format(
-                            filter_name, source_id))
-                if self.dmag is not None and np.isfinite(self.dmag[source_id]):
-                    primary_hdu.header['HIERARCH SPECTRUM MAG DELTA'] = (self.dmag[source_id],
-                                                                         'Magnitude difference to input.')
-                if self.cleanness is not None and np.isfinite(self.dmag[source_id]):
-                    primary_hdu.header['HIERARCH SPECTRUM MAG ACCURACY'] = self.cleanness[source_id]
+                filename = self.create_filename(source_id=source_id, source_type='star', prefix=prefix,
+                                                flag=flag if add_flag_to_filename else None)
 
-                name = "id{0:09d}".format(source_id)
-                primary_hdu.header["HIERARCH SPECTRUM TYPE"] = "star"
-                primary_hdu.header["OBJNAME"] = "{0} {1} {2}".format(prefix.upper(), self.ifs_data.name,
-                                                                     abs(source_id))
+                all_properties.append(pd.DataFrame(star_keys, index=[source_id]))
+                for key, value in spectrum_keys.items():
+                    all_properties[-1].at[source_id, key] = value[0]
+                all_properties[-1].at[source_id, "FILENAME"] = filename
+
             elif self.sources.status[source_id] in [4, 5]:
                 # for sky component, add x- and y-position of patch centroid in cube
                 primary_hdu.header["HIERARCH SPECTRUM XCUBE"] = (self.sources.x[source_id],
@@ -507,21 +581,23 @@ class SpectrumWriter(object):
                 primary_hdu.header["HIERARCH SPECTRUM YCUBE"] = (self.sources.y[source_id],
                                                                  "[spaxel] y-centroid in cube")
 
-                name = "sky{0:08d}".format(abs(source_id))
                 primary_hdu.header["HIERARCH SPECTRUM TYPE"] = "sky"
                 primary_hdu.header["OBJNAME"] = "{0} {1} SKY{2:d}".format(prefix.upper(), self.ifs_data.name,
                                                                           abs(source_id))
+                filename = self.create_filename(source_id=source_id, source_type='sky', prefix=prefix,
+                                                flag=flag if add_flag_to_filename else None)
 
             elif self.sources.status[source_id] == 0:
                 name = "unresolved"
                 primary_hdu.header["HIERARCH SPECTRUM TYPE"] = name
                 primary_hdu.header["OBJNAME"] = "{0} {1} UNRES".format(prefix.upper(), self.ifs_data.name)
 
-            primary_hdu.header["HIERARCH SPECTRUM QLTFLAG"] = (flag, "Quality flag of source")
+                filename = self.create_filename(source_id=None, source_type='unresolved', prefix=prefix,
+                                                flag=flag if add_flag_to_filename else None)
+            else:
+                continue
 
-            outfile_prefix = "{0}{1}{2}".format(prefix, name, self.date_string)
-            if add_flag_to_filename:
-                outfile_prefix += "f{0:03d}".format(flag)
+            primary_hdu.header["HIERARCH SPECTRUM QLTFLAG"] = (flag, "Quality flag of source")
 
             utc = datetime.datetime.utcnow().strftime("%y-%m-%d %H:%M:%S")
             primary_hdu.header["DATE-GEN"] = (utc, "UTC this file was generated.")
@@ -531,10 +607,12 @@ class SpectrumWriter(object):
                 outfile.extend(image_hdus)
             if wave_hdu is not None:
                 outfile.append(wave_hdu)
-            outfile.writeto(os.path.join(folder, "{0}.fits".format(outfile_prefix)), overwrite=True)
+            outfile.writeto(os.path.join(folder, filename), overwrite=True)
 
-            logger.info("Wrote spectrum '{0}' [{1}/{2}]".format(os.path.join(folder, "{0}.fits".format(outfile_prefix)),
+            logger.info("Wrote spectrum '{0}' [{1}/{2}]".format(os.path.join(folder, filename),
                                                                 i + 1, self.sources.n_components))
+        csv = pd.concat(all_properties, axis=0)
+        csv.to_csv(os.path.join(folder, csv_filename), index=False)
 
     @staticmethod
     def _extract_poststamp(image, x_c, y_c, radius=10):

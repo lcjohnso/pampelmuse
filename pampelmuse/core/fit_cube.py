@@ -31,7 +31,7 @@ extraction for a data cube.
 
 Latest GIT revision
 -------------------
-2024/04/08
+2024/04/15
 """
 import collections
 import logging
@@ -45,7 +45,7 @@ from ..instruments.muse import MusePixtable
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20240408
+__revision__ = 20240415
 
 
 logger = logging.getLogger(__name__)
@@ -411,7 +411,7 @@ class FitCube(object):
         catalog = pd.concat(series, axis=1, keys=['x', 'y', 'component', 'magnitude'])
 
         # whole array with spectra needs to be loaded
-        self.sources.load_spectra(init_wave=False)  # isinstance(self.ifs_data, MusePixtable)) #TODO: remove
+        self.sources.load_spectra(init_wave=False)
         # fluxes of omitted layers are set to NaN
         self.sources.data.loc[omitted_indices] = np.nan
 
@@ -469,6 +469,9 @@ class FitCube(object):
 
         # check which sources should be used in single PSF fits
         catalog['psf'] = self.sources.status == 3
+
+        # prepare arrays for containing quality assessment parameters of each source
+        quality = []
 
         # prepare array for offsets, if they are fitted
         offsets = []
@@ -544,7 +547,7 @@ class FitCube(object):
                 logger.debug('Preparing background model ...')
                 self.background.transform = data[['x', 'y']].values
                 # if oversampling of background should be used, split up wavelength values into requested number of
-                # equi-distant bins
+                # equidistant bins
                 if self.background.oversampling > 1:
                     bins = np.linspace(data['wave'].min(), data['wave'].max(), self.background.oversampling+1)[1:-1]
                     self.background.spectral_bins = np.digitize(data['wave'], bins)
@@ -573,7 +576,8 @@ class FitCube(object):
             # following ones. Otherwise, a parallel fit is triggered every n_cpu's layer
             if i in [0, 1] or np.mod(i - 1, n_cpu) == 0 or jj == indices_to_analyse[-1]:
                 if n_cpu > 1:
-                    logger.info('Running analysis of layers {} - {}.'.format(max(0, i - n_cpu), i))
+                    if i > 1:
+                        logger.info('Running analysis of layers {} - {}.'.format(max(0, i - n_cpu), i))
                     _results = pool.map_async(parallel_fit_layer, fit_input)
                     results = _results.get()
                 else:
@@ -596,6 +600,9 @@ class FitCube(object):
                     if analyse_psf and result.profiles is not None:
                         self._write_psf_properties(result.profiles, result.parameters, current_wavelength=current)
                         self._write_minicubes(current, result.residuals, fit_input[k - 1].data)
+
+                    # collect quality parameters
+                    quality.append(result.quality)
 
                     # collect offsets if requested
                     if result.offsets is not None:
@@ -620,6 +627,11 @@ class FitCube(object):
                         last_layers = indices_to_analyse[:i]
                     else:
                         last_layers = indices_to_analyse[i - 2:max(0, i - 2 - 2 * n_track):-1]
+
+        median_quality = pd.concat(quality).groupby(level=0).agg(np.nanmedian)
+        self.sources.crowding = median_quality['crowding']
+        self.sources.reduced_chisq = median_quality['reduced_chisq']
+        self.sources.signal_to_noise = median_quality['signal_to_noise']
 
         # if offsets were fitted, average and add to Sources instance
         if len(offsets) > 0:
@@ -662,7 +674,7 @@ class FitCube(object):
             slice numbers of each pixel.
         """
         # Get data layer, also variance layer if requested; bin data if requested
-        if n_bin == 1 or self.ifs_data.name == 'MUSE_Pixtable':
+        if n_bin == 1 or isinstance(self.ifs_data, MusePixtable):
             return self.ifs_data.get_layer(current, return_var=use_variances)
 
         jjmin = current - n_bin // 2

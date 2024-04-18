@@ -1,0 +1,243 @@
+"""
+PampelMuse
+==========
+Copyright 2013-2024 Sebastian Kamann
+
+This file is part of PampelMuse.
+
+PampelMuse is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+any later version.
+
+PampelMuse is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with PampelMuse. If not, see <http://www.gnu.org/licenses/>.
+
+
+Provides
+--------
+The main script of PampelMuse, the <P>otsdam <A>dvanced <M>ulti <P>SF
+<E>xtraction A<l>gorithm for <MUSE>. All analysis starts here.
+
+Purpose
+-------
+The routine first checks if all dependencies for running PampelMuse are
+fulfilled. Especially, it checks whether PyQt4 is available on the system.
+Afterward, the subroutines of PampelMuse are loaded; depending on whether
+PyQt4 was found on the system, the routines that require graphical output
+are loaded or not.
+
+In the next step, the configuration of PampelMuse is loaded, and updated
+if requested by the user. The default configuration of PampelMuse is stored
+in an xml-file that is provided together with the code. For the subsequent
+analysis, the configuration will be written to a namespace that is passed
+to the individual subroutines called at the end of initialization. The user
+has two options to modify the default configuration from the xml-file before
+passing it to the subroutines:
+
+(i) via the command line:
+When PampelMuse is called, the user can provide a configuration file in a
+format that is understood by the ConfigParser package of python. An overview
+of the parameters that PampelMuse uses can be found in the manual.
+
+(ii) via the header of the primary HDU of the PampelMuse PRM-file
+If a PRM file exists, the routine will check the header for entries HIERARCH
+PAMPELMUSE <KEY> and use the provided values to update the configuration.
+Note that values given in the header of the PRM-file have priority over those
+provided on the command line.
+
+As a last step before calling the subroutine, the routine opens and verifies
+the FITS files containing the IFS data. Note that the routine does NOT load
+the data into memory yet but just checks whether the file(s) are valid.
+
+Latest Git revision
+-------------------
+2024/04/15
+"""
+import argparse
+import importlib
+import json
+import logging
+import os
+import pkgutil
+import sys
+from astropy.io import fits
+if sys.version_info[:2] < (3, 9):
+    from importlib_resources import files
+else:
+    from importlib.resources import files
+
+from . import initfit, ptsort, singlesrc
+from .. import __version__
+from ..config import changeable
+from ..utils.fits import read_config_from_header
+
+
+__author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
+__revision__ = 20240418
+
+
+logger = logging.getLogger(__name__)
+
+
+def main():
+    sys.stdout.write("""
+        ,;:.    PampelMuse, version {0:17}    ,;:.
+       (::;;)   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   (::;;)
+        `;:'                                             `;:'
+
+    (c) 2013-2024 {1}
+    """.format(__version__, __author__))
+
+    sys.stdout.write("""
+    PampelMuse is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    any later version.
+
+    PampelMuse is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with PampelMuse. If not, see <http://www.gnu.org/licenses/>.
+
+""")
+    sys.stdout.flush()
+
+    # Initialize main argument parser for PampelMuse
+    parser = argparse.ArgumentParser(prog="PampelMuse", description="""
+    PampelMuse is a routine to extract stellar spectra from IFS data via PSF
+    fitting techniques. It is designed for the analysis of IFS observations
+    of crowded stellar fields. As the name suggests, it was originally intended
+    to serve as an analysis tool for the Muse spectrograph. Yet, PampelMuse is
+    written in a more generic way and should be able to analyze data coming from
+    other spectrographs as well. A limitation of the current version is that the
+    spaxels of the IFS should be square. The analysis of the data is performed in
+    different stages that are carried out by the  various sub-routines provided
+    below.""")
+    parser.add_argument("config", type=str, help="""
+    Update configuration using the provided configuration. It must be in JSON-
+    format. In any case, the parameter 'prefix' must be defined, providing the
+    filename minus the extension of the data to be analysed.""")
+    parser.add_argument("--pdb", action='store_true',
+                        help="If set, the code will stop in a pdb console if an error is thrown.")
+
+    subparsers = parser.add_subparsers(help='Available routines')
+
+    # list modules in the pampelmuse.routines package
+    pkgpath = os.path.dirname(__file__)
+    modules = [name for _, name, _ in pkgutil.iter_modules([pkgpath])]
+
+    # loop over modules in pampelmuse.routines to find available subroutines
+    for m in modules:
+        # import module
+        if m == 'addwcs':
+            continue
+        mod = importlib.import_module('pampelmuse.routines.' + m)
+
+        # add subparser
+        try:
+            mod.add_parser(subparsers)
+        except AttributeError:
+            continue
+
+    # parse arguments into preliminary namespace
+    args = parser.parse_args()
+
+    # Check whether we should allow for debugging in pdb - feature suggested by Jarle Brinchmann
+    # Inspired by musered
+    if args.pdb:
+        def run_pdb(type, value, tb):
+            import pdb
+            import traceback
+
+            traceback.print_exception(type, value, tb)
+            pdb.pm()
+
+        sys.excepthook = run_pdb
+
+    # read default configuration, note "f" is a PosixPath object
+    with files('pampelmuse.config') / 'data' / 'pampelmuse.json' as f:
+        config = json.loads(f.read_text())
+
+    # open user configuration
+    with open(args.config) as user:
+        user_config = json.load(user)
+
+    # make sure user_config contains information about IFS data
+    if 'global' not in user_config.keys() or 'prefix' not in user_config['global'].keys():
+        logging.critical('User configuration file does not contain prefix of IFS data.')
+        exit(1)
+    config['global']['prefix'] = user_config['global']['prefix']
+
+    # if prm file exists, update the configuration using the primary header hierarch keys. The naming scheme of the
+    # keys is PAMPELMUSE <section> <key>. The code checks for each configuration parameter, if the corresponding
+    # header key exists and if its value differs from the default value
+    if args.func not in [initfit, singlesrc, ptsort]:
+        # get primary header
+        header = fits.getheader('{0}.prm.fits'.format(user_config['global']['prefix']))
+
+        # updating configuration using values from header
+        config = read_config_from_header(header, existing_configuration=config)
+
+    # update configuration using user file. Note that during the analysis, i.e. when calling a routine different
+    # from INITFIT or SINGLESRC, only a subset of the parameters can be changed. For example, it makes no sense
+    # to change the RESLIM parameter after selecting the sources.
+
+    # loop over sections and keys
+    for key, section in user_config.items():
+        #  check if section is valid
+        if key not in config.keys():
+            logging.error('Unknown key "{0}" in user-configuration file.'.format(key))
+        else:
+            for sub_key, value in section.items():
+                # check if key is valid
+                if sub_key not in config[key]:
+                    logging.error('Unknown parameter {0}.{1} in user-configuration file.'.format(key, sub_key))
+                # check if new value different from existing one
+                elif value != config[key][sub_key]:
+                    # check if value can be updated
+                    if sub_key in changeable or args.func in [initfit, singlesrc, ptsort] or key == 'getspectra':
+                        logging.info('Updating parameter {0}.{1} to {2}'.format(key, sub_key, value))
+                        config[key][sub_key] = value
+                    else:
+                        logging.error('Cannot update parameter {0}.{1} during analysis.'.format(key, sub_key))
+
+    # set up logging level and format; therefore complete logger configuration needs to be reset
+    # see http://stackoverflow.com/questions/12158048/changing-loggings-basicconfig-which-is-already-set
+    loglevels = {0: logging.CRITICAL, 1: logging.ERROR, 2: logging.WARNING, 3: logging.INFO, 4: logging.DEBUG}
+    for handler in logging.root.handlers:
+        logging.root.removeHandler(handler)
+    logging.basicConfig(level=loglevels[config['global']['verbose']],
+                        format="%(asctime)s[%(levelname)-8s]: %(message)s",  # - %(pathname)s[%(lineno)s]",
+                        datefmt='%m/%d/%Y %H:%M:%S')
+
+    # For error/critical messages, use an additional logger that gives the file and line where the message was triggered
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.ERROR)
+    ch.setFormatter(logging.Formatter("%(levelname)s triggered in %(pathname)s [%(lineno)-4s]"))
+    logging.getLogger().addHandler(ch)
+
+    # check whether dependencies for graphical backends are fulfilled
+    graphics = True
+    try:
+        from PyQt5 import QtCore, QtGui
+    except ImportError:
+        logger.error("Cannot load 'PyQt5'-modules")
+        graphics = False
+    if not graphics:
+        if config['global']['interact']:
+            logger.error("Cannot use PampelMuse GUI. Interaction mode set to False.")
+            config['global']['interact'] = False
+        else:
+            logger.warning("Cannot use PampelMuse GUI.")
+
+    # execute the function connected to the requested (sub)routine
+    args.func(config=config)

@@ -1,7 +1,7 @@
 """
 sources.py
 ==========
-Copyright 2013-2021 Sebastian Kamann
+Copyright 2013-2024 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -37,7 +37,7 @@ memory but only on request.
 
 Latest Git revision
 -------------------
-2022/06/26
+2024/04/15
 """
 import collections
 import logging
@@ -45,9 +45,12 @@ import time
 import warnings
 import numpy as np
 import pandas as pd
+from typing import Union
 from numpy.polynomial import Chebyshev, Legendre, Hermite, Polynomial
+from numpy.typing import ArrayLike
 from astropy.io import fits
 from astropy.table import Table
+
 from ..core.coordinates import Transformation
 from ..filters import get_filter
 
@@ -59,7 +62,7 @@ except ImportError:
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20220626
+__revision__ = 20240415
 
 
 logger = logging.getLogger(__name__)
@@ -99,7 +102,7 @@ class Sources(object):
             columns are optional and the corresponding properties might be
             defined later.
         """
-        warnings.simplefilter("always", DeprecationWarning)  # By default this type of warning is ignored
+        warnings.simplefilter("always", DeprecationWarning)  # By default, this type of warning is ignored
 
         # open the data, check if provided as DataFrame
         if not isinstance(catalog, pd.DataFrame):
@@ -184,35 +187,32 @@ class Sources(object):
         self.cunit = None
 
     @property
-    def n_sources(self):
+    def n_sources(self) -> int:
         """
-        Returns
-        -------
-        n_sources : int
-            The total number of sources in the catalogue (incl. background
-            components). 
+        Returns an integer representing the total number of sources in the
+        catalogue (incl. background components).
         """
         return self.catalog.shape[0]
 
     @property
-    def ids(self):
+    def ids(self) -> pd.Index:
         """
-        Returns
-        -------
-        ids : pandas.Index
-            The IDs of the sources in the catalog.
+        Returns a pandas.Index instance representing the IDs of the sources
+        in the catalog.
         """
         return self.catalog.index
 
-    def _check_consistency(self, value):
+    def _check_consistency(self, value: Union[pd.Series, ArrayLike]) -> pd.Series:
         """
-        Checks the consistency of updated source properties before they are
+        Checks the consistency of any source properties before they are
         written to the source catalog.
         
         Parameters
         ----------
-        value : array-like or pandas Series
-            The updated values of a source property
+        value :
+            The updated values of a source property. If an array-like value
+            is provided, its length must be equal to the number of sources,
+            `n_sources`, of the instance.
 
         Returns
         -------
@@ -238,28 +238,15 @@ class Sources(object):
 
     # Reference x-coordinates
     @property
-    def x(self):
+    def x(self) -> pd.Series:
         """
-        Returns
-        -------
-        x : pandas.Series
-            A 1dim. of length Sources.n_sources containing the coordinate of
-            each source along the x-axis of the reference system.
+        Returns a pandas Series of length `n_sources` containing the
+        coordinate of each source along the x-axis of the reference system.
         """
         return self.catalog['x']
 
     @x.setter
-    def x(self, value):
-        """
-        The setter method for the Sources.x-property, containing the
-        coordinate of each source along the x-axis of the reference system.
-
-        Parameters
-        ----------
-        value : array_like
-            The x-coordinates. Must be a 1dim. list of length
-            Sources.n_sources.
-        """
+    def x(self, value: Union[pd.Series, ArrayLike]):
         try:
             value = self._check_consistency(value)
         except (IOError, ValueError) as msg:
@@ -269,28 +256,15 @@ class Sources(object):
 
     # Reference y-coordinates
     @property
-    def y(self):
+    def y(self) -> pd.Series:
         """
-        Returns
-        -------
-        y : pandas.Series
-            A 1dim. of length Sources.n_sources containing the coordinate of
-            each source along the y-axis of the reference system.
+        Returns a pandas Series of length `n_sources` containing the
+        coordinate of each source along the y-axis of the reference system.
         """
         return self.catalog['y']
 
     @y.setter
     def y(self, value):
-        """
-        The setter method for the Sources.y-property, containing the
-        coordinate of each source along the x-axis of the reference system.
-
-        Parameters
-        ----------
-        value : array_like
-            The y-coordinates. Must be a 1dim. list of length
-            Sources.n_sources.
-        """
         try:
             value = self._check_consistency(value)
         except (IOError, ValueError) as msg:
@@ -302,12 +276,8 @@ class Sources(object):
     @property
     def dx(self):
         """
-        Returns
-        -------
-        dx : pandas.Series
-            A 1dim. of length Sources.n_sources containing the offset applied
-            to the coordinate along the x-axis of each source in the reference
-            system.
+        Returns a pandas Series of length `n_sources` containing the offsets
+        applied to the x-axis coordinates of the sources `catalog`.
         """
         if 'dx' in self.catalog.columns:
             return self.catalog['dx']
@@ -315,18 +285,7 @@ class Sources(object):
             return pd.Series(0., self.catalog.index)
 
     @dx.setter
-    def dx(self, value):
-        """
-        The setter method for the Sources.dx-property, containing the
-        coordinate offsets of each source along the x-axis of the reference
-        system.
-
-        Parameters
-        ----------
-        value : array_like
-            The dx offsets. Must be a 1dim. list of length Sources.n_sources
-            or a pandas Series providing the indices of the available sources.
-        """
+    def dx(self, value: Union[ArrayLike, pd.Series]):
         try:
             value = self._check_consistency(value)
         except (IOError, ValueError) as msg:
@@ -338,12 +297,8 @@ class Sources(object):
     @property
     def dy(self):
         """
-        Returns
-        -------
-        dy : pandas.Series
-            A 1dim. of length Sources.n_sources containing the offset applied
-            to the coordinate along the y-axis of each source in the reference
-            system.
+        Returns a pandas Series of length `n_sources` containing the offsets
+        applied to the y-axis coordinates of the sources `catalog`.
         """
         if 'dy' in self.catalog.columns:
             return self.catalog['dy']
@@ -351,18 +306,7 @@ class Sources(object):
             return pd.Series(0., self.catalog.index)
 
     @dy.setter
-    def dy(self, value):
-        """
-        The setter method for the Sources.dy-property, containing the
-        coordinate offsets of each source along the x-axis of the reference
-        system.
-
-        Parameters
-        ----------
-        value : array_like
-            The dy offsets. Must be a 1dim. list of length Sources.n_sources
-            or a pandas Series providing the indices of the available sources.
-        """
+    def dy(self, value: Union[ArrayLike, pd.Series]):
         try:
             value = self._check_consistency(value)
         except (IOError, ValueError) as msg:
@@ -372,27 +316,15 @@ class Sources(object):
 
     # Broadband magnitudes
     @property
-    def mag(self):
+    def mag(self) -> pd.Series:
         """
-        Returns
-        -------
-        mag : pandas.Series
-            A 1dim. of length Sources.n_sources containing the magnitude of
-            each source in the catalog.
+        Returns a pandas Series of length `n_sources` containing the
+        photometric magnitude of each source in `catalog`.
         """
         return self.catalog['mag']
 
     @mag.setter
-    def mag(self, value):
-        """
-        The setter method for the Sources.mag-property, containing the
-        magnitude of each source in the catalog.
-
-        Parameters
-        ----------
-        value : array_like
-            The magnitudes. Must be a 1dim. list of length Sources.n_sources.
-        """
+    def mag(self, value: Union[ArrayLike, pd.Series]):
         try:
             value = self._check_consistency(value)
         except (IOError, ValueError) as msg:
@@ -402,28 +334,15 @@ class Sources(object):
 
     # WCS coordinates: RA
     @property
-    def ra(self):
+    def ra(self) -> pd.Series:
         """
-        Returns
-        -------
-        ra : pandas.Series
-            A 1dim. of length Sources.n_sources containing the coordinate of
-            each source along the RA-axis.
+        Returns a pandas.Series containing the right ascension of each source
+        in the catalog.
         """
         return self.catalog['ra']
 
     @ra.setter
-    def ra(self, value):
-        """
-        The setter method for the Sources.ra-property, containing the
-        coordinate of each source along the RA-axis.
-
-        Parameters
-        ----------
-        value : array_like
-            The RA-coordinates. Must be a 1dim. list of length
-            Sources.n_sources.
-        """
+    def ra(self, value: Union[ArrayLike, pd.Series]):
         try:
             value = self._check_consistency(value)
         except (IOError, ValueError) as msg:
@@ -433,28 +352,15 @@ class Sources(object):
 
     # WCS coordinates: Dec
     @property
-    def dec(self):
+    def dec(self) -> pd.Series:
         """
-        Returns
-        -------
-        dec : pandas.Series
-            A 1dim. of length Sources.n_sources containing the coordinate of
-            each source along the Dec-axis.
+        Returns a pandas.Series containing the declination of each source in
+        the catalog.
         """
         return self.catalog['dec']
 
     @dec.setter
-    def dec(self, value):
-        """
-        The setter method for the Sources.Dec-property, containing the
-        coordinate of each source along the Dec-axis.
-
-        Parameters
-        ----------
-        value : array_like
-            The Dec-coordinates. Must be a 1dim. list of length
-            Sources.n_sources.
-        """
+    def dec(self, value: Union[ArrayLike, pd.Series]):
         try:
             value = self._check_consistency(value)
         except (IOError, ValueError) as msg:
@@ -464,34 +370,23 @@ class Sources(object):
 
     # The status of the sources during the fit
     @property
-    def status(self):
+    def status(self) -> pd.Series:
         """
-        Returns
-        -------
-        status : pandas.Series
-            A 1dim. of length Sources.n_sources containing the status of each
-            source in the catalog.
-        """
-        return self.catalog['status']
-
-    @status.setter
-    def status(self, value):
-        """
-        The setter method for the Sources.status-property, containing the
-        status of each source during the fit. The classification scheme for
-        the status of a source is as follows.
+        Returns a pandas.Series containing the status of each source in
+        `catalog`. The meaning of status is defined as the following:
             [-1] - source is not used
             [ 0] - source contributes to unresolved component
             [ 1] - source is fitted together with a brighter neighbor.
             [ 2] - source is fitted independently
             [ 3] - source is used as a PSF source.
             [ 4] - source is a background (e.g. sky) component
-
-        Parameters
-        ----------
-        value : array_like
-            A 1dim. list of length Sources.n_sources.
+        Setting `status` to a new value will update the values of columns
+        'status' and 'specrow' in `catalog`.
         """
+        return self.catalog['status']
+
+    @status.setter
+    def status(self, value: Union[ArrayLike, pd.Series]):
         try:
             value = self._check_consistency(value)
         except (IOError, ValueError) as msg:
@@ -506,30 +401,16 @@ class Sources(object):
 
     # The primary source in each component
     @property
-    def primary(self):
+    def primary(self) -> pd.Series:
         """
-        Returns
-        -------
-        status : pandas.Series
-            A 1dim. of length Sources.n_sources containing the ID/index of the
-            primary source for each source in the catalog.
+        Returns a pandas Series containing the primary source to each source
+        in the catalog. Setting `primary` to a new value will update the
+        entries of the 'specrow' column in `catalog`.
         """
         return self.catalog['primary']
 
     @primary.setter
-    def primary(self, value):
-        """
-        The setter method for the Sources.primary-property, containing the
-        index/ID of the primary source for each entry in the source catalog.
-        This index is identical to the index of the source itself for sources
-        with status > 1.
-
-        Parameters
-        ----------
-        value : array_like
-            The indices/IDs of the primary sources. Must be a 1dim. list of
-            integers of length Sources.n_sources.
-        """
+    def primary(self, value: Union[ArrayLike, pd.Series]):
         try:
             value = self._check_consistency(value)
         except (IOError, ValueError) as msg:
@@ -543,19 +424,13 @@ class Sources(object):
                 del self.catalog['specrow']
 
     @property
-    def specrow(self):
+    def specrow(self) -> pd.Series:
         """
-        The getter method of the Sources.specrow-property.
-
-        Returns
-        -------
-        specrow : pandas.Series
-            A series of integers and of length Sources.n_sources that
-            contains, for each source in the catalog with status>=0, the
-            index/ID of the row that contains the spectrum in the data frame
-            Sources.spectra. Unless they were defined previously, the indices
-            are automatically assigned using the information from the
-            attributes Source.primary and Sources.status.
+        Returns a series of integers and of length `n_sources` that contains,
+        for each source in `catalog` with `status` >=0, the index of the row
+        that contains the spectrum in `spectra`. Unless they were assigned
+        previously, the indices are automatically assigned using the
+        information from the `primary` and `status` properties.
         """
         if 'specrow' not in self.catalog.columns:
 
@@ -606,28 +481,87 @@ class Sources(object):
 
     # The mapping from a spectrum to the indices of contributing sources in the catalogue.
     @property
-    def indexmap(self):
+    def indexmap(self) -> dict:
         """
-        Returns
-        -------
-        indexmap : dictionary
-            The mapping from the Sources.specrow (keys) to the index/indices (values)
-            of the corresponding source IDs in the catalogue.
+        Returns the mapping from the spectrum index (property `specrow`) to
+        the IDs of the sources in the catalog that contribute to the spectrum.
+        Note that the source IDs correspond to the pandas Index values of the
+        `catalog` DataFrame.
         """
         grouped = self.specrow.groupby(self.specrow)
         return grouped.groups
 
+    @property
+    def crowding(self) -> pd.Series:
+        """
+        Get the contamination status of each stellar component, if available.
+        Setting contamination to a new Series will update the values of the
+        "contamination" column in the source catalog.
+        """
+        if 'crowding' in self.catalog.columns:
+            return self.catalog['crowding']
+        else:
+            return pd.Series(np.nan*np.ones(self.n_components, dtype=np.float64))
+
+    @crowding.setter
+    def crowding(self, value: pd.Series) -> None:
+        if not isinstance(value, pd.Series):
+            raise TypeError("`crowding` must be Series, not {0}".format(type(value)))
+        else:
+            self.catalog['crowding'] = np.nan
+            for component in value.index:
+                self.catalog.loc[self.indexmap[component], 'crowding'] = value[component]
+
+    @property
+    def reduced_chisq(self) -> pd.Series:
+        """
+        Returns the reduced chi-square for each stellar component, if
+        available. Setting `reduced_chisq` to a new Series will update the
+        values of the "reduced_chisq" column in the source catalog.
+        """
+        if "reduced_chisq" in self.catalog.columns:
+            return self.catalog['reduced_chisq']
+        else:
+            return pd.Series(np.nan*np.ones(self.n_components, dtype=np.float64))
+
+    @reduced_chisq.setter
+    def reduced_chisq(self, value: pd.Series) -> None:
+        if not isinstance(value, pd.Series):
+            raise TypeError("`reduced_chisq` must be Series, not {0}".format(type(value)))
+        else:
+            self.catalog['reduced_chisq'] = np.nan
+            for component in value.index:
+                self.catalog.loc[self.indexmap[component], 'reduced_chisq'] = value[component]
+
+    @property
+    def signal_to_noise(self) -> pd.Series:
+        """
+        Returns the signal-to-noise for each stellar component, if available.
+        Setting `reduced_chisq` to a new Series will update the values of the
+        "reduced_chisq" column in the source catalog.
+        """
+        if "reduced_chisq" in self.catalog.columns:
+            return self.catalog['signal_to_noise']
+        else:
+            return pd.Series(np.nan*np.ones(self.n_components, dtype=np.float64))
+
+    @signal_to_noise.setter
+    def signal_to_noise(self, value: pd.Series) -> None:
+        if not isinstance(value, pd.Series):
+            raise TypeError("`signal_to_noise` must be Series, not {0}".format(type(value)))
+        else:
+            self.catalog['signal_to_noise'] = np.nan
+            for component in value.index:
+                self.catalog.loc[self.indexmap[component], 'signal_to_noise'] = value[component]
+
     # The magnitude weights of the individual contributions to a spectrum
     @property
-    def weights(self):
+    def weights(self) -> pd.Series:
         """
-        Returns
-        -------
-        weights: pandas.Series
-            A series of the same length as the whole source list containing
-            the magnitude weight of each source in its component. The magnitude
-            weight is defined as 10**(-0.4*df), where df is the fraction of
-            flux the source contributes to the component.
+        Returns a series of the length `n_sources` containing the magnitude
+        weight of each source in its component. The magnitude weight is
+        defined as 10**(-0.4*df), where df is the fraction of flux the source
+        contributes to the component.
         """
         if 'weights' not in self.catalog.columns:
             # group sources by index/ID of primary source
@@ -644,13 +578,10 @@ class Sources(object):
 
     # The number of independent components in the fit.
     @property
-    def n_components(self):
+    def n_components(self) -> int:
         """
-        Returns
-        -------
-        n_components : int
-            The number of components (i.e. independent spectra) in the
-            catalogue.
+        Returns the number of components (i.e. independent spectra) in the
+        catalog.
         """
         return self.specrow.max() + 1
 

@@ -36,6 +36,6 @@ from .singlesrc import singlesrc
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
 __revision__ = 408
 
-
-__all__ = ["cubefit", "getspectra", "initfit", "makecube", "polyfit", "ptsort", "shotnoi", "subtres", "singlesrc"]
+from .run_pampelmuse import main
+__all__ = ["main", "cubefit", "getspectra", "initfit", "polyfit", "ptsort", "subtres", "singlesrc"]
 

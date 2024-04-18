@@ -57,13 +57,12 @@ parameters are not fitted.
 
 Latest Git revision
 -------------------
-2024/04/08
+2024/04/15
 """
 import collections
 import contextlib
 import io
 import logging
-import scipy
 import time
 import tqdm
 import numpy as np
@@ -76,7 +75,7 @@ from ..psf.profiles import *
 from ..core.coordinates import Transformation
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20240408
+__revision__ = 20240415
 
 logger = logging.getLogger(__name__)
 
@@ -119,7 +118,7 @@ def printoptions(*args, **kwargs):
 
 # define namedtuple for returning the results of the fit in a useful structure
 FitResult = collections.namedtuple('FitResult', ['fluxes', 'uncertainties', 'positions', 'psf', 'wave', 'profiles',
-                                                 'parameters', 'residuals', 'lut', 'offsets'])
+                                                 'parameters', 'residuals', 'lut', 'offsets', 'quality'])
 
 
 class FitLayer(object):
@@ -540,7 +539,8 @@ class FitLayer(object):
                              pd.Series(np.nan, index=self.fluxes.index),
                              return_positions, return_psf,
                              None if self.wave is None else pd.Series(np.nan, index=self.fluxes.index),
-                             None, None, None, None, self.offsets)
+                             None, None, None, None, self.offsets,
+                             pd.DataFrame(np.nan, columns=['crowding', 'signal_to_noise', 'reduced_chisq'], index=self.fluxes.index),)
 
         if fluxes is not None:
             if isinstance(fluxes, (list, np.ndarray)):
@@ -719,6 +719,9 @@ class FitLayer(object):
             return_positions = pd.Series([getattr(self.psf_instances[i], p) for p in position_parameters_to_fit],
                                          index=position_parameters_to_fit)
 
+        star_components = included_components[:-self.n_background] if self.n_background > 0 else included_components
+        quality = self.assess_quality(components=star_components)
+
         if self.wave is not None:
             # calculate variance weighted wavelength of each component
             # first combine PSF contribution and variance information to final weight for each pixel
@@ -730,11 +733,12 @@ class FitLayer(object):
         else:
             return_wave = None
 
-        return FitResult(self.fluxes, uncertainties, return_positions, return_psf, return_wave, profiles,
-                         single_psf_results, residuals, self.lut, self.offsets)
+        return FitResult(fluxes=self.fluxes, uncertainties=uncertainties, positions=return_positions, psf=return_psf,
+                         wave=return_wave, profiles=profiles, parameters=single_psf_results, residuals=residuals,
+                         lut=self.lut, offsets=self.offsets, quality=quality)
 
     @property
-    def model(self):
+    def model(self) -> sparse.csc_matrix:
         """
 
         Returns
@@ -749,7 +753,7 @@ class FitLayer(object):
                                                                                    self.source_matrix.shape[1]))
 
     @property
-    def current(self):
+    def current(self) -> pd.Series:
         """
 
         Returns
@@ -804,6 +808,68 @@ class FitLayer(object):
         # return residuals
         return self.current
 
+    def assess_quality(self, components: pd.Index, flux_cut: float = 0.5) -> pd.DataFrame:
+        """
+        For each component, several parameters are determined to estimate the
+        reliability and quality of the fitted flux.
+        a) the ratio between source flux and flux from nearby sources within
+           the PSF footprint of each source.
+        b) the reduced chi^2 of the residuals within the PSF footprint of each
+           source.
+        c) the signal-to-noise ratio of each component, where the noise is
+           estimated from the RMS of the residuals within the PSF footprint.
+
+        Parameters
+        ----------
+        components
+            The components of the model for which the quality is desired.
+        flux_cut
+            The minimum flux of a pixel included in the calculation, relative
+            to the brightest pixel for a given star.
+
+        Returns
+        -------
+        pd.DataFrame
+            A data frame containing three columns, one for each quality
+            parameter, and one row per component provided.
+        """
+        quality = pd.DataFrame(0., columns=['crowding', 'signal_to_noise', 'reduced_chisq'], index=components)
+
+        # calculate model without background components
+        if self.n_background > 0:
+            stars_only_model = self.model[:, :-self.n_background].copy()
+        else:
+            stars_only_model = self.model.copy()
+
+        collapsed_model = stars_only_model.sum(axis=1)
+        residuals = self.current.values
+
+        # loop over sources, subtract source from model, remove pixels contributing less than x to integrated flux
+        for i in components:
+
+            star_i = stars_only_model.getcol(i)
+
+            faint = abs(star_i.data)/abs(star_i.data).max() <= flux_cut
+            star_i.data[faint] = 0
+            star_i.eliminate_zeros()
+            pixels_in_use = star_i.nonzero()[0]
+            model_i = collapsed_model - star_i
+
+            # crowding is defined as integrated flux divided by modified model flux in remaining pixels
+            neighbour_flux = model_i[pixels_in_use].sum()
+            quality.at[i, 'crowding'] = abs(neighbour_flux)/abs(star_i.sum())
+
+            # estimate S/N using flux, number of pixels, and RMS of residuals
+            n_pixel = len(pixels_in_use)
+            if n_pixel > 1:
+                quality.at[i, 'signal_to_noise'] = star_i.sum()/(np.sqrt(n_pixel)*np.nanstd(residuals[pixels_in_use]))
+
+            # determine reduced chi^2
+            quality.at[i, 'reduced_chisq'] = np.sum(
+                residuals[pixels_in_use]**2/self.variances.values[pixels_in_use])/n_pixel
+
+        return quality
+
     def build_matrix(self, update_unresolved=True, sources=None, apply_offsets=False):
         """
         (Re)calculate the source matrix.
@@ -820,7 +886,7 @@ class FitLayer(object):
 
         It then loops over all sources in the 'Sources'-instance, obtains
         their PSF and adds it to the respective column of the array.
-        Afterwards, the arrays are combined into a single sparse matrix.
+        Afterward, the arrays are combined into a single sparse matrix.
 
         Parameters
         ----------
@@ -917,7 +983,7 @@ class FitLayer(object):
                 matrix_data.loc[matrix_data['i1'] > i1, 'i1'] -= 1
 
         # create matrix: first, a COO matrix is constructed. Note that it handles the case when the input data contains
-        # multiple entries for the some indices (row, column). After construction, the matrix is converted to a
+        # multiple entries for some indices (row, column). After construction, the matrix is converted to a
         # CSC matrix to speed up future usage of it.
         n_rows = self.data.shape[0]
         n_columns = self.n_components - len(empty_components) + self.n_background
