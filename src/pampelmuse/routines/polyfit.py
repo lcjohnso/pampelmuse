@@ -116,7 +116,7 @@ def polyfit(config):
 
         # load modules required to display GUI
         from PyQt5 import QtWidgets
-        from pampelmuse.graphics import PampelMuseGui
+        from src.pampelmuse.graphics import PampelMuseGui
 
         # initialize GUI
         app = QtWidgets.QApplication(sys.argv)

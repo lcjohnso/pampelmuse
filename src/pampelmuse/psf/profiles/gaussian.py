@@ -112,7 +112,7 @@ class Gaussian(Profile):
         (sub)pixels.
         """
         if self._f is None:
-            self._f = self.int_flux*gaussian.flux(self.r, self.fwhm, self.e)
+            self._f = self.int_flux * gaussian.flux(self.r, self.fwhm, self.e)
         return self._f
 
     # In the following, the properties are provided to calculate the partial derivatives of the intensity distribution
@@ -169,7 +169,7 @@ class Gaussian(Profile):
         """
         if self._diff_theta is None:
             r_pderiv_theta = super().diff_theta
-            self._diff_theta = gaussian.pderiv_r(self.r, self.fwhm, self.e)*r_pderiv_theta
+            self._diff_theta = gaussian.pderiv_r(self.r, self.fwhm, self.e) * r_pderiv_theta
         return self._diff_theta
 
     @property
@@ -180,7 +180,7 @@ class Gaussian(Profile):
         """
         if self._diff_xc is None:
             r_pderiv_xc = super().diff_xc
-            self._diff_xc = gaussian.pderiv_r(self.r, self.fwhm, self.e)*r_pderiv_xc
+            self._diff_xc = gaussian.pderiv_r(self.r, self.fwhm, self.e) * r_pderiv_xc
         return self._diff_xc
 
     @property
@@ -191,7 +191,7 @@ class Gaussian(Profile):
         """
         if self._diff_yc is None:
             r_pderiv_yc = super().diff_yc
-            self._diff_yc = gaussian.pderiv_r(self.r, self.fwhm, self.e)*r_pderiv_yc
+            self._diff_yc = gaussian.pderiv_r(self.r, self.fwhm, self.e) * r_pderiv_yc
         return self._diff_yc
 
     @property
@@ -202,7 +202,7 @@ class Gaussian(Profile):
         """
         if self._diff_A is None:
             r_pderiv_A = super().diff_A
-            self._diff_A = gaussian.pderiv_r(self.r, self.fwhm, self.e)*r_pderiv_A
+            self._diff_A = gaussian.pderiv_r(self.r, self.fwhm, self.e) * r_pderiv_A
         return self._diff_A
 
     @property
@@ -213,7 +213,7 @@ class Gaussian(Profile):
         """
         if self._diff_B is None:
             r_pderiv_B = super().diff_B
-            self._diff_B = gaussian.pderiv_r(self.r, self.fwhm, self.e)*r_pderiv_B
+            self._diff_B = gaussian.pderiv_r(self.r, self.fwhm, self.e) * r_pderiv_B
         return self._diff_B
 
     @property
@@ -224,7 +224,7 @@ class Gaussian(Profile):
         """
         if self._diff_C is None:
             r_pderiv_C = super().diff_C
-            self._diff_C = gaussian.pderiv_r(self.r, self.fwhm, self.e)*r_pderiv_C
+            self._diff_C = gaussian.pderiv_r(self.r, self.fwhm, self.e) * r_pderiv_C
         return self._diff_C
 
     @property
@@ -235,7 +235,7 @@ class Gaussian(Profile):
         """
         if self._diff_D is None:
             r_pderiv_D = super().diff_D
-            self._diff_D = gaussian.pderiv_r(self.r, self.fwhm, self.e)*r_pderiv_D
+            self._diff_D = gaussian.pderiv_r(self.r, self.fwhm, self.e) * r_pderiv_D
         return self._diff_D
 
     @property
@@ -246,7 +246,7 @@ class Gaussian(Profile):
         """
         if self._diff_x0 is None:
             r_pderiv_x0 = super().diff_x0
-            self._diff_x0 = gaussian.pderiv_r(self.r, self.fwhm, self.e)*r_pderiv_x0
+            self._diff_x0 = gaussian.pderiv_r(self.r, self.fwhm, self.e) * r_pderiv_x0
         return self._diff_x0
 
     @property
@@ -257,7 +257,7 @@ class Gaussian(Profile):
         """
         if self._diff_y0 is None:
             r_pderiv_y0 = super().diff_y0
-            self._diff_y0 = gaussian.pderiv_r(self.r, self.fwhm, self.e)*r_pderiv_y0
+            self._diff_y0 = gaussian.pderiv_r(self.r, self.fwhm, self.e) * r_pderiv_y0
         return self._diff_y0
 
     @property

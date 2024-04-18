@@ -3,7 +3,6 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import matplotlib.colors as colors
 from matplotlib.path import Path
-from pampelmuse.instruments import *
 
 parser = argparse.ArgumentParser(description="""
 Create a plot showing the arrangement of the spaxels in the field of view.""")

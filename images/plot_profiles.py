@@ -1,6 +1,6 @@
 import argparse, logging, os, sys
 import matplotlib.pyplot as plt, numpy as np
-from pampelmuse.core import my_profiles
+from src.pampelmuse.core import my_profiles
 
 parser = argparse.ArgumentParser(fromfile_prefix_chars="@", description="""
 Plot one or more PSF profiles using the analytical functions that are

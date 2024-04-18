@@ -317,7 +317,7 @@ class DoubleGaussian(Profile):
         if self._diff_e is None:
             r_pderiv_e = super().diff_e
             self._diff_e = self.int_flux*(
-                self.f12 * gaussian.pderiv_e(self.r, self.fwhm1, self.e, r_pderiv_e) + (
+                    self.f12 * gaussian.pderiv_e(self.r, self.fwhm1, self.e, r_pderiv_e) + (
                     (1. - self.f12) * gaussian.pderiv_e(self.r, self.fwhm2, self.e, r_pderiv_e)))
         return self._diff_e
 
@@ -330,7 +330,7 @@ class DoubleGaussian(Profile):
         if self._diff_theta is None:
             r_pderiv_theta = super().diff_theta
             self._diff_theta = self.int_flux * r_pderiv_theta * (
-                self.f12 * gaussian.pderiv_r(self.r, self.fwhm1, self.e) + (
+                    self.f12 * gaussian.pderiv_r(self.r, self.fwhm1, self.e) + (
                     1. - self.f12) * gaussian.pderiv_r(self.r, self.fwhm2, self.e))
         return self._diff_theta
 
@@ -343,7 +343,7 @@ class DoubleGaussian(Profile):
         if self._diff_xc is None:
             r_pderiv_xc = super().diff_xc
             self._diff_xc = self.int_flux * r_pderiv_xc * (
-                self.f12 * gaussian.pderiv_r(self.r, self.fwhm1, self.e) + (
+                    self.f12 * gaussian.pderiv_r(self.r, self.fwhm1, self.e) + (
                     1. - self.f12) * gaussian.pderiv_r(self.r, self.fwhm2, self.e))
         return self._diff_xc
 
@@ -356,7 +356,7 @@ class DoubleGaussian(Profile):
         if self._diff_yc is None:
             r_pderiv_yc = super().diff_yc
             self._diff_yc = self.int_flux * r_pderiv_yc * (
-                self.f12 * gaussian.pderiv_r(self.r, self.fwhm1, self.e) + (
+                    self.f12 * gaussian.pderiv_r(self.r, self.fwhm1, self.e) + (
                     1. - self.f12) * gaussian.pderiv_r(self.r, self.fwhm2, self.e))
         return self._diff_yc
 
@@ -369,7 +369,7 @@ class DoubleGaussian(Profile):
         if self._diff_A is None:
             r_pderiv_A = super().diff_A
             self._diff_A = self.int_flux * r_pderiv_A * (
-                self.f12 * gaussian.pderiv_r(self.r, self.fwhm1, self.e) + (
+                    self.f12 * gaussian.pderiv_r(self.r, self.fwhm1, self.e) + (
                     1. - self.f12) * gaussian.pderiv_r(self.r, self.fwhm2, self.e))
         return self._diff_A
 
@@ -382,7 +382,7 @@ class DoubleGaussian(Profile):
         if self._diff_B is None:
             r_pderiv_B = super().diff_B
             self._diff_B = self.int_flux * r_pderiv_B * (
-                self.f12 * gaussian.pderiv_r(self.r, self.fwhm1, self.e) + (
+                    self.f12 * gaussian.pderiv_r(self.r, self.fwhm1, self.e) + (
                     1. - self.f12) * gaussian.pderiv_r(self.r, self.fwhm2, self.e))
         return self._diff_B
 
@@ -395,7 +395,7 @@ class DoubleGaussian(Profile):
         if self._diff_C is None:
             r_pderiv_C = super().diff_C
             self._diff_C = self.int_flux * r_pderiv_C * (
-                self.f12 * gaussian.pderiv_r(self.r, self.fwhm1, self.e) + (
+                    self.f12 * gaussian.pderiv_r(self.r, self.fwhm1, self.e) + (
                     1. - self.f12) * gaussian.pderiv_r(self.r, self.fwhm2, self.e))
         return self._diff_C
 
@@ -408,7 +408,7 @@ class DoubleGaussian(Profile):
         if self._diff_D is None:
             r_pderiv_D = super().diff_D
             self._diff_D = self.int_flux * r_pderiv_D * (
-                self.f12 * gaussian.pderiv_r(self.r, self.fwhm1, self.e) + (
+                    self.f12 * gaussian.pderiv_r(self.r, self.fwhm1, self.e) + (
                     1. - self.f12) * gaussian.pderiv_r(self.r, self.fwhm2, self.e))
         return self._diff_D
 
@@ -421,7 +421,7 @@ class DoubleGaussian(Profile):
         if self._diff_x0 is None:
             r_pderiv_x0 = super().diff_x0
             self._diff_x0 = self.int_flux * r_pderiv_x0 * (
-                self.f12 * gaussian.pderiv_r(self.r, self.fwhm1, self.e) + (
+                    self.f12 * gaussian.pderiv_r(self.r, self.fwhm1, self.e) + (
                     1. - self.f12) * gaussian.pderiv_r(self.r, self.fwhm2, self.e))
         return self._diff_x0
 
@@ -434,7 +434,7 @@ class DoubleGaussian(Profile):
         if self._diff_y0 is None:
             r_pderiv_y0 = super().diff_y0
             self._diff_y0 = self.int_flux * r_pderiv_y0 * (
-                self.f12 * gaussian.pderiv_r(self.r, self.fwhm1, self.e) + (
+                    self.f12 * gaussian.pderiv_r(self.r, self.fwhm1, self.e) + (
                     1. - self.f12) * gaussian.pderiv_r(self.r, self.fwhm2, self.e))
         return self._diff_y0
 

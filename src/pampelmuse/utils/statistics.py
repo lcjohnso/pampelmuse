@@ -38,7 +38,7 @@ Currently, the following functions are defined:
                 /html/newsletter_42.html
 
 To import a function from this module (e.g. clip_sigma), proceed as follows:
->>> from pampelmuse.utils.statistics import clip_sigma
+>>> from src.pampelmuse import clip_sigma
 
 Latest Git revision
 -------------------

@@ -1,12 +1,12 @@
 [build-system]
 requires = [
-    "setuptools>=60",
+    "setuptools>=61",
     "setuptools-scm>=8.0"  # automatically include files tracked by git
 ]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "PampelMuse"
+name = "pampelmuse"
 description = "A code to extract stellar spectra from integral field spectroscopic data"
 authors = [{name = "Sebastian Kamann", email = "S.Kamann@ljmu.ac.uk"}]
 readme = "README.txt"
@@ -33,9 +33,6 @@ PampelMuse = "pampelmuse.routines:main"
 gui = ["PyQt5"]
 nfm = ["maoppy>=1.5.0"]
 pixtable = ["mpdaf"]
-
-[tool.setuptools.packages.find]
-where = ["pampelmuse"]
 
 [project.urls]
 Documentation = "https://pampelmuse.readthedocs.io/en/latest/"

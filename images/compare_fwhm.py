@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy import linalg, optimize
 
-from pampelmuse.psf import Moffat, Gaussian
+from src.pampelmuse.psf import Moffat, Gaussian
 
 plt.rcParams["axes.linewidth"] = 1.5
 
