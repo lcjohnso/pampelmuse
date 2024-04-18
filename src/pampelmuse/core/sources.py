@@ -37,7 +37,7 @@ memory but only on request.
 
 Latest Git revision
 -------------------
-2024/04/15
+2024/04/18
 """
 import collections
 import logging
@@ -62,7 +62,7 @@ except ImportError:
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20240415
+__revision__ = 20240418
 
 
 logger = logging.getLogger(__name__)
@@ -1019,7 +1019,7 @@ class Sources(object):
             # calculate magnitude and add to list
             integrated_flux = np.nansum(throughput*flux*(wave**2))/np.nansum(throughput)
             if integrated_flux <= 0:
-                logging.warning('Cannot determined magnitude for component #{0} with negative flux.'.format(component))
+                logging.warning('Cannot determine magnitude for component #{0} with negative flux.'.format(component))
                 magnitudes.append(np.nan)
             else:
                 magnitudes.append(-2.5*np.log10(3.34e4*integrated_flux) + 8.9)

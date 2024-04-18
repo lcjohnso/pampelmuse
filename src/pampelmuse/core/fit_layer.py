@@ -57,7 +57,7 @@ parameters are not fitted.
 
 Latest Git revision
 -------------------
-2024/04/15
+2024/04/18
 """
 import collections
 import contextlib
@@ -75,7 +75,7 @@ from ..psf.profiles import *
 from ..core.coordinates import Transformation
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20240415
+__revision__ = 20240418
 
 logger = logging.getLogger(__name__)
 
@@ -845,9 +845,9 @@ class FitLayer(object):
         residuals = self.current.values
 
         # loop over sources, subtract source from model, remove pixels contributing less than x to integrated flux
-        for i in components:
+        for i, cmp in enumerate(components):
 
-            star_i = stars_only_model.getcol(i)
+            star_i = stars_only_model.getcol(i)  # Components without flux contribution not included in model matrix
 
             faint = abs(star_i.data)/abs(star_i.data).max() <= flux_cut
             star_i.data[faint] = 0
@@ -857,15 +857,15 @@ class FitLayer(object):
 
             # crowding is defined as integrated flux divided by modified model flux in remaining pixels
             neighbour_flux = model_i[pixels_in_use].sum()
-            quality.at[i, 'crowding'] = abs(neighbour_flux)/abs(star_i.sum())
+            quality.at[cmp, 'crowding'] = abs(neighbour_flux)/abs(star_i.sum())
 
             # estimate S/N using flux, number of pixels, and RMS of residuals
             n_pixel = len(pixels_in_use)
             if n_pixel > 1:
-                quality.at[i, 'signal_to_noise'] = star_i.sum()/(np.sqrt(n_pixel)*np.nanstd(residuals[pixels_in_use]))
+                quality.at[cmp, 'signal_to_noise'] = star_i.sum()/(np.sqrt(n_pixel)*np.nanstd(residuals[pixels_in_use]))
 
             # determine reduced chi^2
-            quality.at[i, 'reduced_chisq'] = np.sum(
+            quality.at[cmp, 'reduced_chisq'] = np.sum(
                 residuals[pixels_in_use]**2/self.variances.values[pixels_in_use])/n_pixel
 
         return quality

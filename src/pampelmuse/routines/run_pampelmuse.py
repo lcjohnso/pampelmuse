@@ -57,7 +57,7 @@ the data into memory yet but just checks whether the file(s) are valid.
 
 Latest Git revision
 -------------------
-2024/04/15
+2024/04/18
 """
 import argparse
 import importlib
@@ -241,3 +241,7 @@ def main():
 
     # execute the function connected to the requested (sub)routine
     args.func(config=config)
+
+
+if __name__ == '__main__':
+    main()
