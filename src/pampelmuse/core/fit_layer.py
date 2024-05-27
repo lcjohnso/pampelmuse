@@ -844,6 +844,26 @@ class FitLayer(object):
         collapsed_model = stars_only_model.sum(axis=1)
         residuals = self.current.values
 
+        # For testing: Check if there is a correlation between contaminated sources and the flux covariances
+        # n, m = self.source_matrix.shape
+        # a = sparse.dia_matrix((np.sqrt(self.fit_weights), [0]), shape=(n, n)) * self.source_matrix
+        # b = a.T.dot(a)
+        # from scipy.linalg import inv
+        # cov = inv(b.todense())
+        # i = self.catalog.at[28596, 'component']
+        # j = self.catalog.at[28745, 'component']
+        # import matplotlib.pyplot as plt
+        # fig, ax = plt.subplots()
+        # y = -np.min(cov, axis=0)/np.diag(cov)
+        # ax.plot(self.fluxes, y, 'gx')
+        # fp = pd.read_csv('/Users/ariskama/work/pixtables/single_cube_comparison/exposure22/false_positives.csv', index_col='id')
+        # for source_id in fp.index.intersection(self.catalog.index):
+        #     cmp = self.catalog.at[source_id, 'component']
+        #     ax.plot(self.fluxes[cmp], y[cmp], 'r+')
+        # ax.set_xscale('log', base=10)
+        # ax.set_yscale('log', base=10)
+        # plt.show()
+
         # loop over sources, subtract source from model, remove pixels contributing less than x to integrated flux
         for i, cmp in enumerate(components):
 
