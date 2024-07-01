@@ -1,7 +1,7 @@
 """
 image.py
 ========
-Copyright 2013-2017 Sebastian Kamann
+Copyright 2013-2024 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -30,7 +30,7 @@ rev. 334, 2016/07/26
 
 Latest GIT revision
 -------------------
-2019/06/20
+2024/07/01
 """
 import logging
 import numpy as np
@@ -38,7 +38,7 @@ from scipy import signal
 
 
 __author__ = "Sebastian Kamann (skamann@astro.physik.uni-goettingen.de)"
-__revision__ = 20190620
+__revision__ = 20240701
 
 
 logger = logging.getLogger(__name__)
@@ -106,7 +106,7 @@ def find_offset(reference, comparison, init_guess=(0, 0), max_off=None):
     cc_signal = signal.fftconvolve(cc_input, cc_kernel[::-1, ::-1], mode='same')
 
     # The maximum is searched in an area with radius 'search_radius' with respect to the location suggested by the
-    # by the init_guess parameter
+    # init_guess parameter
     # Note that if the two arrays share the same origin, the maximum would be at coordinates
     # (0.5*(cc_kernel.shape[1] - 1), 0.5*(cc_kernel.shape[1] - 1))
     x_search_center = 0.5*(cc_kernel.shape[1] - 1) + init_guess[0]

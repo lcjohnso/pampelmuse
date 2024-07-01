@@ -2,7 +2,7 @@
 source_selector.py
 ==================
 
-Copyright 2013-2021 Sebastian Kamann
+Copyright 2013-2024 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -33,7 +33,7 @@ Added
 
 Last updated
 ------------
-2022/06/26
+2024/07/01
 """
 import logging
 import sys
@@ -54,7 +54,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20220626
+__revision__ = 20240701
 
 
 logger = logging.getLogger(__name__)
@@ -711,7 +711,7 @@ class SourceSelector(object):
 
     def identify_footprint(self, n_stars=100):
         """
-        This method allows for a interactive determination of the location of
+        This method allows for an interactive determination of the location of
         the IFS data relative to the source catalog.
 
         This method will open the IFS data and the mock image created from the
@@ -1092,7 +1092,7 @@ class SourceSelector(object):
     def search_psf_stars(self, saturated=None, max_mag=None, psf_radius=10, psf_radius_scaling=None,
                          aperture_noise=0.1):
         """
-        This method searches the photometry for stars suited to constrain the
+        This method searches the photometry for stars suited to constrain
         the PSF.
 
         Stars that are considered suitable for constraining the PSF must

@@ -1,7 +1,7 @@
 """
 fits.py
 =======
-Copyright 2013-2019 Sebastian Kamann
+Copyright 2013-2024 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -32,7 +32,7 @@ The provided functions facilitate working with FITS data.
 
 Latest Git revision
 -------------------
-2022/02/24
+2024/07/01
 """
 import os
 import logging
@@ -47,7 +47,7 @@ from ..psf import Variables
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20220224
+__revision__ = 20240701
 
 
 logger = logging.getLogger(__name__)
@@ -108,6 +108,11 @@ def open_ifs_data(prefix, **kwargs):
                     instrument = Argus.from_fiber_setup_hdu(fitsdata['FIBER_SETUP'])
                 except KeyError:
                     instrument = Argus(**kwargs)
+            elif hdu.header['INSTRUME'] == 'MEGARA':
+                try:
+                    instrument = Megara.from_fiber_setup_hdu(fitsdata['FIBERS'], **kwargs)
+                except KeyError:
+                    raise NotImplementedError
             else:
                 instrument = available_instruments[hdu.header['INSTRUME']](**kwargs)
             instrument.search_configuration(hdu)

@@ -28,7 +28,7 @@ defines generic methods that are inherited by all its subclasses.
 
 Latest Git revision
 -------------------
-2024/04/11
+2024/07/01
 """
 import logging
 import warnings
@@ -45,7 +45,7 @@ from ..utils.distance import dist2path, point_in_poly
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20240411
+__revision__ = 20240701
 
 
 logger = logging.getLogger(__name__)
@@ -774,12 +774,12 @@ class Instrument(object):
             The index of the layer for which the image should be returned.
         kwargs
 
-        Returns
+        Raises
         -------
-        np
-
+        NotImplementedError
+            The method must be implemented in a subclass.
         """
-        return np.array([]), np.array([])
+        raise NotImplementedError
 
     def get_layer(self, i: int, **kwargs) -> pd.DataFrame:
         """
@@ -1001,11 +1001,10 @@ class Instrument(object):
             out_data[y, x] = layer.values
         return out_data
 
-
     def search_configuration(self, hdu, **kwargs):
         """
         This method is designed to update the configuration of the current
-        instance using specfic header keywords from a given HDU.
+        instance using specific header keywords from a given HDU.
 
         Parameters
         ----------
