@@ -284,10 +284,13 @@ class Megara(Instrument):
         -------
         The layer data as a Pandas DataFrame.
         """
-        _data = self.datahdu.data[self.fiber_conf.connected_fibers(), i]
+        fibers = []
+        for fiber in self.fiber_conf.connected_fibers():
+            fibers.append(fiber.fibid - 1)
+        _data = self.datahdu.data[fibers, i]
 
         if self.varhdu is not None:
-            _var = self.varhdu.data[self.fiber_conf.connected_fibers(), i]
+            _var = self.varhdu.data[fibers, i]
         else:
             _var = None
 

@@ -783,7 +783,7 @@ class Instrument(object):
 
     def get_layer(self, i: int, **kwargs) -> pd.DataFrame:
         """
-        This method returns a single layer (i.e. the content of all spaxels
+        This method returns a sing le layer (i.e. the content of all spaxels
         with a given wavelength) from the data as a dataframe.
         IMPORTANT: This method should be redefined by every subclass that
         inherits from the Instrument class.
