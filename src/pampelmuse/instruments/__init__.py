@@ -1,7 +1,7 @@
 """
 PampelMuse
 ==========
-Copyright 2013-2016 Sebastian Kamann
+Copyright 2013-2024 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -23,7 +23,9 @@ from .generic_ifs import GenericIFS
 from .muse import Muse, MusePixtable
 from .pmas import Pmas
 from .argus import Argus, SimIfu
+from .megara import Megara
 
-__all__ = ["GenericIFS", "Muse", "MusePixtable", "Pmas", "Argus", "SimIfu"]
+__all__ = ["GenericIFS", "Muse", "MusePixtable", "Pmas", "Argus", "SimIfu", "Megara"]
 
-available_instruments = {"PMAS": Pmas, "GIRAFFE": Argus, "ARGUS": Argus, "MUSE": Muse, "SIMIFU": SimIfu}
+available_instruments = {"PMAS": Pmas, "GIRAFFE": Argus, "ARGUS": Argus, "MUSE": Muse, "SIMIFU": SimIfu,
+                         "MEGARA": Megara}

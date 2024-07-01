@@ -32,6 +32,7 @@ PampelMuse = "pampelmuse.routines:main"
 [project.optional-dependencies]
 gui = ["PyQt5"]
 nfm = ["maoppy>=1.5.0"]
+megara = ["megaradrp"]
 pixtable = ["mpdaf"]
 
 [project.urls]
