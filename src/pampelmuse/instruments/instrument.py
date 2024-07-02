@@ -28,7 +28,7 @@ defines generic methods that are inherited by all its subclasses.
 
 Latest Git revision
 -------------------
-2024/07/01
+2024/07/02
 """
 import logging
 import warnings
@@ -38,6 +38,7 @@ import numpy as np
 import pandas as pd
 from matplotlib import path
 from scipy.spatial import distance, ConvexHull
+from astropy.nddata import NDData, VarianceUncertainty, NDUncertainty
 from astropy.io import fits
 from astropy.wcs import WCS
 from ..filters import get_filter
@@ -45,7 +46,7 @@ from ..utils.distance import dist2path, point_in_poly
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20240701
+__revision__ = 20240702
 
 
 logger = logging.getLogger(__name__)
@@ -763,50 +764,187 @@ class Instrument(object):
         """
         return np.array([]), np.array([])
 
-    def get_image(self, i: int, **kwargs) -> (np.ndarray, np.ndarray):
+    def _verify_layer_range(self, i_min: int = None, i_max: int = None,
+                            weights: np.ndarray = None) -> (int, int, np.ndarray):
         """
-        This method returns a single image (i.e. the content of a single
-        layer) as a 2dim numpy array.
 
         Parameters
         ----------
-        i
-            The index of the layer for which the image should be returned.
-        kwargs
+        i_min
+        i_max
+        weights
 
-        Raises
+        Returns
         -------
-        NotImplementedError
-            The method must be implemented in a subclass.
-        """
-        raise NotImplementedError
 
-    def get_layer(self, i: int, **kwargs) -> pd.DataFrame:
         """
-        This method returns a sing le layer (i.e. the content of all spaxels
-        with a given wavelength) from the data as a dataframe.
+        if i_min is None and weights is None:
+            raise ValueError('Must provide either `i_min` or `weights`.')
+        if i_min is not None and i_max is None:
+            i_max = i_min + 1
+        if weights is None:
+            weights = np.ones(i_max - i_min)
+        else:
+            if i_min is not None and len(weights) != (i_max - i_min):
+                raise ValueError('Len(weights) does not match the number of layers in `i_max` - `i_min`.')
+            elif i_min is None and len(weights) != self.nlayer:
+                raise ValueError('Len(weights) must match total number of layers unless `i_min` provided.')
+            elif i_min is None:
+                i_min = 0
+                i_max = self.nlayer
+        return i_min, i_max, weights
+
+    def weights_from_filtercurve(self, passband: str, layer_range: tuple = None) -> (int, int, np.ndarray):
+        """
+        Assign weights to the individual layers of the iFS data based on the
+        throughput curve of a photometric filter.
+
+        Parameters
+        ----------
+        passband : string
+            The name of the filter over which to integrate. Note that it must
+            be available in the set of filters available to PampelMuse. Check
+            the PampelMuse manual for details.
+        layer_range : tuple, optional
+            The min. and max layer of the IFS data that should be considered.
+            This is helpful in cases when the first/last layer of the data is
+            corrupted.
+
+        Returns
+        -------
+        int
+            The index of the first layer overlapping with the filter curve.
+        int
+            The index of the last layer overlapping with the filter curve.
+        np.ndarray
+            The weights assigned to the individual layers based on the
+            throughput of the passband.
+        """
+        if self.wave is None:
+            raise AttributeError("Missing wavelength information for IFS data.")
+
+        # open filter curve, check if it overlaps with IFs data
+        fct = get_filter(passband)
+
+        # note that IFS data are in m while filter curves are currently in Angstrom
+        w_min = 1e-10*fct.get_knots().min()  # min. of defined wavelength range
+        i_min = np.argmax(self.wave > w_min)
+
+        w_max = 1e-10*fct.get_knots().max()  # max. of defined wavelength range
+        i_max = self.wave.size - 1 - np.argmax(self.wave[::-1] < w_max)
+        logger.debug('Wavelength range of filter {}: {:.3g}-{:.3g}'.format(passband, w_min, w_max))
+        logger.debug('Wavelength range of IFS data: {:.3g}-{:.3g}'.format(self.wave.min(), self.wave.max()))
+
+        if layer_range is not None:
+            i_min = max([i_min, layer_range[0]])
+            i_max = min([i_max, layer_range[1]])
+
+        if i_min >= i_max or self.wave.max() < w_min or self.wave.min() > w_max:
+            logging.error("No overlap between provided wavelength range and passband {0}.".format(passband))
+            return i_min, i_max, np.zeros(max(i_max - i_min, 0))
+        else:
+            weights = fct(1e10*self.wave[i_min:i_max])
+            assert not np.isnan(weights).any()
+
+        return i_min, i_max, weights
+
+    def get_layer(self, i_min: int = None, i_max: int = None, weights: np.ndarray = None,
+                  use_variances: int = False, **kwargs) -> pd.DataFrame:
+        """
+        This method returns a single layer (i.e. the content of all spaxels
+        with a fixed wavelength) from the data as a Pandas DataFrame.
+
         IMPORTANT: This method should be redefined by every subclass that
         inherits from the Instrument class.
 
+        In case a range of layers is requested, the layers are combined using
+        internally before the data for the combined layer are returned. It is
+        possible to either assign different weights to each layer or use the
+        variances (when available) in the combination process.
+
         Parameters
         ----------
-        i : int
-            The index of the layer for which the content should be returned
+        i_min
+            The index indicating the start of the layer range to be extracted.
+        i_max
+            The index indicating the end of the layer range to be extracted.
+        weights
+            The weights assigned to the individual layers when combining them.
+            Only used when `use_variances` is set to False.
+        use_variances
+            Flag indicating whether to use the variances when combining
+            layers. If True, inverse-variance-weighting is used when combining
+            the individual layers and the `variance` values provided in the
+            output are obtained through error propagation. Otherwise,
+            (weighted, if the `weights` parameter is used) averages of both
+            input values and variances are returned.
         kwargs
             Used for consistency.
 
         Returns
         -------
-        values : ndarray
-            The data values in the requested layer.
-        variances : ndarray
-            The variances of the data values in the requested layer.
+        pd.DataFrame
+            The DataFrame containing the requested data in four columns: `x`,
+            `y`, `value`, and `variance`. If more than one layer from the IFS
+            data were requested, they are combined internally, such that each
+            spaxel has a unique value.
         """
+        _ = self._verify_layer_range(i_min, i_max, weights)
+
         return pd.DataFrame(columns=['x', 'y', 'value', 'variance'], dtype=np.float64)
+
+    def get_image(self, i_min: int = None, i_max: int = None, weights: np.ndarray = None,
+                  use_variances: bool = False, **kwargs) -> NDData:
+        """
+        This method returns the data from a single layer or a range of layers
+        as a 2dim image.
+
+        In case more than one layer is requested, the data from the different
+        layers are combined internally prior to creating the 2dim array. It is
+        possible to either assign different weights to the individual layers,
+        or to use the variances (if available) during the combination.
+
+        Parameters
+        ----------
+        i_min
+            The index indicating the start of the layer range to be extracted.
+        i_max
+            The index indicating the end of the layer range to be extracted.
+        weights
+            The weights assigned to the individual layers when combining them.
+        use_variances
+            Flag indicating whether to use the variances when combining
+            layers.
+        kwargs
+            Used for consistency.
+
+        Returns
+        -------
+        NDData
+            The requested data as an astropy NDData object. The variances of
+            the data can be accessed via the `uncertainty` attribute.
+
+        Raises
+        -------
+        NotImplementedError
+            If the call to `get_layer()` returns an empty DataFrame.
+        """
+        layer_data = self.get_layer(i_min, i_max, weights, use_variances, **kwargs)
+
+        if not len(layer_data):
+            raise NotImplementedError
+
+        data = NDData(self.make_image(layer=layer_data['value']), **kwargs)
+        if use_variances:
+            data.uncertainty = VarianceUncertainty(self.make_image(layer=layer_data['variance']), **kwargs)
+
+        return data
 
     def integrate(self, imin: int, imax: int, apply_variances: bool = False, weights: np.ndarray = None,
                   nbin: int = 1, **kwargs) -> (np.ndarray, np.ndarray):
         """
+        DEPRECATED: This method is deprecated and will be removed in a future release.
+
         This method is designed to obtain an image by integrating over a range
         of individual layers.
 
@@ -879,64 +1017,6 @@ class Instrument(object):
 
         wsum[wsum == 0] = np.nan
         return data/wsum, 1./wsum
-
-    def integrate_over_filtercurve(self, passband, layer_range=None, **kwargs):
-        """
-        This method is designed to integrate this IFS data over a filter curve
-        to create a mock photometric image in that filter.
-
-        Parameters
-        ----------
-        passband : string
-            The name of the filter over which to integrate. Note that it must
-            be available in the set of filters available to PampelMuse. Check
-            the PampelMuse manual for details.
-        layer_range : tuple, optional
-            The min. and max layer of the IFS data that should be considered.
-            This is helpful in cases when the first/last layer of the data is
-            corrupted.
-        kwargs
-            Any additional keyword argument is passed on to the call of
-            Instrument.integrate() that performs the actual integration.
-
-        Returns
-        -------
-        data : ndarray
-            The array containing the integrated data.
-        variances : ndarray
-            An estimate of the variance in each data pixel.
-        weights : ndarray
-            The throughput values of the filter at the wavelength sampling of
-            the IFS data.
-        """
-        if self.wave is None:
-            logging.error("Missing wavelength information for IFS data.")
-            return None, None, None
-
-        # open filtercurve, check if it overlaps with IFs data
-        fct = get_filter(passband)
-
-        # note that IFS data are in m while filter curves are currently in Angstrom
-        wmin = 1e-10*fct.get_knots().min()  # min. of defined wavelength range
-        imin = np.argmax(self.wave > wmin)
-
-        wmax = 1e-10*fct.get_knots().max()  # max. of defined wavelength range
-        imax = self.wave.size - 1 - np.argmax(self.wave[::-1] < wmax)
-        logging.debug('Wavelength range of filter: {0:.3g}-{1:.3g}, of cube: {2:.3g}-{3:.3g}'.format(
-            wmin, wmax, self.wave.min(), self.wave.max()))
-
-        if layer_range is not None:
-            imin = max([imin, layer_range[0]])
-            imax = min([imax, layer_range[1]])
-
-        if imin >= imax or self.wave.max() < wmin or self.wave.min() > wmax:
-            logging.error("No overlap between provided wavelength range and passband {0}.".format(passband))
-            return None, None, None
-        else:
-            weights = fct(1e10*self.wave[imin:imax])
-            assert not np.isnan(weights).any()
-            images = self.integrate(imin, imax, weights=weights, **kwargs)
-            return images[0], images[1], weights
 
     def slice_for_layer(self, i):
         """

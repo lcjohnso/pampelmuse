@@ -44,7 +44,7 @@ function pampelmuse.core.aperture.run_ap
 
 Latest Git revision
 -------------------
-2024/04/08
+2024/07/02
 """
 import logging
 from multiprocessing import Pool, cpu_count
@@ -56,7 +56,7 @@ from ..instruments import Instrument, MusePixtable
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20240408
+__revision__ = 20240702
 
 
 logger = logging.getLogger(__name__)
@@ -390,15 +390,11 @@ class AperPhoto:
 
             # load data - note that layer binning is currently not performed for pixtables.
             if n_bin == 1 or isinstance(self.cube, MusePixtable):
-                input_data.append(self.cube.get_layer(i=layer_index))
+                input_data.append(self.cube.get_layer(i_min=layer_index))
             else:
-                if layer_index != self.layers_to_analyse[-1]:
-                    data = self.cube.integrate(layer_index - n_bin // 2, layer_index + n_bin // 2)[0]
-                else:
-                    data = self.cube.integrate(layer_index - n_bin // 2, stop)[0]
-
-                input_data.append(pd.DataFrame(np.append(self.cube.transform, data.flatten()[:, None], axis=1),
-                                               columns=['y', 'x', 'flux']))
+                i_min = layer_index - n_bin // 2
+                i_max = min(layer_index + n_bin // 2, stop)
+                input_data.append(self.cube.get_layer(i_min=i_min, i_max=i_max))
 
             if not i % n_cpu or layer_index == self.layers_to_analyse[-1]:
                 if n_cpu > 1:

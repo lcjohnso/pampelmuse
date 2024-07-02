@@ -31,7 +31,7 @@ Added
 
 Latest Git revision
 -------------------
-2024/04/18
+2024/07/02
 """
 import datetime
 import logging
@@ -49,7 +49,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20240418
+__revision__ = 20240702
 
 
 logger = logging.getLogger(__name__)
@@ -447,13 +447,16 @@ class SpectrumWriter(object):
         if poststamps:
             if not filter_names:  # create white light image
                 logger.info('Creating white light image from IFS data ...')
-                images['white'] = self.ifs_data.integrate(imin=self.start, imax=self.stop, nbin=10)[0]
+                white = self.ifs_data.get_image(i_min=self.start, i_max=self.stop, n_bin=10)
+                images['white'] = white.data
             else:
                 for name in filter_names:
                     logger.info('Creating {0}-band from IFS data ...'.format(name))
-                    new_image = self.ifs_data.integrate_over_filtercurve(name, nbin=10)[0]
+                    i_min, i_max, weights = self.ifs_data.weights_from_filtercurve(
+                        name, layer_range=(self.start, self.stop))
+                    new_image = self.ifs_data.get_image(i_min=i_min, i_max=i_max, weights=weights, n_bin=10)
                     if new_image is not None:
-                        images[name] = new_image
+                        images[name] = new_image.data
 
         # load spectra for all components
         self.sources.load_spectra()

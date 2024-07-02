@@ -31,7 +31,7 @@ extraction for a data cube.
 
 Latest GIT revision
 -------------------
-2024/04/15
+2024/07/02
 """
 import collections
 import logging
@@ -45,7 +45,7 @@ from ..instruments.muse import MusePixtable
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20240415
+__revision__ = 20240702
 
 
 logger = logging.getLogger(__name__)
@@ -643,7 +643,7 @@ class FitCube(object):
         # if available, return results of detailed PSF analysis
         return self._make_psf_hdus() if analyse_psf else None
 
-    def get_layer(self, current, n_bin, use_variances=True, skip_nan=True):
+    def get_layer(self, current, n_bin, use_variances=True, skip_nan=False):
         """
         Returns a single layer of the IFS data as a pandas DataFrame.
 
@@ -658,10 +658,11 @@ class FitCube(object):
         n_bin : integer
             The binning factor, i.e. the number of adjacent layers included.
         use_variances : boolean, optional
-            Flag indicating if the variances of the data should be returned.
+            Flag indicating if the variances of the data should be propagated
+            when combining several layers.
         skip_nan : boolean, optional
            Flag indicating if NaN pixels should be included in the data that
-           is returned.
+           is returned. *DEPRECRATED*
 
         Returns
         -------
@@ -673,39 +674,18 @@ class FitCube(object):
             of each pixel and optional columns 'ifu' and 'slice' the IFU and
             slice numbers of each pixel.
         """
-        # Get data layer, also variance layer if requested; bin data if requested
-        if n_bin == 1 or isinstance(self.ifs_data, MusePixtable):
-            return self.ifs_data.get_layer(current, return_var=use_variances)
-
-        jjmin = current - n_bin // 2
-        jjmax = min(current + n_bin // 2, self.ifs_data.nlayer)
-        values, variances = self.ifs_data.integrate(jjmin, jjmax, apply_variances=use_variances)
-
-        values = values.flatten()
-        if variances is not None:
-            variances = variances.flatten()
-
-        # get x- & y-coordinates of each pixel
-        transform = self.ifs_data.transform
-
-        # NaN pixels will be masked if requested
         if skip_nan:
-            mask = np.isnan(values)
-            if use_variances:
-                mask |= np.isnan(variances)
-            logger.debug("Layer contains {0} masked pixels".format(mask.sum()))
+            warnings.warn('The `skip_nan` flag has been deprecated.', DeprecationWarning)
+
+        # For MUSE pixtables, there is currently no functionality for combining layers. Therefore,
+        # a single layer is always returned.
+        if n_bin == 1 or isinstance(self.ifs_data, MusePixtable):
+            return self.ifs_data.get_layer(i_min=current)
         else:
-            mask = np.zeros(values.size, dtype=bool)
+            jj_min = current - n_bin // 2
+            jj_max = min(current + n_bin // 2, self.ifs_data.nlayer)
 
-        # collect arrays in dictionary for initialisation of pandas DataFrame
-        data = {'value': values[~mask], 'x': transform[~mask, 1], 'y': transform[~mask, 0]}
-        # add variances if requested
-        if use_variances:
-            data['variance'] = variances[~mask]
-
-        # return, make sure byte-ordering is correct, see
-        # https://pandas.pydata.org/pandas-docs/stable/gotchas.html#byte-ordering-issues
-        return pd.DataFrame(data, index=pd.Index(np.flatnonzero(~mask)), dtype='<f4')
+            return self.ifs_data.get_layer(i_min=jjmin, i_max=jjmax, use_variances=use_variances)
 
     def read_fluxes(self, current, last=None, fillna=True):
         """

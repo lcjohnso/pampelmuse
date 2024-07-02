@@ -33,7 +33,7 @@ Added
 
 Last updated
 ------------
-2024/07/01
+2024/07/02
 """
 import logging
 import sys
@@ -54,7 +54,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20240701
+__revision__ = 20240702
 
 
 logger = logging.getLogger(__name__)
@@ -517,7 +517,7 @@ class SourceSelector(object):
         """
         Method to create a mock image from the catalogue of sources.
 
-        This method creates a two dimensional image using the coordinates and
+        This method creates a 2-dimensional image using the coordinates and
         magnitudes for the available sources and the current PSF model. The
         dimensions of the image are chosen so that all available sources are
         included. For large catalogs, the parameter 'n_stars' makes sure that
@@ -525,8 +525,8 @@ class SourceSelector(object):
         brightest stars to the image. After creation, the image is available
         as SourceSelector().identification_image.
 
-        The image creation is parallelized and it uses the function
-        image_from_psf defined in this method.
+        The image creation is parallelized, and uses the `image_from_psf`
+        function defined in this package.
 
         Parameters
         ----------
@@ -589,14 +589,14 @@ class SourceSelector(object):
         self.identification_image = np.zeros(shape, dtype=np.float32)
         self.identification_image[psf.y.astype('<i4'), psf.x.astype('<i4')] = _image
 
-    def create_image_from_ifs(self, n_bin=10, apply_variances=True):
+    def create_image_from_ifs(self, n_bin=10, **kwargs):
         """
         This method creates a two-dimensional image from the IFS data.
 
         The image is created by integrating the IFS data over the passband in
         which the magnitudes were provided. For large data cubes this can be
-        quite time-consuming. In those cases, consider using the the parameter
-        'n_bin' to reduce the computation time. Afterwards, the image is
+        quite time-consuming. In those cases, consider using the parameter
+        'n_bin' to reduce the computation time. Afterward, the image is
         accessible via SourceSelector().data_image. Note that the method will
         also create an image with the average variances, accessible via
         SourceSelector().var_image.
@@ -606,20 +606,24 @@ class SourceSelector(object):
         n_bin : int, optional
             The binning factor; if >1, only every n_bin'th layer will be used
             to create the image.
-        apply_variances : bool, optional
-            Boolean flag indicating whether the variances of the IFS should be
-            used when creating the image.
+        kwargs
+            Used as a container for deprecated keyword arguments.
         """
+        if 'apply_variances' in kwargs.keys():
+            warnings.warn('Use of the "apply_variances" keyword is deprecated and has no effect.')
 
         logger.info("Creating mock {0}-band image from IFS data...".format(self.passband))
-        self.data_image, self.var_image, weights = self.ifs_data.integrate_over_filtercurve(
-                self.passband, apply_variances=apply_variances, nbin=n_bin, layer_range=(5, self.ifs_data.nlayer - 5),
-                return_grid=True)
+        i_min, i_max, weights = self.ifs_data.weights_from_filtercurve(
+            self.passband,  layer_range=(5, self.ifs_data.nlayer - 5))
+        nddata = self.ifs_data.get_image(i_min=i_min, i_max=i_max, weights=weights, n_bin=n_bin,
+                                         use_variances=False)
+        self.data_image = nddata.data
+        self.var_image = nddata.uncertainty.array
 
         # The variance values are valid for the broadband image and must be increased to be representative for a
         # typical layer. As the image was obtained by integrating over a filter curve, the sigma values are multiplied
         # by sqrt(N) where N is the effective width of the filter curve in units of the spectral sampling.
-        self.var_image *= weights[(np.arange(weights.size) % n_bin) == 0].sum()
+        # self.var_image *= weights[(np.arange(weights.size) % n_bin) == 0].sum()
 
         mask = np.isnan(self.data_image)
         if mask.all():

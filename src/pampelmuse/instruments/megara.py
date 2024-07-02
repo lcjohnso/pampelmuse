@@ -27,12 +27,14 @@ instrument at the GTC telescope on La Palma.
 
 Latest Git revision
 -------------------
-2024/07/01
+2024/07/02
 """
+import logging
 import astropy.io.fits
 import numpy as np
 import pandas as pd
 from astropy import units as u
+from astropy.nddata import NDData, VarianceUncertainty, NDUncertainty
 from astropy.wcs import WCS
 from astropy.wcs.utils import proj_plane_pixel_scales
 import megaradrp.instrument.constants as megara_constants
@@ -43,8 +45,11 @@ from .instrument import Instrument
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__added__ = "20240701"
-__revision__ = __added__
+__added__ = 20240702
+__revision__ = 20240701
+
+
+logger = logging.getLogger(__name__)
 
 
 class Megara(Instrument):
@@ -176,52 +181,6 @@ class Megara(Instrument):
 
         self.wave = self.wcs.spectral.all_pix2world(np.arange(hdu.header['NAXIS1']), 0)[0]
 
-    def get_image(self, i: int, return_residuals: bool = False, return_var: bool = False,
-                  **kwargs) -> (np.ndarray, np.ndarray):
-        """
-        Return the data of an individual layer as a 2dim-array.
-
-        Given the hexagonal shape of the MEGARA fibers, resampling onto a
-        2dim. rectangular grid is required, as PampelMuse does not support
-        `hexbin` plots. To this aim, the `create_cube_from_array` function
-        defined in the megaradrp-package is used.
-
-        Parameters
-        ----------
-        i
-            The index of the layer to be returned.
-        return_residuals
-            Flag indicating if the residuals should be returned instead of
-            the data.
-        return_var
-        kwargs
-            This method does not accept any keyword arguments.
-
-        Returns
-        -------
-        """
-
-        if not return_residuals:
-            _data = self.datahdu.data[:, i]
-        else:
-            _data = self.residualshdu.data[:, i]
-
-        # get average pixel scale in arcsec
-        _p = proj_plane_pixel_scales(self.wcs.celestial)
-        target_scale_arcsec = 3600.*np.mean(_p)
-
-        data = create_cube_from_array(_data, fiberconf=self.fiber_conf, target_scale_arcsec=target_scale_arcsec)[0]
-
-        if return_var and self.varhdu is not None:
-            _var = self.varhdu.data[:, i]
-            var = create_cube_from_array(_var, fiberconf=self.fiber_conf, target_scale_arcsec=target_scale_arcsec)[0]
-            # if valid is not None:
-            #     var[~valid] = np.nan
-        else:
-            var = None
-
-        return data, var
-
     def _fiber_from_index(self, i: int) -> int:
         """
         Helper function to convert an index of a spaxel into a fiber ID.
@@ -268,33 +227,69 @@ class Megara(Instrument):
 
         return spec, var
 
-    def get_layer(self, i: int, **kwargs) -> pd.DataFrame:
+    def get_layer(self, i_min: int = None, i_max: int = None, weights: np.ndarray = None,
+                  use_variances: bool = False, **kwargs) -> pd.DataFrame:
         """
-        Return a single layer of the data as a Pandas DataFrame.
-
-
-        Parameters
-        ----------
-        i
-            The index of the layer to be returned.
-        kwargs
-            This method does not accept any keyword arguments.
-
-        Returns
-        -------
-        The layer data as a Pandas DataFrame.
+        This method overwrites the `get_layer` method of the basic
+        Instrument()-class.
         """
+        if use_variances and weights is not None:
+            logger.warning('Using variances instead of weights.')
+            weights = None
+
+        i_min, i_max, weights = self._verify_layer_range(i_min, i_max, weights)
+
         fibers = []
         for fiber in self.fiber_conf.connected_fibers():
             fibers.append(fiber.fibid - 1)
-        _data = self.datahdu.data[fibers, i]
+
+        all_layers = self.datahdu.data[fibers, i_min:i_max]
 
         if self.varhdu is not None:
-            _var = self.varhdu.data[fibers, i]
+            all_variances = self.varhdu.data[fibers, i_min:i_max]
         else:
-            _var = None
+            all_variances = np.ones_like(all_layers)
+            if use_variances:
+                logger.error('Parameter `use_variances` is True, but no variance data available.')
 
-        _out = {'x': self.transform[:, 1], 'y': self.transform[:, 0], 'value': _data}
-        if _var is not None:
-            _out['var'] = _var
-        return pd.DataFrame(_out)
+        if use_variances:
+            data = np.average(all_layers, weights=all_variances, axis=1)
+            var = np.sqrt(1./np.sum(1./all_variances**2, axis=1))
+        else:
+            data = np.average(all_layers, weights=weights, axis=1)
+            var = np.average(all_variances, weights=weights, axis=1)
+
+        return pd.DataFrame({'x': self.transform[:, 1], 'y': self.transform[:, 0], 'value': data, 'variance': var})
+
+    def get_image(self, i_min: int = None, i_max: int = None, weights: np.ndarray = None,
+                  use_variances: bool = False, return_residuals: bool = False, **kwargs) -> NDData:
+        """
+        This method overwrites the `get_image` method of the basic
+        Instrument()-class.
+        """
+        if return_residuals:
+            raise NotImplementedError
+
+        layer = self.get_layer(i_min, i_max, weights, use_variances, **kwargs)
+
+        # sky fibers have been removed from the `layer` array. Need to add them back in before resampling to 2D
+        # array via `create_cube_from_array` from megaradrp package.
+        data_1d = np.zeros(self.nfiber, dtype=np.float64)
+        data_1d[self.isscience] = layer['value']
+
+        # get average pixel scale in arcsec
+        _p = proj_plane_pixel_scales(self.wcs.celestial)
+        target_scale_arcsec = 3600.*np.mean(_p)
+
+        data_2d = create_cube_from_array(data_1d, fiberconf=self.fiber_conf, target_scale_arcsec=target_scale_arcsec)[0]
+        out = NDData(data_2d)
+
+        var_1d = np.zeros_like(data_1d)
+        var_1d[self.isscience] = layer['variance']
+        var_2d = create_cube_from_array(var_1d, fiberconf=self.fiber_conf, target_scale_arcsec=target_scale_arcsec)[0]
+        # if use_variances:
+        out.uncertainty = VarianceUncertainty(var_2d)
+        # else:
+        #     out.uncertainty = NDUncertainty(array=var_2d)
+
+        return out
