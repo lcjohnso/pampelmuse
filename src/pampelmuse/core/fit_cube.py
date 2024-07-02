@@ -685,7 +685,7 @@ class FitCube(object):
             jj_min = current - n_bin // 2
             jj_max = min(current + n_bin // 2, self.ifs_data.nlayer)
 
-            return self.ifs_data.get_layer(i_min=jjmin, i_max=jjmax, use_variances=use_variances)
+            return self.ifs_data.get_layer(i_min=jj_min, i_max=jj_max, use_variances=use_variances)
 
     def read_fluxes(self, current, last=None, fillna=True):
         """
