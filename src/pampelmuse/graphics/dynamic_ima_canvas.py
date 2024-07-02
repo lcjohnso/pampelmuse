@@ -35,7 +35,7 @@ pampelmuse.core.cube
 
 Latest Git revision
 -------------------
-2024/04/08
+2024/07/02
 """
 import logging
 import numpy as np
@@ -48,7 +48,7 @@ from ..utils.fits import open_ifs_data
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20240408
+__revision__ = 20240702
 
 
 class DynamicImaCanvas(FigureCanvasQTAgg):
@@ -242,7 +242,8 @@ class DynamicImaCanvas(FigureCanvasQTAgg):
         if residuals and self.cube.residualshdu is None:
             logging.error("Cannot display fit residuals because no residuals HDU is loaded.")
             residuals = False
-        self.addImage(self.cube.get_image(i, return_residuals=residuals)[0], **kwargs)
+        nddata = self.cube.get_image(i, return_residuals=residuals)
+        self.addImage(nddata.data, **kwargs)
 
         # store current wavelength and number of layer
         self.wave = self.cube.wave[i]
