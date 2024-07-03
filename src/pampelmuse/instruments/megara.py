@@ -39,7 +39,8 @@ from astropy.wcs import WCS
 from astropy.wcs.utils import proj_plane_pixel_scales
 import megaradrp.instrument.constants as megara_constants
 from megaradrp.instrument.focalplane import FocalPlaneConf
-from megaradrp.processing.cube import create_cube_from_array
+from megaradrp.processing import hexgrid
+from megaradrp.processing.cube import calc_matrix_from_fiberconf, create_cube_from_array
 
 from .instrument import Instrument
 
@@ -55,6 +56,10 @@ logger = logging.getLogger(__name__)
 class Megara(Instrument):
 
     name = "MEGARA"
+
+    GTC_PLATESCALE = u.plate_scale(megara_constants.GTC_FC_A_PLATESCALE)
+    # Size scale of the spaxel grid in arcseconds
+    HEX_SCALE = megara_constants.SPAXEL_SCALE.to(u.arcsec, GTC_PLATESCALE).value
 
     HEX_TO_RECT = (3./4.)**(1./4.)
     FIBER_DIAMETER = 0.62
@@ -120,31 +125,26 @@ class Megara(Instrument):
         sky_fibers = np.asarray(fp.sky_fibers())
 
         # initialize transformation from fibers to (x, y) coordinates
-        transform = np.zeros((fp.nfibers - len(sky_fibers), 2), dtype=np.float64)
-        for _, fiber in fp.fibers.items():
-            if fiber.fibid in sky_fibers:
-                continue
-            n_sky_prior = np.sum(sky_fibers < fiber.fibid)
-            idx = fiber.fibid - 1 - n_sky_prior
-            transform[idx, 0] = fiber.y
-            transform[idx, 1] = fiber.x
+        transform, (x_ref, y_ref) = calc_matrix_from_fiberconf(fpconf=fp)
 
-        # From MEGARA documentation: Fiber in lower left corner is 614
-        ref_fiber = fp.fibers[614]
-        transform -= [ref_fiber.y, ref_fiber.x]
-
-        # By default, the (x, y) positions of the fibers are provided in mm on focal plane. For creating the internal
-        # image grid, the sampling should be about 1 pixel/fiber.
-        # The SPAXEL_SCALE of MEGARA is defined as 2x the inradius of the hexagonal fibers - not to be confused with
-        # the fiber diameter of 0.62", which is 2x the circumradius. To create rectangular pixels with the same area
-        # as the hexagonal fibers, the sampling needs to be increased by (3/4)^(1/4) along x and y.
-        if fp.funit == 'mm':
-            transform = transform/megara_constants.SPAXEL_SCALE.to(u.mm).value
-        else:
-            raise NotImplementedError
+        # calc_matrix_from_fiberconf() returns the fibre positions in units of the HEX_SCALE of MEGARA, which is
+        # defined as 2x the inradius of the hexagonal fibers (~0.537") - not to be confused with the fiber diameter
+        # of 0.62", which is 2x the circumradius. To create rectangular pixels with the same area as the hexagonal
+        # fibers, the sampling needs to be increased by (3/4)^(1/4) along x and y.
         transform = transform/Megara.HEX_TO_RECT
 
-        megara = cls(fiber_conf=fp, transform=transform, **kwargs)
+        # when resampling onto a rectangular grid, the function create_cube_from_array() from the megaradrp package
+        # is used. It internally calculates the dimensions of the grid, and does not necessarily place the origin at
+        # (0, 0). This would lead to shifts between the positions of the fibers and the rectangular pixels. To avoid
+        # this issue, we need to account for the origin offset.
+        # Note that the offstes need to be determined using the regular HEX_SCALE to be consistent with the internal
+        # calulation of create_cube_from_array()
+        (i_min, i_max), (j_min, j_max) = hexgrid.hexgrid_extremes(transform*Megara.HEX_TO_RECT, Megara.HEX_TO_RECT)
+        transform[0] -= i_min
+        transform[1] -= j_min
+
+        # need to swap axes and x/y-order of `transform` to match internal format of PampelMuse
+        megara = cls(fiber_conf=fp, transform=transform[::-1].T, **kwargs)
         megara._sky_fibers = sky_fibers
 
         _wcs = WCS(hdu.header)
@@ -152,7 +152,7 @@ class Megara(Instrument):
         # from (rectangular) spaxel to (RA, Dec)
         _wcs.wcs.cdelt *= megara_constants.SPAXEL_SCALE.to(u.mm).value
         _wcs.wcs.cdelt *= Megara.HEX_TO_RECT
-        _wcs.wcs.crpix -= [ref_fiber.x, ref_fiber.y]
+        _wcs.wcs.crpix -= [x_ref, y_ref]
         indices = [i + 1 for i in range(_wcs.wcs.naxis)]
         indices.insert(_wcs.wcs.naxis, 0)
         megara.wcs = _wcs.sub(indices)
