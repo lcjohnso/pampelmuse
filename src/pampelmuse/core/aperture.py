@@ -44,7 +44,7 @@ function pampelmuse.core.aperture.run_ap
 
 Latest Git revision
 -------------------
-2024/04/08
+2024/07/03
 """
 import logging
 from multiprocessing import Pool, cpu_count
@@ -56,7 +56,7 @@ from ..instruments import Instrument, MusePixtable
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20240408
+__revision__ = 20240703
 
 
 logger = logging.getLogger(__name__)
@@ -144,7 +144,7 @@ def run_ap(data):
                                                                                  names=['id', 'property']))
 
     # exclude masked pixels, make sure at least some pixels have signal
-    valid = np.isfinite(data['flux'])
+    valid = np.isfinite(data['value'])
     if not valid.any():
         logger.warning("Layer contains only masked pixels.")
         return results, np.nan
@@ -164,7 +164,7 @@ def run_ap(data):
         logger.warning("Using < 20 pixels to estimate global background.")
 
     # perform kappa-sigma clipping to determine background level and noise
-    back_data, _, _ = sigmaclip(data.loc[back_pixels, 'flux'])
+    back_data, _, _ = sigmaclip(data.loc[back_pixels, 'value'])
     back_mean = back_data.mean()
     back_std = back_data.std()
     global_background = back_mean
@@ -180,7 +180,7 @@ def run_ap(data):
         if g_background == "local":
             # determine local background pixels, defined as having distances >2*r_aper and <4*r_aper to one source
             back_pixels = (offsets[index] > (2 * g_r_aperture)) & (offsets[index] <= (4 * g_r_aperture))
-            back_data, _, _ = sigmaclip(data.loc[offsets.index[back_pixels], 'flux'])
+            back_data, _, _ = sigmaclip(data.loc[offsets.index[back_pixels], 'value'])
             if np.isfinite(back_data).sum() > 1:
                 back_mean = back_data.mean()
                 back_std = back_data.std()
@@ -190,7 +190,7 @@ def run_ap(data):
         flux_pixels = (offsets[index] <= g_r_aperture)
 
         # Get array for calculations & subtract background estimate
-        flux_data = data.loc[offsets.index[flux_pixels], 'flux'] - back_mean
+        flux_data = data.loc[offsets.index[flux_pixels], 'value'] - back_mean
         results.loc[0, (index, 'flux')] = flux_data.sum()
 
         logger.debug("... flux inside aperture is {0:.3g}".format(results.loc[0, (index, 'flux')]))
@@ -398,7 +398,7 @@ class AperPhoto:
                     data = self.cube.integrate(layer_index - n_bin // 2, stop)[0]
 
                 input_data.append(pd.DataFrame(np.append(self.cube.transform, data.flatten()[:, None], axis=1),
-                                               columns=['y', 'x', 'flux']))
+                                               columns=['y', 'x', 'value']))
 
             if not i % n_cpu or layer_index == self.layers_to_analyse[-1]:
                 if n_cpu > 1:
