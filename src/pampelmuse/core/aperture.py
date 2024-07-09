@@ -44,7 +44,7 @@ function pampelmuse.core.aperture.run_ap
 
 Latest Git revision
 -------------------
-2024/07/03
+2024/07/09
 """
 import logging
 from multiprocessing import Pool, cpu_count
@@ -56,7 +56,7 @@ from ..instruments import Instrument, MusePixtable
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20240703
+__revision__ = 20240709
 
 
 logger = logging.getLogger(__name__)
@@ -199,8 +199,8 @@ def run_ap(data):
         if len(g_properties) > 1:
 
             # note that only pixels above the background noise should be used
-            moment_pixels = flux_pixels & (data.loc[valid, 'flux'] > (back_mean + g_threshold * back_std))
-            moment_data = data.loc[offsets.index[moment_pixels], 'flux']
+            moment_pixels = flux_pixels & (data.loc[valid, 'value'] > (back_mean + g_threshold * back_std))
+            moment_data = data.loc[offsets.index[moment_pixels], 'value']
             logger.debug("... {0} pixel(s) available for moment calculation".format(moment_pixels.sum()))
             if moment_pixels.sum() > 3:
                 x_grid = data.loc[moment_pixels.index, 'x']

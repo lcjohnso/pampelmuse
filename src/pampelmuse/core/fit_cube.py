@@ -31,7 +31,7 @@ extraction for a data cube.
 
 Latest GIT revision
 -------------------
-2024/07/02
+2024/07/09
 """
 import collections
 import logging
@@ -45,7 +45,7 @@ from ..instruments.muse import MusePixtable
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20240702
+__revision__ = 20240709
 
 
 logger = logging.getLogger(__name__)
@@ -677,10 +677,8 @@ class FitCube(object):
         if skip_nan:
             warnings.warn('The `skip_nan` flag has been deprecated.', DeprecationWarning)
 
-        # For MUSE pixtables, there is currently no functionality for combining layers. Therefore,
-        # a single layer is always returned.
-        if n_bin == 1 or isinstance(self.ifs_data, MusePixtable):
-            return self.ifs_data.get_layer(i_min=current)
+        if n_bin == 1:
+            return self.ifs_data.get_layer(i_min=current, use_variances=use_variances)
         else:
             jj_min = current - n_bin // 2
             jj_max = min(current + n_bin // 2, self.ifs_data.nlayer)

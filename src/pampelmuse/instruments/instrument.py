@@ -28,7 +28,7 @@ defines generic methods that are inherited by all its subclasses.
 
 Latest Git revision
 -------------------
-2024/07/02
+2024/07/09
 """
 import logging
 import warnings
@@ -46,7 +46,7 @@ from ..utils.distance import dist2path, point_in_poly
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20240702
+__revision__ = 20240709
 
 
 logger = logging.getLogger(__name__)
@@ -794,21 +794,25 @@ class Instrument(object):
                 i_max = self.nlayer
         return i_min, i_max, weights
 
-    def weights_from_filtercurve(self, passband: str, layer_range: tuple = None) -> (int, int, np.ndarray):
+    def weights_from_filtercurve(self, passband: str, layer_range: tuple = None,
+                                 min_weight: float = 0.1) -> (int, int, np.ndarray):
         """
         Assign weights to the individual layers of the iFS data based on the
         throughput curve of a photometric filter.
 
         Parameters
         ----------
-        passband : string
+        passband
             The name of the filter over which to integrate. Note that it must
             be available in the set of filters available to PampelMuse. Check
             the PampelMuse manual for details.
-        layer_range : tuple, optional
+        layer_range
             The min. and max layer of the IFS data that should be considered.
             This is helpful in cases when the first/last layer of the data is
             corrupted.
+        min_weight
+            The minimumm weight of a layer considered. This is helpful in
+            cases where the passbands have long tails witj low throughput.
 
         Returns
         -------
@@ -839,6 +843,12 @@ class Instrument(object):
             i_min = max([i_min, layer_range[0]])
             i_max = min([i_max, layer_range[1]])
 
+        if min_weight > 0:
+            while fct(1e10*self.wave[i_min]) < min_weight:
+                i_min += 1
+            while fct(1e10*self.wave[i_max]) < min_weight:
+                i_max -= 1
+
         if i_min >= i_max or self.wave.max() < w_min or self.wave.min() > w_max:
             logging.error("No overlap between provided wavelength range and passband {0}.".format(passband))
             return i_min, i_max, np.zeros(max(i_max - i_min, 0))
@@ -849,7 +859,7 @@ class Instrument(object):
         return i_min, i_max, weights
 
     def get_layer(self, i_min: int = None, i_max: int = None, weights: np.ndarray = None,
-                  use_variances: int = False, **kwargs) -> pd.DataFrame:
+                  use_variances: int = False, return_residuals: bool = False, **kwargs) -> pd.DataFrame:
         """
         This method returns a single layer (i.e. the content of all spaxels
         with a fixed wavelength) from the data as a Pandas DataFrame.
@@ -878,6 +888,9 @@ class Instrument(object):
             output are obtained through error propagation. Otherwise,
             (weighted, if the `weights` parameter is used) averages of both
             input values and variances are returned.
+        return_residuals
+            Flag indicating whether to return the residuals instead of the
+            data.
         kwargs
             Used for consistency.
 
@@ -894,7 +907,7 @@ class Instrument(object):
         return pd.DataFrame(columns=['x', 'y', 'value', 'variance'], dtype=np.float64)
 
     def get_image(self, i_min: int = None, i_max: int = None, weights: np.ndarray = None,
-                  use_variances: bool = False, **kwargs) -> NDData:
+                  use_variances: bool = False, return_residuals: bool = False, **kwargs) -> NDData:
         """
         This method returns the data from a single layer or a range of layers
         as a 2dim image.
@@ -915,6 +928,9 @@ class Instrument(object):
         use_variances
             Flag indicating whether to use the variances when combining
             layers.
+        return_residuals
+            Flag indicating whether to return the residuals instead of the
+            data.
         kwargs
             Used for consistency.
 
@@ -979,6 +995,9 @@ class Instrument(object):
             variances or weights are used in the integration, this array will
             contain 1/(no. of integrated pixels) for each output pixel.
         """
+        warnings.warn("The `integrate` method is deprecated and will be removed in a future release.",
+                      DeprecationWarning)
+
         # make sure variances are returned with data if variance weighting is requested.
         if apply_variances:
             kwargs['return_var'] = True

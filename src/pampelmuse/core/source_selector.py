@@ -33,7 +33,7 @@ Added
 
 Last updated
 ------------
-2024/07/02
+2024/07/09
 """
 import logging
 import sys
@@ -54,7 +54,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20240702
+__revision__ = 20240709
 
 
 logger = logging.getLogger(__name__)
@@ -130,7 +130,7 @@ def estimate_snr(sources_data):
     Parameters
     ----------
     sources_data : dict
-        The dictionary must contain the following two keys:
+        The dictionary must contain the following keys:
         - psf_instances : an instance of a PSF class
               The PSF profile is required to determine the flux distribution
               across the FoV
@@ -304,7 +304,6 @@ class SourceSelector(object):
         self.psf_attributes = None
         self.identification_image = None
         self.data_image = None
-        self.var_image = None
         self.ccxoff = 0.0
         self.ccyoff = 0.0
         self.signal_to_noise = None
@@ -615,46 +614,22 @@ class SourceSelector(object):
         logger.info("Creating mock {0}-band image from IFS data...".format(self.passband))
         i_min, i_max, weights = self.ifs_data.weights_from_filtercurve(
             self.passband,  layer_range=(5, self.ifs_data.nlayer - 5))
-        nddata = self.ifs_data.get_image(i_min=i_min, i_max=i_max, weights=weights, n_bin=n_bin,
+        self.data_image = self.ifs_data.get_image(i_min=i_min, i_max=i_max, weights=weights, n_bin=n_bin,
                                          use_variances=False)
-        self.data_image = nddata.data
-        self.var_image = nddata.uncertainty.array
 
         # The variance values are valid for the broadband image and must be increased to be representative for a
         # typical layer. As the image was obtained by integrating over a filter curve, the sigma values are multiplied
         # by sqrt(N) where N is the effective width of the filter curve in units of the spectral sampling.
         # self.var_image *= weights[(np.arange(weights.size) % n_bin) == 0].sum()
 
-        mask = np.isnan(self.data_image)
-        if mask.all():
+        if self.data_image.mask is not None and self.data_image.mask.all():
             logger.error("{0}-image created from IFS data contains only NaNs.".format(self.passband))
             logger.error("Check overlap between {0} throughput and IFS wavelength coverage.".format(self.passband))
 
         # if a true 3D cube has been provided, try to determine edge of field of view as smallest polygon to includes
         # all valid spaxels.
-        if mask.any() and isinstance(self.ifs_data, GenericIFS):
-            self.ifs_data.edge = self.ifs_data.find_edge(mask)
-
-        self.var_image[mask] = np.inf
-        self.data_image[mask] = 0
-
-        if np.isnan(self.var_image).any():
-            logger.warning('Variance image created from IFS data contains {0}/{1} NaN pixels.'.format(
-                np.isnan(self.var_image).sum(), self.var_image.size))
-
-        # take care of data cubes with over-subtraction of background
-        if self.data_image.sum() <= 0:
-            self.data_image -= np.median(self.data_image)
-            logger.warning('Flux sum in {0}-image was negative. Subtracted (negative) median flux.'.format(
-                self.passband))
-            if self.data_image.sum() <= 0:
-                fixed_pixels = 0
-                while self.data_image.sum() <= 0:
-                    self.data_image[np.unravel_index(np.argmin(self.data_image), self.data_image.shape)] = 0
-                    fixed_pixels += 1
-                logger.warning(
-                    "Flux sum in {0}-image was still negative. Set the {1} most negative pixels to zero.".format(
-                        self.passband, fixed_pixels))
+        if self.data_image.mask is not None and self.data_image.mask.any() and isinstance(self.ifs_data, GenericIFS):
+            self.ifs_data.edge = self.ifs_data.find_edge(self.data_image.mask)
 
     def cross_correlate_images(self, ccmaxoff=None, init_guess=None):
         """
@@ -695,7 +670,10 @@ class SourceSelector(object):
             init_guess = (-self.sources.x.min(), -self.sources.y.min())
 
         if ccmaxoff > 0:
-            self.ccxoff, self.ccyoff = find_offset(self.data_image, self.identification_image, max_off=ccmaxoff,
+            ifs_image = self.data_image.data.copy()
+            ifs_image[self.data_image.mask] -= 0
+
+            self.ccxoff, self.ccyoff = find_offset(ifs_image, self.identification_image, max_off=ccmaxoff,
                                                    init_guess=init_guess)
             # Note that the offset are provided with negative signs because the cross-correlation routine determines
             # the offset from the reference image to the IFS data, while we need it vice versa.
@@ -826,9 +804,34 @@ class SourceSelector(object):
         """
         logger.info("Estimating S/N for all sources...")
 
-        if self.var_image is None:
-            logger.warning('Need to calculate variances before estimating S/N.')
-            self.create_image_from_ifs()
+        i_min, i_max, weights = self.ifs_data.weights_from_filtercurve(
+            self.passband, layer_range=(5, self.ifs_data.nlayer - 5))
+        # TODO: Need n_bin parameter?
+        ifs_photometry = self.ifs_data.get_layer(i_min=i_min, i_max=i_max, weights=weights, n_bin=10)
+
+        # As a last resort when no variances are available, estimate them using the standard deviation of the 50%
+        # faintest pixels
+        if 'variance' not in ifs_photometry.columns:
+            logger.error("Variance values required for meaningful S/N estimates.")
+            logger.warning("Obtaining crude variance values IFS data.")
+            faint = ifs_photometry['value'] <= np.nanmedian(ifs_photometry['value'])
+            std = np.nanstd(ifs_photometry.loc[faint, 'value'])
+            ifs_photometry['variance'] = std**2
+
+        # Workaround for data cubes with over-subtraction of background, resulting in negative integrated fluxes
+        # This happened for some of the UFD cubes that were processed with advanced sky subtraction routines.
+        if np.nansum(ifs_photometry['value']) <= 0:
+            ifs_photometry['value'] -= np.nanmedian(ifs_photometry['value'])
+            logger.warning('Flux sum in {0}-image was negative. Subtracted (negative) median flux.'.format(
+                self.passband))
+            if np.nansum(ifs_photometry['value']) <= 0:
+                fixed_pixels = 0
+                while np.nansum(ifs_photometry['value']) <= 0:
+                    ifs_photometry.at[ifs_photometry['value'].idxmin(), 'value'] = 0
+                    fixed_pixels += 1
+                logger.warning(
+                    "Flux sum in {0}-image was still negative. Set the {1} most negative pixels to zero.".format(
+                        self.passband, fixed_pixels))
 
         # collect PSF parameters in dictionary for profile initialisation
         psf_parameters = {}
@@ -840,8 +843,7 @@ class SourceSelector(object):
             psf_parameters[name] = self.sources.transformation.data[(name, 'value')].iloc[0]
 
         # create coordinate transformation for (valid pixels of) variance image
-        py, px = np.mgrid[:self.var_image.shape[0], :self.var_image.shape[1]]
-        transform = np.c_[py[np.isfinite(self.var_image)], px[np.isfinite(self.var_image)]]
+        transform = ifs_photometry[['y', 'x']].values
 
         # Assign sources to CPUs
         if n_cpu is None or n_cpu == -1:
@@ -863,7 +865,7 @@ class SourceSelector(object):
 
         # estimate S/N and integrated flux from sources in image
         if n_cpu > 1:
-            pool = Pool(n_cpu, initializer=init_worker, initargs=(self.var_image[np.isfinite(self.var_image)],))
+            pool = Pool(n_cpu, initializer=init_worker, initargs=(ifs_photometry['variance'].values,))
 
             _results = pool.map_async(estimate_snr, args)
             pool.close()
@@ -873,12 +875,12 @@ class SourceSelector(object):
             self.signal_to_noise = pd.concat([r[0] for r in results], verify_integrity=True)
             intflux = np.sum([r[1] for r in results])
         else:
-            init_worker(*(self.var_image[np.isfinite(self.var_image)],))
+            init_worker(*(ifs_photometry['variance'].values,))
             self.signal_to_noise, intflux = estimate_snr(args[0])
 
         # Calculate ratio between expected flux and actual flux in image to update zeropoint
         logger.info("Estimating the photometric zeropoint...")
-        fratio = intflux/self.data_image.sum()
+        fratio = intflux/ifs_photometry['value'].sum()
         dmag = -2.5*np.log10(fratio)
         logger.info("Estimated photometric zeropoint ({0}) is {1:.2f}".format(self.passband, zeropoint + dmag))
 
@@ -1091,7 +1093,7 @@ class SourceSelector(object):
         # set properties in sources class
         self.sources.primary = self.cfp_results.loc[self.sources.ids, 'primary']
         self.sources.status = self.cfp_results.loc[self.sources.ids, 'status']
-        self.sources.load_spectra(init_wave=False)  # isinstance(self.ifs_data, MusePixtable)) #TODO: remove
+        self.sources.load_spectra(init_wave=False)  # isinstance(self.ifs_data, MusePixtable)) #TODO: remove2
 
     def search_psf_stars(self, saturated=None, max_mag=None, psf_radius=10, psf_radius_scaling=None,
                          aperture_noise=0.1):

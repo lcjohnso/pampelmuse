@@ -27,7 +27,7 @@ instrument at the GTC telescope on La Palma.
 
 Latest Git revision
 -------------------
-2024/07/02
+2024/07/09
 """
 import logging
 import astropy.io.fits
@@ -46,8 +46,8 @@ from .instrument import Instrument
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__added__ = 20240702
-__revision__ = 20240701
+__added__ = 20240701
+__revision__ = 20240709
 
 
 logger = logging.getLogger(__name__)
@@ -228,7 +228,7 @@ class Megara(Instrument):
         return spec, var
 
     def get_layer(self, i_min: int = None, i_max: int = None, weights: np.ndarray = None,
-                  use_variances: bool = False, **kwargs) -> pd.DataFrame:
+                  use_variances: bool = False, return_residuals: bool = False, **kwargs) -> pd.DataFrame:
         """
         This method overwrites the `get_layer` method of the basic
         Instrument()-class.
@@ -243,23 +243,36 @@ class Megara(Instrument):
         for fiber in self.fiber_conf.connected_fibers():
             fibers.append(fiber.fibid - 1)
 
-        all_layers = self.datahdu.data[fibers, i_min:i_max]
+        if return_residuals:
+            all_layers = self.residualshdu.data[fiber, i_min:i_max]
+        else:
+            all_layers = self.datahdu.data[fibers, i_min:i_max]
 
         if self.varhdu is not None:
             all_variances = self.varhdu.data[fibers, i_min:i_max]
         else:
-            all_variances = np.ones_like(all_layers)
+            all_variances = None
             if use_variances:
                 logger.error('Parameter `use_variances` is True, but no variance data available.')
 
         if use_variances:
-            data = np.average(all_layers, weights=all_variances, axis=1)
-            var = np.sqrt(1./np.sum(1./all_variances**2, axis=1))
+            data = np.average(all_layers, weights=1./all_variances if all_variances is not None else None, axis=1)
+            if all_variances is not None:
+                var = np.sqrt(1./np.sum(1./all_variances**2, axis=1))
+            else:
+                var = None
         else:
             data = np.average(all_layers, weights=weights, axis=1)
-            var = np.average(all_variances, weights=weights, axis=1)
+            if all_variances is not None:
+                var = np.average(all_variances, weights=weights, axis=1)
+            else:
+                var = None
 
-        return pd.DataFrame({'x': self.transform[:, 1], 'y': self.transform[:, 0], 'value': data, 'variance': var})
+        out = pd.DataFrame({'x': self.transform[:, 1], 'y': self.transform[:, 0], 'value': data})
+        if var is not None:
+            out['variance'] = var
+
+        return  out
 
     def get_image(self, i_min: int = None, i_max: int = None, weights: np.ndarray = None,
                   use_variances: bool = False, return_residuals: bool = False, **kwargs) -> NDData:
@@ -267,10 +280,7 @@ class Megara(Instrument):
         This method overwrites the `get_image` method of the basic
         Instrument()-class.
         """
-        if return_residuals:
-            raise NotImplementedError
-
-        layer = self.get_layer(i_min, i_max, weights, use_variances, **kwargs)
+        layer = self.get_layer(i_min, i_max, weights, use_variances, return_residuals, **kwargs)
 
         # sky fibers have been removed from the `layer` array. Need to add them back in before resampling to 2D
         # array via `create_cube_from_array` from megaradrp package.
@@ -284,12 +294,11 @@ class Megara(Instrument):
         data_2d = create_cube_from_array(data_1d, fiberconf=self.fiber_conf, target_scale_arcsec=target_scale_arcsec)[0]
         out = NDData(data_2d)
 
-        var_1d = np.zeros_like(data_1d)
-        var_1d[self.isscience] = layer['variance']
-        var_2d = create_cube_from_array(var_1d, fiberconf=self.fiber_conf, target_scale_arcsec=target_scale_arcsec)[0]
-        # if use_variances:
-        out.uncertainty = VarianceUncertainty(var_2d)
-        # else:
-        #     out.uncertainty = NDUncertainty(array=var_2d)
+        if 'variance' in layer.columns:
+            var_1d = np.zeros_like(data_1d)
+            var_1d[self.isscience] = layer['variance']
+            var_2d = create_cube_from_array(var_1d, fiberconf=self.fiber_conf,
+                                            target_scale_arcsec=target_scale_arcsec)[0]
+            out.uncertainty = VarianceUncertainty(var_2d)
 
         return out

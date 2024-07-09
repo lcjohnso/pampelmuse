@@ -30,7 +30,7 @@ muse_scipost recipe.
 
 Latest GIT revision
 -------------------
-2024/04/11
+2024/07/09
 """
 import logging
 import warnings
@@ -40,6 +40,7 @@ import pandas as pd
 from typing import Union
 from astropy import units as u
 from astropy.io import fits
+from astropy.nddata import NDData, VarianceUncertainty
 from astropy.wcs import WCS
 from scipy.interpolate import griddata
 from mpdaf.drs import PixTable
@@ -48,7 +49,7 @@ from .generic_ifs import GenericIFS
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20240411
+__revision__ = 20240709
 
 
 class Muse(GenericIFS):
@@ -331,7 +332,7 @@ class MusePixtable(Instrument):
         # a pixel table has no fixed transformation from voxels to spatial coordinates, it changes for every layer
         # that is defined. Get coordinate transformation for central layer to have useful idea of edges of FoV.
         i_min, i_max = self.layer_indices[len(layers) // 2]
-        x, y = self.get_coordinates(i_min=i_min, i_max=i_max)
+        x, y = self.get_coordinates(j_min=i_min, j_max=i_max)
         self.transform = np.vstack((y, x)).T
 
     def _convert_coordinates(self, xpos, ypos):
@@ -425,53 +426,48 @@ class MusePixtable(Instrument):
         """
         return self._limit_indices
 
-    def get_layer(self, i: int, return_residuals: bool = False, return_var: bool = False) -> pd.DataFrame:
+    def get_layer(self, i_min: int = None, i_max: int = None, weights: np.ndarray = None, use_variances: bool = False,
+                  return_residuals: bool = False, **kwargs) -> pd.DataFrame:
         """
-        This method returns a single layer (i.e. the content of all voxels
-        with a given wavelength) from the data as a dataframe.
-
-        Parameters
-        ----------
-        i
-            The index of the layer for which the content should be returned
-        return_residuals : boolean, optional
-            A flag indicating if the residuals from a previous analysis should
-            be returned instead of the data.
-        return_var : boolean, optional
-            A flag indicating if the variances should be returned along with
-            the data
-
-        Returns
-        -------
-        pandas.DataFrame
-            Unless `return_grid` is selected, a DataFrame is returned
-            containing the data values (or residuals), coordinates, IFU and
-            slice numbers in the requested layer as columns. If requested, the
-            variances are returned as an additional column.
+        Overwrites the get_layer() method of the Instrument class.
         """
-        i_min, i_max = self.layer_indices[i]
+        i_min, i_max, weights = self._verify_layer_range(i_min, i_max, weights)
+        if use_variances and weights is not None and (weights != 1).any():
+            logger.warning('Weights are ignored when using variance weighting.')
+            weights = None
+
+        j_min = self.layer_indices[i_min, 0]
+        j_max = self.layer_indices[i_max, 1]
+
+        # estimate memory usage
+        mem_gb = 7*64*(j_max-j_min)/(8*1e9)
+        if mem_gb > 1:
+            warnings.warn("This step will consume about {:.1f} GB of memory".format(mem_gb), UserWarning)
 
         if self.maskhdu is not None:
-            mask = (self.maskhdu.section[i_min:i_max + 1][:, 0] <= self.dqmax)
+            mask = (self.maskhdu.section[j_min:j_max + 1][:, 0] <= self.dqmax)
         else:
-            mask = np.ones(i_max - i_min, dtype=bool)
+            mask = np.ones(j_max - j_min, dtype=bool)
 
         if not return_residuals or self.residualshdu is None:
-            _data = self.datahdu.section[i_min:i_max + 1][mask, 0]
+            _data = self.datahdu.section[j_min:j_max + 1][mask, 0]
         else:
-            _data = self.residualshdu.section[i_min:i_max + 1][mask, 0]
+            _data = self.residualshdu.section[j_min:j_max + 1][mask, 0]
 
-        _var = self.varhdu.section[i_min:i_max + 1][mask, 0] if return_var else None
+        if self.varhdu is not None:
+            _var = self.varhdu.section[j_min:j_max + 1][mask, 0]
+        else:
+            _var = None
 
         # return empty array if layer does not contain any valid data.
         if not len(_data):
             return pd.DataFrame(columns=['x', 'y', 'value', 'variance', 'ifu', 'slice'], dtype=np.float64)
 
         # get the wavelength of each pixel returned (& IFU, slice if HDUs available)
-        self.raw_wave_for_current_layer = self.raw_wave[i_min:i_max + 1][mask]
+        self.raw_wave_for_current_layer = self.raw_wave[j_min:j_max + 1][mask]
 
         # Decode 'origin' values to get CCD x-coordinates, IFU and slice numbers
-        origin = self.origin_hdu.section[i_min:i_max + 1][mask, 0]
+        origin = self.origin_hdu.section[j_min:j_max + 1][mask, 0]
         pos = self.mpdaf_object.origin2xpix(origin)
         ifu_number = self.mpdaf_object.origin2ifu(origin)
         slice_number = self.mpdaf_object.origin2slice(origin)
@@ -480,21 +476,30 @@ class MusePixtable(Instrument):
         # use np.unique(..., return_inverse=True) to remove any blank indices in array
         pixel_map = np.unique(pos + pos.max()*ifu_number, return_inverse=True)[1]
 
-        # perform resampling/drizzling to central wavelength of layer
-        drizzled = self.drizzle_1d(wave_in=self.raw_wave_for_current_layer, flux_in=_data,  wave_out=self.wave[i],
-                                   delta_wave_out=self.wstep, variances=_var, pixel_map=pixel_map, return_weights=True)
-        if _var is None:
-            data, weights = drizzled
-            var = None
+        # perform resampling/drizzling to central wavelength of new layer
+        if weights is None:
+            drizzled = self.drizzle_1d(
+                wave_in=self.raw_wave_for_current_layer, flux_in=_data,  wave_out=self.wave[i_min:i_max].mean(),
+                delta_wave_out=self.wstep*(i_max-i_min), variances=_var, pixel_map=pixel_map, return_weights=True)
+            if _var is None:
+                data, _weights = drizzled
+                var = None
+            else:
+                data, var, _weights = drizzled
         else:
-            data, var, weights = drizzled
+            _weights = np.interp(self.raw_wave_for_current_layer, self.wave[i_min:i_max], weights)
+            data = self.combine_voxel(_data, pixel_map=pixel_map, weights=_weights)
+            if _var is not None:
+                var = self.combine_voxel(_var, pixel_map=pixel_map, weights=_weights)
+            else:
+                var = None
 
         # calculate coordinates
-        x, y = self.get_coordinates(i_min=i_min, i_max=i_max, valid=mask, pixel_map=pixel_map, weights=weights)
+        x, y = self.get_coordinates(j_min=j_min, j_max=j_max, valid=mask, pixel_map=pixel_map, weights=_weights)
 
         # collect columns for DataFrame
         columns = {'value': data, 'x': x, 'y': y}
-        if return_var:
+        if var is not None:
             columns['variance'] = var
 
         # The value of the IFU/slice is the same for voxels that are combined. Hence, we adopt the values
@@ -504,24 +509,25 @@ class MusePixtable(Instrument):
         columns['slice'] = slice_number[first]
         return pd.DataFrame(data=columns)
 
-    def get_image(self, i: int, return_residuals: bool = False, return_var: bool = False, **kwargs) -> (
-            np.ndarray, np.ndarray):
-
-        data = self.get_layer(i=i,  return_residuals=return_residuals, return_var=return_var)
+    def get_image(self, i_min: int = None, i_max: int = None, weights: np.ndarray = None, use_variances: bool = False,
+                  return_residuals: bool = False, **kwargs) -> NDData:
+        """
+        Overwrites the get_image() method of the Instrument class.
+        """
+        _data = self.get_layer(i_min=i_min, i_max=i_max, weights=weights, use_variances=use_variances,
+                              return_residuals=return_residuals)
         # ignore IFU/slice information if 2D grid should be returned
-        if not len(data):
-            return [], []
+        if not len(_data):
+            return NDData(data=[])
 
         # need to update transformation first
-        self.transform = np.vstack((data['y'], data['x'])).T
+        self.transform = np.vstack((_data['y'], _data['x'])).T
 
-        value_image = self.make_image(data['value'], **kwargs)
-        if return_var:
-            variance_image = self.make_image(data['variance'], **kwargs)
-        else:
-            variance_image = None
+        data = NDData(data=self.make_image(data=_data['value'].values, **kwargs))
+        if 'variance' in _data.columns:
+            data.uncertainty = VarianceUncertainty(self.make_image(data=_data['variance'].values, **kwargs))
 
-        return value_image, variance_image
+        return data
 
     def get_spectrum(self, **kwargs):
         """
@@ -545,20 +551,22 @@ class MusePixtable(Instrument):
         logging.error('Grabbing spectra is currently not supported for MUSE pixtables.')
         return np.empty(self.wave.shape), np.empty(self.wave.shape)
 
-    def get_coordinates(self, i_min: int = None, i_max: int = None, indices: np.ndarray = None,
+    def get_coordinates(self, j_min: int = None, j_max: int = None, indices: np.ndarray = None,
                         valid: np.ndarray = None, pixel_map: np.ndarray = None,
                         weights: np.ndarray = None) -> (np.ndarray, np.ndarray):
         """
-        Update the transformation from voxels to (x, y) coordinates. If a
-        continuous set of voxels is used, it is sufficient to provide the
+        Determine the transformation from voxels to (x, y) coordinates for a
+        given data slice.
+
+        If a continuous set of voxels is used, it is sufficient to provide the
         start and stop indices of the set. Otherwise, the full set of indices
         must be provided.
 
         Parameters
         ----------
-        i_max
+        j_max
             The starting index of a continuous set of voxels.
-        i_min
+        j_min
             The ending index of a continuous set of voxels.
         indices
             The set of indices to be used. Only used if i_min and i_max are
@@ -580,9 +588,9 @@ class MusePixtable(Instrument):
         numpy.ndarray
             The y-coordinates of the provided voxels.
         """
-        if i_min is not None and i_max is not None:
-            _x = self.x_hdu.section[i_min:i_max + 1][:, 0]
-            _y = self.y_hdu.section[i_min:i_max + 1][:, 0]
+        if j_min is not None and j_max is not None:
+            _x = self.x_hdu.section[j_min:j_max + 1][:, 0]
+            _y = self.y_hdu.section[j_min:j_max + 1][:, 0]
         elif indices is not None:
             _x = self.mpdaf_object.get_xpos(indices)
             _y = self.mpdaf_object.get_ypos(indices)
@@ -613,7 +621,8 @@ class MusePixtable(Instrument):
     def combine_voxel(input_array: np.ndarray, pixel_map: np.ndarray, weights: np.ndarray = None) -> np.ndarray:
         """
         Average the values in a set of voxels using a given mapping between
-        input voxels and output pixels.
+        input voxels and output pixels and optional weights for the input
+        voxels.
 
         Parameters
         ----------
@@ -648,6 +657,8 @@ class MusePixtable(Instrument):
 
     def integrate(self, imin, imax, apply_variances=False, weights=None, nbin=1, **kwargs):
         """
+        DEPRECATED: This method is deprecated and will be removed in a future release.
+
         This method is designed to obtain an image by integrating over a range
         of individual layers. Note that because each layer has a different size
         and different pixel positions, integration is only possible after
@@ -705,12 +716,12 @@ class MusePixtable(Instrument):
         slice : a slice object
             The slice that returns the layer if applied to the data.
         """
-        imin, imax = self.layer_indices[i]
+        j_min, j_max = self.layer_indices[i]
         if self.maskhdu is None:
-            return slice(imin, imax+1), np.zeros(imax-imin, dtype=np.int32)
+            return slice(j_min, j_max+1), np.zeros(j_max-j_min, dtype=np.int32)
         else:
-            mask = (self.maskhdu.section[imin:imax + 1][:, 0] <= self.dqmax)
-            return imin + np.flatnonzero(mask), np.zeros(mask.sum(), dtype=np.int32)
+            mask = (self.maskhdu.section[j_min:j_max + 1][:, 0] <= self.dqmax)
+            return j_min + np.flatnonzero(mask), np.zeros(mask.sum(), dtype=np.int32)
 
     def make_image(self, data: np.ndarray = None, layer: pd.Series = None, grid: np.ndarray = None,
                    method: str = 'nearest', **kwargs) -> np.ndarray:
@@ -757,16 +768,55 @@ class MusePixtable(Instrument):
                 raise IOError('Cannot create image from empty pixel grid.')
             grid = np.mgrid[int(self.y.min()):int(self.y.max()+1):int(self.y.max() - self.y.min() + 1)*1j,
                             int(self.x.min()):int(self.x.max()+1):int(self.x.max() - self.x.min() + 1)*1j]
-        elif self.nspaxel == 0:
+        if self.nspaxel == 0:
             return np.nan*np.ones_like(grid[0], dtype=np.float32)
         elif data is not None:
             return griddata((self.y, self.x), data, (grid[0], grid[1]), method=method)
         else:
             return griddata((self.y[layer.index], self.x[layer.index]), layer.values, (grid[0], grid[1]), method=method)
 
-    def drizzle_1d(self, wave_in, flux_in, wave_out, delta_wave_in=None, delta_wave_out=None, variances=None,
-                   pixel_map=None, return_weights=False):
+    def drizzle_1d(self, wave_in: np.ndarray, flux_in: np.ndarray, wave_out: float, delta_wave_in: float = None,
+                   delta_wave_out: float = None, variances: np.ndarray = None, pixel_map: np.ndarray = None,
+                   return_weights: bool = False) -> tuple:
+        """
+        Resample the voxels in a given wavelength range to a single
+        wavelength.
 
+        Parameters
+        ----------
+        wave_in
+            The wavelength values of the input data.
+        flux_in
+            The flux values of the input data. Must have same shape as
+            `wave_in`.
+        wave_out
+            The unique wavelength value of the output data.
+        delta_wave_in
+            The (average) size of the input voxels along the spectral axis. If
+            not provided, it will be estimated from the input data.
+        delta_wave_out
+            The size of the output voxels along the spectral axis. If not
+            provided, the same size as `delta_wave_in` will be used.
+        variances
+            The variance valuess associated with the input data. If provided,
+            must have same shape as `wave_in`.
+        pixel_map
+            A mapping between input and output voxels. If provided, must have
+            same shape as `wave_in`. For each unique value in `pixel_map`, an
+            output value is determined. If None, all input voxels will be
+            mapped to a single output voxel.
+        return_weights
+            If True, an additional array containing the weights of the input
+            voxels used to determine the output values will be returned.
+
+        Returns
+        -------
+        tuple
+            The first entry of the return tuple is the array containing the
+            resampled fluxes. If `variances` where provided with the data,
+            the resampled variances are provided as well. Finally, if
+            `return_weights` is True, the voxel weights are returned.
+        """
         # unless given, determine (average) input pixel size
         if delta_wave_in is None:
             if pixel_map is None:
@@ -804,9 +854,9 @@ class MusePixtable(Instrument):
         # calculate drizzled flux and variances
         variances_out = None
         if pixel_map is None:
-            flux_out = np.average(flux_in, weights=weights)
+            flux_out = np.atleast_1d(np.average(flux_in, weights=weights))
             if variances is not None:
-                variances_out = np.average(variances, weights=weights ** 2)
+                variances_out = np.atleast_1d(np.average(variances, weights=weights ** 2))
         else:
             flux_out = self.combine_voxel(flux_in, pixel_map=pixel_map, weights=weights)
             if variances is not None:

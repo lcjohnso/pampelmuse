@@ -29,18 +29,22 @@ i.e. NAXIS3 in FITS counting) being the spectral axis.
 
 Latest Git revision
 -------------------
-2024/04/10
+2024/07/09
 """
 import logging
 import numpy as np
 import pandas as pd
 from scipy.spatial import ConvexHull, distance
+from astropy.nddata import NDData, VarianceUncertainty
 from astropy.wcs import WCS
 from .instrument import Instrument
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20240410
+__revision__ = 20240709
+
+
+logger = logging.getLogger(__name__)
 
 
 class GenericIFS(Instrument):
@@ -210,88 +214,60 @@ class GenericIFS(Instrument):
         return (np.where(mask, np.nan, self.datahdu.data[:, j, k]),
                 np.where(mask, np.nan, self.varhdu.data[:, j, k]) if return_var and self.varhdu is not None else None)
 
-    def get_image(self, i: int, return_residuals: bool = False, return_var: bool = False,
-                  **kwargs) -> (np.ndarray, np.ndarray):
+    def get_image(self, i_min: int = None, i_max: int = None, weights: np.ndarray = None, use_variances: bool = False,
+                  return_residuals: bool = False, **kwargs) -> NDData:
         """
-        Extract the individual image with index i from the available data.
-
-        Parameters
-        ----------
-        i
-            The index of the monochromatic layer that should be extracted.
-        return_residuals
-            If True, return the fit residuals instead of the data.
-        return_var
-            If True return the variance image together with the data.
-        kwargs
-
-        Returns
-        -------
-        np.ndarray
-            The image in the requested layer. Note that if a bad-pixel mask
-            is available, the masked pixels are still included in the image,
-            but set to NaN.
-        np.ndarray
-            The variance values associated with the image, if requested.
-            Otherwise, None is returned.
+        This method overwrites the `get_image()` method of the Instrument-class.
         """
-        if self.maskhdu is not None:
-            valid = (self.maskhdu.section[i] == 0)
-        else:
-            valid = None
+        i_min, i_max, weights = self._verify_layer_range(i_min, i_max, weights)
+        if use_variances and weights is not None and (weights != 1).any():
+            logger.warning("Weights are ignored when using variance weighting.")
+            weights = None
 
         if not return_residuals:
-            data = self.datahdu.section[i]
+            _data = np.ma.masked_invalid(self.datahdu.section[i_min:i_max], copy=False)
         else:
-            data = self.residualshdu.section[i]
-        if valid is not None:
-            data[~valid] = np.nan
+            _data = np.ma.masked_invalid(self.residualshdu.section[i_min:i_max], copy=False)
 
-        if return_var and self.varhdu is not None:
-            var = self.varhdu.section[i]
-            if valid is not None:
-                var[~valid] = np.nan
+        if self.varhdu is not None:
+            _var = np.ma.masked_invalid(self.varhdu.section[i_min:i_max], copy=False)
         else:
-            var = None
+            _var =  None
+            if use_variances:
+                logger.error("Variance-weighting requested but no variance HDU available.")
 
-        return data, var
+        if self.maskhdu is not None:
+            _mask = self.maskhdu.section[i_min:i_max].astype(bool)
+            _data[_mask] = np.ma.masked
+        else:
+            _mask = None
 
-    def get_layer(self, i: int, return_residuals: bool = False, return_var: bool = False, **kwargs) -> pd.DataFrame:
+        if not use_variances:
+            data = NDData(np.ma.average(_data, weights=weights, axis=0))
+            if _var is not None:
+                data.uncertainty = VarianceUncertainty(np.ma.average(_var, weights=weights, axis=0))
+        else:
+            data = NDData(np.ma.average(_data, weights=1./_var if _var is not None else None, axis=0))
+            if _var is not None:
+                data.uncertainty = VarianceUncertainty(np.ma.sqrt(1./np.ma.sum(1./_var**2, axis=0)))
+
+        return data
+
+    def get_layer(self, i_min: int = None, i_max: int = None, weights: np.ndarray = None, use_variances: bool = False,
+                  return_residuals: bool = False, **kwargs) -> pd.DataFrame:
         """
-        Extract the monochromatic layer with index i from the provided HDU and
-        return it as a dataframe.
-
-        Parameters
-        ----------
-        i
-            The index of the monochromatic layer that should be extracted.
-        return_residuals
-            If True, return the fit residuals (if available) instead of the
-            data.
-        return_var
-            If True, the variances are returned together with the data or
-            residuals.
-
-        Returns
-        -------
-        pd.DataFrame
-            The dataframe contains the voxel coordinates as columns `x` and
-            `y`, the data or residual values as column `value`, and optionally
-            the variance values as column `variance`.
+        Overwrites the `get_layer()` method of the Instrument-class.
         """
-        data, var = self.get_image(i=i, return_residuals=return_residuals, return_var=return_var)
-        data = data.flatten()
-        if var is not None:
-            var = var.flatten()
+        data = self.get_image(i_min=i_min, i_max=i_max, weights=weights, use_variances=use_variances,
+                              return_residuals=return_residuals, **kwargs)
 
-        masked = np.isnan(data)
-        if var is not None:
-            masked |= np.isnan(var)
-        out = pd.DataFrame(data={'x': self.transform[~masked, 1], 'y': self.transform[~masked, 0],
-                                 'value': data[~masked]},
-                           index=np.flatnonzero(~masked))
-        if var is not None:
-            out['variance'] = var[~masked]
+        valid = ~data.mask
+        out = pd.DataFrame(data={'x': self.transform[valid.flatten(), 1],
+                                 'y': self.transform[valid.flatten(), 0],
+                                 'value': data.data[valid]},
+                           index=np.flatnonzero(valid.flatten()))
+        if data.uncertainty is not None:
+            out['variance'] = data.uncertainty.array[valid]
 
         return out
 
