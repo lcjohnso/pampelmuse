@@ -1,7 +1,7 @@
 """
 PampelMuse
 ==========
-Copyright 2013-2018 Sebastian Kamann
+Copyright 2013-2024 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -27,17 +27,19 @@ analysis of data observed with FLAMES/ARGUS at the VLT.
 
 Latest Git revision
 -------------------
-2018/01/18
+2024/07/09
 """
 import re
 import logging
 from matplotlib import transforms
 import numpy as np
+import pandas as pd
+from astropy.nddata import NDData
 from .instrument import Instrument
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20180118
+__revision__ = 20240709
 
 
 class Argus(Instrument):
@@ -261,60 +263,69 @@ class Argus(Instrument):
         return (np.where(mask, np.nan, self.datahdu.data[:, i]),
                 np.where(mask, np.nan, self.varhdu.data[:, i]) if return_var and self.varhdu is not None else None)
 
-    def get_layer(self, i, return_residuals=False, return_grid=False, return_var=False, **kwargs):
+    def get_layer(self, i_min: int = None, i_max: int = None, weights: np.ndarray = None, use_variances: bool = False,
+                  return_residuals: bool =False, **kwargs):
         """
-        This method returns a single layer (i.e. the content of all spaxels
-        with a given wavelength) from the data.
-
-        Parameters
-        ----------
-        i : int
-            The index of the layer for which the content should be returned
-        return_residuals : boolean, optional
-            A flag indicating if the residuals from a previous analysis should
-            be returned instead of the data.
-        return_grid : boolean, optional
-            A flag indicating if the layer should be returned as 1D or 2D
-            array. The default is to return a 1D array.
-        return_var : boolean, optional
-            A flag indicating if the variances should be returned along with
-            the data
-        kwargs
-            Any additional keyword argument is passed on to the call of the
-            parent class.
-
-        Returns
-        -------
-        values : ndarray
-            The data values (ore residuals) in the requested layer. Note that
-            the data will contain Argus.nspaxel pixels. Values for calibration
-            or sky fibres are not returned, values of masked pixels are set to
-            NaN.
-        variances : ndarray or None
-            If return_var was set, this array will contain the variances of
-            the data values in the requested layer. It has the same shape as
-            the data array.
+        This method overwrites the get_layer() method of the Instrument
+        super-class.
         """
-        # check if data or residuals (if any) should be returned
-        if not return_residuals or self.residualshdu is None:
-            data = self.datahdu.section[i][self.isscience]
-        else:
-            data = self.residualshdu.section[i][self.isscience]
-
-        # check if variances should be returned
-        var = self.varhdu.section[i][self.isscience] if return_var and self.varhdu is not None else None
+        if use_variances and weights is not None:
+            logging.warning("Parameter `weights` ignored when use_variances is set to True.")
+        i_min, i_max, weights = self._verify_layer_range(i_min, i_max, weights)
 
         # check if mask is available. If so, apply it. Note that the bad pixels are not removed but set to NaN.
         if self.maskhdu is not None:
-            mask = self.maskhdu.section[i][self.isscience] if self.maskhdu is not None else None
-            data[mask > 0] = np.nan
-            if var is not None:
-                var[mask > 0] = np.nan
-
-        if not return_grid:
-            return data, var
+            _mask = self.maskhdu.section[i_min:i_max][self.isscience] > 0
         else:
-            return self.make_image(data), self.make_image(var) if return_var else None
+            _mask = None
+
+        # check if data or residuals (if any) should be returned
+        if not return_residuals or self.residualshdu is None:
+            _data = np.ma.masked_invalid(self.datahdu.section[i_min:i_max][self.isscience])
+        else:
+            _data = np.ma.masked_invalid(self.residualshdu.section[i_min:i_max][self.isscience])
+        if _mask is not None:
+            _data[_mask] = np.ma.masked
+
+        # check if variances are available
+        if self.varhdu is not None:
+            _var = np.ma.masked_invalid(self.varhdu.section[i_min:i_max][self.isscience])
+            if _mask is not None:
+                _var[_mask] = np.ma.masked
+        else:
+            _var = None
+
+        if use_variances:
+            data = np.ma.average(_data, weights=1./_var if _var is not None else None, axis=0)
+            if _var is not None:
+                var = np.sqrt(1./np.sum(1./_var**2, axis=0))
+            else:
+                var = None
+        else:
+            data = np.ma.average(_data, weights=weights, axis=0)
+            if _var is not None:
+                var = np.ma.average(_var, weights=weights, axis=0)
+            else:
+                var = None
+
+        out = pd.DataFrame({'x': self.x, 'y': self.y, 'value': data})
+        if var is not None:
+            out['var'] = var
+
+        return out.dropna()
+
+    def get_image(self, i_min: int = None, i_max: int = None, weights: np.ndarray = None,
+                  use_variances: bool = False, return_residuals: bool = False, **kwargs) -> NDData:
+            """
+            This method overwrites the get_image() method of the Instrument
+            super-class.
+            """
+            layer = self.get_layer(i_min, i_max, weights, use_variances, return_residuals, **kwargs)
+            data = NDData(data=self.make_image(layer=layer['value']))
+            if 'variance' in layer.columns:
+                data.uncertainty = self.make_uncertainty(layer=layer['variance'])
+
+            return data
 
     def search_configuration(self, hdu, **kwargs):
         """

@@ -1,7 +1,7 @@
 """
 pmas.py
 ========
-Copyright 2013-2018 Sebastian Kamann
+Copyright 2013-2024 Sebastian Kamann
 
 This file is part of PampelMuse.
 
