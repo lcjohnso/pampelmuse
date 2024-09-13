@@ -33,7 +33,7 @@ Added
 
 Last updated
 ------------
-2024/07/09
+2024/09/13
 """
 import logging
 import sys
@@ -54,7 +54,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20240709
+__revision__ = 20240913
 
 
 logger = logging.getLogger(__name__)
@@ -897,7 +897,7 @@ class SourceSelector(object):
     def fwhm(self):
         if self.psf_class is None:
             return np.nan
-        elif self.psf_class in [DoubleGaussian, MoffatGaussian, Maoppy]:
+        elif self.psf_class in [DoubleGaussian, DoubleMoffat, MoffatGaussian, Maoppy]:
             # for combined profiles, use dedicated classmethod to determine FWHM of full profile
             args = {}
             for name in self.psf_attributes.names:
