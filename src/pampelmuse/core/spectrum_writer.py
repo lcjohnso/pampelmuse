@@ -31,7 +31,7 @@ Added
 
 Latest Git revision
 -------------------
-2024/07/02
+2024/09/19
 """
 import datetime
 import logging
@@ -191,7 +191,7 @@ class SpectrumWriter(object):
             logger.error('Cannot determine FWHM. Unknown PSF type: "{0}"'.format(profile))
             return np.nan
 
-        if psf_class in [DoubleGaussian, MoffatGaussian, Maoppy]:
+        if psf_class in [DoubleGaussian, MoffatGaussian, DoubleMoffat, Maoppy]:
             # for combined profiles, use dedicated classmethod to determine FWHM of full profile
             args = {}
             for name in self.psf_attributes.names:
