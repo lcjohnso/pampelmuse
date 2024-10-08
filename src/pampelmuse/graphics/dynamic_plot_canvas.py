@@ -1,7 +1,7 @@
 """
 dynamic_plot_canvas.py
 ======================
-Copyright 2013-2023 Sebastian Kamann
+Copyright 2013-2024 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -39,7 +39,7 @@ top panel, named 'Spectrum Viewer'.
 
 Latest Git revision
 -------------------
-2023/10/30
+2024/10/08
 """
 import inspect
 import logging
@@ -55,7 +55,7 @@ matplotlib.pyplot.rcParams["axes.linewidth"] = 1.5
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20231030
+__revision__ = 20241008
 
 
 class DynamicPlotCanvas(FigureCanvasQTAgg):
@@ -258,8 +258,12 @@ class DynamicPlotCanvas(FigureCanvasQTAgg):
 
         # update data
         if x_data is not None:
+            if not np.iterable(x_data):
+                x_data = [x_data, ]
             self.thePlots[name].set_xdata(x_data)
         if y_data is not None:
+            if not np.iterable(y_data):
+                y_data = [y_data, ]
             self.thePlots[name].set_ydata(y_data)
 
         for i in range(len(self.axes.patches)):
