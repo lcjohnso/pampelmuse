@@ -2,7 +2,7 @@
 """
 pampelmuse_gui.py
 =================
-Copyright 2013-2021 Sebastian Kamann
+Copyright 2013-2024 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -37,7 +37,7 @@ defines the methods that are called by Ui_PampelMuseGui.
 
 Latest Git revision
 -------------------
-2021/04/20
+2024/10/10
 """
 import datetime
 import logging
@@ -64,7 +64,7 @@ from ..utils.fits import save_prm, read_config_from_header, make_header_from_con
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20210420
+__revision__ = 20241010
 
 
 class ToolbarWithoutMessage(NavigationToolbar):
