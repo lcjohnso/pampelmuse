@@ -1225,7 +1225,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
                                  y_label=r"$f_\lambda\,[\mathrm{counts}]$")
 
         # indicate position where grab event took place in IFU viewer
-        self.ifsPlotCurrentlyMarked.set_data(x, y)
+        self.ifsPlotCurrentlyMarked.set_data([x, ], [y, ])
 
         # if the GUI is used to identify sources in the IFU data, add the event to the selection
         if self.currentRefID is not None:
