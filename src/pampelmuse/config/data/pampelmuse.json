@@ -82,7 +82,8 @@
   },
   "subtres": {
     "include": null,
-    "exclude": null
+    "exclude": null,
+    "filename": null
   },
   "getspectra": {
     "prefix": null,

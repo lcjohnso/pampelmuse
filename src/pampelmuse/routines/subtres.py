@@ -1,7 +1,7 @@
 """
 subtres.py
 ==========
-Copyright 2013-2022 Sebastian Kamann
+Copyright 2013-2025 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -34,7 +34,7 @@ if PampelMuse is started with the 'SUBTRES' option.
 
 Latest Git revision
 -------------------
-2022/11/10
+2025/04/30
 """
 import datetime
 import logging
@@ -45,7 +45,7 @@ from ..utils.fits import open_prm, open_ifs_data
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20221110
+__revision__ = 20250429
 
 
 def add_parser(parser):
@@ -101,6 +101,15 @@ def subtres(config):
     if include is not None and exclude is not None:
         logging.error('Only subtres.include or subtres.exclude may be specified.')
         return
+    
+    # check if name of file with source to be subtracted was specified
+    filename = config['subtres']['filename']
+    if filename is not None:
+        logging.info('Reading source IDs to subtract from file {0}.'.format(filename))
+        if include is None or exclude is None:
+            logging.warning('Ignoring include/exclude options, as filename is specified.')
+        with open(filename) as file:
+            include = [int(line.rstrip()) for line in file]
 
     # start subtraction process:
     logging.info("Starting source subtraction...")

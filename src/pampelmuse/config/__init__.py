@@ -1,7 +1,7 @@
 """
 __init__.py
 ============
-Copyright 2013-2018 Sebastian Kamann
+Copyright 2013-2025 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -30,11 +30,17 @@ The config package handles the default configuration of PampelMuse.
 
 Last changed
 ------------
-2018/07/04
+2025/04/30
 """
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
 
 
-changeable = ["verbose", "interact", "cpucount", "iterations", "type", "degree", "subtract",
-              "usesigma", "first", "last", "binning", "radius", "inspect", "mask", "include",
-              "exclude", "offsets", "scaling", "background"]
+changeable = {"global": ["verbose", "interact", "cpucount"],
+              "layers": ["first", "last", "binning"],
+              "psf": ["radius", "inspect", "scaling", "background"],
+              "sky": ["subtract"],
+              "unresolved": ["subtract"],
+              "polynom": ["type", "degree", "mask"],
+              "cubefit": ["iterations", "usesigma", "offsets"],
+              "subtres": ["include", "exclude", "filename"],
+}

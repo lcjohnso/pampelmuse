@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# JetBrains/Pycharm - https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
+.idea/**/workspace.xml
+.idea/**/tasks.xml
+.idea/**/usage.statistics.xml
+.idea/**/dictionaries
+.idea/**/shelf
+
+# MacOS
+**/.DS_Store

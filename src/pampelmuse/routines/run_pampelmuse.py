@@ -1,7 +1,7 @@
 """
 PampelMuse
 ==========
-Copyright 2013-2024 Sebastian Kamann
+Copyright 2013-2025 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -57,7 +57,7 @@ the data into memory yet but just checks whether the file(s) are valid.
 
 Latest Git revision
 -------------------
-2024/04/18
+2025/04/30
 """
 import argparse
 import importlib
@@ -91,7 +91,7 @@ def main():
        (::;;)   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   (::;;)
         `;:'                                             `;:'
 
-    (c) 2013-2024 {1}
+    (c) 2013-2025 {1}
     """.format(__version__, __author__))
 
     sys.stdout.write("""
@@ -204,7 +204,16 @@ def main():
                 # check if new value different from existing one
                 elif value != config[key][sub_key]:
                     # check if value can be updated
-                    if sub_key in changeable or args.func in [initfit, singlesrc, ptsort] or key == 'getspectra':
+                    if key in changeable.keys() and sub_key in changeable[key]:
+                        _change = True
+                    elif args.func in [initfit, singlesrc, ptsort]:
+                        _change = True
+                    elif key == 'getspectra':
+                        _change = True
+                    else:
+                        _change = False
+                    # update value if allowed
+                    if _change:
                         logging.info('Updating parameter {0}.{1} to {2}'.format(key, sub_key, value))
                         config[key][sub_key] = value
                     else:
