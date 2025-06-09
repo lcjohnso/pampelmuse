@@ -2,7 +2,7 @@
 source_selector.py
 ==================
 
-Copyright 2013-2024 Sebastian Kamann
+Copyright 2013-2025 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -33,7 +33,7 @@ Added
 
 Last updated
 ------------
-2024/09/13
+2025/06/09
 """
 import logging
 import sys
@@ -54,7 +54,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20240913
+__revision__ = 20250609
 
 
 logger = logging.getLogger(__name__)
@@ -754,22 +754,40 @@ class SourceSelector(object):
 
         identified = identifier.identifiedSources
 
-        if len(identified) >= 4:
-            # TODO: reduce number of required sources to 2 if only offsets should be determined
+        # check if enough sources selected for fitting coordinate transformation;
+        # if only one source is identified, we can still fit the offsets
+        transformation_constrained = len(identified) >= 4 or (len(identified) >=1 and self.position_fit == 1)
 
-            # collect IFS coordinates in common DataFrame and fit coordinate transformation
-            ifs_coordinates = pd.DataFrame(
-                0., index=[self.sources.wave[0]], columns=pd.MultiIndex.from_product([identified.keys(), ['x', 'y']]))
-            for source_id, values in identified.items():
-                ifs_coordinates.at[self.sources.wave[0], (source_id, 'x')] = values[0]
-                ifs_coordinates.at[self.sources.wave[0], (source_id, 'y')] = values[1]
-
-            self.sources.transformation = Transformation.from_coordinates(self.sources.catalog, ifs_coordinates)
-
-            if self.position_fit == 2:
-                self.sources.transformation.free[:] = True
-            elif self.position_fit == 1:
+        if transformation_constrained:
+            # collect IFS coordinates in common DataFrame
+            print("Identified sources: {0}".format(identified))
+            ifs_coordinates = pd.DataFrame(identified, index=['x', 'y'])
+            if self.position_fit == 1:
+                dx = np.mean(self.sources.x[identified.keys()] - ifs_coordinates.loc['x'])
+                dy = np.mean(self.sources.y[identified.keys()] - ifs_coordinates.loc['y'])
+                print(dx, dy)
+                # raise NotImplementedError("Position fit with fixed rotation and scale not implemented yet.")
+                self.sources.transformation = Transformation(
+                    data=pd.DataFrame(np.array([[1., 0., 0., 1., -dx, -dy]], dtype=np.float32),
+                              columns=Transformation.PARAMETERS))
                 self.sources.transformation.free[-2:] = True
+            
+            #  and fit coordinate transformation
+
+
+            # ifs_coordinates = pd.DataFrame(
+            #     0., index=[self.sources.wave[0]], columns=pd.MultiIndex.from_product([identified.keys(), ['x', 'y']]))
+            # for source_id, values in identified.items():
+            #     ifs_coordinates.at[self.sources.wave[0], (source_id, 'x')] = values[0]
+            #     ifs_coordinates.at[self.sources.wave[0], (source_id, 'y')] = values[1]
+            
+            # if self.position_fit == 2:
+            #     self.sources.transformation = Transformation.from_coordinates(self.sources.catalog, ifs_coordinates)
+            #     self.sources.transformation.free[:] = True
+
+        elif len(identified) >=1 and self.position_fit == 1:
+
+            self.sources.transformation.free[-2:] = True
 
         elif not self.sources.transformation.valid:
             logger.error("At least 4 sources must be identified.")

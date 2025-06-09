@@ -2,7 +2,7 @@
 """
 pampelmuse_gui.py
 =================
-Copyright 2013-2024 Sebastian Kamann
+Copyright 2013-2025 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -37,7 +37,7 @@ defines the methods that are called by Ui_PampelMuseGui.
 
 Latest Git revision
 -------------------
-2024/10/10
+2025/06/09
 """
 import datetime
 import logging
@@ -64,7 +64,7 @@ from ..utils.fits import save_prm, read_config_from_header, make_header_from_con
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20241010
+__revision__ = 20250609
 
 
 class ToolbarWithoutMessage(NavigationToolbar):
@@ -1229,7 +1229,7 @@ class PampelMuseGui(QMainWindow, Ui_PampelMuseGui):
 
         # if the GUI is used to identify sources in the IFU data, add the event to the selection
         if self.currentRefID is not None:
-            self.identifiedSources[self.currentRefID] = [x, y, 0., 0.]
+            self.identifiedSources[self.currentRefID] = [x, y]
             logging.info(
                 'Identified source #{0} (x_ref={1:.1f}, y_ref={2:.1f}) at (x_ifs={3:.1f}, y_ifs={4:.1f})'.format(
                     self.currentRefID, self.sources.x[self.currentRefID], self.sources.y[self.currentRefID], x, y))

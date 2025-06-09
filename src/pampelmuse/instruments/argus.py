@@ -1,7 +1,7 @@
 """
 PampelMuse
 ==========
-Copyright 2013-2024 Sebastian Kamann
+Copyright 2013-2025 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -27,7 +27,7 @@ analysis of data observed with FLAMES/ARGUS at the VLT.
 
 Latest Git revision
 -------------------
-2024/07/09
+2025/06/09
 """
 import re
 import logging
@@ -39,7 +39,10 @@ from .instrument import Instrument
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20240709
+__revision__ = 20250609
+
+
+logger = logging.getLogger(__name__)
 
 
 class Argus(Instrument):
@@ -79,9 +82,9 @@ class Argus(Instrument):
         -------
         The newly created instance.
         """
-        # The traces of the last three spaxels are entirely outside the field of view.
+        # The traces of the last four fibers are partly/entirely outside the field of view.
         if "bad" not in kwargs.keys():
-            kwargs["bad"] = [297, 298, 299]
+            kwargs["bad"] = [316, 317, 318, 319]
 
         # initialize transformation from (x,y)-coordinates to spaxels
         if "transform" not in kwargs.keys():
@@ -163,10 +166,10 @@ class Argus(Instrument):
                 _y.append(hdu.data.field("Y")[i] - 1)
 
         # some logging on setup that was found.
-        logging.info("ARGUS fibre calibration (no. of fibres):")
-        logging.info("                            science: {0:3d}".format(len(_x)))
-        logging.info("                                sky: {0:3d}".format(len(_sky_fibers)))
-        logging.info("                        calibration: {0:3d}".format(len(_cal_fibers)))
+        logger.info("ARGUS fibre calibration (no. of fibres):")
+        logger.info("                            science: {0:3d}".format(len(_x)))
+        logger.info("                                sky: {0:3d}".format(len(_sky_fibers)))
+        logger.info("                        calibration: {0:3d}".format(len(_cal_fibers)))
 
         # initialize new class instance
         kwargs['transform'] = np.vstack((_y, _x)).astype(np.float32).T
@@ -255,8 +258,15 @@ class Argus(Instrument):
              variances of the spectrum in the requested spaxel.
         """
         if i < -self.nspaxel or i >= self.nspaxel:
-            logging.error("Spaxel index must be <{0} but is {1}.".format(self.nspaxel, i))
+            logger.error("Spaxel index must be <{0} but is {1}.".format(self.nspaxel, i))
             return None, None
+        
+        #  recover the index of the spaxel in the data array
+        i = np.flatnonzero(self.isscience)[i] if i >= 0 else np.flatnonzero(self.isscience)[i + self.nspaxel]
+
+        if i in self.bad:
+            logger.warning("Spaxel {0} is marked as bad. Returning NaN spectrum.".format(i))
+            return np.full(self.nlayer, np.nan), np.full(self.nlayer, np.nan) if return_var else None
 
         mask = self.maskhdu.data[:, i] if self.maskhdu is not None else np.zeros(self.wave.shape, dtype=np.bool)
 
@@ -275,23 +285,24 @@ class Argus(Instrument):
 
         # check if mask is available. If so, apply it. Note that the bad pixels are not removed but set to NaN.
         if self.maskhdu is not None:
-            _mask = self.maskhdu.section[i_min:i_max][self.isscience] > 0
+            _mask = self.maskhdu.section[i_min:i_max][:, self.isscience] > 0
         else:
-            _mask = None
+            _mask = np.zeros((i_max - i_min, self.nspaxel), dtype=np.bool)
+        if self.bad is not None:
+            _bad = np.isin(np.flatnonzero(self.isscience), self.bad, assume_unique=True)  # ensure that bad spaxels are always masked
+            _mask[:, _bad] = True
 
         # check if data or residuals (if any) should be returned
         if not return_residuals or self.residualshdu is None:
-            _data = np.ma.masked_invalid(self.datahdu.section[i_min:i_max][self.isscience])
+            _data = np.ma.masked_invalid(self.datahdu.section[i_min:i_max][:, self.isscience])
         else:
-            _data = np.ma.masked_invalid(self.residualshdu.section[i_min:i_max][self.isscience])
-        if _mask is not None:
-            _data[_mask] = np.ma.masked
-
+            _data = np.ma.masked_invalid(self.residualshdu.section[i_min:i_max][:, self.isscience])
+        _data[_mask] = np.ma.masked
+        
         # check if variances are available
         if self.varhdu is not None:
-            _var = np.ma.masked_invalid(self.varhdu.section[i_min:i_max][self.isscience])
-            if _mask is not None:
-                _var[_mask] = np.ma.masked
+            _var = np.ma.masked_invalid(self.varhdu.section[i_min:i_max][:, self.isscience])
+            _var[_mask] = np.ma.masked
         else:
             _var = None
 

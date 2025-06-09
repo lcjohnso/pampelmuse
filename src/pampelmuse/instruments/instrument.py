@@ -1,7 +1,7 @@
 """
 instrument.py
 =============
-Copyright 2013-2024 Sebastian Kamann
+Copyright 2013-2025 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -28,7 +28,7 @@ defines generic methods that are inherited by all its subclasses.
 
 Latest Git revision
 -------------------
-2024/07/09
+2025/06/09
 """
 import logging
 import warnings
@@ -46,7 +46,7 @@ from ..utils.distance import dist2path, point_in_poly
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20240709
+__revision__ = 20250609
 
 
 logger = logging.getLogger(__name__)
@@ -121,8 +121,8 @@ class Instrument(object):
             self.bad = []
         else:
             self.bad = list(bad)
-        for spaxel in self.bad:
-            logging.info("Excluding spaxel #{0}.".format(spaxel))
+        if len(self.bad):
+            logger.info(f"Excluding dead fibers/spaxels: {self.bad}")
 
         if angle is not None:
             self.angle = angle

@@ -1,7 +1,7 @@
 """
 pmas.py
 ========
-Copyright 2013-2024 Sebastian Kamann
+Copyright 2013-2025 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -27,7 +27,7 @@ of data from the PMAS spectrograph in the analysis.
 
 Latest Git revision
 -------------------
-2024/07/09
+2025/06/09
 """
 import logging
 import numpy as np
@@ -161,7 +161,7 @@ class Pmas(Instrument):
             _mask = None
 
         if not return_residuals or self.residualshdu is None:
-            _data = np.ma.masked_invalid(self.datahdu.data[:, i_min:imax])
+            _data = np.ma.masked_invalid(self.datahdu.data[:, i_min:i_max])
         else:
             _data = np.ma.masked_invalid(self.residualshdu.data[:, i_min:i_max])
         if _mask is not None:
