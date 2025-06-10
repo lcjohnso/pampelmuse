@@ -393,7 +393,7 @@ class SpectrumWriter(object):
             raise NotImplementedError(source_type)
         name += self.date_string
         if flag is not None:
-            name += "{:03d}".format(flag)
+            name += "f{:03d}".format(flag)
         name += ".fits"
         return name
 
