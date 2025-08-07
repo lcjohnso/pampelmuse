@@ -28,7 +28,7 @@ defines generic methods that are inherited by all its subclasses.
 
 Latest Git revision
 -------------------
-2025/06/09
+2025/08/07
 """
 import logging
 import warnings
@@ -46,7 +46,7 @@ from ..utils.distance import dist2path, point_in_poly
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20250609
+__revision__ = 20250807
 
 
 logger = logging.getLogger(__name__)
@@ -840,6 +840,8 @@ class Instrument(object):
         logger.debug('Wavelength range of IFS data: {:.3g}-{:.3g}'.format(self.wave.min(), self.wave.max()))
 
         if layer_range is not None:
+            # handle negative indices
+            layer_range = tuple([lr + self.wave.size if lr < 0 else lr for lr in layer_range])
             i_min = max([i_min, layer_range[0]])
             i_max = min([i_max, layer_range[1]])
 

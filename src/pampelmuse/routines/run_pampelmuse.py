@@ -57,7 +57,7 @@ the data into memory yet but just checks whether the file(s) are valid.
 
 Latest Git revision
 -------------------
-2025/04/30
+2025/08/07
 """
 import argparse
 import importlib
@@ -79,7 +79,7 @@ from ..utils.fits import read_config_from_header
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20240418
+__revision__ = 20250807
 
 
 logger = logging.getLogger(__name__)
