@@ -145,7 +145,7 @@ def open_ifs_data(prefix, **kwargs):
     elif os.path.exists("{0}.var.fits".format(prefix)):
         instrument.open("{0}.var.fits".format(prefix), extno=0, isvar=True, **kwargs)
     else:
-        for hduname in ['STAT', 'ERROR', 'SIGMA', 'VARIANCE']:
+        for hduname in ['STAT', 'ERROR', 'SIGMA', 'VARIANCE', 'ERR']:
             if hduname in fitsdata:
                 instrument.open(datafile, extno=fitsdata.index_of(hduname), isvar=True, **kwargs)
             elif hduname.lower() in fitsdata:

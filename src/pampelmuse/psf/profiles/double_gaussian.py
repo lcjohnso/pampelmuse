@@ -1,7 +1,7 @@
 """
 double_gaussian.py
 ==================
-Copyright 2013-2018 Sebastian Kamann
+Copyright 2013-2025 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -33,16 +33,17 @@ of two Gaussian profiles.
 
 Latest Git revision
 -------------------
-2019/06/05
+2025/08/07
 """
 import numpy as np
 from numbers import Real
+from scipy import optimize
 from .profile import Profile
 from ..functions import gaussian
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20190605
+__revision__ = 20250807
 
 
 class DoubleGaussian(Profile):
@@ -187,13 +188,30 @@ class DoubleGaussian(Profile):
             # all properties that use the FWHM need to  be recalculated
             self.reset(omit=["_used", "_oversampled", "_osmap", "_ossummer", "_xos", "_yos", "_u", "_v", "_r"])
 
+    @classmethod
+    def calculate_fwhm(cls, f12, fwhm1, fwhm2, e, **kwargs):
+        """
+        Numerically calculate the FWHM of the double Gaussian profile as the
+        weighted average of the two individual Gaussians.
+
+        Returns
+        -------
+        fwhm : float
+            The FWHM of the double Gaussian profile.
+        """
+        def _profile(r):
+            peak = f12 * gaussian.flux(0, fwhm1, e) + (1. - f12) * gaussian.flux(0, fwhm2, e)
+            return f12 * gaussian.flux(r, fwhm1, e) + (1. - f12) * gaussian.flux(r, fwhm2, e) - 0.5 * peak
+
+        return 2.*optimize.fsolve(_profile, f12 * fwhm1 + (1. - f12) * fwhm2)[0]
+
     @property
     def fwhm(self):
         """
         Estimate the FWHM of the PSF as the weighted ratio of the two
         individual Gaussians.
         """
-        return self.f12*self.fwhm1 + (1. - self.f12)*self.fwhm2
+        return DoubleGaussian.calculate_fwhm(r12=self.f12, fwhm1=self.fwhm1, fwhm2=self.fwhm2, e=self.e)
 
     # The property 'f' that returns the actual spatial intensity profile
     @property
