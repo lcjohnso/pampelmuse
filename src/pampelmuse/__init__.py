@@ -1,4 +1,4 @@
-__version__ = "1.3.2"
+__version__ = "1.4.0"
 
 
 # define the exception that is raised when the parameters in the PampelMuse-configuration are such that they do not

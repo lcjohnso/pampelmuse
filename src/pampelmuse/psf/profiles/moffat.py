@@ -1,7 +1,7 @@
 """
 moffat.py
 =========
-Copyright 2013-2019 Sebastian Kamann
+Copyright 2013-2026 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -32,7 +32,7 @@ This module implements an analytical PSF profile in the form of a Moffat.
 
 Latest Git revision
 -------------------
-2019/06/05
+2026/07/01
 """
 import logging
 import numpy as np
@@ -42,7 +42,7 @@ from ..functions import moffat
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20190605
+__revision__ = 20260701
 
 
 class Moffat(Profile):
@@ -181,7 +181,7 @@ class Moffat(Profile):
         i.e. the parameter controlling the kurtosis of the Moffat.
         """
         if self._diff_beta is None:
-            self._diff_beta = moffat.pderiv_beta(self.r, self.beta, self.fwhm, self.e)
+            self._diff_beta = self.int_flux*moffat.pderiv_beta(self.r, self.beta, self.fwhm, self.e)
         return self._diff_beta
 
     def get_diff_beta(self, integrate=True):
@@ -214,7 +214,7 @@ class Moffat(Profile):
         i.e. the full-width at half maximum of the Moffat.
         """
         if self._diff_fwhm is None:
-            self._diff_fwhm = moffat.pderiv_fwhm(self.r, self.beta, self.fwhm, self.e)
+            self._diff_fwhm = self.int_flux*moffat.pderiv_fwhm(self.r, self.beta, self.fwhm, self.e)
         return self._diff_fwhm
 
     def get_diff_fwhm(self, integrate=True):
@@ -248,7 +248,7 @@ class Moffat(Profile):
         """
         if self._diff_e is None:
             r_pderiv_e = super().diff_e
-            self._diff_e = moffat.pderiv_e(self.r, self.beta, self.fwhm, self.e, r_pderiv_e)
+            self._diff_e = self.int_flux * moffat.pderiv_e(self.r, self.beta, self.fwhm, self.e, r_pderiv_e)
         return self._diff_e
 
     @property
@@ -259,7 +259,7 @@ class Moffat(Profile):
         """
         if self._diff_theta is None:
             r_pderiv_theta = super().diff_theta
-            self._diff_theta = moffat.pderiv_r(self.r, self.beta, self.fwhm, self.e) * r_pderiv_theta
+            self._diff_theta = self.int_flux * moffat.pderiv_r(self.r, self.beta, self.fwhm, self.e) * r_pderiv_theta
         return self._diff_theta
 
     @property
@@ -270,7 +270,7 @@ class Moffat(Profile):
         """
         if self._diff_xc is None:
             r_pderiv_xc = super().diff_xc
-            self._diff_xc = moffat.pderiv_r(self.r, self.beta, self.fwhm, self.e) * r_pderiv_xc
+            self._diff_xc = self.int_flux * moffat.pderiv_r(self.r, self.beta, self.fwhm, self.e) * r_pderiv_xc
         return self._diff_xc
 
     @property
@@ -281,7 +281,7 @@ class Moffat(Profile):
         """
         if self._diff_yc is None:
             r_pderiv_yc = super().diff_yc
-            self._diff_yc = moffat.pderiv_r(self.r, self.beta, self.fwhm, self.e) * r_pderiv_yc
+            self._diff_yc = self.int_flux * moffat.pderiv_r(self.r, self.beta, self.fwhm, self.e) * r_pderiv_yc
         return self._diff_yc
 
     @property
@@ -292,7 +292,7 @@ class Moffat(Profile):
         """
         if self._diff_A is None:
             r_pderiv_A = super().diff_A
-            self._diff_A = moffat.pderiv_r(self.r, self.beta, self.fwhm, self.e) * r_pderiv_A
+            self._diff_A = self.int_flux * moffat.pderiv_r(self.r, self.beta, self.fwhm, self.e) * r_pderiv_A
         return self._diff_A
 
     @property
@@ -303,7 +303,7 @@ class Moffat(Profile):
         """
         if self._diff_B is None:
             r_pderiv_B = super().diff_B
-            self._diff_B = moffat.pderiv_r(self.r, self.beta, self.fwhm, self.e) * r_pderiv_B
+            self._diff_B = self.int_flux * moffat.pderiv_r(self.r, self.beta, self.fwhm, self.e) * r_pderiv_B
         return self._diff_B
 
     @property
@@ -314,7 +314,7 @@ class Moffat(Profile):
         """
         if self._diff_C is None:
             r_pderiv_C = super().diff_C
-            self._diff_C = moffat.pderiv_r(self.r, self.beta, self.fwhm, self.e) * r_pderiv_C
+            self._diff_C = self.int_flux * moffat.pderiv_r(self.r, self.beta, self.fwhm, self.e) * r_pderiv_C
         return self._diff_C
 
     @property
@@ -325,7 +325,7 @@ class Moffat(Profile):
         """
         if self._diff_D is None:
             r_pderiv_D = super().diff_D
-            self._diff_D = moffat.pderiv_r(self.r, self.beta, self.fwhm, self.e) * r_pderiv_D
+            self._diff_D = self.int_flux * moffat.pderiv_r(self.r, self.beta, self.fwhm, self.e) * r_pderiv_D
         return self._diff_D
 
     @property
@@ -336,7 +336,7 @@ class Moffat(Profile):
         """
         if self._diff_x0 is None:
             r_pderiv_x0 = super().diff_x0
-            self._diff_x0 = moffat.pderiv_r(self.r, self.beta, self.fwhm, self.e) * r_pderiv_x0
+            self._diff_x0 = self.int_flux * moffat.pderiv_r(self.r, self.beta, self.fwhm, self.e) * r_pderiv_x0
         return self._diff_x0
 
     @property
@@ -347,7 +347,7 @@ class Moffat(Profile):
         """
         if self._diff_y0 is None:
             r_pderiv_y0 = super().diff_y0
-            self._diff_y0 = moffat.pderiv_r(self.r, self.beta, self.fwhm, self.e) * r_pderiv_y0
+            self._diff_y0 = self.int_flux * moffat.pderiv_r(self.r, self.beta, self.fwhm, self.e) * r_pderiv_y0
         return self._diff_y0
 
     @property

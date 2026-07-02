@@ -1,7 +1,7 @@
 """
 gaussian.py
 ===========
-Copyright 2013-2018 Sebastian Kamann
+Copyright 2013-2026 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -40,13 +40,13 @@ Added
 
 Latest Git revision
 -------------------
-2018/04/24
+2026/07/02
 """
 import numpy as np
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20180424
+__revision__ = 20260702
 
 
 def std(fwhm):
@@ -121,10 +121,10 @@ def pderiv_fwhm(r, fwhm, e):
     pderiv_fwhm : array_like
     The partial derivative with respect to the FWHM at the provided radii.
     """
-    return flux(r, fwhm, e) * (r ** 2 / std(fwhm) ** 3 - 2. / std(fwhm)) / np.sqrt(8. * np.log(2.))
+    return flux(r, fwhm, e) * ((r / std(fwhm)) ** 2 - 2.) / fwhm
 
 
-def pderiv_e(r, fwhm, e, r_pderiv_e):
+def pderiv_e(r, fwhm, e, dr_de):
     """
     Calculate the partial derivative of the Gaussian function with respect to
     the ellipticity, e, for the provided radii.
@@ -137,7 +137,7 @@ def pderiv_e(r, fwhm, e, r_pderiv_e):
         The FWHM of the Gaussian profile.
     e : float
         The ellipticity of the Gaussian profile.
-    r_pderiv_e : array_like
+    dr_de : array_like
         The partial derivative of the provided radii with respect to the
         ellipticity. This is needed because the radius itself is a function of
         the ellipticity. The array must have the same size as 'r'.
@@ -148,7 +148,7 @@ def pderiv_e(r, fwhm, e, r_pderiv_e):
         The partial derivative with respect to the ellipticity at the provided
         radii.
     """
-    return flux(r, fwhm, e) * (1. / (1. - e) - (r / (std(fwhm) ** 2)) * r_pderiv_e)
+    return flux(r, fwhm, e) * (1. / (1. - e) - (r / (std(fwhm) ** 2)) * dr_de)
 
 
 def pderiv_r(r, fwhm, e):
@@ -167,7 +167,7 @@ def pderiv_r(r, fwhm, e):
         
     Returns
     -------
-    pderiv_e : array_like
+    pderiv_r : array_like
         The partial derivative with respect to the radius at the provided
         radii.
     """

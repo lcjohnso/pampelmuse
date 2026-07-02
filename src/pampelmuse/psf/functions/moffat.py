@@ -1,7 +1,7 @@
 """
 moffat.py
 ===========
-Copyright 2013-2018 Sebastian Kamann
+Copyright 2013-2026 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -41,13 +41,13 @@ Added
 
 Latest Git revision
 -------------------
-2018/04/24
+2026/07/01
 """
 import numpy as np
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20180424
+__revision__ = 20260701
 
 
 def r_d(beta, fwhm):
@@ -106,7 +106,9 @@ def flux(r, beta, fwhm, e):
     flux : array_like
         The flux of the Moffat at the provided radii.
     """
-    return (beta - 1.) / (np.pi * (r_d(beta, fwhm) ** 2) * (1. - e)) * (1. + (r / r_d(beta, fwhm)) ** 2) ** (-beta)
+    rd = r_d(beta, fwhm)
+
+    return (beta - 1.) / (np.pi * (rd ** 2) * (1. - e)) * (1. + (r / rd) ** 2) ** (-beta)
 
 
 def pderiv_beta(r, beta, fwhm, e):
@@ -129,12 +131,15 @@ def pderiv_beta(r, beta, fwhm, e):
     pderiv_beta : array_like
         The partial derivative of the Moffat with respect to beta.
     """
-    fa = 1. / (beta - 1.)
-    fb = np.log(1. + (r / r_d(beta, fwhm)) ** 2)
-    fc = np.log(2.) / (beta**2 * (1. - 2. ** (1. / beta)))
-    fd = 1. + 2**(1./beta) * beta * (r / r_d(beta, fwhm)) ** 2 / (1. + (r / r_d(beta, fwhm)) ** 2)
+    rd = r_d(beta, fwhm)
+    x2 = (r / rd) ** 2
+    a = 2.0**(1. / beta)
 
-    return flux(r, beta, fwhm, e) * (fa - fb - fc * fd)
+    fa = 1. / (beta - 1.)
+    fb = -np.log1p(x2)
+    fc = -np.log(2.0) / (beta**2 * (a - 1.)) * (1. - a * x2/ (1. + x2))
+
+    return flux(r, beta, fwhm, e) * (fa + fb + fc)
 
 
 def pderiv_fwhm(r, beta, fwhm, e):
@@ -155,13 +160,16 @@ def pderiv_fwhm(r, beta, fwhm, e):
     Returns
     -------
     pderiv_fwhm : array_like
-        The partial derivative with respect to tghe FWHM. 
+        The partial derivative with respect to the FWHM. 
     """
-    return flux(r, beta, fwhm, e) / (r_d(beta, fwhm) * np.sqrt(2. ** (1. / beta) - 1.)) * (
-        beta * (r / r_d(beta, fwhm)) ** 2 / (1. + (r / r_d(beta, fwhm)) ** 2) - 1.)
+    rd = r_d(beta, fwhm)
+    x2 = (r / rd) ** 2
+    a = 2.0**(1. / beta)
+    
+    return flux(r, beta, fwhm, e) / (rd * np.sqrt(a - 1.)) * (beta * x2 / (1. + x2) - 1.)
 
 
-def pderiv_e(r, beta, fwhm, e, r_pderiv_e):
+def pderiv_e(r, beta, fwhm, e, dr_de):
     """
     Calculate the partial derivative of the Moffat with respect to the
     ellipticity e, at the provided radii.
@@ -176,18 +184,22 @@ def pderiv_e(r, beta, fwhm, e, r_pderiv_e):
         The FWHM of the Moffat.
     e : float
         The ellipticity of the Moffat.
-    r_pderiv_e : array_like
+    dr_de : array_like
         The partial derivative of the provided radii with respect to the
         ellipticity. This is needed because the radius itself is a function of
-        the ellipticity. The array must have the same size as 'r'.
+        the ellipticity. In principle, this could be calculated internally,
+        but it is more efficient to calculate it externally and pass it to
+        this function. The array must have the same size as 'r'.
 
     Returns
     -------
     pderiv_e : array_like
         The partial derivative with respect to the ellipticity.
     """
+    rd = r_d(beta, fwhm)
+
     return flux(r, beta, fwhm, e) * (
-        1. / (1. - e) - 2. * beta * r / ((r_d(beta, fwhm) ** 2) * (1. + (r / r_d(beta, fwhm)) ** 2)) * r_pderiv_e)
+        1. / (1. - e) - 2. * beta * r / ((rd ** 2) * (1. + (r / rd) ** 2)) * dr_de)
 
 
 def pderiv_r(r, beta, fwhm, e):
@@ -211,4 +223,6 @@ def pderiv_r(r, beta, fwhm, e):
     pderiv_r : array_like
         The partial derivative at the provided radii.
     """
-    return flux(r, beta, fwhm, e) * -2. * beta * r / (r_d(beta, fwhm) ** 2 * (1. + (r / r_d(beta, fwhm)) ** 2))
+    rd = r_d(beta, fwhm)
+
+    return flux(r, beta, fwhm, e) * -2. * beta * r / (rd ** 2 * (1. + (r / rd) ** 2))
