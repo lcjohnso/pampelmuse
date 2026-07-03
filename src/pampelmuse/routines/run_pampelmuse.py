@@ -1,7 +1,7 @@
 """
 PampelMuse
 ==========
-Copyright 2013-2025 Sebastian Kamann
+Copyright 2013-2026 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -57,7 +57,7 @@ the data into memory yet but just checks whether the file(s) are valid.
 
 Latest Git revision
 -------------------
-2025/08/07
+2026/07/03
 """
 import argparse
 import importlib
@@ -73,13 +73,9 @@ else:
     from importlib.resources import files
 
 from . import initfit, ptsort, singlesrc
-from .. import __version__
+from .. import __version__, __revision__, __author__
 from ..config import changeable
 from ..utils.fits import read_config_from_header
-
-
-__author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20250807
 
 
 logger = logging.getLogger(__name__)
@@ -91,7 +87,7 @@ def main():
        (::;;)   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~   (::;;)
         `;:'                                             `;:'
 
-    (c) 2013-2025 {1}
+    (c) 2013-2026 {1}
     """.format(__version__, __author__))
 
     sys.stdout.write("""
@@ -163,9 +159,9 @@ def main():
 
         sys.excepthook = run_pdb
 
-    # read default configuration, note "f" is a PosixPath object
-    with files('pampelmuse.config') / 'data' / 'pampelmuse.json' as f:
-        config = json.loads(f.read_text())
+    # read default configuration
+    config_path = files('pampelmuse.config') / 'data' / 'pampelmuse.json'
+    config = json.loads(config_path.read_text())
 
     # open user configuration
     with open(args.config) as user:
