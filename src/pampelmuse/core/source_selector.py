@@ -2,7 +2,7 @@
 source_selector.py
 ==================
 
-Copyright 2013-2025 Sebastian Kamann
+Copyright 2013-2026 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -33,7 +33,7 @@ Added
 
 Last updated
 ------------
-2025/06/09
+2026/07/16
 """
 import logging
 import sys
@@ -46,7 +46,7 @@ from .aperture import AperPhoto
 from .background import BackgroundGrid
 from .coordinates import Transformation
 from .sources import Sources
-from ..instruments import Instrument, GenericIFS, Muse, MusePixtable
+from ..instruments import Instrument, GenericIFS, available_instruments
 from ..psf import Variables
 from ..psf.profiles import *
 from ..utils.image import find_offset
@@ -54,7 +54,7 @@ from ..utils.statistics import der_snr
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20250609
+__revision__ = 20260716
 
 
 logger = logging.getLogger(__name__)
@@ -223,6 +223,15 @@ class SourceSelector(object):
         self.ifs_data = ifs_data
         self.use_wcs = self._check_wcs()
 
+        # Set instrument-specific parameters. For MUSE data, PSF stars must be located 2x the FWHM from the edge of the FoV.
+        self.is_pixtable = False
+        self.edge_scaling = 1.0
+        if isinstance(ifs_data, available_instruments().get('PIXTABLE', type(None))):
+            self.is_pixtable = True
+            self.edge_scaling = 2.0
+        elif isinstance(ifs_data, available_instruments().get('MUSE', type(None))):
+            self.edge_scaling = 2.0
+
         # get results from crowded-field photometry, initialize sources
         logger.info('Reading photometry results from file "{0}".'.format(photometry_file))
 
@@ -367,7 +376,7 @@ class SourceSelector(object):
 
         if slices:
             logger.warning('Assigning background components to slices still in testing phase.')
-            if isinstance(self.ifs_data, MusePixtable):
+            if self.is_pixtable:
                 if self.ifs_data.ifu_hdu is not None and self.ifs_data.slice_hdu is not None:
                     background.add_slices(n_ifu=24, n_slice=48)
                 else:
@@ -417,7 +426,7 @@ class SourceSelector(object):
         self.sources = Sources(catalog=self.cfp_results.drop(index=self.cfp_results.index[~self.cfp_results['valid']]))
 
         # unless a MUSE pixtable is being analysed, copy dispersion information to sources class
-        if not isinstance(self.ifs_data, MusePixtable):
+        if self.is_pixtable:
             if self.ifs_data.wcs.naxis > 2:
                 self.sources.crval = self.ifs_data.wcs.wcs.crval[2]
                 self.sources.crpix = self.ifs_data.wcs.wcs.crpix[2]
@@ -1212,9 +1221,7 @@ class SourceSelector(object):
             if np.sum(self.sources.primary == source_id) != 1:
                 continue
 
-            if distance_to_edge[source_id] < self.fwhm:
-                continue
-            elif distance_to_edge[source_id] < 2*self.fwhm and isinstance(self.ifs_data, (Muse, MusePixtable)):
+            if distance_to_edge[source_id] < self.edge_scalingself.fwhm:
                 continue
 
             # calculate shoulder drop

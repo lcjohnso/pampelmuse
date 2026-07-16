@@ -1,7 +1,7 @@
 """
 make_residuals_cube.py
 ======================
-Copyright 2013-2024 Sebastian Kamann
+Copyright 2013-2026 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -32,7 +32,7 @@ Added
 rev. 343, 2016/08/01
 
 Latest Git revision
-2024/04/11
+2026/04/11
 """
 import collections
 import logging
@@ -41,11 +41,11 @@ import numpy as np
 import pandas as pd
 from .fit_cube import FitCube
 from .fit_layer import FitLayer
-from ..instruments import *
+from ..instruments import GenericIFS, available_instruments
 
 
 __author__ = 'Sebastian Kamann (s.kamann@ljmu.ac.uk)'
-__revision__ = 20240411
+__revision__ = 20260411
 
 
 logger = logging.getLogger(__name__)
@@ -353,7 +353,7 @@ class MakeResidualsCube(FitCube):
                     if isinstance(self.ifs_data, GenericIFS):
                         img = self.ifs_data.make_image(layer=result)
                         self.residuals[layer_index] = img
-                    elif isinstance(self.ifs_data, MusePixtable):
+                    elif isinstance(self.ifs_data, available_instruments().get('PIXTABLE', type(None))):
                         i_min, i_max = self.ifs_data.layer_indices[k]
                         img = np.nan*np.ones((i_max - i_min), dtype=np.float64)
                         img[result.index] = result.values

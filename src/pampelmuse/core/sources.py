@@ -1,7 +1,7 @@
 """
 sources.py
 ==========
-Copyright 2013-2024 Sebastian Kamann
+Copyright 2013-2026 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -37,7 +37,7 @@ memory but only on request.
 
 Latest Git revision
 -------------------
-2024/04/18
+2026/07/16
 """
 import collections
 import logging
@@ -62,7 +62,7 @@ except ImportError:
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20240418
+__revision__ = 20260716
 
 
 logger = logging.getLogger(__name__)
@@ -870,10 +870,11 @@ class Sources(object):
         # fill array using data from Spectrum HDU if one is available
         if self.data_hdu is not None:
             # get requested chunk of data from available HDU
-            # apparently there is an issue with the byte-order between astropy and pandas:
-            # https://github.com/astropy/astropy/issues/1156
+            # To avoid byte-ordering issues, the data needs to be converted to native byte order, see
+            # https://pandas.pydata.org/pandas-docs/stable/user_guide/gotchas.html?utm_source=chatgpt.com#byte-ordering-issues
             logger.debug('Reading spectrum data HDU ...')
-            data = self.data_hdu.section[layers[0]:layers[-1] + 1][:, components].byteswap().newbyteorder()
+            data = self.data_hdu.section[layers[0]:layers[-1] + 1][:, components]
+            data = data.byteswap().view(data.dtype.newbyteorder('='))
         else:
             # create empty array that can be used to initialize data frame
             data = np.zeros((index.size, components.size, 2), dtype=np.float32)
@@ -883,7 +884,8 @@ class Sources(object):
             # add wavelength information if available
             if self.data_wave_hdu is not None:
                 logger.debug('Reading wavelength HDU ...')
-                wave = self.data_wave_hdu.section[layers[0]:layers[-1] + 1][:, components].byteswap().newbyteorder()
+                wave = self.data_wave_hdu.section[layers[0]:layers[-1] + 1][:, components]
+                wave = wave.byteswap().view(wave.dtype.newbyteorder('='))
             # otherwise use global wavelength array
             else:
                 wave = np.repeat(self.wave[layers].values[:, np.newaxis], components.size, axis=-1)
@@ -895,7 +897,7 @@ class Sources(object):
         self.data = pd.DataFrame(data.reshape(data.shape[0], -1), index=index, columns=columns)
 
         # keep track of loaded spectra
-        self.spectrum_loaded = pd.Series(np.in1d(np.arange(self.n_components, dtype=np.int32), components),
+        self.spectrum_loaded = pd.Series(np.isin(np.arange(self.n_components, dtype=np.int32), components),
                                          index=np.arange(self.n_components))
 
     @property
@@ -1406,7 +1408,7 @@ class Sources(object):
             self.ifs_coordinates = self.ifs_coordinates.sort_index(level=0, axis=1)  # axis=1 = columns
 
         # keep track of for which sources IFS coordinates have been loaded
-        self.ifs_coordinates_loaded = pd.Series(np.in1d(self.ids, ids), index=self.ids)
+        self.ifs_coordinates_loaded = pd.Series(np.isin(self.ids, ids), index=self.ids)
 
         if logger.getEffectiveLevel() < 20:
             t3 = time.time()

@@ -599,7 +599,7 @@ class FitLayer(object):
             logger.debug("Chi**2 of current fit: {0:.1f}".format(best_fit[3] ** 2))
 
             # update fluxes of all components
-            self.fluxes[included_components] += (best_fit[0] / total_flux)
+            self.fluxes[included_components] += (best_fit[0] / total_flux).astype(self.fluxes.dtype)
 
             # Convergence criterion: the average relative change in flux is < 0.5 percent
             delta_flux = (best_fit[0] / total_flux) / self.fluxes[included_components]

@@ -1,7 +1,7 @@
 """
 fits.py
 =======
-Copyright 2013-2024 Sebastian Kamann
+Copyright 2013-2026 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -32,7 +32,7 @@ The provided functions facilitate working with FITS data.
 
 Latest Git revision
 -------------------
-2024/07/01
+2026/07/03
 """
 import os
 import logging
@@ -41,13 +41,12 @@ from astropy.io import fits
 from astropy.table import Table
 from ..core import Sources
 from ..core.coordinates import Transformation
-from ..instruments import *
-from ..instruments import available_instruments
+from .. import instruments 
 from ..psf import Variables
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20240701
+__revision__ = 20260703
 
 
 logger = logging.getLogger(__name__)
@@ -90,36 +89,40 @@ def open_ifs_data(prefix, **kwargs):
     fitsdata = fits.open(datafile, memmap=False)
 
     # Try to find out which instrument was used:
-    instrument = GenericIFS()
+    instrument_class = instruments.GenericIFS
     for hdu in fitsdata:
         if 'INSTRUME' in hdu.header:
-            logger.info('IFS data is coming from instrument {0}.'.format(hdu.header['INSTRUME']))
-            if hdu.header['INSTRUME'] not in available_instruments:
-                logger.warning('PampelMuse was not tested on "{0}"-data.'.format(hdu.header['INSTRUME']))
-            elif hdu.header['INSTRUME'] == 'MUSE':  # check if pixtable was provided
+            name = hdu.header['INSTRUME']
+            logger.info('IFS data is coming from instrument {0}.'.format(name))
+            if name == 'MUSE':
+                # check if pixtable was provided
                 if 'ESO PRO CATG' in hdu.header and hdu.header['ESO PRO CATG'] == 'PIXTABLE_REDUCED':
-                    logger.info('IFS data identified as a MUSE pixtable.')
-                    instrument = MusePixtable(**kwargs)
-                else:
-                    logger.info('IFS data identified as a MUSE data cube.')
-                    instrument = Muse(**kwargs)
-            elif hdu.header['INSTRUME'] == 'GIRAFFE':
-                try:
-                    instrument = Argus.from_fiber_setup_hdu(fitsdata['FIBER_SETUP'])
-                except KeyError:
-                    instrument = Argus(**kwargs)
-            elif hdu.header['INSTRUME'] == 'MEGARA':
-                try:
-                    instrument = Megara.from_fiber_setup_hdu(fitsdata['FIBERS'], **kwargs)
-                except KeyError:
-                    raise NotImplementedError
-            else:
-                instrument = available_instruments[hdu.header['INSTRUME']](**kwargs)
-            instrument.search_configuration(hdu)
-            break
+                    name = "PIXTABLE"
+            if name not in instruments.known_instruments():
+                logger.warning(f'PampelMuse was not tested on "{name}" data.')
+            elif name not in instruments.available_instruments():
+                logger.error(f'PampelMuse installation is missing dependencies for processing "{name}" data.')
+            instrument_class = instruments.available_instruments()[name]
 
-    if isinstance(instrument, GenericIFS) and not isinstance(instrument, Muse):
+    if instrument_class == instruments.available_instruments().get('GIRAFFE'):
+        try:
+            instrument = instrument_class.from_fiber_setup_hdu(fitsdata['FIBER_SETUP'])
+        except KeyError:
+            logger.warning('Cannot identify GIRAFFE fiber setup. Using default.')
+            instrument = instruments.Argus(**kwargs)
+    elif instrument_class == instruments.available_instruments().get('MEGARA'):
+        try:
+            instrument = instrument_class.from_fiber_setup_hdu(fitsdata['FIBERS'], **kwargs)
+        except KeyError:
+            raise NotImplementedError('Cannot identify MEGARA fiber setup. Please provide a valid FIBERS HDU.')
+    else:
+        instrument = instrument_class(**kwargs)
+    instrument.search_configuration(hdu)
+            
+    if isinstance(instrument, instruments.GenericIFS) and not isinstance(instrument, instruments.available_instruments()['MUSE']):
         logger.warning('No instrument-specific class available, IFS data must be 3dim.')
+    elif instrument.name is not None:
+        logger.info(f'Input data identified as type "{instrument.name}".')
 
     # for later usage, store primary header
     instrument.primary_header = fitsdata[0].header
@@ -136,7 +139,8 @@ def open_ifs_data(prefix, **kwargs):
         logger.info('Found file with residuals: {0}.res.fits'.format(prefix))
         instrument.open("{0}.res.fits".format(prefix), extno=0, isresiduals=True, **kwargs)
 
-    if isinstance(instrument, MusePixtable):  # if a MUSE pixtable is loaded, all information should be there now
+    # if a MUSE pixtable is loaded, all information should be there now
+    if isinstance(instrument, instruments.available_instruments().get('PIXTABLE', type(None))):
         return instrument
 
     # open HDU with variances

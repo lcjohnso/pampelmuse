@@ -1,7 +1,7 @@
 """
 instrument.py
 =============
-Copyright 2013-2025 Sebastian Kamann
+Copyright 2013-2026 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -28,17 +28,17 @@ defines generic methods that are inherited by all its subclasses.
 
 Latest Git revision
 -------------------
-2025/08/07
+2026/07/16
 """
 import logging
 import warnings
-
 import matplotlib
 import numpy as np
 import pandas as pd
+from typing import Tuple
 from matplotlib import path
 from scipy.spatial import distance, ConvexHull
-from astropy.nddata import NDData, VarianceUncertainty, NDUncertainty
+from astropy.nddata import NDData, VarianceUncertainty
 from astropy.io import fits
 from astropy.wcs import WCS
 from ..filters import get_filter
@@ -46,7 +46,7 @@ from ..utils.distance import dist2path, point_in_poly
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20250807
+__revision__ = 20260716
 
 
 logger = logging.getLogger(__name__)
@@ -765,7 +765,7 @@ class Instrument(object):
         return np.array([]), np.array([])
 
     def _verify_layer_range(self, i_min: int = None, i_max: int = None,
-                            weights: np.ndarray = None) -> (int, int, np.ndarray):
+                            weights: np.ndarray = None) -> Tuple[int, int, np.ndarray]:
         """
 
         Parameters
@@ -795,7 +795,7 @@ class Instrument(object):
         return i_min, i_max, weights
 
     def weights_from_filtercurve(self, passband: str, layer_range: tuple = None,
-                                 min_weight: float = 0.1) -> (int, int, np.ndarray):
+                                 min_weight: float = 0.1) -> Tuple[int, int, np.ndarray]:
         """
         Assign weights to the individual layers of the iFS data based on the
         throughput curve of a photometric filter.
@@ -959,7 +959,7 @@ class Instrument(object):
         return data
 
     def integrate(self, imin: int, imax: int, apply_variances: bool = False, weights: np.ndarray = None,
-                  nbin: int = 1, **kwargs) -> (np.ndarray, np.ndarray):
+                  nbin: int = 1, **kwargs) -> Tuple[np.ndarray, np.ndarray]:
         """
         DEPRECATED: This method is deprecated and will be removed in a future release.
 

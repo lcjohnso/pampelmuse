@@ -1,7 +1,7 @@
 """
 fit_cube.py
 ===========
-Copyright 2013-2024 Sebastian Kamann
+Copyright 2013-2026 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -31,21 +31,21 @@ extraction for a data cube.
 
 Latest GIT revision
 -------------------
-2024/07/09
+2026/07/16
 """
 import collections
 import logging
 import time
+import warnings
 import numpy as np
 import pandas as pd
 from multiprocessing import cpu_count, Pool
 from .fit_layer import FitLayer
 from .background import BackgroundGrid
-from ..instruments.muse import MusePixtable
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20240709
+__revision__ = 20260716
 
 
 logger = logging.getLogger(__name__)
@@ -276,8 +276,8 @@ class FitCube(object):
             self.position_parameters['xy'] = False
 
         # collect PSF parameters and their status in the fit
-        for i, parameter in enumerate(self.psf_attributes.names):
-            self.psf_parameters[parameter] = self.psf_attributes.free[i] & ~self.psf_attributes.fitted[i]
+        for parameter in self.psf_attributes.names:
+            self.psf_parameters[parameter] = self.psf_attributes.free[parameter] & ~self.psf_attributes.fitted[parameter]
 
         # check if fit possible
         if np.any(list(self.psf_parameters.values())) and self.position_parameters['xy'] and (sources.status!=3).all():
@@ -917,7 +917,7 @@ class FitCube(object):
         # it is faster to convert input data into a single 1D numpy array that is inserted at the given index than
         # inserting the provided Series consecutively.
         data = np.stack([fluxes, uncertainties, wave] if wave is not None else [fluxes, uncertainties], axis=-1)
-        self.sources.data.loc[current] = data.flatten()
+        self.sources.data.loc[current] = data.astype(np.float32).flatten()
 
     def write_psf_parameters(self, current, values, lut=None):
         """

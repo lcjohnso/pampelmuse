@@ -1,7 +1,7 @@
 """
 instrument.py
 =============
-Copyright 2013-2024 Sebastian Kamann
+Copyright 2013-2026 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -27,44 +27,60 @@ instrument at the GTC telescope on La Palma.
 
 Latest Git revision
 -------------------
-2024/07/09
+2026/07/16
 """
+from __future__ import annotations
 import logging
 import astropy.io.fits
 import numpy as np
 import pandas as pd
+from typing import TYPE_CHECKING
+from typing import Tuple
 from astropy import units as u
 from astropy.nddata import NDData, VarianceUncertainty, NDUncertainty
 from astropy.wcs import WCS
 from astropy.wcs.utils import proj_plane_pixel_scales
-import megaradrp.instrument.constants as megara_constants
-from megaradrp.instrument.focalplane import FocalPlaneConf
-from megaradrp.processing import hexgrid
-from megaradrp.processing.cube import calc_matrix_from_fiberconf, create_cube_from_array
+
+# Needed because the Megara.__init__() method does a check that the fiber_conf parameters is an instance of the FocalPlaneConf class.
+if TYPE_CHECKING:
+    from megaradrp.instrument.focalplane import FocalPlaneConf
+
+try:
+    import megaradrp
+except ImportError:
+    megaradrp = None
+
 
 from .instrument import Instrument
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
 __added__ = 20240701
-__revision__ = 20240709
+__revision__ = 20260716
 
 
 logger = logging.getLogger(__name__)
+
+
+def _require_megaradrp():
+    """
+    Helper function to check if the megaradrp package is available.
+    """
+    if megaradrp is None:
+        raise ImportError('The MEGARA instrument class requires the megaradrp package to be installed. '
+                          'Please install it via pip or conda, or follow the instructions at '
+                          'https://megaradrp.readthedocs.io/en/latest/installation.html')
+
 
 
 class Megara(Instrument):
 
     name = "MEGARA"
 
-    GTC_PLATESCALE = u.plate_scale(megara_constants.GTC_FC_A_PLATESCALE)
-    # Size scale of the spaxel grid in arcseconds
-    HEX_SCALE = megara_constants.SPAXEL_SCALE.to(u.arcsec, GTC_PLATESCALE).value
-
     HEX_TO_RECT = (3./4.)**(1./4.)
     FIBER_DIAMETER = 0.62
 
-    def __init__(self, fiber_conf: FocalPlaneConf = None, **kwargs):
+    def __init__(self, fiber_conf: FocalPlaneConf | None = None, **kwargs):
         """
         Class to handle data from the MEGARA spectrograph mounted onn GTC.
 
@@ -94,6 +110,14 @@ class Megara(Instrument):
         kwargs
             Keyword arguments passed to the Instrument constructor.
         """
+        _require_megaradrp()
+        import megaradrp.instrument.constants as megara_constants
+        from megaradrp.instrument.focalplane import FocalPlaneConf
+        self.GTC_PLATESCALE = u.plate_scale(megara_constants.GTC_FC_A_PLATESCALE)
+    
+        # Size scale of the spaxel grid in arcseconds
+        self.HEX_SCALE = megara_constants.SPAXEL_SCALE.to(u.arcsec, self.GTC_PLATESCALE).value
+
         super(Megara, self).__init__(**kwargs)
 
         if fiber_conf is None:
@@ -118,7 +142,13 @@ class Megara(Instrument):
         kwargs
             Keyword arguments passed to the Megara constructor.
         """
-        # initialize fiber configuration from header of provided HDu
+        # initialize fiber configuration from header of provided HDU
+        _require_megaradrp()
+        import megaradrp.instrument.constants as megara_constants
+        from megaradrp.instrument.focalplane import FocalPlaneConf
+        from megaradrp.processing import hexgrid
+        from megaradrp.processing.cube import calc_matrix_from_fiberconf
+
         fp = FocalPlaneConf.from_header(hdu.header)
 
         # store information on fiber used for sky subtraction.
@@ -201,7 +231,7 @@ class Megara(Instrument):
         n_sky_prior = np.sum(self.sky_fibers < (i + 1))
         return i + n_sky_prior
 
-    def get_spectrum(self, i: int, **kwargs) -> (np.ndarray, np.ndarray):
+    def get_spectrum(self, i: int, **kwargs) -> Tuple[np.ndarray, np.ndarray]:
         """
         Return the 1D spectrum for a spaxel.
 
@@ -280,6 +310,8 @@ class Megara(Instrument):
         This method overwrites the `get_image` method of the basic
         Instrument()-class.
         """
+        from megaradrp.processing.cube import create_cube_from_array
+
         layer = self.get_layer(i_min, i_max, weights, use_variances, return_residuals, **kwargs)
 
         # sky fibers have been removed from the `layer` array. Need to add them back in before resampling to 2D

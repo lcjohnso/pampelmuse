@@ -1,7 +1,7 @@
 """
 aperture.py
 ===========
-Copyright 2013-2024 Sebastian Kamann
+Copyright 2013-2026 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -44,7 +44,7 @@ function pampelmuse.core.aperture.run_ap
 
 Latest Git revision
 -------------------
-2024/07/09
+2026/07/16
 """
 import logging
 from multiprocessing import Pool, cpu_count
@@ -52,11 +52,11 @@ import numpy as np
 import pandas as pd
 from scipy import spatial
 from scipy.stats import sigmaclip
-from ..instruments import Instrument, MusePixtable
+from ..instruments import Instrument, available_instruments
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20240709
+__revision__ = 20260716
 
 
 logger = logging.getLogger(__name__)
@@ -88,7 +88,6 @@ def init_worker(centroids, background, r_aperture, calc_moments, threshold, *arg
     global g_centroids
     global g_background
     global g_r_aperture
-    global g_calc_moments
     global g_threshold
     global g_properties
 
@@ -389,7 +388,7 @@ class AperPhoto:
             layer_indices.append(layer_index)
 
             # load data - note that layer binning is currently not performed for pixtables.
-            if n_bin == 1 or isinstance(self.cube, MusePixtable):
+            if n_bin == 1 or isinstance(self.cube, available_instruments().get('PIXTABLE', type(None))):
                 input_data.append(self.cube.get_layer(i_min=layer_index))
             else:
                 i_min = layer_index - n_bin // 2

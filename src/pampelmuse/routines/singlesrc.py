@@ -1,7 +1,7 @@
 """
 singlesrc.py
 ============
-Copyright 2013-2019 Sebastian Kamann
+Copyright 2013-2026 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -36,18 +36,18 @@ improved using the first order moments determined in the calculation.
  
 Latest SVN revision
 -------------------
-2022/02/24
+2026/07/16
 """
 import datetime
 import logging
 from ..core.source_selector import SourceSelector
-from ..instruments import MusePixtable
+from ..instruments import available_instruments
 from ..psf import Variables
 from ..utils.fits import open_ifs_data, make_header_from_config, save_prm
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20220224
+__revision__ = 20260716
 
 
 logger = logging.getLogger(__name__)
@@ -147,7 +147,10 @@ def singlesrc(config):
     # need to load complete array for IFS coordinates before, otherwise it is only loaded
     # for the sources with status=3 and the results are overwritten when loading full array
     # for storing results.
-    selector.sources.load_spectra(init_wave=isinstance(ifs_data, MusePixtable))
+    if isinstance(ifs_data, available_instruments().get('PIXTABLE', type(None))):
+        selector.sources.load_ifs_coordinates(init_wave=True)
+    else:
+        selector.sources.load_spectra(init_wave=False)
     selector.sources.ifs_coordinates_free[:] = True
     selector.sources.load_ifs_coordinates()
     selector.run_aperture_photometry(ids=selector.sources.ids[selector.sources.status != 4],

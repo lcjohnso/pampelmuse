@@ -1,7 +1,7 @@
 """
 muse.py
 =======
-Copyright 2013-2024 Sebastian Kamann
+Copyright 2013-2026 Sebastian Kamann
 
 This file is part of PampelMuse.
 
@@ -30,26 +30,42 @@ muse_scipost recipe.
 
 Latest GIT revision
 -------------------
-2024/07/09
+2026/07/16
 """
 import logging
 import warnings
-import numpy
 import numpy as np
 import pandas as pd
-from typing import Union
+from typing import Tuple
 from astropy import units as u
 from astropy.io import fits
 from astropy.nddata import NDData, VarianceUncertainty
 from astropy.wcs import WCS
 from scipy.interpolate import griddata
-from mpdaf.drs import PixTable
 from .instrument import Instrument
 from .generic_ifs import GenericIFS
 
+try:
+    import mpdaf
+except ImportError:
+    mpdaf = None
+
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20240709
+__revision__ = 20260716
+
+
+logger = logging.getLogger(__name__)
+
+
+def _require_mpdaf():
+    """
+    Helper function to check if the MPDAF package is available.
+    """
+    if mpdaf is None:
+        raise ImportError('MPDAF is needed to process MUSE pixtables. '
+                          'Please install it via pip or conda, or follow the instructions at '
+                          'https://mpdaf.readthedocs.io/en/latest/installation.html')
 
 
 class Muse(GenericIFS):
@@ -117,6 +133,8 @@ class MusePixtable(Instrument):
         -------
         The newly created instance.
         """
+        _require_mpdaf()
+
         super(MusePixtable, self).__init__(**kwargs)
 
         self.mpdaf_object = None
@@ -276,6 +294,8 @@ class MusePixtable(Instrument):
             Any additional keyword arguments are passed on to the call of the
             parent class.
         """
+        from mpdaf.drs import PixTable
+
         # The residuals are stored in a separate file. Therefore, the behaviour depends on whether residuals or a
         # full pixtable (containing data, positions, ...) is loaded
         if is_residuals:
@@ -553,7 +573,7 @@ class MusePixtable(Instrument):
 
     def get_coordinates(self, j_min: int = None, j_max: int = None, indices: np.ndarray = None,
                         valid: np.ndarray = None, pixel_map: np.ndarray = None,
-                        weights: np.ndarray = None) -> (np.ndarray, np.ndarray):
+                        weights: np.ndarray = None) -> Tuple[np.ndarray, np.ndarray]:
         """
         Determine the transformation from voxels to (x, y) coordinates for a
         given data slice.
