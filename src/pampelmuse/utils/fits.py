@@ -32,7 +32,7 @@ The provided functions facilitate working with FITS data.
 
 Latest Git revision
 -------------------
-2026/07/03
+2026/09/24
 """
 import os
 import logging
@@ -46,7 +46,7 @@ from ..psf import Variables
 
 
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
-__revision__ = 20260703
+__revision__ = 20260924
 
 
 logger = logging.getLogger(__name__)
@@ -109,7 +109,7 @@ def open_ifs_data(prefix, **kwargs):
             instrument = instrument_class.from_fiber_setup_hdu(fitsdata['FIBER_SETUP'])
         except KeyError:
             logger.warning('Cannot identify GIRAFFE fiber setup. Using default.')
-            instrument = instruments.Argus(**kwargs)
+            instrument = instrument_class(**kwargs)
     elif instrument_class == instruments.available_instruments().get('MEGARA'):
         try:
             instrument = instrument_class.from_fiber_setup_hdu(fitsdata['FIBERS'], **kwargs)

@@ -1,5 +1,5 @@
-__version__ = "1.4.2"
-__revision__ = 20260716
+__version__ = "1.4.3"
+__revision__ = 20260924
 __author__ = "Sebastian Kamann (s.kamann@ljmu.ac.uk)"
 
 # define the exception that is raised when the parameters in the PampelMuse-configuration are such that they do not
