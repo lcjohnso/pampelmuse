@@ -102,7 +102,8 @@ def open_ifs_data(prefix, **kwargs):
                 logger.warning(f'PampelMuse was not tested on "{name}" data.')
             elif name not in instruments.available_instruments():
                 logger.error(f'PampelMuse installation is missing dependencies for processing "{name}" data.')
-            instrument_class = instruments.available_instruments()[name]
+            else:
+                instrument_class = instruments.available_instruments()[name]
 
     if instrument_class == instruments.available_instruments().get('GIRAFFE'):
         try:
